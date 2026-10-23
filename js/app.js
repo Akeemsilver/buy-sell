@@ -6,7 +6,8 @@
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = (n) => 'TT$ ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const day = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
-  const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid'];
+  const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];
+  const bStatus = (b) => L.batchStatus(state, b);
   const ICONS = {
     home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
     stock: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
@@ -24,7 +25,7 @@
   let sheetClose = null, toastTimer;
 
   function load() {
-    try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw); } catch (e) { /* use default */ }
+    try { const raw = localStorage.getItem(KEY); if (raw) return L.migrate(JSON.parse(raw)); } catch (e) { /* use default */ }
     return L.defaultState();
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('Could not save to browser storage.'); } }
@@ -70,7 +71,7 @@
 
   function Home() {
     const t = L.totals(state);
-    const inTransit = state.batches.filter((b) => b.status !== 'Received');
+    const inTransit = state.batches.filter((b) => bStatus(b) === 'In Transit');
     const owing = L.customerStats(state).filter((c) => c.owing > 0).sort((a, b) => b.owing - a.owing).slice(0, 4);
     const recent = state.invoices.slice(-3).reverse();
     if (!state.batches.length) return `<div class="empty"><b>Welcome 👋</b>Start by ordering a batch, or import your existing spreadsheet from More → Data.</div>
@@ -89,7 +90,7 @@
     <h2>Batches</h2>
     <div class="list">${state.batches.slice().sort((a, b) => b.num - a.num).map((b) => {
       const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0;
-      return `<button class="row tap" data-act="batch" data-id="${b.id}"><div class="grow"><b>${b.id} <span class="pill ${b.status}">${b.status}</span></b>
+      return `<button class="row tap" data-act="batch" data-id="${b.id}" style="${bStatus(b) === 'Closed' ? 'opacity:.6' : ''}"><div class="grow"><b>${b.id} <span class="pill ${bStatus(b)}">${bStatus(b)}</span></b>
         <small>${esc(b.store)} · ${day(b.datePurchased)} · ${st.sold}/${st.count} sold</small><div class="bar"><i style="width:${pct}%"></i></div></div>
         <div class="end"><b>${money(st.profit)}</b><small>profit</small></div><span class="chev">›</span></button>`; }).join('')}</div>
     ${owing.length ? `<h2>Who owes you</h2><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${c.itemsOwing} item(s) owing</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
@@ -106,14 +107,16 @@
 
   function Stock() {
     if (!state.batches.length) return '<div class="empty"><b>No stock yet</b>Create a batch from Home first.</div>';
-    if (!state.batches.some((b) => b.id === stockBatch)) stockBatch = state.batches.slice().sort((a, b) => b.num - a.num)[0].id;
+    const open = state.batches.filter((b) => bStatus(b) !== 'Closed' || b.id === stockBatch).sort((a, b) => b.num - a.num);
+    if (!open.length) return '<div class="empty"><b>All batches are closed</b>Closed batches stay in Home and the logs. Create a new batch to keep selling.</div>';
+    if (!open.some((b) => b.id === stockBatch)) stockBatch = open[0].id;
     const b = state.batches.find((x) => x.id === stockBatch);
     const all = state.items.filter((i) => i.batchId === b.id);
     const items = all.filter((i) => stockFilter === 'All' || i.status === stockFilter);
     const st = L.batchStats(state, b);
     const chips = (arr, cur, act) => arr.map((x) => `<button class="chip ${x === cur ? 'on' : ''}" data-act="${act}" data-id="${esc(x)}">${esc(x)}</button>`).join('');
-    return `<div class="chips">${chips(state.batches.slice().sort((a, c) => c.num - a.num).map((x) => x.id), stockBatch, 'pick-batch')}</div>
-      <div class="row" style="margin-bottom:10px"><div class="grow"><b>${b.status} · ${money(st.investment)} invested</b><small>Clearing ${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%) · ${st.left} left</small></div>
+    return `<div class="chips">${chips(open.map((x) => x.id), stockBatch, 'pick-batch')}</div>
+      <div class="row" style="margin-bottom:10px"><div class="grow"><b>${bStatus(b)} · ${money(st.investment)} invested</b><small>Clearing ${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%) · ${st.left} left</small></div>
         <div class="end"><b>${money(st.profit)}</b><small>profit</small></div></div>
       <div class="chips">${chips(['All', ...STATUSES], stockFilter, 'pick-filter')}</div>
       <div class="list">${items.map((i) => itemCard(b, i)).join('') || '<div class="empty">No items match this filter.</div>'}</div>`;
@@ -246,28 +249,32 @@
   function sheetBatch(id) {
     const b = state.batches.find((x) => x.id === id); if (!b) return;
     const st = L.batchStats(state, b);
-    openSheet(`<h3>${b.id} <span class="pill ${b.status}">${b.status}</span></h3>
+    openSheet(`<h3>${b.id} <span class="pill ${bStatus(b)}">${bStatus(b)}</span></h3>
       <div class="sumbox"><div><span>Store</span><span>${esc(b.store)}</span></div><div><span>Ordered</span><span>${day(b.datePurchased)}</span></div>
       <div><span>Cost</span><span>${b.totalCost.toFixed(2)} ${b.currency} @ ${b.rate.toFixed(4)}</span></div>
       <div><span>Clearing paid</span><span>${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%)</span></div>
       <div><span>Invested</span><span>${money(st.investment)}</span></div><div><span>Sales</span><span>${money(st.sales)}</span></div>
-      <div><span>Profit</span><span>${money(st.profit)}</span></div><div><span>${b.status === 'Received' ? 'Was in transit' : 'In transit'}</span><span>${L.timeInTransit(b)}</span></div></div>
+      <div><span>Profit</span><span>${money(st.profit)}</span></div>
+      <div><span>${b.dateLastPayment ? 'Purchase → last clearing payment' : 'Time since purchase'}</span><span>${L.timeInTransit(b)}</span></div>
+      ${b.dateLastPayment ? `<div><span>Last clearing payment</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
       <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>Pay clearing (TTD)</label>
       <div class="grid2"><input name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">Record payment</button></div></form>
       <div class="btns"><button class="btn" data-act="open-stock" data-id="${b.id}">View items →</button>
-      ${b.status !== 'Received' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">Mark received → items Available</button>` : ''}
-      <button class="btn danger" data-act="del-batch" data-id="${b.id}">Delete batch</button></div>`);
+      ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">Mark received → items Available</button>` : ''}
+      ${bStatus(b) !== 'Closed' ? `<button class="btn danger" data-act="close-batch" data-id="${b.id}">Close batch</button>` : ''}
+      ${st.sold === 0 ? `<button class="btn danger" data-act="del-batch" data-id="${b.id}">Delete (created by mistake)</button>` : ''}</div>
+      ${bStatus(b) !== 'Closed' ? '<p class="muted small">Closing keeps the batch in your logs and history. Unsold items become Closed; sold and owing items are kept.</p>' : ''}`);
   }
 
   function sheetPayClearing() {
     if (!state.batches.length) return toast('Create a batch first.');
-    openSheet(`<h3>Pay clearing</h3><form id="f-clear"><label>Batch</label><select name="batch">${batchOpts(state.batches.slice().reverse())}</select>
+    openSheet(`<h3>Pay clearing</h3><form id="f-clear"><label>Batch</label><select name="batch">${batchOpts(state.batches.filter((b) => bStatus(b) !== 'Closed').reverse())}</select>
       <label>Amount (TTD)</label><input name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
       <div class="btns"><button class="btn primary">Record payment</button><button type="button" class="btn" data-act="close">Cancel</button></div></form>`);
   }
 
   function sheetReceive() {
-    const list = state.batches.filter((b) => b.status !== 'Received'); if (!list.length) return toast('No batches in transit.');
+    const list = state.batches.filter((b) => bStatus(b) === 'In Transit'); if (!list.length) return toast('No batches in transit.');
     openSheet(`<h3>Receive batch</h3><p class="muted small">Marks the batch received and turns its In Transit items into Available.</p>
       <form id="f-receive"><label>Batch</label><select name="batch">${batchOpts(list)}</select>
       <div class="btns"><button class="btn primary">Mark received</button><button type="button" class="btn" data-act="close">Cancel</button></div></form>`);
@@ -338,7 +345,8 @@
       case 'receive': return sheetReceive();
       case 'batch': return sheetBatch(id);
       case 'do-receive': return run(() => L.makeAvailable(state, id), (n) => `${id} received — ${n} item(s) now Available.`);
-      case 'del-batch': if (confirm(`Delete ${id} and all its items? This cannot be undone.`)) run(() => L.deleteBatch(state, id), `${id} deleted.`); return;
+      case 'close-batch': if (confirm(`Close ${id}? Unsold items become Closed. Sold and owing items stay in your logs.`)) run(() => L.closeBatch(state, id), `${id} closed.`); return;
+      case 'del-batch': if (confirm(`Permanently delete ${id} and all its items? This cannot be undone.`)) run(() => L.deleteBatch(state, id), `${id} deleted.`); return;
       case 'open-stock': stockBatch = id; stockFilter = 'All'; tab = 'stock'; closeSheet(); return render();
       case 'goto-stock': tab = 'stock'; return render();
       case 'goto-sell': tab = 'sell'; window.scrollTo(0, 0); return render();
@@ -414,7 +422,7 @@
   }
   function pickFile(accept, handler) { const f = $('#file'); f.accept = accept; f.value = ''; f.onchange = () => f.files[0] && handler(f.files[0]); f.click(); }
   function importJson(file) {
-    file.text().then((t) => { const s = JSON.parse(t); if (!s.batches || !s.items) throw new Error('Not a backup file.'); state = s; selected = new Set(); save(); toast('Backup restored.'); render(); }).catch((e) => toast('⚠️ ' + e.message));
+    file.text().then((t) => { const s = JSON.parse(t); if (!s.batches || !s.items) throw new Error('Not a backup file.'); state = L.migrate(s); selected = new Set(); save(); toast('Backup restored.'); render(); }).catch((e) => toast('⚠️ ' + e.message));
   }
   function importXlsx(file) {
     if (state.batches.length && !confirm('Importing replaces the data on this device. Continue?')) return;

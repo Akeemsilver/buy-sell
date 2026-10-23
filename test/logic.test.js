@@ -33,7 +33,9 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   // partial payment on items 0+1: sold 200, landed 50, paying 120 => profit 70, owing 80
   let inv = L.createInvoice(s, { itemIds: ['001-001', '001-002'], client: 'Ann', paying: 120 });
   assert.equal(inv.no, 'INV00001'); assert.equal(inv.balance, 80); assert.equal(inv.profit, 70);
-  assert.equal(L.invoiceStatus(inv), 'Owing'); assert.equal(s.items[0].status, 'Owing');
+  assert.equal(L.invoiceStatus(inv), 'Owing');
+  // waterfall: the 120 covers item 1 in full (100) and 20 of item 2
+  assert.equal(s.items[0].status, 'Paid'); assert.equal(s.items[1].status, 'Owing'); assert.equal(s.items[1].owing, 80);
   assert.deepEqual(s.customers, ['Ann']);
   // customer pays rest, referencing the old invoice through the items
   const inv2 = L.createInvoice(s, { itemIds: ['001-001', '001-002'], client: 'Ann', paying: 80 });
@@ -63,6 +65,33 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   near(L.totals(s).profit, (100 - 20) + (100 - 30)); // items 0 and 1 sold: sold - landed (batch has no clearing)
 })();
 
+// old saved data (no per-item paid/owing) is migrated on load
+(() => {
+  const s = fresh();
+  L.createBatch(s, { store: 'X', count: 1, totalCost: 10, currency: 'TTD', margin: 50 });
+  Object.assign(s.items[0], { desc: 'a', cost: 5, sold: 50, status: 'Owing', customer: 'Di' });
+  s.invoices.push({ no: 'INV00001', client: 'Di', desc: 'a', lines: [], total: 50, amountPaid: 20, previouslyPaid: 0, balance: 30, delivery: 0, date: new Date().toISOString(), due: new Date().toISOString(), qty: 1, ref: '', profit: 0, loss: 0, tip: 0, updatedBy: '' });
+  s.items[0].invoice = 'INV00001';
+  assert.equal(L.customerStats(s)[0].owing, 0);          // before: missing data
+  L.migrate(JSON.parse(JSON.stringify(s)));
+  assert.equal(L.customerStats(L.migrate(s))[0].owing, 30);
+})();
+
+// close vs delete
+(() => {
+  const s = fresh();
+  const b = L.createBatch(s, { store: 'X', count: 2, totalCost: 10, currency: 'TTD', margin: 50 });
+  assert.equal(L.batchStatus(s, b), 'In Transit');
+  L.makeAvailable(s, b.id); assert.equal(L.batchStatus(s, b), 'Received');
+  s.items.forEach((i) => { i.cost = 5; i.sold = 20; i.desc = 'x'; });
+  L.createInvoice(s, { itemIds: ['001-001'], client: 'Cy', paying: 20 });
+  assert.throws(() => L.deleteBatch(s, b.id), /Close it instead/);
+  L.closeBatch(s, b.id);
+  assert.equal(L.batchStatus(s, b), 'Closed');
+  assert.equal(s.items[0].status, 'Paid'); assert.equal(s.items[1].status, 'Closed'); // sold item kept, unsold closed
+  assert.equal(s.batches.length, 1);
+})();
+
 // import from the real workbook if a dump is available
 const fs = require('fs'), path = process.env.WORKBOOK_JSON;
 if (path && fs.existsSync(path)) {
@@ -70,6 +99,19 @@ if (path && fs.existsSync(path)) {
   assert.equal(s.batches.length, 2); assert.equal(s.items.length, 72);
   assert.equal(s.batches[1].currency, 'USD'); near(s.batches[1].totalCost, 201.17); near(s.batches[0].totalCost, 539.21);
   assert.ok(s.invoices.length >= 27);
+  // customer log must match the sheet's own Customer Log (rows start at 3: name, status, owing, sales, bought, itemsOwing, profit)
+  const wbj = JSON.parse(fs.readFileSync(path, 'utf8'));
+  const mine = Object.fromEntries(L.customerStats(s).map((c) => [c.name, c]));
+  // the sheet lists "Renimar" and "Renimar " separately; the app merges names that differ only by spaces
+  const agg = {};
+  (wbj['Customer Log'] || []).slice(2).filter((r) => r[0]).forEach((r) => {
+    const a = (agg[String(r[0]).trim()] = agg[String(r[0]).trim()] || [0, 0, 0, 0, 0]);
+    [2, 3, 4, 5, 6].forEach((k, n) => { a[n] += +r[k] || 0; });
+  });
+  Object.entries(agg).forEach(([name, a]) => {
+    const c = mine[name]; assert.ok(c, 'missing customer ' + name);
+    near(c.owing, a[0]); near(c.sales, a[1]); assert.equal(c.bought, a[2]); assert.equal(c.itemsOwing, a[3]); near(c.profit, a[4]);
+  });
   const st = L.batchStats(s, s.batches[1]);
   console.log('imported', s.batches.length, 'batches', s.items.length, 'items', s.invoices.length, 'invoices',
     'batch2 profit', Math.round(st.profit), 'margin', s.batches[1].margin, 'owing', L.totals(s).owing);

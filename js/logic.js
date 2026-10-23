@@ -50,7 +50,21 @@
     return batch;
   };
 
+  // Status mirrors updateBatchLog: Closed stays Closed, otherwise In Transit while any item is, else Received.
+  L.batchStatus = (s, b) => (b.status === 'Closed' ? 'Closed'
+    : s.items.some((i) => i.batchId === b.id && i.status === 'In Transit') ? 'In Transit' : 'Received');
+
+  // "Close batch" (script's dual-checkbox action): keeps history; unsold items become Closed.
+  L.closeBatch = (s, id) => {
+    const b = s.batches.find((x) => x.id === id);
+    if (!b) throw new Error('Batch not found.');
+    b.status = 'Closed';
+    s.items.forEach((i) => { if (i.batchId === id && i.status !== 'Paid' && i.status !== 'Owing') i.status = 'Closed'; });
+  };
+
+  // Permanent delete is only for batches created by mistake (nothing sold from them).
   L.deleteBatch = (s, id) => {
+    if (s.items.some((i) => i.batchId === id && i.invoice)) throw new Error('This batch has invoiced items. Close it instead.');
     s.batches = s.batches.filter((b) => b.id !== id);
     s.items = s.items.filter((i) => i.batchId !== id);
   };
@@ -68,7 +82,6 @@
   L.makeAvailable = (s, id, date) => {
     const b = s.batches.find((x) => x.id === id);
     if (!b) throw new Error('Batch not found.');
-    b.status = 'Received';
     b.dateReceived = b.dateReceived || (date || new Date()).toISOString();
     let n = 0;
     s.items.forEach((i) => { if (i.batchId === id && i.status === 'In Transit') { i.status = 'Available'; n++; } });
@@ -104,7 +117,7 @@
   };
 
   L.timeInTransit = (b, now) => {
-    const end = b.dateReceived ? new Date(b.dateReceived) : (now || new Date());
+    const end = b.dateLastPayment ? new Date(b.dateLastPayment) : (now || new Date());
     let days = Math.max(0, Math.floor((end - new Date(b.datePurchased)) / 86400000));
     const mos = Math.floor(days / 30); days -= mos * 30;
     const wks = Math.floor(days / 7); days -= wks * 7;
@@ -116,6 +129,27 @@
   L.nextInvoiceNo = (s) => {
     const max = s.invoices.reduce((m, i) => Math.max(m, parseInt(String(i.no).replace(/\D/g, ''), 10) || 0), 0);
     return 'INV' + String(max + 1).padStart(5, '0');
+  };
+
+  // Spread an invoice's cash (amount paid + previously paid) over its items in order, capped at each sold price
+  // (updateItemLog's waterfall). Delivery is not allocated. Item is Paid when nothing is left owing on it.
+  L.applyWaterfall = (s, no) => {
+    const inv = s.invoices.find((v) => v.no === no);
+    let pool = inv ? num(inv.amountPaid) + num(inv.previouslyPaid) : 0;
+    s.items.filter((i) => i.invoice === no).forEach((i) => {
+      const cap = num(i.sold), paid = pool > 0 && cap > 0 ? Math.min(pool, cap) : 0;
+      pool -= paid;
+      i.paid = r2(paid); i.owing = r2(Math.max(0, cap - paid));
+      i.status = i.owing === 0 ? 'Paid' : 'Owing';
+    });
+  };
+
+  // Bring data saved by an older version up to date (idempotent): recompute per-item paid/owing.
+  L.migrate = (s) => {
+    if (s.items.some((i) => i.invoice && i.paid === undefined)) {
+      new Set(s.items.map((i) => i.invoice).filter(Boolean)).forEach((no) => L.applyWaterfall(s, no));
+    }
+    return s;
   };
 
   L.invoiceStatus = (inv) => (inv.updatedBy ? 'Updated' : inv.balance > 0 ? 'Owing' : 'Paid');
@@ -179,7 +213,8 @@
     };
     if (p.ref) { const old = s.invoices.find((v) => v.no === p.ref); if (old) old.updatedBy = inv.no; }
     s.invoices.push(inv);
-    p.items.forEach((i) => { i.status = p.status; i.invoice = inv.no; i.customer = client; });
+    p.items.forEach((i) => { i.invoice = inv.no; i.customer = client; });
+    L.applyWaterfall(s, inv.no);
     if (!s.customers.includes(client)) s.customers.push(client);
     return inv;
   };
@@ -190,23 +225,24 @@
     s.items.forEach((i) => { if (i.invoice === no) { i.invoice = inv.ref || ''; if (!inv.ref) { i.status = 'Available'; i.customer = ''; } } });
     s.invoices.forEach((v) => { if (v.updatedBy === no) v.updatedBy = ''; });
     s.invoices = s.invoices.filter((v) => v.no !== no);
+    if (inv.ref) L.applyWaterfall(s, inv.ref);
   };
 
   /* ---------- reports ---------- */
 
+  // Mirrors updateCustomerLog: owing/sales come from per-item paid/owing, profit sums the invoice Profit column.
   L.customerStats = (s) => {
     const names = new Set(s.customers);
     s.items.forEach((i) => i.customer && names.add(i.customer));
     s.invoices.forEach((v) => names.add(v.client));
     return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b)).map((name) => {
-      const items = s.items.filter((i) => i.customer === name && (i.status === 'Paid' || i.status === 'Owing'));
-      const invs = s.invoices.filter((v) => v.client === name);
-      const owing = invs.filter((v) => !v.updatedBy).reduce((t, v) => t + v.balance, 0);
-      const last = items.slice().sort((a, b) => (invDate(s, b) - invDate(s, a)))[0];
+      const items = s.items.filter((i) => i.customer === name); // any item tagged with the customer counts as bought
+      const last = items.filter((i) => i.invoice).slice().sort((a, b) => invDate(s, b) - invDate(s, a))[0];
+      const owing = items.reduce((t, i) => t + num(i.owing), 0);
       return { name, owing: r2(owing), status: owing > 0 ? 'Owing' : 'Up to date',
-        sales: r2(items.reduce((t, i) => t + num(i.sold), 0)), bought: items.length,
+        sales: r2(items.reduce((t, i) => t + num(i.paid), 0)), bought: items.length,
         itemsOwing: items.filter((i) => i.status === 'Owing').length,
-        profit: r2(invs.reduce((t, v) => t + v.profit + v.loss, 0)),
+        profit: r2(s.invoices.filter((v) => v.client === name).reduce((t, v) => t + num(v.profit), 0)),
         lastItem: last ? last.desc : '', lastDate: last ? invDate(s, last) : null };
     });
   };
@@ -260,7 +296,7 @@
         id: r[0], num: parseInt(String(r[0]).replace(/\D/g, ''), 10), store: r[1] || '',
         currency: first[22] || 'USD', totalCost: cost ? num(cost[0].replace(/,/g, '')) : num(first[19]),
         rate: num(r[5]), margin: j > 0 ? Math.round((k / j - 1) * 100) : s.settings.defaultMargin,
-        clearingPaid: num(r[7]), status: r[3] === 'Received' ? 'Received' : 'In Transit',
+        clearingPaid: num(r[7]), status: r[3] === 'Closed' ? 'Closed' : r[3] === 'Received' ? 'Received' : 'In Transit',
         datePurchased: (asDate(r[2]) || new Date()).toISOString(),
         dateReceived: asDate(r[14]) ? asDate(r[14]).toISOString() : null,
         dateLastPayment: asDate(first[21]) ? asDate(first[21]).toISOString() : null,
@@ -268,13 +304,13 @@
     });
     hidden.forEach((h) => s.items.push({
       id: String(h[1]), batchId: h[0], store: h[3] || '', desc: h[4] || '', cost: num(h[5]), sold: num(h[11]),
-      status: h[13] || 'In Transit', customer: String(h[14] || h[15] || '').replace(/^-$/, ''),
+      status: h[13] || 'In Transit', customer: String(h[14] || h[15] || '').trim().replace(/^-$/, ''),
       delivery: num(h[16]), invoice: h[18] || '',
     }));
     (sheets['Invoice Log'] || []).slice(2).filter((r) => /^INV\d+/.test(String(r[0] || ''))).forEach((r) => {
       const lines = String(r[2] || '').split(',').map((x) => x.trim()).filter(Boolean);
       s.invoices.push({
-        no: r[0], client: r[1] || '', desc: r[2] || '', lines: [], total: num(r[4]), amountPaid: num(r[5]),
+        no: r[0], client: String(r[1] || '').trim(), desc: r[2] || '', lines: [], total: num(r[4]), amountPaid: num(r[5]),
         previouslyPaid: num(r[6]), balance: num(r[7]), delivery: num(r[8]),
         date: (asDate(r[9]) || new Date()).toISOString(), due: (asDate(r[10]) || new Date()).toISOString(),
         qty: num(r[11]) || lines.length, ref: '', updatedBy: r[12] || '', profit: num(r[13]), loss: num(r[14]), tip: num(r[15]),
@@ -286,6 +322,7 @@
       s.items.filter((i) => i.invoice === v.no).forEach((i) => { (g[i.desc + '|' + i.sold] = g[i.desc + '|' + i.sold] || { desc: i.desc.trim(), price: i.sold, qty: 0 }).qty++; });
       v.lines = Object.values(g);
     });
+    new Set(s.items.map((i) => i.invoice).filter(Boolean)).forEach((no) => L.applyWaterfall(s, no));
     const names = new Set();
     (sheets['Batch Log'] || []).slice(2).forEach((r) => { const n = String(r[25] || '').trim(); if (n) names.add(n); });
     s.items.forEach((i) => i.customer && names.add(i.customer));

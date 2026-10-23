@@ -41,6 +41,7 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .bar{height:6px;border-radius:9px;background:var(--line);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--brand2)}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:var(--line);color:var(--mute)}
 .pill.Paid,.pill.Received,.pill.Up{background:var(--okbg);color:var(--ok)}.pill.Owing{background:var(--warnbg);color:var(--warn)}
+.pill.Closed{background:var(--line);color:var(--mute)}
 .pill.Available{background:var(--infobg);color:var(--info)}.pill.Updated{background:var(--line);color:var(--mute)}
 .empty{text-align:center;color:var(--mute);padding:36px 16px}.empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
 

@@ -733,13 +733,14 @@
     sh.addEventListener('touchstart', (e) => {
       if (e.touches.length !== 1) return;
       y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; dragging = false;
-      // the pinned handle bar can always be pulled; the content only when it is scrolled to the top
-      onHandle = !!e.target.closest('.grab'); canDrag = onHandle || sh.scrollTop <= 0;
+      // only the header (the pinned handle bar and the pop-up's title) can be pulled down; content just scrolls
+      const title = sh.querySelector('h3');
+      onHandle = !!e.target.closest('.grab') || !!(title && title.contains(e.target)); canDrag = onHandle;
     }, { passive: true });
     sh.addEventListener('touchmove', (e) => {
       if (y0 == null || !canDrag) return;
       dy = e.touches[0].clientY - y0;
-      if (!dragging && dy > 10 && (onHandle || sh.scrollTop <= 0)) { dragging = true; sh.style.transition = 'none'; scrim.style.transition = 'none'; }
+      if (!dragging && dy > 10 && onHandle) { dragging = true; sh.style.transition = 'none'; scrim.style.transition = 'none'; }
       if (dragging) {
         e.preventDefault();
         const y = Math.max(0, dy);

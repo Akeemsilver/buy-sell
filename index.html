@@ -2,26 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Buy & Sell Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#741b47">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="B-RUIZ">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script>try{var th=JSON.parse(localStorage.getItem("buy-sell-pref:theme"));if(th==="light"||th==="dark")document.documentElement.setAttribute("data-theme",th)}catch(e){}</script>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <title>B-RUIZ Tienda Online</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="top">
-    <h1>Buy &amp; Sell Tracker</h1>
-    <nav id="nav"></nav>
-    <div class="data-menu">
-      <button data-act="import-xlsx">Import .xlsx</button>
-      <button data-act="export-json">Backup</button>
-      <button data-act="import-json">Restore</button>
-      <button data-act="reset" class="danger">Reset</button>
-    </div>
+  <header class="appbar">
+    <img id="brand" class="brand" src="icons/logo.png" alt="B-RUIZ Tienda Online">
+    <button id="back" class="icon-btn" aria-label="Back" hidden>‹</button>
+    <h1 id="title">Home</h1>
+    <span id="appbar-right"></span>
   </header>
-  <div id="status" role="status"></div>
   <main id="view"></main>
-  <div id="modal" class="modal" hidden></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="actionbar" class="actionbar" hidden></div>
+  <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
+  <div id="scrim" class="scrim" hidden></div>
+  <section id="sheet" class="sheet" role="dialog" aria-modal="true" hidden></section>
   <input type="file" id="file" hidden>
   <script src="js/logic.js"></script>
   <script src="js/app.js"></script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});</script>
 </body>
 </html>

@@ -1,9 +1,12 @@
 :root{
   --bg:#faf5f8;--card:#fff;--ink:#2b2230;--mute:#7a6c80;--line:#eadfe6;--brand:#741b47;--brand2:#c27ba0;--tint:#f6e8ef;
   --ok:#1b5e20;--okbg:#c8e6c9;--warn:#8a4b00;--warnbg:#ffe0b2;--info:#0d47a1;--infobg:#bbdefb;--bad:#c62828;
-  --tabh:62px;--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)
+  --bar:#741b47;--tabh:62px;--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)
 }
-@media (prefers-color-scheme:dark){:root{--bg:#150f16;--card:#221a24;--ink:#f1e8f3;--mute:#a898ad;--line:#3a2d3e;--brand:#d46ba0;--brand2:#8d3d68;--tint:#2d2031;--ok:#a5d6a7;--okbg:#1f3a21;--warn:#ffcc80;--warnbg:#4a3213;--info:#90caf9;--infobg:#142c47}}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#150f16;--card:#221a24;--ink:#f1e8f3;--mute:#a898ad;--line:#3a2d3e;--brand:#d46ba0;--bar:#3a1128;--brand2:#8d3d68;--tint:#2d2031;--ok:#a5d6a7;--okbg:#1f3a21;--warn:#ffcc80;--warnbg:#4a3213;--info:#90caf9;--infobg:#142c47}}
+:root[data-theme=dark]{--bg:#150f16;--card:#221a24;--ink:#f1e8f3;--mute:#a898ad;--line:#3a2d3e;--brand:#d46ba0;--bar:#3a1128;--brand2:#8d3d68;--tint:#2d2031;--ok:#a5d6a7;--okbg:#1f3a21;--warn:#ffcc80;--warnbg:#4a3213;--info:#90caf9;--infobg:#142c47}
+html{color-scheme:light dark}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 body{max-width:620px;margin:0 auto;min-height:100dvh;overscroll-behavior-y:none}
@@ -14,7 +17,7 @@ input:focus,select:focus{outline:2px solid var(--brand2);border-color:transparen
 label{display:block;font-size:12px;color:var(--mute);margin:12px 0 4px;font-weight:600}
 
 /* app bar */
-.appbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;min-height:calc(54px + var(--sat));padding:var(--sat) 14px 0;background:var(--brand);color:#fff}
+.appbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;min-height:calc(54px + var(--sat));padding:var(--sat) 14px 0;background:var(--bar);color:#fff}
 .brand{width:38px;height:38px;border-radius:50%;background:#fff;object-fit:cover;flex:none}
 .brand[hidden]{display:none}
 .appbar h1{flex:1;margin:0;font-size:19px;font-weight:700}
@@ -23,7 +26,10 @@ label{display:block;font-size:12px;color:var(--mute);margin:12px 0 4px;font-weig
 .round{position:relative;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);display:grid;place-items:center;padding:0;color:#fff}
 .round:active{background:rgba(255,255,255,.3)}
 .round svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.round .dot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:#ffd166;border:2px solid var(--brand)}
+.round .dot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:#ffd166;border:2px solid var(--bar)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--line);padding:4px;border-radius:14px}
+.seg button{min-height:42px;border:0;border-radius:11px;background:transparent;font-weight:700;color:var(--mute)}
+.seg button.on{background:var(--card);color:var(--brand);box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .hide-amounts .amt{filter:blur(7px);user-select:none;pointer-events:none}
 .pill-btn{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:99px;padding:8px 14px;font-weight:600;min-height:36px}
 

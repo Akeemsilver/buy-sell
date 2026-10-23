@@ -31,9 +31,15 @@
   let invForm = { client: '', paying: '' };
   let sheetClose = null, toastTimer;
   let hideAmounts = pref('hideAmounts', false);
+  let theme = pref('theme', 'auto');
   let flt = pref('filter', { period: 'all', batch: 'all' });
   function pref(k, d) { try { const v = localStorage.getItem('buy-sell-pref:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
   function setPref(k, v) { try { localStorage.setItem('buy-sell-pref:' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
+  function applyTheme() {
+    if (theme === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', theme);
+    const dark = theme === 'dark' || (theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#3a1128' : '#741b47';
+  }
   const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
 
   function load() {
@@ -226,7 +232,12 @@
 
   function Settings() {
     const s = state.settings;
-    return `<form id="f-settings"><div class="grid2"><div><label>Year</label><input name="year" type="number" inputmode="numeric" value="${s.year}"></div>
+    const seg = [['light', '☀️ Light'], ['dark', '🌙 Dark'], ['auto', '📱 Auto']];
+    return `<h2 style="margin-top:4px">Appearance</h2>
+      <div class="seg" role="radiogroup" aria-label="Theme">${seg.map(([k, l]) => `<button class="${theme === k ? 'on' : ''}" role="radio" aria-checked="${theme === k}" data-act="set-theme" data-id="${k}">${l}</button>`).join('')}</div>
+      <p class="muted small">Auto follows your phone's light or dark setting.</p>
+      <h2>Business</h2>
+      <form id="f-settings"><div class="grid2"><div><label>Year</label><input name="year" type="number" inputmode="numeric" value="${s.year}"></div>
       <div><label>Default margin %</label><input name="defaultMargin" type="number" inputmode="decimal" value="${s.defaultMargin}"></div></div>
       <label>Rate markup (×)</label><input name="markup" type="number" inputmode="decimal" step="0.001" value="${s.markup}">
       ${['USD', 'EUR', 'GBP'].map((c) => `<label>${c} → TTD (market rate)</label><input name="${c}" type="number" inputmode="decimal" step="0.0001" value="${s.rates[c]}">`).join('')}
@@ -400,6 +411,7 @@
     switch (t.dataset.act) {
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
+      case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); return render();
       case 'download': return sheetDownload();
       case 'filter': return sheetFilter();
       case 'settings': closeSheet(); tab = 'more'; moreView = 'settings'; window.scrollTo(0, 0); return render();
@@ -511,5 +523,7 @@
     });
   }
 
+  applyTheme();
+  if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   render();
 })();

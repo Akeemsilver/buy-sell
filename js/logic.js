@@ -229,7 +229,12 @@
     const owing = L.customerStats(s).reduce((t, c) => t + c.owing, 0);
     const expense = s.batches.reduce((t, b) => t + b.totalCost * b.rate + b.clearingPaid, 0);
     const sales = s.invoices.reduce((t, v) => t + v.amountPaid, 0);
-    const profit = s.invoices.reduce((t, v) => t + v.profit + v.loss, 0);
+    // profit on items that have actually sold (sold price - landed cost); unsold stock is not counted
+    const profit = s.items.reduce((t, i) => {
+      if (i.status !== 'Paid' && i.status !== 'Owing') return t;
+      const c = L.itemCalc(s.batches.find((b) => b.id === i.batchId), i);
+      return c.landed ? t + num(i.sold) - c.landed : t;
+    }, 0);
     return { owing: r2(owing), expense: r2(expense), sales: r2(sales), profit: r2(profit),
       available: s.items.filter((i) => i.status === 'Available').length,
       inTransit: s.items.filter((i) => i.status === 'In Transit').length };

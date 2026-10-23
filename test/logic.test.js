@@ -60,6 +60,7 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   const cs = L.customerStats(s)[0];
   assert.equal(cs.name, 'Ann'); assert.equal(cs.owing, 80);
   assert.equal(L.totals(s).owing, 80);
+  near(L.totals(s).profit, (100 - 20) + (100 - 30)); // items 0 and 1 sold: sold - landed (batch has no clearing)
 })();
 
 // import from the real workbook if a dump is available

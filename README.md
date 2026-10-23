@@ -30,7 +30,7 @@ To install: open the site in Chrome (Android) → ⋮ → *Add to Home screen*, 
 | E18 Make available | **Home → Receive batch** (In Transit → Available) |
 | Inventory Log, fill in items | **Stock** tab: tap an item to edit description, cost, sold for, status, delivery |
 | O2 Sell & Create Invoice | tick items in **Stock** → **Sell** tab → customer + amount paying → **Create invoice** |
-| Invoice tab / PDF export | **More → Invoices → open one → Print / Save as PDF** |
+| Invoice tab / PDF export | **More → Invoices → open one**: laid out like the sheet's invoice (B.RUIZ banner, mauve table, balance bar). *Share invoice image* sends a PNG (WhatsApp etc.), *Save as image* downloads it, *Print / Save as PDF* uses the print dialog |
 | Customer / Item / Batch / Summary logs | **People** tab, **More → Item log / Summary**; batch stats on Home and in Stock |
 | Delete batch / Master reset | Delete in a batch's sheet, **More → Erase all data** (both ask for confirmation) |
 

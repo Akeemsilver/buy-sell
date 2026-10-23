@@ -114,11 +114,22 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .mbars{display:flex;align-items:end;gap:4px;height:110px;margin:6px 0 4px}.mbars div{flex:1;text-align:center;font-size:10px;color:var(--mute)}.mbars i{display:block;background:var(--brand2);border-radius:3px 3px 0 0;min-height:1px}.mbars i+i{background:var(--mute);opacity:.45;border-radius:0}
 
 /* invoice */
-.paper{background:#fff;color:#222;border-radius:12px;padding:20px;border:1px solid var(--line)}
-.paper h4{margin:0 0 14px;font-size:24px;letter-spacing:2px;color:#741b47}
-.paper .meta{display:flex;justify-content:space-between;gap:10px;margin-bottom:14px;font-size:13px}
-.paper table{width:100%;border-collapse:collapse;font-size:13px}.paper th{background:#741b47;color:#fff;padding:6px;text-align:left}.paper td{padding:6px;border-bottom:1px solid #eee}.paper .r{text-align:right}
-.paper .tot{margin:12px 0 0 auto;width:min(260px,100%);font-size:13px}.paper .tot div{display:flex;justify-content:space-between;padding:2px 0}.paper .tot .bal{font-weight:800;border-top:2px solid #741b47;margin-top:4px;padding-top:4px}
+.inv{background:#fff;color:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-family:"Lato","Helvetica Neue",Helvetica,Arial,sans-serif}
+.inv-banner{display:block;width:100%;height:auto}
+.inv-body{padding:14px 16px 8px}
+.inv .lbl{font-weight:700;font-size:11px;color:#767676;letter-spacing:.02em}
+.inv-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:12px}
+.inv .client{font-size:17px;margin-top:2px}
+.inv-meta{display:grid;gap:3px;font-size:13px}.inv-meta div{display:flex;justify-content:flex-end;gap:12px}.inv-meta div span:last-child{min-width:78px;text-align:right}
+.inv-t{width:100%;border-collapse:collapse;font-size:13px}
+.inv-t th{background:#cea8bd;color:#fff;text-align:left;padding:8px 8px;font-size:12px}
+.inv-t td{padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top}
+.inv-t .r{text-align:right;white-space:nowrap}
+.inv-tot{margin:12px 0 0 auto;width:min(300px,100%);font-size:13px}
+.inv-tot div{display:flex;justify-content:flex-end;gap:10px;padding:3px 8px}.inv-tot span{color:#545454;flex:1;text-align:right}.inv-tot b{font-weight:400;width:96px;text-align:right}
+.inv-tot .due{background:#cea8bd;margin-top:4px}.inv-tot .due span,.inv-tot .due b{color:#fff;font-weight:700}
+.inv-terms{margin:16px 0 8px;font-size:13px}.inv-terms b{display:block}.inv-terms span{color:#767676}
+.inv-foot{height:18px;background:#e6d2db}
 @media print{body>*:not(#sheet){display:none!important}#sheet{position:static;max-height:none;overflow:visible;padding:0;background:#fff;animation:none}#sheet>*:not(.printable){display:none!important}}
 
 /* install guide */

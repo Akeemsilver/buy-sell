@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buy & Sell Tracker</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Buy &amp; Sell Tracker</h1>
+    <nav id="nav"></nav>
+    <div class="data-menu">
+      <button data-act="import-xlsx">Import .xlsx</button>
+      <button data-act="export-json">Backup</button>
+      <button data-act="import-json">Restore</button>
+      <button data-act="reset" class="danger">Reset</button>
+    </div>
+  </header>
+  <div id="status" role="status"></div>
+  <main id="view"></main>
+  <div id="modal" class="modal" hidden></div>
+  <input type="file" id="file" hidden>
+  <script src="js/logic.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

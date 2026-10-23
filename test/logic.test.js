@@ -95,6 +95,25 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   assert.equal(L.filterInvoices(s, { batch: b2.id }).length, 1);
 })();
 
+// names are always cleaned
+(() => {
+  assert.equal(L.cleanName('  Renimar \t '), 'Renimar'); assert.equal(L.cleanName('Ana   Maria'), 'Ana Maria'); assert.equal(L.cleanName('-'), '');
+  const s = fresh();
+  L.createBatch(s, { store: 'SHEIN ', count: 3, totalCost: 30, currency: 'TTD', margin: 100 });
+  s.items.forEach((i) => { i.cost = 10; i.sold = 50; i.desc = ' Dress  blue '; i.status = 'Available'; });
+  const a = L.createInvoice(s, { itemIds: ['001-001'], client: 'Renimar ', paying: 50 });
+  const b = L.createInvoice(s, { itemIds: ['001-002'], client: '  renimar', paying: 50 });   // same person, different case/spacing
+  assert.equal(a.client, 'Renimar'); assert.equal(b.client, 'Renimar'); assert.deepEqual(s.customers, ['Renimar']);
+  assert.equal(L.previewInvoice(s, { itemIds: ['001-003'], client: '   ', paying: 10 }).errors.includes('Enter or choose a customer.'), true);
+  // old saved data with messy names is repaired on load; the most common spelling wins
+  const old = fresh(); old.customers = ['Renimar ', 'Renimar', 'Ori'];
+  old.items.push({ id: 'x', batchId: 'B', store: 'X ', desc: 'Bodys ', cost: 0, sold: 0, status: 'Owing', customer: 'Renimar', delivery: 0, invoice: '' }, { id: 'y', batchId: 'B', store: 'X', desc: 'Pant', cost: 0, sold: 0, status: 'Owing', customer: 'Renimar ', delivery: 0, invoice: '' }, { id: 'z', batchId: 'B', store: 'X', desc: 'Top', cost: 0, sold: 0, status: 'Owing', customer: 'ori', delivery: 0, invoice: '' });
+  assert.equal(L.cleanNames(old), true);
+  assert.deepEqual(old.customers, ['Renimar', 'Ori']); assert.deepEqual(old.items.map((i) => i.customer), ['Renimar', 'Renimar', 'Ori']);
+  assert.equal(old.items[0].desc, 'Bodys'); assert.equal(old.items[0].store, 'X');
+  assert.equal(L.cleanNames(old), false);   // idempotent
+})();
+
 // close vs delete
 (() => {
   const s = fresh();
@@ -130,6 +149,8 @@ if (path && fs.existsSync(path)) {
     const c = mine[name]; assert.ok(c, 'missing customer ' + name);
     near(c.owing, a[0]); near(c.sales, a[1]); assert.equal(c.bought, a[2]); assert.equal(c.itemsOwing, a[3]); near(c.profit, a[4]);
   });
+  assert.ok(s.customers.every((n) => n === n.trim()) && new Set(s.customers.map((n) => n.toLowerCase())).size === s.customers.length, 'imported customers are clean and unique');
+  assert.ok(s.items.every((i) => i.desc === i.desc.trim()), 'imported descriptions are trimmed');
   const st = L.batchStats(s, s.batches[1]);
   console.log('imported', s.batches.length, 'batches', s.items.length, 'items', s.invoices.length, 'invoices',
     'batch2 profit', Math.round(st.profit), 'margin', s.batches[1].margin, 'owing', L.totals(s).owing);

@@ -9,6 +9,41 @@
   const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
   L.r2 = r2;
 
+  /* ---------- names ---------- */
+
+  // Collapse runs of spaces/tabs and trim: "Renimar " -> "Renimar"
+  L.cleanName = (v) => { const n = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return n === '-' ? '' : n; };
+
+  // The spelling already used for this person (case-insensitive), otherwise the cleaned name.
+  L.canonicalName = (s, raw) => {
+    const n = L.cleanName(raw), k = n.toLowerCase();
+    if (!n) return '';
+    const known = [...s.customers, ...s.items.map((i) => i.customer), ...s.invoices.map((v) => v.client)].map(L.cleanName);
+    return known.find((x) => x.toLowerCase() === k) || n;
+  };
+
+  // Clean every stored name and merge customers that differ only by spaces/case (most common spelling wins; a capitalised one beats a tie).
+  // Idempotent and cheap; returns true if anything changed.
+  L.cleanNames = (s) => {
+    let changed = false;
+    const set = (o, k, v) => { if (o[k] !== v) { o[k] = v; changed = true; } };
+    const counts = {};
+    const note = (raw) => { const n = L.cleanName(raw); if (!n) return; const m = (counts[n.toLowerCase()] = counts[n.toLowerCase()] || {}); m[n] = (m[n] || 0) + 1; };
+    s.items.forEach((i) => note(i.customer)); s.invoices.forEach((v) => note(v.client)); s.customers.forEach(note);
+    const canon = {};
+    Object.keys(counts).forEach((k) => { canon[k] = Object.entries(counts[k]).sort((a, b) => b[1] - a[1] || (/^[A-Z]/.test(b[0]) - /^[A-Z]/.test(a[0])) || a[0].localeCompare(b[0]))[0][0]; });
+    const fix = (raw) => { const n = L.cleanName(raw); return n ? canon[n.toLowerCase()] : ''; };
+    s.items.forEach((i) => { set(i, 'customer', fix(i.customer)); set(i, 'desc', L.cleanName(i.desc)); set(i, 'store', L.cleanName(i.store)); });
+    s.invoices.forEach((v) => {
+      set(v, 'client', fix(v.client)); set(v, 'desc', L.cleanName(v.desc));
+      (v.lines || []).forEach((l) => set(l, 'desc', L.cleanName(l.desc)));
+    });
+    s.batches.forEach((b) => set(b, 'store', L.cleanName(b.store)));
+    const list = [...new Set(s.customers.map(fix).filter(Boolean))];
+    if (list.length !== s.customers.length || list.some((n, i) => n !== s.customers[i])) { s.customers = list; changed = true; }
+    return changed;
+  };
+
   L.CURRENCIES = {
     USD: { name: 'US Dollar', symbol: '$' },
     EUR: { name: 'Euro', symbol: '€' },
@@ -146,6 +181,7 @@
 
   // Bring data saved by an older version up to date (idempotent): recompute per-item paid/owing.
   L.migrate = (s) => {
+    L.cleanNames(s);
     if (s.items.some((i) => i.invoice && i.paid === undefined)) {
       new Set(s.items.map((i) => i.invoice).filter(Boolean)).forEach((no) => L.applyWaterfall(s, no));
     }
@@ -162,10 +198,11 @@
    */
   L.previewInvoice = (s, { itemIds, client, paying }) => {
     const items = itemIds.map((id) => s.items.find((i) => i.id === id)).filter(Boolean);
+    client = L.canonicalName(s, client);
     const errors = [];
     paying = num(paying);
     if (!items.length) errors.push('Select at least one item.');
-    if (!String(client || '').trim()) errors.push('Enter or choose a customer.');
+    if (!client) errors.push('Enter or choose a customer.');
     if (items.some((i) => !i.desc.trim())) errors.push('Every selected item needs a description.');
     if (items.some((i) => num(i.sold) <= 0)) errors.push('Every selected item needs a "Sold For" price.');
     if (items.length && paying <= 0) errors.push('Enter the amount paying.');
@@ -202,7 +239,7 @@
   L.createInvoice = (s, { itemIds, client, isNew, paying, date }) => {
     const p = L.previewInvoice(s, { itemIds, client, paying });
     if (p.errors.length) throw new Error(p.errors[0]);
-    client = client.trim();
+    client = L.canonicalName(s, client);
     const d = date || new Date();
     const due = new Date(d); due.setDate(due.getDate() + 7);
     const inv = {
@@ -361,6 +398,7 @@
     (sheets['Batch Log'] || []).slice(2).forEach((r) => { const n = String(r[25] || '').trim(); if (n) names.add(n); });
     s.items.forEach((i) => i.customer && names.add(i.customer));
     s.customers = [...names];
+    L.cleanNames(s);
     return s;
   };
 

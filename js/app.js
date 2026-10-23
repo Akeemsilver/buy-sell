@@ -276,6 +276,7 @@
   function closeSheet() {
     if ($('#sheet').hidden) return;
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; document.body.style.overflow = '';
+    if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncHistory();
     const cb = sheetClose; sheetClose = null; if (cb) cb();
@@ -759,6 +760,7 @@
     sh.addEventListener('touchcancel', () => end(true));
   })();
 
+  save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyTheme();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   render();

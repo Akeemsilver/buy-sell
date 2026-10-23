@@ -41,6 +41,23 @@
     const dark = theme === 'dark' || (theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
     const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#3a1128' : '#741b47';
   }
+  /* ---------- install banner ---------- */
+
+  let installEvt = null;                                   // Chrome/Android install prompt, when the browser offers it
+  const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  const WEEK = 7 * 864e5;
+  function installBanner() {
+    if (isStandalone() || pref('installed', false) || Date.now() - pref('installDismissed', 0) < WEEK) return '';
+    if (!installEvt && !isIOS) return '';                  // browser can't install it (or already did): stay hidden
+    return `<div class="install"><img src="icons/logo.png" alt="" width="44" height="44">
+      <div class="grow"><b>Install the B-RUIZ app</b><small>${installEvt ? 'Works offline, opens like a normal app' : 'Add it to your home screen'}</small></div>
+      <button class="pill-btn solid" data-act="install">${installEvt ? 'Install' : 'How'}</button>
+      <button class="x" data-act="install-dismiss" aria-label="Dismiss">✕</button></div>`;
+  }
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (tab === 'home') render(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; setPref('installed', true); toast('App installed 🎉'); render(); });
+
   const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
 
   function load() {
@@ -72,7 +89,7 @@
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     $('#appbar-right').innerHTML = $('#back').hidden ? `<div class="tools">${btn('view', hideAmounts ? 'Show amounts' : 'Hide amounts', hideAmounts ? 'eyeoff' : 'eye')}${btn('download', 'Download or export', 'download')}${btn('filter', 'Filter', 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', 'Settings', 'gear')}</div>` : '';
     document.body.classList.toggle('hide-amounts', hideAmounts);
-    $('#view').innerHTML = { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
+    $('#view').innerHTML = (tab === 'home' ? installBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
     syncHistory();
   }
@@ -377,6 +394,13 @@
       <div class="btns"><button class="btn" data-act="clear-filter">Clear filter</button><button class="btn primary" data-act="close">Done</button></div>`);
   }
 
+  function sheetInstallHelp() {
+    openSheet(`<h3>Install on iPhone</h3><p class="muted small">Safari doesn't have an install button, so add it from the share menu:</p>
+      <ol style="line-height:1.9;padding-left:20px"><li>Open this page in <b>Safari</b></li><li>Tap the <b>Share</b> button <span aria-hidden="true">⬆️</span> at the bottom</li>
+      <li>Scroll and tap <b>Add to Home Screen</b></li><li>Tap <b>Add</b></li></ol>
+      <div class="btns"><button class="btn primary" data-act="close">Got it</button></div>`);
+  }
+
   function sheetDownload() {
     openSheet(`<h3>Download</h3><p class="muted small">Spreadsheets open in Excel or Google Sheets.</p>
       <div class="list" style="margin-top:12px">
@@ -417,6 +441,10 @@
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); return render();
+      case 'install':
+        if (installEvt) { const ev = installEvt; installEvt = null; render(); ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); }).catch(() => {}); }
+        return sheetInstallHelp();
+      case 'install-dismiss': setPref('installDismissed', Date.now()); return render();
       case 'download': return sheetDownload();
       case 'filter': return sheetFilter();
       case 'settings': closeSheet(); tab = 'more'; moreView = 'settings'; window.scrollTo(0, 0); return render();

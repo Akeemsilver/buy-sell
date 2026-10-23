@@ -31,6 +31,11 @@ label{display:block;font-size:12px;color:var(--mute);margin:12px 0 4px;font-weig
 .seg button{min-height:42px;border:0;border-radius:11px;background:transparent;font-weight:700;color:var(--mute)}
 .seg button.on{background:var(--card);color:var(--brand);box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .hide-amounts .amt{filter:blur(7px);user-select:none;pointer-events:none}
+.install{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:16px;padding:10px 8px 10px 12px;margin-bottom:12px}
+.install img{border-radius:12px;flex:none}
+.install .grow{flex:1;min-width:0}.install b{display:block;font-size:14px}.install small{display:block;color:var(--mute);font-size:12px}
+.install .x{background:none;border:0;color:var(--mute);font-size:16px;width:34px;height:40px;flex:none}
+.pill-btn.solid{background:var(--brand);color:#fff;flex:none;border-radius:99px;padding:9px 16px;font-weight:700}
 .pill-btn{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:99px;padding:8px 14px;font-weight:600;min-height:36px}
 
 main{padding:12px 14px calc(var(--tabh) + var(--sab) + 96px)}

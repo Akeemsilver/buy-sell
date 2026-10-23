@@ -276,6 +276,7 @@
   function closeSheet() {
     if ($('#sheet').hidden) return;
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; document.body.style.overflow = '';
+    if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncHistory();
     const cb = sheetClose; sheetClose = null; if (cb) cb();
@@ -727,16 +728,18 @@
   // Drag a sheet down to dismiss it (only when it is scrolled to the top, so scrolling still works).
   (function () {
     const sh = $('#sheet'), scrim = $('#scrim');
-    let y0 = null, dy = 0, t0 = 0, dragging = false, canDrag = false;
+    let y0 = null, dy = 0, t0 = 0, dragging = false, canDrag = false, onHandle = false;
     const reset = () => { sh.style.transition = ''; sh.style.transform = ''; scrim.style.transition = ''; scrim.style.opacity = ''; };
     sh.addEventListener('touchstart', (e) => {
       if (e.touches.length !== 1) return;
-      y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; dragging = false; canDrag = sh.scrollTop <= 0;
+      y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; dragging = false;
+      // the pinned handle bar can always be pulled; the content only when it is scrolled to the top
+      onHandle = !!e.target.closest('.grab'); canDrag = onHandle || sh.scrollTop <= 0;
     }, { passive: true });
     sh.addEventListener('touchmove', (e) => {
       if (y0 == null || !canDrag) return;
       dy = e.touches[0].clientY - y0;
-      if (!dragging && dy > 10 && sh.scrollTop <= 0) { dragging = true; sh.style.transition = 'none'; scrim.style.transition = 'none'; }
+      if (!dragging && dy > 10 && (onHandle || sh.scrollTop <= 0)) { dragging = true; sh.style.transition = 'none'; scrim.style.transition = 'none'; }
       if (dragging) {
         e.preventDefault();
         const y = Math.max(0, dy);
@@ -757,6 +760,7 @@
     sh.addEventListener('touchcancel', () => end(true));
   })();
 
+  save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyTheme();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   render();

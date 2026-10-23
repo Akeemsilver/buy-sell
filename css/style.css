@@ -99,7 +99,7 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 /* bottom sheet */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50}
 .scrim[hidden],.sheet[hidden],.actionbar[hidden]{display:none}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;margin:0 auto;max-width:620px;max-height:92dvh;overflow:auto;background:var(--bg);border-radius:22px 22px 0 0;padding:8px 16px calc(20px + var(--sab));animation:up .22s ease-out}
+.sheet{overscroll-behavior:contain;position:fixed;left:0;right:0;bottom:0;z-index:60;margin:0 auto;max-width:620px;max-height:92dvh;overflow:auto;background:var(--bg);border-radius:22px 22px 0 0;padding:8px 16px calc(20px + var(--sab));animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(40px);opacity:.4}}
 .sheet .grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 12px}
 .sheet h3{margin:0 0 4px;font-size:20px}

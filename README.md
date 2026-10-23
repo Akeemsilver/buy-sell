@@ -13,6 +13,10 @@ Bottom tab bar: **Home** (profit, owing, quick actions, batches), **Stock** (ite
 **Sell** (customer, amount paying, live profit/owing preview, create invoice), **People** (customers and what they owe), **More** (invoices, item log, summary, settings, backup/import).
 A contextual action bar sits above the tabs. Editing happens in slide-up sheets.
 
+Android Back button / gesture works like a native app: it closes an open pop-up first, then steps back out of a sub-screen
+(e.g. More → Summary), then goes from any other tab to Home; on Home it asks you to press Back again to exit.
+Pop-ups (sheets) can be dragged down to dismiss; whatever you typed into an item is saved as you type, so dismissing never loses it.
+
 To install: open the site in Chrome (Android) → ⋮ → *Add to Home screen*, or Safari (iPhone) → Share → *Add to Home Screen*.
 
 ## Workflow (same as the sheet)

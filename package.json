@@ -1,0 +1,6 @@
+{
+  "name": "buy-sell",
+  "private": true,
+  "description": "Buy & sell batch, inventory and invoice tracker",
+  "scripts": { "test": "node test/logic.test.js", "start": "python3 -m http.server 8080" }
+}

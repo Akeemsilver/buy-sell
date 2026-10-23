@@ -125,18 +125,20 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .inv-t th{background:#cea8bd;color:#fff;text-align:left;padding:8px 8px;font-size:12px}
 .inv-t td{padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top}
 .inv-t .r{text-align:right;white-space:nowrap}
-.inv-tot{margin:12px 0 0 auto;width:min(300px,100%);font-size:13px}
+.inv-sum{position:relative;margin-top:12px}
+.stamp{position:absolute;right:-2%;bottom:-6px;width:58%;max-width:270px;mix-blend-mode:multiply;pointer-events:none}
+.inv-tot{margin:0 0 0 auto;width:min(300px,100%);font-size:13px}
 .inv-tot div{display:flex;justify-content:flex-end;gap:10px;padding:3px 8px}.inv-tot span{color:#545454;flex:1;text-align:right}.inv-tot b{font-weight:400;width:96px;text-align:right}
 .inv-tot .due{background:#cea8bd;margin-top:4px}.inv-tot .due span,.inv-tot .due b{color:#fff;font-weight:700}
-.inv-terms{margin:16px 0 8px;font-size:13px}.inv-terms b{display:block}.inv-terms span{color:#767676}
+.inv-terms{position:relative;margin:16px 0 8px;font-size:13px}.inv-terms.paid{min-height:112px}.inv-terms b{display:block}.inv-terms span{color:#767676}
 .inv-foot{height:18px;background:#e6d2db}
-@page{size:A4;margin:14mm}
+@page{size:A4 portrait;margin:15mm}
 @media print{
   html,body{background:#fff!important;overflow:visible!important;height:auto!important}
   body>*:not(#sheet){display:none!important}
   #sheet{position:static;display:block!important;max-height:none;overflow:visible;padding:0;margin:0;max-width:none;background:#fff;border-radius:0;animation:none;transform:none!important}
   #sheet>*:not(.printable){display:none!important}
   /* a receipt-sized invoice at the top of the page, not stretched to fill it */
-  .printable{width:140mm;max-width:100%;margin:0 auto}
+  .printable{width:120mm;max-width:100%;margin:0 auto}
   .inv{border:0;border-radius:0;break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }

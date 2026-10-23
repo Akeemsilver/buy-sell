@@ -30,6 +30,7 @@
   let selected = new Set();
   let invForm = { client: '', paying: '' };
   let sheetClose = null, toastTimer;
+  let syncHistory = () => {};
   let hideAmounts = pref('hideAmounts', false);
   let theme = pref('theme', 'auto');
   let flt = pref('filter', { period: 'all', batch: 'all' });
@@ -73,6 +74,7 @@
     document.body.classList.toggle('hide-amounts', hideAmounts);
     $('#view').innerHTML = { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
+    syncHistory();
   }
 
   function renderActionBar() {
@@ -251,10 +253,13 @@
     sheetClose = onClose || null;
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
+    syncHistory();
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; document.body.style.overflow = '';
+    $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
+    syncHistory();
     const cb = sheetClose; sheetClose = null; if (cb) cb();
   }
 
@@ -486,7 +491,8 @@
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
-      if (['cost', 'sold', 'delivery'].includes(f)) { i[f] = Math.max(0, parseFloat(el.value) || 0); calcBox(i); }
+      if (['cost', 'sold', 'delivery'].includes(f)) { i[f] = Math.max(0, parseFloat(el.value) || 0); calcBox(i); } else { i[f] = el.value; }
+      save();
     } else if (el.form && el.form.id === 'f-batch') {
       const f = el.form, r = L.effectiveRate(state, f.currency.value), c = parseFloat(f.totalCost.value) || 0;
       $('#rate-hint').textContent = `Rate ${r.toFixed(4)} → ${money(c * r)} before clearing.`;
@@ -522,6 +528,72 @@
       s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error('Could not load the spreadsheet reader (needs internet).')); document.head.appendChild(s);
     });
   }
+
+  /* ---------- Android back button & swipe-down sheets ---------- */
+
+  // Every layer you can back out of (non-home tab, a More sub-screen, an open sheet) is one history entry,
+  // so the system Back button / gesture closes the top layer first. At Home, Back asks to press again to exit.
+  let hist = 0, skipPops = 0, exitArmed = false, exitTimer, reconTimer;
+  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + ($('#sheet').hidden ? 0 : 1);
+  function reconcile() {
+    reconTimer = null;
+    if (skipPops > 0) return;                        // a back traversal is still in flight
+    const d = depth();
+    while (hist < d) history.pushState({ d: ++hist }, '');
+    if (hist > d) { const n = hist - d; hist = d; skipPops = 1; history.go(-n); }
+  }
+  syncHistory = function () { if (!reconTimer) reconTimer = setTimeout(reconcile, 0); };
+  window.addEventListener('popstate', (e) => {
+    if (skipPops > 0) { skipPops--; syncHistory(); return; }
+    const st = e.state || {};
+    if (st.out) {                                    // backed past the app's first screen
+      if (exitArmed) { exitArmed = false; history.back(); return; }
+      exitArmed = true; clearTimeout(exitTimer); exitTimer = setTimeout(() => { exitArmed = false; }, 2500);
+      toast('Press back again to exit'); history.pushState({ d: 0 }, ''); hist = 0; return;
+    }
+    const n = st.d == null ? 0 : st.d;
+    if (n >= hist) return;                           // stale entry from before a reload: nothing to undo
+    hist = n;
+    if (!$('#sheet').hidden) closeSheet();
+    else if (tab === 'more' && moreView) moreView = null;
+    else if (tab !== 'home') tab = 'home';
+    render();
+  });
+  history.replaceState({ out: true }, '');
+  history.pushState({ d: 0 }, '');
+
+  // Drag a sheet down to dismiss it (only when it is scrolled to the top, so scrolling still works).
+  (function () {
+    const sh = $('#sheet'), scrim = $('#scrim');
+    let y0 = null, dy = 0, t0 = 0, dragging = false, canDrag = false;
+    const reset = () => { sh.style.transition = ''; sh.style.transform = ''; scrim.style.transition = ''; scrim.style.opacity = ''; };
+    sh.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; dragging = false; canDrag = sh.scrollTop <= 0;
+    }, { passive: true });
+    sh.addEventListener('touchmove', (e) => {
+      if (y0 == null || !canDrag) return;
+      dy = e.touches[0].clientY - y0;
+      if (!dragging && dy > 10 && sh.scrollTop <= 0) { dragging = true; sh.style.transition = 'none'; scrim.style.transition = 'none'; }
+      if (dragging) {
+        e.preventDefault();
+        const y = Math.max(0, dy);
+        sh.style.transform = `translateY(${y}px)`; scrim.style.opacity = String(Math.max(0.2, 1 - y / 500));
+      }
+    }, { passive: false });
+    const end = (cancel) => {
+      if (!dragging) { y0 = null; return; }
+      const fast = dy / Math.max(1, Date.now() - t0) > 0.6;
+      dragging = false; y0 = null;
+      sh.style.transition = 'transform .2s ease-out'; scrim.style.transition = 'opacity .2s';
+      if (!cancel && (dy > 110 || fast)) {
+        sh.style.transform = 'translateY(105%)'; scrim.style.opacity = '0';
+        setTimeout(() => { closeSheet(); reset(); }, 190);
+      } else { sh.style.transform = ''; scrim.style.opacity = ''; setTimeout(reset, 220); }
+    };
+    sh.addEventListener('touchend', () => end(false));
+    sh.addEventListener('touchcancel', () => end(true));
+  })();
 
   applyTheme();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);

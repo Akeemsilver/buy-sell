@@ -350,21 +350,130 @@
       <div><span>Profit${i.sold > 0 ? '' : ' (at recommended)'}</span><span>${c.landed ? money(c.profit) : money(0)}</span></div>`;
   }
 
+  // Invoice design follows the Google Sheets invoice template (banner, mauve table header, balance bar, pink footer).
+  const INV = { mauve: '#cea8bd', band: '#e6d2db', grey: '#767676', mid: '#545454' };
+  const invMoney = (n) => 'TT$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const invDate = (d) => new Date(d).toLocaleDateString('en-GB');
+  const invLines = (v) => (v.lines && v.lines.length ? v.lines : [{ desc: v.desc, qty: v.qty, price: v.total - v.delivery }]);
+
+  // "PAID IN FULL" rubber stamp: double border, tilted, worn ink. Seeded by invoice number so it never changes.
+  const stampCache = {};
+  function stampCanvas(seed, dateText) {
+    const W = 560, H = 250, S = 2, INK = '24,112,58';
+    let a = 0; for (const ch of String(seed)) a = (a * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let x = a; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+    const ink = document.createElement('canvas'); ink.width = W * S; ink.height = H * S;
+    const x = ink.getContext('2d'); x.scale(S, S);
+    x.translate(W / 2, H / 2); x.rotate(-9 * Math.PI / 180); x.translate(-W / 2, -H / 2);
+    const rr = (px, py, w, h, r) => { x.beginPath(); x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h, r); x.arcTo(px + w, py + h, px, py + h, r); x.arcTo(px, py + h, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath(); };
+    const spaced = (txt, cx, y, gap) => {
+      const ws = [...txt].map((ch) => x.measureText(ch).width), total = ws.reduce((s, w) => s + w, 0) + gap * (txt.length - 1);
+      let px = cx - total / 2; x.textAlign = 'left';
+      [...txt].forEach((ch, i) => { x.fillText(ch, px, y); px += ws[i] + gap; });
+    };
+    x.strokeStyle = x.fillStyle = `rgba(${INK},0.92)`; x.shadowColor = `rgba(${INK},0.5)`; x.shadowBlur = 1.6;
+    x.lineWidth = 9; rr(40, 42, 480, 166, 24); x.stroke();
+    x.lineWidth = 2.5; rr(55, 57, 450, 136, 15); x.stroke();
+    x.textBaseline = 'alphabetic';
+    let size = 74; const face = (s) => `900 ${s}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+    x.font = face(size); while (x.measureText('PAID IN FULL').width + 11 * 5 > 395 && size > 30) { size -= 2; x.font = face(size); }
+    spaced('PAID IN FULL', W / 2, 128, 5);
+    x.fillRect(82, 145, 396, 2.5);
+    x.font = `700 21px Roboto, "Helvetica Neue", Arial, sans-serif`; spaced(`B-RUIZ  •  ${dateText}`, W / 2, 177, 3);
+    // worn ink: speckles and a few rough patches knocked out, deterministic per invoice
+    x.shadowBlur = 0; x.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 2600; i++) { x.fillStyle = `rgba(0,0,0,${0.35 + rnd() * 0.65})`; x.beginPath(); x.arc(rnd() * W, rnd() * H, 0.35 + rnd() * rnd() * 1.7, 0, 7); x.fill(); }
+    for (let i = 0; i < 70; i++) { x.fillStyle = `rgba(0,0,0,${0.25 + rnd() * 0.5})`; x.beginPath(); x.arc(rnd() * W, rnd() * H, 1.6 + rnd() * 3.4, 0, 7); x.fill(); }
+    for (let i = 0; i < 14; i++) { x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillRect(rnd() * W, rnd() * H, 18 + rnd() * 50, 0.8 + rnd() * 1.4); }
+    return ink;
+  }
+  const isPaidInFull = (v) => v.total > 0 && v.balance <= 0;
+  const stampDate = (v) => new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  function stampURL(v) { const k = v.no + '|' + v.date; return stampCache[k] || (stampCache[k] = stampCanvas(v.no, stampDate(v)).toDataURL('image/png')); }
+
   function sheetInvoice(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
-    const lines = v.lines && v.lines.length ? v.lines : [{ desc: v.desc, qty: v.qty, price: v.total - v.delivery }];
-    const sub = lines.reduce((t, l) => t + l.qty * l.price, 0), st = L.invoiceStatus(v);
-    openSheet(`<div class="printable"><div class="paper"><h4>INVOICE</h4>
-      <div class="meta"><div><b>BILL TO</b><br>${esc(v.client)}</div><div style="text-align:right"><b>INVOICE #</b> ${v.no}<br><b>DATE</b> ${day(v.date)}<br><b>DUE</b> ${day(v.due)}</div></div>
-      <table><thead><tr><th>Description</th><th>QTY</th><th class="r">Price</th><th class="r">Amount</th></tr></thead><tbody>
-      ${lines.map((l) => `<tr><td>${esc(l.desc)}</td><td>${l.qty}</td><td class="r">${money(l.price)}</td><td class="r">${money(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
-      <div class="tot"><div><span>Subtotal</span><span>${money(sub)}</span></div><div><span>Delivery</span><span>${money(v.delivery)}</span></div><div><span>Total</span><span>${money(v.total)}</span></div>
-      <div><span>Paid</span><span>${money(v.amountPaid)}</span></div><div><span>Previously paid</span><span>${money(v.previouslyPaid)}</span></div><div class="bal"><span>BALANCE DUE</span><span>${money(v.balance)}</span></div></div>
-      <p style="font-size:13px"><b>Terms or notes</b><br>Thanks for your business.</p></div></div>
+    const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v);
+    openSheet(`<div class="printable"><div class="inv"><img class="inv-banner" src="icons/invoice-banner.jpg" alt="B.RUIZ invoice header">
+      <div class="inv-body">
+        <div class="inv-top"><div><div class="lbl">BILL TO</div><div class="client">${esc(v.client)}</div></div>
+          <div class="inv-meta"><div><span class="lbl">INVOICE #</span><span>${v.no}</span></div><div><span class="lbl">DATE</span><span>${invDate(v.date)}</span></div><div><span class="lbl">DUE DATE</span><span>${invDate(v.due)}</span></div></div></div>
+        <table class="inv-t"><thead><tr><th>Description</th><th class="r">QTY</th><th class="r">Price</th><th class="r">Amount</th></tr></thead><tbody>
+          ${lines.map((l) => `<tr><td>${esc(l.desc)}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
+        <div class="inv-sum">${isPaidInFull(v) ? `<img class="stamp" src="${stampURL(v)}" alt="Paid in full">` : ''}<div class="inv-tot"><div><span>Subtotal</span><b>${invMoney(sub)}</b></div><div><span>Delivery</span><b>${invMoney(v.delivery)}</b></div><div><span>Total</span><b>${invMoney(v.total)}</b></div>
+          <div><span>Paid</span><b>${invMoney(v.amountPaid)}</b></div><div><span>Previously Paid</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>BALANCE DUE</span><b>${invMoney(v.balance)}</b></div></div></div>
+        <div class="inv-terms"><b>Terms Or Notes</b><span>Thanks for your business.</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">Status: <span class="pill ${st}">${st}</span>${v.profit ? ' · profit ' + money(v.profit) : ''}${v.loss ? ' · loss ' + money(v.loss) : ''}${v.tip ? ' · tip ' + money(v.tip) : ''}</div>
-      <div class="btns"><button class="btn primary" data-act="print">Print / Save as PDF</button>
-      ${navigator.share ? `<button class="btn" data-act="share-inv" data-id="${v.no}">Share summary</button>` : ''}
+      <div class="btns"><button class="btn primary" data-act="share-img" data-id="${v.no}">Share invoice image</button>
+      <button class="btn" data-act="save-img" data-id="${v.no}">Save as image</button>
+      <button class="btn" data-act="print">Print / Save as PDF</button>
       <button class="btn danger" data-act="del-inv" data-id="${v.no}">Delete invoice</button><button class="btn" data-act="close">Close</button></div>`);
+  }
+
+  // Draws the same invoice onto a canvas (800 x N, 2x) so it can be shared or saved as a PNG for WhatsApp etc.
+  function invoiceCanvas(v) {
+    return new Promise((ok, fail) => {
+      const img = new Image(); img.onerror = () => fail(new Error('Could not load the invoice header.'));
+      img.onload = () => {
+        const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0);
+        const bannerH = Math.round(W * img.naturalHeight / img.naturalWidth), rowH = 36;
+        const H = bannerH + 508 + lines.length * rowH + 62;   // ends 36px under the terms baseline: pink band sits right under the notes, as in the sheet
+        const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
+        const x = c.getContext('2d'); x.scale(S, S);
+        const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
+        x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+        x.drawImage(img, 0, 0, W, bannerH);
+        const L0 = 36, R0 = W - 36; let y = bannerH + 44;
+        x.textBaseline = 'alphabetic';
+        F('700', 14); x.fillStyle = INV.grey; x.textAlign = 'left'; x.fillText('BILL TO', L0, y);
+        F('400', 22); x.fillStyle = '#000'; x.fillText(v.client, L0, y + 32);
+        [['INVOICE #', v.no], ['DATE', invDate(v.date)], ['DUE DATE', invDate(v.due)]].forEach(([k, val], i) => {
+          F('700', 13); x.fillStyle = INV.grey; x.textAlign = 'right'; x.fillText(k, R0 - 150, y + i * 26);
+          F('400', 16); x.fillStyle = '#000'; x.fillText(val, R0, y + i * 26);
+        });
+        y += 74;
+        x.fillStyle = INV.mauve; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), 38);
+        F('700', 14); x.fillStyle = '#fff'; x.textAlign = 'left'; x.fillText('Description', L0, y + 25);
+        x.textAlign = 'right'; x.fillText('QTY', R0 - 250, y + 25); x.fillText('Price', R0 - 130, y + 25); x.fillText('Amount', R0, y + 25);
+        y += 38;
+        lines.forEach((l) => {
+          F('400', 16); x.fillStyle = '#000'; x.textAlign = 'left';
+          let d = String(l.desc); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(l.desc)) d = d.trim() + '…';
+          x.fillText(d, L0, y + 24);
+          x.textAlign = 'right'; x.fillText(String(l.qty), R0 - 250, y + 24); x.fillText(invMoney(l.price), R0 - 130, y + 24); x.fillText(invMoney(l.qty * l.price), R0, y + 24);
+          y += rowH;
+        });
+        x.strokeStyle = '#bdbdbd'; x.lineWidth = 1; x.beginPath(); x.moveTo(L0 - 8, y + 0.5); x.lineTo(W - L0 + 8, y + 0.5); x.stroke();
+        y += 34; const totTop = y - 20;
+        [['Subtotal', sub], ['Delivery', v.delivery], ['Total', v.total], ['Paid', v.amountPaid], ['Previously Paid', v.previouslyPaid]].forEach(([k, val]) => {
+          F('400', 16); x.fillStyle = INV.mid; x.textAlign = 'right'; x.fillText(k, R0 - 130, y); x.fillStyle = '#000'; x.fillText(invMoney(val), R0, y); y += 28;
+        });
+        x.fillStyle = INV.mauve; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
+        F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText('BALANCE DUE', R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
+        if (isPaidInFull(v)) {
+          x.save(); x.globalCompositeOperation = 'multiply';
+          x.drawImage(stampCanvas(v.no, stampDate(v)), W - L0 - 350, y + 34, 340, 152); x.restore();
+        }
+        y += 78 + 100;   // Terms stay at the bottom, as in the sheet; the gap above them is where the stamp sits
+        F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText('Terms Or Notes', L0, y);
+        F('400', 15); x.fillStyle = INV.grey; x.fillText('Thanks for your business.', L0, y + 26);
+        x.fillStyle = INV.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
+        c.toBlob((b) => (b ? ok(b) : fail(new Error('Could not create the image.'))), 'image/png');
+      };
+      img.src = 'icons/invoice-banner.jpg';
+    });
+  }
+  function shareInvoiceImage(no, saveOnly) {
+    const v = state.invoices.find((x) => x.no === no); if (!v) return;
+    toast('Preparing image…');
+    invoiceCanvas(v).then((blob) => {
+      const file = new File([blob], `${v.no} ${v.client}.png`, { type: 'image/png' });
+      if (!saveOnly && navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: v.no, text: `Invoice ${v.no} — balance due ${invMoney(v.balance)}` }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+      }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      toast(saveOnly ? 'Invoice image saved' : 'Sharing isn\'t available here, so the image was saved');
+    }).catch((e) => toast('⚠️ ' + e.message));
   }
 
   function sheetCustomer(name) {
@@ -501,8 +610,8 @@
       case 'view-inv': closeSheet(); return sheetInvoice(id);
       case 'del-inv': if (confirm(`Delete ${id}? Its items go back to their previous state.`)) run(() => L.deleteInvoice(state, id), `${id} deleted.`); return;
       case 'print': return window.print();
-      case 'share-inv': { const v = state.invoices.find((x) => x.no === id);
-        return navigator.share({ title: v.no, text: `Invoice ${v.no} for ${v.client}\n${v.desc}\nTotal ${moneyText(v.total)} · Paid ${moneyText(v.amountPaid + v.previouslyPaid)} · Balance due ${moneyText(v.balance)}\nDue ${day(v.due)}` }).catch(() => {}); }
+      case 'share-img': return shareInvoiceImage(id, false);
+      case 'save-img': return shareInvoiceImage(id, true);
       case 'more': moreView = id; window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);

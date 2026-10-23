@@ -45,9 +45,10 @@
 
   function render() {
     cleanSelected();
-    const titles = { home: 'Buy & Sell', stock: stockBatch || 'Stock', sell: 'Sell', people: 'People', more: moreView ? { invoices: 'Invoices', items: 'Item log', summary: 'Summary', settings: 'Settings' }[moreView] : 'More' };
+    const titles = { home: 'B-RUIZ', stock: stockBatch || 'Stock', sell: 'Sell', people: 'People', more: moreView ? { invoices: 'Invoices', items: 'Item log', summary: 'Summary', settings: 'Settings' }[moreView] : 'More' };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !(tab === 'more' && moreView);
+    $('#brand').hidden = !$('#back').hidden;
     $('#tabbar').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'sell' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`).join('');
     $('#appbar-right').innerHTML = tab === 'stock' && state.batches.length ? '<button class="pill-btn" data-act="new-batch">+ Batch</button>' : '';
     $('#view').innerHTML = { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();

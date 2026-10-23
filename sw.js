@@ -1,6 +1,6 @@
 /* Network-first service worker: always tries for the latest files, falls back to cache offline. */
-const CACHE = 'buy-sell-v2';
-const SHELL = ['./', 'index.html', 'css/style.css', 'js/logic.js', 'js/app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CACHE = 'buy-sell-v3';
+const SHELL = ['./', 'index.html', 'css/style.css', 'js/logic.js', 'js/app.js', 'manifest.webmanifest', 'icons/favicon.png', 'icons/apple-touch-icon.png', 'icons/logo.jpg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

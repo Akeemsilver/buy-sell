@@ -116,7 +116,7 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 /* invoice */
 .inv{background:#fff;color:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-family:"Lato","Helvetica Neue",Helvetica,Arial,sans-serif}
 .inv-banner{display:block;width:100%;height:auto}
-.inv-body{padding:14px 16px 8px}
+.inv-body{padding:14px 16px 0}
 .inv .lbl{font-weight:700;font-size:11px;color:#767676;letter-spacing:.02em}
 .inv-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:12px}
 .inv .client{font-size:17px;margin-top:2px}

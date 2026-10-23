@@ -417,7 +417,7 @@
       img.onload = () => {
         const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0);
         const bannerH = Math.round(W * img.naturalHeight / img.naturalWidth), rowH = 36;
-        const H = bannerH + 40 + 78 + 22 + 38 + lines.length * rowH + 28 + 5 * 28 + 44 + 40 + 62 + 30 + 100;
+        const H = bannerH + 508 + lines.length * rowH + 62;   // ends 36px under the terms baseline: pink band sits right under the notes, as in the sheet
         const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
         const x = c.getContext('2d'); x.scale(S, S);
         const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };

@@ -108,7 +108,7 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 @keyframes up{from{transform:translateY(40px);opacity:.4}}
 .sheet .grab{position:sticky;top:0;z-index:3;margin:-8px -16px 6px;padding:12px 0 10px;background:var(--bg);touch-action:none;cursor:grab}
 .sheet .grab::before{content:"";display:block;width:46px;height:5px;border-radius:3px;background:var(--mute);opacity:.45;margin:0 auto}
-.sheet h3{margin:0 0 4px;font-size:20px}
+.sheet h3{margin:0 0 4px;font-size:20px;touch-action:none}
 .table{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
 .table table{border-collapse:collapse;width:100%;font-size:13px}.table td,.table th{padding:8px 10px;text-align:right;white-space:nowrap;border-top:1px solid var(--line)}
 .table th{border:0;background:var(--brand2);color:#fff;font-size:11px}.table td:first-child,.table th:first-child{text-align:left;position:sticky;left:0;background:var(--card)}.table th:first-child{background:var(--brand2)}

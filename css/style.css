@@ -106,7 +106,8 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .scrim[hidden],.sheet[hidden],.actionbar[hidden]{display:none}
 .sheet{overscroll-behavior:contain;position:fixed;left:0;right:0;bottom:0;z-index:60;margin:0 auto;max-width:620px;max-height:92dvh;overflow:auto;background:var(--bg);border-radius:22px 22px 0 0;padding:8px 16px calc(20px + var(--sab));animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(40px);opacity:.4}}
-.sheet .grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 12px}
+.sheet .grab{position:sticky;top:0;z-index:3;margin:-8px -16px 6px;padding:12px 0 10px;background:var(--bg);touch-action:none;cursor:grab}
+.sheet .grab::before{content:"";display:block;width:46px;height:5px;border-radius:3px;background:var(--mute);opacity:.45;margin:0 auto}
 .sheet h3{margin:0 0 4px;font-size:20px}
 .table{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
 .table table{border-collapse:collapse;width:100%;font-size:13px}.table td,.table th{padding:8px 10px;text-align:right;white-space:nowrap;border-top:1px solid var(--line)}

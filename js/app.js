@@ -733,18 +733,30 @@
   (function () {
     const vv = window.visualViewport, sh = $('#sheet');
     if (!vv) return;
+    let lastFocus = null;
     const reset = () => { sh.classList.remove('kb'); sh.style.bottom = ''; sh.style.height = ''; sh.style.maxHeight = ''; };
+    // Bring the focused field into view (pop-up or ordinary page) once the keyboard has taken its space.
+    // Pages are scrolled by hand: the browser would centre the field in the full screen, not in the space above the keyboard.
     function keepFocusVisible() {
       const el = document.activeElement;
-      if (el && sh.contains(el) && /INPUT|SELECT|TEXTAREA/.test(el.tagName)) setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+      if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName) || el.type === 'checkbox') return;
+      setTimeout(() => {
+        if (sh.contains(el)) return el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        const r = el.getBoundingClientRect(), top = $('.appbar').getBoundingClientRect().bottom + 8, bottom = vv.offsetTop + vv.height - 12;
+        if (r.top >= top && r.bottom <= bottom) return;
+        window.scrollBy({ top: r.top + r.height / 2 - (top + bottom) / 2, behavior: 'smooth' });
+      }, 60);
     }
     function update() {
       const kbh = Math.max(0, window.innerHeight - vv.height - vv.offsetTop), kb = kbh > 100;   // keyboard height in px
+      const was = document.body.classList.contains('kb');
       document.body.classList.toggle('kb', kb);
+      document.documentElement.style.setProperty('--kb', kb ? kbh + 'px' : '0px');   // lets ordinary pages scroll past the keyboard
       if (kb && !sh.hidden) {
         sh.classList.add('kb'); sh.style.bottom = kbh + 'px'; sh.style.height = Math.max(220, vv.height - 8) + 'px'; sh.style.maxHeight = 'none';
-        keepFocusVisible();
       } else reset();
+      if (kb && (!was || document.activeElement !== lastFocus)) keepFocusVisible();
+      lastFocus = document.activeElement;
     }
     vv.addEventListener('resize', update); vv.addEventListener('scroll', update);
     document.addEventListener('focusin', () => setTimeout(update, 250));   // some browsers report the resize late

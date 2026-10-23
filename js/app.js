@@ -31,6 +31,7 @@
   let invForm = { client: '', paying: '' };
   let sheetClose = null, toastTimer;
   let syncHistory = () => {};
+  let syncKeyboard = () => {};
   let hideAmounts = pref('hideAmounts', false);
   let theme = pref('theme', 'auto');
   let flt = pref('filter', { period: 'all', batch: 'all' });
@@ -271,6 +272,7 @@
     sheetClose = onClose || null;
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
+    syncKeyboard();
     syncHistory();
   }
   function closeSheet() {
@@ -278,6 +280,7 @@
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
+    syncKeyboard();
     syncHistory();
     const cb = sheetClose; sheetClose = null; if (cb) cb();
   }
@@ -724,6 +727,29 @@
   });
   history.replaceState({ out: true }, '');
   history.pushState({ d: 0 }, '');
+
+  // When the on-screen keyboard opens it covers the bottom of the screen. Make the open sheet fill the space between the
+  // top of the screen and the keyboard (so it can scroll), keep the tapped field in view, and hide the bottom bars while typing.
+  (function () {
+    const vv = window.visualViewport, sh = $('#sheet');
+    if (!vv) return;
+    const reset = () => { sh.classList.remove('kb'); sh.style.bottom = ''; sh.style.height = ''; sh.style.maxHeight = ''; };
+    function keepFocusVisible() {
+      const el = document.activeElement;
+      if (el && sh.contains(el) && /INPUT|SELECT|TEXTAREA/.test(el.tagName)) setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+    }
+    function update() {
+      const kbh = Math.max(0, window.innerHeight - vv.height - vv.offsetTop), kb = kbh > 100;   // keyboard height in px
+      document.body.classList.toggle('kb', kb);
+      if (kb && !sh.hidden) {
+        sh.classList.add('kb'); sh.style.bottom = kbh + 'px'; sh.style.height = Math.max(220, vv.height - 8) + 'px'; sh.style.maxHeight = 'none';
+        keepFocusVisible();
+      } else reset();
+    }
+    vv.addEventListener('resize', update); vv.addEventListener('scroll', update);
+    document.addEventListener('focusin', () => setTimeout(update, 250));   // some browsers report the resize late
+    syncKeyboard = update;
+  })();
 
   // Drag a sheet down to dismiss it (only when it is scrolled to the top, so scrolling still works).
   (function () {

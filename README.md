@@ -19,6 +19,8 @@ Pop-ups (sheets) are dismissed by pulling their header (the handle bar or the ti
 
 When the app isn't installed yet, Home shows an **Install** banner at the top (Android/Chrome opens the system install prompt; on iPhone it shows the Add to Home Screen steps). It disappears once installed and can be dismissed for a week. **More → Install app** always opens the guide: on iPhone an illustrated Add to Home Screen walkthrough (with a warning and *Copy link* when opened inside Instagram/Facebook/WhatsApp, which can't install apps).
 
+When the on-screen keyboard opens inside a pop-up, the pop-up grows to fill the space from the top of the screen down to the keyboard, scrolls, keeps the tapped field in view and the bottom tab bar steps aside until the keyboard closes.
+
 To install: open the site in Chrome (Android) → ⋮ → *Add to Home screen*, or Safari (iPhone) → Share → *Add to Home Screen*.
 
 ## Workflow (same as the sheet)

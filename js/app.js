@@ -400,9 +400,9 @@
           <div class="inv-meta"><div><span class="lbl">INVOICE #</span><span>${v.no}</span></div><div><span class="lbl">DATE</span><span>${invDate(v.date)}</span></div><div><span class="lbl">DUE DATE</span><span>${invDate(v.due)}</span></div></div></div>
         <table class="inv-t"><thead><tr><th>Description</th><th class="r">QTY</th><th class="r">Price</th><th class="r">Amount</th></tr></thead><tbody>
           ${lines.map((l) => `<tr><td>${esc(l.desc)}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
-        <div class="inv-sum"><div class="inv-tot"><div><span>Subtotal</span><b>${invMoney(sub)}</b></div><div><span>Delivery</span><b>${invMoney(v.delivery)}</b></div><div><span>Total</span><b>${invMoney(v.total)}</b></div>
+        <div class="inv-sum">${isPaidInFull(v) ? `<img class="stamp" src="${stampURL(v)}" alt="Paid in full">` : ''}<div class="inv-tot"><div><span>Subtotal</span><b>${invMoney(sub)}</b></div><div><span>Delivery</span><b>${invMoney(v.delivery)}</b></div><div><span>Total</span><b>${invMoney(v.total)}</b></div>
           <div><span>Paid</span><b>${invMoney(v.amountPaid)}</b></div><div><span>Previously Paid</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>BALANCE DUE</span><b>${invMoney(v.balance)}</b></div></div></div>
-        <div class="inv-terms${isPaidInFull(v) ? ' paid' : ''}"><b>Terms Or Notes</b><span>Thanks for your business.</span>${isPaidInFull(v) ? `<img class="stamp" src="${stampURL(v)}" alt="Paid in full">` : ''}</div></div><div class="inv-foot"></div></div></div>
+        <div class="inv-terms"><b>Terms Or Notes</b><span>Thanks for your business.</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">Status: <span class="pill ${st}">${st}</span>${v.profit ? ' · profit ' + money(v.profit) : ''}${v.loss ? ' · loss ' + money(v.loss) : ''}${v.tip ? ' · tip ' + money(v.tip) : ''}</div>
       <div class="btns"><button class="btn primary" data-act="share-img" data-id="${v.no}">Share invoice image</button>
       <button class="btn" data-act="save-img" data-id="${v.no}">Save as image</button>
@@ -417,7 +417,7 @@
       img.onload = () => {
         const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0);
         const bannerH = Math.round(W * img.naturalHeight / img.naturalWidth), rowH = 36;
-        const H = bannerH + 40 + 78 + 22 + 38 + lines.length * rowH + 28 + 5 * 28 + 44 + 40 + 62 + 30 + (isPaidInFull(v) ? 40 : 0);
+        const H = bannerH + 40 + 78 + 22 + 38 + lines.length * rowH + 28 + 5 * 28 + 44 + 40 + 62 + 30 + 100;
         const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
         const x = c.getContext('2d'); x.scale(S, S);
         const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
@@ -452,9 +452,9 @@
         F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText('BALANCE DUE', R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
         if (isPaidInFull(v)) {
           x.save(); x.globalCompositeOperation = 'multiply';
-          x.drawImage(stampCanvas(v.no, stampDate(v)), W - L0 - 350, y + 30, 340, 152); x.restore();
+          x.drawImage(stampCanvas(v.no, stampDate(v)), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
-        y += 78;
+        y += 78 + 100;   // Terms stay at the bottom, as in the sheet; the gap above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText('Terms Or Notes', L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText('Thanks for your business.', L0, y + 26);
         x.fillStyle = INV.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);

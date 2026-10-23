@@ -41,6 +41,23 @@
     const dark = theme === 'dark' || (theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
     const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#3a1128' : '#741b47';
   }
+  /* ---------- install banner ---------- */
+
+  let installEvt = null;                                   // Chrome/Android install prompt, when the browser offers it
+  const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  const WEEK = 7 * 864e5;
+  function installBanner() {
+    if (isStandalone() || pref('installed', false) || Date.now() - pref('installDismissed', 0) < WEEK) return '';
+    if (!installEvt && !isIOS) return '';                  // browser can't install it (or already did): stay hidden
+    return `<div class="install"><img src="icons/logo.png" alt="" width="44" height="44">
+      <div class="grow"><b>Install the B-RUIZ app</b><small>${installEvt ? 'Works offline, opens like a normal app' : 'Add it to your home screen'}</small></div>
+      <button class="pill-btn solid" data-act="install">${installEvt ? 'Install' : 'How'}</button>
+      <button class="x" data-act="install-dismiss" aria-label="Dismiss">✕</button></div>`;
+  }
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (tab === 'home') render(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; setPref('installed', true); toast('App installed 🎉'); render(); });
+
   const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
 
   function load() {
@@ -72,7 +89,7 @@
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     $('#appbar-right').innerHTML = $('#back').hidden ? `<div class="tools">${btn('view', hideAmounts ? 'Show amounts' : 'Hide amounts', hideAmounts ? 'eyeoff' : 'eye')}${btn('download', 'Download or export', 'download')}${btn('filter', 'Filter', 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', 'Settings', 'gear')}</div>` : '';
     document.body.classList.toggle('hide-amounts', hideAmounts);
-    $('#view').innerHTML = { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
+    $('#view').innerHTML = (tab === 'home' ? installBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
     syncHistory();
   }
@@ -207,6 +224,7 @@
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     return `<div class="list">${go('invoices', '🧾', 'Invoices', state.invoices.length + ' total')}${go('items', '📋', 'Item log', state.items.length + ' items')}
       ${go('summary', '📈', 'Summary', 'Monthly sales, expenses, profit')}${go('settings', '⚙️', 'Settings', 'Exchange rates, year, margin')}</div>
+      ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>Install app</b><small>${isIOS ? 'Add to your iPhone home screen' : 'Add to your home screen'}</small></div><span class="chev">›</span></button></div>`}
       <h2>Data</h2><div class="list">
         <button class="row tap" data-act="import-xlsx"><span style="font-size:22px">📥</span><div class="grow"><b>Import .xlsx workbook</b><small>Replaces data on this device</small></div></button>
         <button class="row tap" data-act="export-json"><span style="font-size:22px">💾</span><div class="grow"><b>Backup</b><small>Save everything as a file</small></div></button>
@@ -377,6 +395,35 @@
       <div class="btns"><button class="btn" data-act="clear-filter">Clear filter</button><button class="btn primary" data-act="close">Done</button></div>`);
   }
 
+  // Illustrated Add-to-Home-Screen walkthrough (drawn to match Safari's UI; mock colours stay light in dark mode)
+  const SHARE = '<svg viewBox="0 0 24 24" class="ico"><path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+  function sheetInstallHelp() {
+    const ua = navigator.userAgent;
+    const inApp = /FBAN|FBAV|Instagram|WhatsApp|Snapchat|TikTok|Line\/|GSA\/|; wv\)/i.test(ua);
+    const other = /CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua);
+    if (!isIOS) {
+      openSheet(`<h3>Install the app</h3><p class="muted small">Your browser installs it from its menu:</p>
+        <ol style="line-height:1.9;padding-left:20px"><li><b>Chrome / Edge (Android):</b> tap <b>⋮</b> → <b>Install app</b> (or <b>Add to Home screen</b>)</li>
+        <li><b>Samsung Internet:</b> tap <b>☰</b> → <b>Add page to</b> → <b>Home screen</b></li><li><b>Desktop Chrome / Edge:</b> click the install icon in the address bar</li></ol>
+        <div class="btns"><button class="btn primary" data-act="close">Got it</button></div>`);
+      return;
+    }
+    const warn = inApp ? '<div class="note bad">⚠️ This looks like an in-app browser (Instagram, Facebook, WhatsApp…). It can\'t install apps. Tap <b>Copy link</b> below, open <b>Safari</b>, and paste it in the address bar.</div>'
+      : other ? '<div class="note">You\'re not in Safari. Chrome on iPhone works too: tap the <b>Share</b> icon next to the address bar. If you can\'t find it, open this page in <b>Safari</b> instead.</div>' : '';
+    openSheet(`<h3>Add to your iPhone home screen</h3><p class="muted small">Takes about 10 seconds. Once added, the app opens full screen with its own icon.</p>${warn}
+      <div class="step"><i>1</i><div><b>Tap the Share button</b><small>The square with an arrow, at the bottom of Safari (on iPad it is at the top).</small></div></div>
+      <div class="mock"><div class="safari"><span class="g">‹</span><span class="g">›</span><span class="hl">${SHARE}<em>Share</em></span><span class="g">📖</span><span class="g">❏</span></div></div>
+      <div class="step"><i>2</i><div><b>Scroll down and tap “Add to Home Screen”</b><small>It is in the list under the apps row. You may need to swipe up.</small></div></div>
+      <div class="mock"><div class="rows"><div>Copy <span>⧉</span></div><div>Add to Bookmarks <span>📖</span></div><div>Add to Favourites <span>☆</span></div>
+        <div class="hl">Add to Home Screen <span>⊞</span></div><div>Find on Page <span>🔍</span></div></div></div>
+      <div class="step"><i>3</i><div><b>Tap “Add” at the top right</b><small>You can keep the name <b>B-RUIZ</b>.</small></div></div>
+      <div class="mock"><div class="dlg"><div class="hdr"><span>Cancel</span><b>Add to Home Screen</b><span class="hl">Add</span></div>
+        <div class="body"><img src="icons/icon-192.png" alt="" width="52" height="52"><div><b>B-RUIZ</b><small>${esc(location.host)}</small></div></div></div></div>
+      <div class="step"><i>4</i><div><b>Open it from your home screen</b><small>Find the B-RUIZ icon and tap it. Your data is stored on this phone — if you already entered data in Safari, use <b>Download → Full backup</b> first and <b>Restore</b> it after opening the new app.</small></div></div>
+      <div class="mock home"><div class="app"><img src="icons/icon-192.png" alt="" width="58" height="58"><span>B-RUIZ</span></div></div>
+      <div class="btns"><button class="btn" data-act="copy-link">Copy link</button><button class="btn primary" data-act="close">Got it</button></div>`);
+  }
+
   function sheetDownload() {
     openSheet(`<h3>Download</h3><p class="muted small">Spreadsheets open in Excel or Google Sheets.</p>
       <div class="list" style="margin-top:12px">
@@ -417,6 +464,12 @@
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); return render();
+      case 'install':
+        if (installEvt) { const ev = installEvt; installEvt = null; render(); ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); }).catch(() => {}); }
+        return sheetInstallHelp();
+      case 'install-guide': if (installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); render(); }).catch(() => {}); } return sheetInstallHelp();
+      case 'copy-link': return (navigator.clipboard ? navigator.clipboard.writeText(location.href.split('#')[0]) : Promise.reject()).then(() => toast('Link copied — paste it in Safari'), () => toast('Copy the address from your browser bar'));
+      case 'install-dismiss': setPref('installDismissed', Date.now()); return render();
       case 'download': return sheetDownload();
       case 'filter': return sheetFilter();
       case 'settings': closeSheet(); tab = 'more'; moreView = 'settings'; window.scrollTo(0, 0); return render();

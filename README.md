@@ -21,6 +21,8 @@ When the app isn't installed yet, Home shows an **Install** banner at the top (A
 
 When the on-screen keyboard opens, every screen and pop-up adapts: ordinary pages (Sell, People search, Settings) get room to scroll past the keyboard and bring the tapped field into view; a pop-up grows to fill the space from the top of the screen down to the keyboard, scrolls, keeps the tapped field in view and the bottom tab bar steps aside until the keyboard closes.
 
+**Updates install themselves.** Every deploy stamps a new version into the service worker (the commit id), and the app looks for it when it opens, when you switch back to it, when the phone comes back online and every 10 minutes. When a new version is ready the app reloads into it automatically, waiting if you are typing or have a pop-up open. The version is shown at the bottom of **More**. The deploy workflow also runs `npm test` first, so a failing test blocks the deploy.
+
 To install: open the site in Chrome (Android) → ⋮ → *Add to Home screen*, or Safari (iPhone) → Share → *Add to Home Screen*.
 
 ## Workflow (same as the sheet)

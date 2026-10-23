@@ -18,6 +18,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Run tests
+        run: npm test
+      - name: Stamp version
+        run: sed -i "s/const CACHE = '[^']*'/const CACHE = 'buy-sell-${GITHUB_SHA::7}'/" sw.js && grep -n "const CACHE" sw.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

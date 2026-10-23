@@ -93,6 +93,13 @@
     $('#view').innerHTML = (tab === 'home' ? installBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
     syncHistory();
+    showVersion();
+  }
+
+  // The deploy stamps the commit id into the cache name, so the saved copy tells us which version is running.
+  function showVersion() {
+    const el = $('#ver'); if (!el || !window.caches) return;
+    caches.keys().then((ks) => { const k = ks.find((x) => /^buy-sell-/.test(x)); if (k) el.textContent = 'Version ' + k.replace('buy-sell-', ''); }).catch(() => {});
   }
 
   function renderActionBar() {
@@ -231,7 +238,7 @@
         <button class="row tap" data-act="export-json"><span style="font-size:22px">💾</span><div class="grow"><b>Backup</b><small>Save everything as a file</small></div></button>
         <button class="row tap" data-act="import-json"><span style="font-size:22px">♻️</span><div class="grow"><b>Restore backup</b><small>Load a backup file</small></div></button>
         <button class="row tap" data-act="reset"><span style="font-size:22px">🗑️</span><div class="grow"><b class="bad">Erase all data</b><small>Cannot be undone — back up first</small></div></button></div>
-      <p class="muted small" style="text-align:center;margin-top:20px">Data is stored on this device only.</p>`;
+      <p class="muted small" style="text-align:center;margin-top:20px">Data is stored on this device only.<br><span id="ver"></span></p>`;
   }
 
   function ItemLog() {

@@ -19,6 +19,12 @@ label{display:block;font-size:12px;color:var(--mute);margin:12px 0 4px;font-weig
 .brand[hidden]{display:none}
 .appbar h1{flex:1;margin:0;font-size:19px;font-weight:700}
 .icon-btn{background:transparent;border:0;color:#fff;font-size:34px;line-height:1;width:40px;height:44px;margin-left:-10px}
+.tools{display:flex;gap:8px;flex:none}
+.round{position:relative;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);display:grid;place-items:center;padding:0;color:#fff}
+.round:active{background:rgba(255,255,255,.3)}
+.round svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.round .dot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:#ffd166;border:2px solid var(--brand)}
+.hide-amounts .amt{filter:blur(7px);user-select:none;pointer-events:none}
 .pill-btn{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:99px;padding:8px 14px;font-weight:600;min-height:36px}
 
 main{padding:12px 14px calc(var(--tabh) + var(--sab) + 96px)}
@@ -28,8 +34,8 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 /* cards */
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
-.stat span{display:block;font-size:12px;color:var(--mute)}.stat b{font-size:20px}
-.stat.hero{grid-column:1/-1;background:var(--brand);color:#fff;border:0}.stat.hero span{color:rgba(255,255,255,.8)}.stat.hero b{font-size:28px}
+.stat>span{display:block;font-size:12px;color:var(--mute)}.stat b{font-size:20px}
+.stat.hero{grid-column:1/-1;background:var(--brand);color:#fff;border:0}.stat.hero>span{color:rgba(255,255,255,.8)}.stat.hero b{font-size:28px}
 .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .quick button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 6px;border:1px solid var(--line);background:var(--card);border-radius:16px;font-size:13px;font-weight:600;color:var(--ink)}
 .quick button i{font-style:normal;font-size:22px}

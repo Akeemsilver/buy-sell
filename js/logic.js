@@ -261,19 +261,53 @@
     return m;
   };
 
-  L.totals = (s) => {
-    const owing = L.customerStats(s).reduce((t, c) => t + c.owing, 0);
-    const expense = s.batches.reduce((t, b) => t + b.totalCost * b.rate + b.clearingPaid, 0);
-    const sales = s.invoices.reduce((t, v) => t + v.amountPaid, 0);
+  /* ---------- filters (period + batch) ---------- */
+
+  // period: 'all' | 'thisMonth' | 'lastMonth' | 'thisYear' | '2025' ... -> {from, to} (to exclusive) or null
+  L.periodRange = (period, now) => {
+    now = now || new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    if (period === 'thisMonth') return { from: new Date(y, m, 1), to: new Date(y, m + 1, 1) };
+    if (period === 'lastMonth') return { from: new Date(y, m - 1, 1), to: new Date(y, m, 1) };
+    if (period === 'thisYear') return { from: new Date(y, 0, 1), to: new Date(y + 1, 0, 1) };
+    if (/^\d{4}$/.test(String(period))) return { from: new Date(+period, 0, 1), to: new Date(+period + 1, 0, 1) };
+    return null;
+  };
+  const inRange = (d, r) => !r || (new Date(d) >= r.from && new Date(d) < r.to);
+
+  // batches an invoice touches, following the chain of updated invoices to the latest one
+  const invoiceBatches = (s, v) => {
+    let cur = v, guard = 0;
+    while (cur.updatedBy && guard++ < 50) cur = s.invoices.find((x) => x.no === cur.updatedBy) || { no: '', updatedBy: '' };
+    return new Set(s.items.filter((i) => i.invoice === cur.no).map((i) => i.batchId));
+  };
+
+  L.filterInvoices = (s, f) => {
+    f = f || {};
+    const r = L.periodRange(f.period);
+    return s.invoices.filter((v) => inRange(v.date, r) && (!f.batch || f.batch === 'all' || invoiceBatches(s, v).has(f.batch)));
+  };
+  L.filterBatches = (s, f) => s.batches.filter((b) => !f || !f.batch || f.batch === 'all' || b.id === f.batch);
+
+  // Period limits sales, expenses and profit; batch limits everything. Owing and stock counts are "right now".
+  L.totals = (s, f) => {
+    f = f || {};
+    const r = L.periodRange(f.period), all = !f.batch || f.batch === 'all';
+    const batches = s.batches.filter((b) => (all || b.id === f.batch) && inRange(b.datePurchased, r));
+    const invs = L.filterInvoices(s, f), invNos = new Set(invs.map((v) => v.no));
+    const items = s.items.filter((i) => all || i.batchId === f.batch);
+    const owing = items.reduce((t, i) => t + num(i.owing), 0);
+    const expense = batches.reduce((t, b) => t + b.totalCost * b.rate + b.clearingPaid, 0);
+    const sales = invs.reduce((t, v) => t + v.amountPaid, 0);
     // profit on items that have actually sold (sold price - landed cost); unsold stock is not counted
-    const profit = s.items.reduce((t, i) => {
-      if (i.status !== 'Paid' && i.status !== 'Owing') return t;
+    const profit = items.reduce((t, i) => {
+      if ((i.status !== 'Paid' && i.status !== 'Owing') || (r && !invNos.has(i.invoice))) return t;
       const c = L.itemCalc(s.batches.find((b) => b.id === i.batchId), i);
       return c.landed ? t + num(i.sold) - c.landed : t;
     }, 0);
     return { owing: r2(owing), expense: r2(expense), sales: r2(sales), profit: r2(profit),
-      available: s.items.filter((i) => i.status === 'Available').length,
-      inTransit: s.items.filter((i) => i.status === 'In Transit').length };
+      available: items.filter((i) => i.status === 'Available').length,
+      inTransit: items.filter((i) => i.status === 'In Transit').length };
   };
 
   /* ---------- import from the Google Sheets workbook ---------- */

@@ -4,11 +4,18 @@
   const KEY = 'buy-sell-tracker:v1';
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const money = (n) => 'TT$ ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const moneyText = (n) => 'TT$ ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (n) => `<span class="amt">${moneyText(n)}</span>`;   // wrapped so the eye button can blur amounts
+  const plain = (html) => String(html).replace(/<[^>]+>/g, '');
   const day = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];
   const bStatus = (b) => L.batchStatus(state, b);
   const ICONS = {
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    eyeoff: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
+    download: '<path d="M12 4v11"/><path d="M7.5 11 12 15.5 16.5 11"/><path d="M5 19.5h14"/>',
+    filter: '<path d="M3.5 5h17l-6.5 8v6l-4 2v-8z"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
     home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
     stock: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
     sell: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
@@ -23,6 +30,11 @@
   let selected = new Set();
   let invForm = { client: '', paying: '' };
   let sheetClose = null, toastTimer;
+  let hideAmounts = pref('hideAmounts', false);
+  let flt = pref('filter', { period: 'all', batch: 'all' });
+  function pref(k, d) { try { const v = localStorage.getItem('buy-sell-pref:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function setPref(k, v) { try { localStorage.setItem('buy-sell-pref:' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
+  const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
 
   function load() {
     try { const raw = localStorage.getItem(KEY); if (raw) return L.migrate(JSON.parse(raw)); } catch (e) { /* use default */ }
@@ -30,7 +42,7 @@
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('Could not save to browser storage.'); } }
   function toast(msg) {
-    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    const t = $('#toast'); t.textContent = plain(msg); t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
   }
   // Run a state change, save, report. Errors become a toast and leave the sheet open.
@@ -50,7 +62,9 @@
     $('#back').hidden = !(tab === 'more' && moreView);
     $('#brand').hidden = !$('#back').hidden;
     $('#tabbar').innerHTML = TABS.map(([k, label]) => `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'sell' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`).join('');
-    $('#appbar-right').innerHTML = tab === 'stock' && state.batches.length ? '<button class="pill-btn" data-act="new-batch">+ Batch</button>' : '';
+    const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
+    $('#appbar-right').innerHTML = $('#back').hidden ? `<div class="tools">${btn('view', hideAmounts ? 'Show amounts' : 'Hide amounts', hideAmounts ? 'eyeoff' : 'eye')}${btn('download', 'Download or export', 'download')}${btn('filter', 'Filter', 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', 'Settings', 'gear')}</div>` : '';
+    document.body.classList.toggle('hide-amounts', hideAmounts);
     $('#view').innerHTML = { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
   }
@@ -71,13 +85,13 @@
   /* ---------- Home ---------- */
 
   function Home() {
-    const t = L.totals(state);
+    const t = L.totals(state, flt);
     const inTransit = state.batches.filter((b) => bStatus(b) === 'In Transit');
     const owing = L.customerStats(state).filter((c) => c.owing > 0).sort((a, b) => b.owing - a.owing).slice(0, 4);
-    const recent = state.invoices.slice(-3).reverse();
+    const recent = L.filterInvoices(state, flt).slice(-3).reverse();
     if (!state.batches.length) return `<div class="empty"><b>Welcome 👋</b>Start by ordering a batch, or import your existing spreadsheet from More → Data.</div>
       <div class="list"><button class="btn primary" data-act="new-batch">+ New batch</button><button class="btn" data-act="import-xlsx">Import my .xlsx workbook</button></div>`;
-    return `<div class="stats">
+    return `${filtered() ? `<button class="row tap" data-act="filter" style="margin-bottom:10px;background:var(--tint)"><div class="grow"><b>Filtered: ${esc(filterLabel())}</b><small>Period limits sales, expenses, profit · tap to change</small></div><span class="chev">›</span></button>` : ''}<div class="stats">
       <div class="stat hero"><span>Profit on items sold</span><b>${money(t.profit)}</b></div>
       <div class="stat"><span>Sales (paid)</span><b>${money(t.sales)}</b></div>
       <div class="stat"><span>Owing to you</span><b>${money(t.owing)}</b></div>
@@ -89,7 +103,7 @@
       <button data-act="receive" ${inTransit.length ? '' : 'disabled'}><i>📦</i>Receive batch</button>
       <button data-act="goto-stock"><i>🏷️</i>Price items</button></div>
     <h2>Batches</h2>
-    <div class="list">${state.batches.slice().sort((a, b) => b.num - a.num).map((b) => {
+    <div class="list">${L.filterBatches(state, flt).slice().sort((a, b) => b.num - a.num).map((b) => {
       const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0;
       return `<button class="row tap" data-act="batch" data-id="${b.id}" style="${bStatus(b) === 'Closed' ? 'opacity:.6' : ''}"><div class="grow"><b>${b.id} <span class="pill ${bStatus(b)}">${bStatus(b)}</span></b>
         <small>${esc(b.store)} · ${day(b.datePurchased)} · ${st.sold}/${st.count} sold</small><div class="bar"><i style="width:${pct}%"></i></div></div>
@@ -116,7 +130,7 @@
     const items = all.filter((i) => stockFilter === 'All' || i.status === stockFilter);
     const st = L.batchStats(state, b);
     const chips = (arr, cur, act) => arr.map((x) => `<button class="chip ${x === cur ? 'on' : ''}" data-act="${act}" data-id="${esc(x)}">${esc(x)}</button>`).join('');
-    return `<div class="chips">${chips(open.map((x) => x.id), stockBatch, 'pick-batch')}</div>
+    return `<div class="chips">${chips(open.map((x) => x.id), stockBatch, 'pick-batch')}<button class="chip" data-act="new-batch">+ Batch</button></div>
       <div class="row" style="margin-bottom:10px"><div class="grow"><b>${bStatus(b)} · ${money(st.investment)} invested</b><small>Clearing ${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%) · ${st.left} left</small></div>
         <div class="end"><b>${money(st.profit)}</b><small>profit</small></div></div>
       <div class="chips">${chips(['All', ...STATUSES], stockFilter, 'pick-filter')}</div>
@@ -178,7 +192,7 @@
   /* ---------- More ---------- */
 
   function More() {
-    if (moreView === 'invoices') return `<div class="list">${state.invoices.slice().reverse().map(invoiceRow).join('') || '<div class="empty">No invoices yet.</div>'}</div>`;
+    if (moreView === 'invoices') return `<div class="list">${L.filterInvoices(state, flt).slice().reverse().map(invoiceRow).join('') || '<div class="empty">No invoices yet.</div>'}</div>`;
     if (moreView === 'items') return ItemLog();
     if (moreView === 'summary') return Summary();
     if (moreView === 'settings') return Settings();
@@ -330,6 +344,50 @@
       <div class="btns"><button class="btn" data-act="close">Close</button></div>`);
   }
 
+  /* ---------- top-bar tools ---------- */
+
+  function filterLabel() {
+    const p = { all: 'All time', thisMonth: 'This month', lastMonth: 'Last month', thisYear: 'This year' }[flt.period] || flt.period;
+    return p + (flt.batch !== 'all' ? ' · ' + flt.batch : '');
+  }
+
+  function sheetFilter() {
+    const y = new Date().getFullYear();
+    const periods = [['all', 'All time'], ['thisMonth', 'This month'], ['lastMonth', 'Last month'], ['thisYear', 'This year'], [String(y - 1), String(y - 1)]];
+    const chip = (act, id, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="${act}" data-id="${esc(id)}">${esc(label)}</button>`;
+    openSheet(`<h3>Filter</h3><p class="muted small">Period limits sales, expenses and profit (by invoice and order date). Batch limits everything. Owing and stock counts are always as of today.</p>
+      <h2>Period</h2><div class="suggest">${periods.map(([k, l]) => chip('set-period', k, l, flt.period === k)).join('')}</div>
+      <h2>Batch</h2><div class="suggest">${chip('set-fbatch', 'all', 'All batches', flt.batch === 'all')}${state.batches.slice().sort((a, b) => b.num - a.num).map((b) => chip('set-fbatch', b.id, b.id, flt.batch === b.id)).join('')}</div>
+      <div class="btns"><button class="btn" data-act="clear-filter">Clear filter</button><button class="btn primary" data-act="close">Done</button></div>`);
+  }
+
+  function sheetDownload() {
+    openSheet(`<h3>Download</h3><p class="muted small">Spreadsheets open in Excel or Google Sheets.</p>
+      <div class="list" style="margin-top:12px">
+        <button class="row tap" data-act="export-json"><span style="font-size:22px">💾</span><div class="grow"><b>Full backup</b><small>Everything, to restore later (.json)</small></div></button>
+        <button class="row tap" data-act="csv" data-id="invoices"><span style="font-size:22px">🧾</span><div class="grow"><b>Invoices</b><small>${state.invoices.length} rows (.csv)</small></div></button>
+        <button class="row tap" data-act="csv" data-id="items"><span style="font-size:22px">📋</span><div class="grow"><b>Items</b><small>${state.items.length} rows (.csv)</small></div></button>
+        <button class="row tap" data-act="csv" data-id="customers"><span style="font-size:22px">👥</span><div class="grow"><b>Customers</b><small>${L.customerStats(state).length} rows (.csv)</small></div></button></div>
+      <div class="btns"><button class="btn" data-act="close">Close</button></div>`);
+  }
+
+  function csvOf(kind) {
+    const q = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    let head, rows;
+    if (kind === 'invoices') {
+      head = ['Invoice #', 'Bill to', 'Items', 'Status', 'Total', 'Amount paid', 'Previously paid', 'Balance due', 'Delivery', 'Date', 'Due date', 'Quantity', 'Profit', 'Loss', 'Tip'];
+      rows = state.invoices.map((v) => [v.no, v.client, v.desc, L.invoiceStatus(v), v.total, v.amountPaid, v.previouslyPaid, v.balance, v.delivery, v.date.slice(0, 10), v.due.slice(0, 10), v.qty, v.profit || '', v.loss || '', v.tip || '']);
+    } else if (kind === 'items') {
+      head = ['Item ID', 'Batch', 'Store', 'Status', 'Description', 'Customer', 'Cost (store currency)', 'Cost (TTD)', 'Clearing', 'Landed cost', 'Sold for', 'Profit', 'Amount paid', 'Owing', 'Invoice #'];
+      rows = state.items.map((i) => { const c = L.itemCalc(state.batches.find((b) => b.id === i.batchId), i);
+        return [i.id, i.batchId, i.store, i.status, i.desc, i.customer, i.cost || '', L.r2(c.costTTD) || '', L.r2(c.clearing) || '', L.r2(c.landed) || '', i.sold || '', i.sold > 0 && c.landed ? L.r2(i.sold - c.landed) : '', i.paid || '', i.owing || '', i.invoice]; });
+    } else {
+      head = ['Customer', 'Status', 'Total owing', 'Total sales', 'Items bought', 'Items owing', 'Profit made', 'Last item', 'Last purchase'];
+      rows = L.customerStats(state).map((c) => [c.name, c.status, c.owing, c.sales, c.bought, c.itemsOwing, c.profit, c.lastItem, c.lastDate ? c.lastDate.toISOString().slice(0, 10) : '']);
+    }
+    return '\ufeff' + [head, ...rows].map((r) => r.map(q).join(',')).join('\r\n');
+  }
+
   /* ---------- events ---------- */
 
   function openInvoiceFromSheet(no) { closeSheet(); sheetInvoice(no); }
@@ -341,6 +399,14 @@
     const id = t.dataset.id;
     switch (t.dataset.act) {
       case 'close': return closeSheet();
+      case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
+      case 'download': return sheetDownload();
+      case 'filter': return sheetFilter();
+      case 'settings': closeSheet(); tab = 'more'; moreView = 'settings'; window.scrollTo(0, 0); return render();
+      case 'set-period': flt.period = id; setPref('filter', flt); render(); return sheetFilter();
+      case 'set-fbatch': flt.batch = id; setPref('filter', flt); render(); return sheetFilter();
+      case 'clear-filter': flt = { period: 'all', batch: 'all' }; setPref('filter', flt); render(); return sheetFilter();
+      case 'csv': return download(`b-ruiz-${id}.csv`, csvOf(id), 'text/csv');
       case 'new-batch': return sheetNewBatch();
       case 'pay-clearing': return sheetPayClearing();
       case 'receive': return sheetReceive();
@@ -366,7 +432,7 @@
       case 'del-inv': if (confirm(`Delete ${id}? Its items go back to their previous state.`)) run(() => L.deleteInvoice(state, id), `${id} deleted.`); return;
       case 'print': return window.print();
       case 'share-inv': { const v = state.invoices.find((x) => x.no === id);
-        return navigator.share({ title: v.no, text: `Invoice ${v.no} for ${v.client}\n${v.desc}\nTotal ${money(v.total)} · Paid ${money(v.amountPaid + v.previouslyPaid)} · Balance due ${money(v.balance)}\nDue ${day(v.due)}` }).catch(() => {}); }
+        return navigator.share({ title: v.no, text: `Invoice ${v.no} for ${v.client}\n${v.desc}\nTotal ${moneyText(v.total)} · Paid ${moneyText(v.amountPaid + v.previouslyPaid)} · Balance due ${moneyText(v.balance)}\nDue ${day(v.due)}` }).catch(() => {}); }
       case 'more': moreView = id; window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
@@ -418,8 +484,8 @@
 
   /* ---------- files ---------- */
 
-  function download(name, text) {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  function download(name, text, type) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type || 'application/json' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
   function pickFile(accept, handler) { const f = $('#file'); f.accept = accept; f.value = ''; f.onchange = () => f.files[0] && handler(f.files[0]); f.click(); }
   function importJson(file) {

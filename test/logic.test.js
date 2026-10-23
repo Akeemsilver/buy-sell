@@ -77,6 +77,24 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   assert.equal(L.customerStats(L.migrate(s))[0].owing, 30);
 })();
 
+// period + batch filters
+(() => {
+  const s = fresh(); const d = new Date(), old = new Date(d.getFullYear() - 1, 5, 15);
+  const b1 = L.createBatch(s, { store: 'X', count: 1, totalCost: 100, currency: 'TTD', margin: 100, date: old });
+  const b2 = L.createBatch(s, { store: 'X', count: 1, totalCost: 50, currency: 'TTD', margin: 100 });
+  s.items.forEach((i) => { i.cost = i.batchId === b1.id ? 100 : 50; i.desc = 'x'; i.sold = i.cost * 2; i.status = 'Available'; });
+  L.createInvoice(s, { itemIds: ['001-001'], client: 'A', paying: 200, date: old });
+  L.createInvoice(s, { itemIds: ['002-001'], client: 'B', paying: 100 });
+  assert.equal(L.totals(s).sales, 300); assert.equal(L.totals(s).expense, 150);
+  assert.equal(L.totals(s, { period: 'thisYear' }).sales, 100);
+  assert.equal(L.totals(s, { period: 'thisYear' }).expense, 50);
+  assert.equal(L.totals(s, { period: 'thisYear' }).profit, 50);
+  assert.equal(L.totals(s, { period: String(old.getFullYear()) }).sales, 200);
+  assert.equal(L.totals(s, { batch: b1.id }).sales, 200);
+  assert.equal(L.totals(s, { batch: b2.id, period: 'lastMonth' }).sales, 0);
+  assert.equal(L.filterInvoices(s, { batch: b2.id }).length, 1);
+})();
+
 // close vs delete
 (() => {
   const s = fresh();

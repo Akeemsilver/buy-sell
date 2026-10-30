@@ -143,3 +143,10 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
   .printable{width:120mm;max-width:100%;margin:0 auto}
   .inv{border:0;border-radius:0;break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+/* keyboard open: sheet spans from the top of the screen to the keyboard; bottom bars get out of the way */
+.sheet.kb{padding-bottom:20px;animation:none;border-radius:18px 18px 0 0}
+body.kb .tabbar,body.kb .actionbar{display:none}
+body.kb main{padding-bottom:calc(var(--kb,0px) + 120px)}   /* ordinary pages can scroll their last field above the keyboard */
+input,select,textarea{scroll-margin-top:84px;scroll-margin-bottom:28px}
+.sheet input,.sheet select{scroll-margin-top:64px}

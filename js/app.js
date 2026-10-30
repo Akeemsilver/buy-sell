@@ -31,6 +31,7 @@
   let invForm = { client: '', paying: '' };
   let sheetClose = null, toastTimer;
   let syncHistory = () => {};
+  let syncKeyboard = () => {};
   let hideAmounts = pref('hideAmounts', false);
   let theme = pref('theme', 'auto');
   let flt = pref('filter', { period: 'all', batch: 'all' });
@@ -92,6 +93,13 @@
     $('#view').innerHTML = (tab === 'home' ? installBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
     syncHistory();
+    showVersion();
+  }
+
+  // The deploy stamps the commit id into the cache name, so the saved copy tells us which version is running.
+  function showVersion() {
+    const el = $('#ver'); if (!el || !window.caches) return;
+    caches.keys().then((ks) => { const k = ks.find((x) => /^buy-sell-/.test(x)); if (k) el.textContent = 'Version ' + k.replace('buy-sell-', ''); }).catch(() => {});
   }
 
   function renderActionBar() {
@@ -230,7 +238,7 @@
         <button class="row tap" data-act="export-json"><span style="font-size:22px">💾</span><div class="grow"><b>Backup</b><small>Save everything as a file</small></div></button>
         <button class="row tap" data-act="import-json"><span style="font-size:22px">♻️</span><div class="grow"><b>Restore backup</b><small>Load a backup file</small></div></button>
         <button class="row tap" data-act="reset"><span style="font-size:22px">🗑️</span><div class="grow"><b class="bad">Erase all data</b><small>Cannot be undone — back up first</small></div></button></div>
-      <p class="muted small" style="text-align:center;margin-top:20px">Data is stored on this device only.</p>`;
+      <p class="muted small" style="text-align:center;margin-top:20px">Data is stored on this device only.<br><span id="ver"></span></p>`;
   }
 
   function ItemLog() {
@@ -271,6 +279,7 @@
     sheetClose = onClose || null;
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
+    syncKeyboard();
     syncHistory();
   }
   function closeSheet() {
@@ -278,6 +287,7 @@
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
+    syncKeyboard();
     syncHistory();
     const cb = sheetClose; sheetClose = null; if (cb) cb();
   }
@@ -724,6 +734,41 @@
   });
   history.replaceState({ out: true }, '');
   history.pushState({ d: 0 }, '');
+
+  // When the on-screen keyboard opens it covers the bottom of the screen. Make the open sheet fill the space between the
+  // top of the screen and the keyboard (so it can scroll), keep the tapped field in view, and hide the bottom bars while typing.
+  (function () {
+    const vv = window.visualViewport, sh = $('#sheet');
+    if (!vv) return;
+    let lastFocus = null;
+    const reset = () => { sh.classList.remove('kb'); sh.style.bottom = ''; sh.style.height = ''; sh.style.maxHeight = ''; };
+    // Bring the focused field into view (pop-up or ordinary page) once the keyboard has taken its space.
+    // Pages are scrolled by hand: the browser would centre the field in the full screen, not in the space above the keyboard.
+    function keepFocusVisible() {
+      const el = document.activeElement;
+      if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName) || el.type === 'checkbox') return;
+      setTimeout(() => {
+        if (sh.contains(el)) return el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        const r = el.getBoundingClientRect(), top = $('.appbar').getBoundingClientRect().bottom + 8, bottom = vv.offsetTop + vv.height - 12;
+        if (r.top >= top && r.bottom <= bottom) return;
+        window.scrollBy({ top: r.top + r.height / 2 - (top + bottom) / 2, behavior: 'smooth' });
+      }, 60);
+    }
+    function update() {
+      const kbh = Math.max(0, window.innerHeight - vv.height - vv.offsetTop), kb = kbh > 100;   // keyboard height in px
+      const was = document.body.classList.contains('kb');
+      document.body.classList.toggle('kb', kb);
+      document.documentElement.style.setProperty('--kb', kb ? kbh + 'px' : '0px');   // lets ordinary pages scroll past the keyboard
+      if (kb && !sh.hidden) {
+        sh.classList.add('kb'); sh.style.bottom = kbh + 'px'; sh.style.height = Math.max(220, vv.height - 8) + 'px'; sh.style.maxHeight = 'none';
+      } else reset();
+      if (kb && (!was || document.activeElement !== lastFocus)) keepFocusVisible();
+      lastFocus = document.activeElement;
+    }
+    vv.addEventListener('resize', update); vv.addEventListener('scroll', update);
+    document.addEventListener('focusin', () => setTimeout(update, 250));   // some browsers report the resize late
+    syncKeyboard = update;
+  })();
 
   // Drag a sheet down to dismiss it (only when it is scrolled to the top, so scrolling still works).
   (function () {

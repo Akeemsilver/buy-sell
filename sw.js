@@ -2,7 +2,7 @@
    straight away, and falls back to the saved copy offline. The deploy workflow replaces the CACHE name with the commit id,
    so every deploy changes this file and installed apps notice it. */
 const CACHE = 'buy-sell-v21';
-const SHELL = ['./', 'index.html', 'css/style.css', 'js/logic.js', 'js/app.js', 'manifest.webmanifest', 'icons/favicon.png', 'icons/apple-touch-icon.png', 'icons/logo.png', 'icons/invoice-banner.jpg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
+const SHELL = ['./', 'index.html', 'css/style.css', 'js/logic.js', 'js/i18n.js', 'js/app.js', 'manifest.webmanifest', 'icons/favicon.png', 'icons/apple-touch-icon.png', 'icons/logo.png', 'icons/invoice-banner.jpg', 'icons/invoice-banner-es.jpg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

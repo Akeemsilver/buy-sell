@@ -7,6 +7,8 @@
   const L = {};
   const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+  // Errors carry a code; the app translates it (i18n key 'err.<code>') so messages exist in English and Spanish.
+  const fail = (code) => { const e = new Error(code); e.code = code; return e; };
   L.r2 = r2;
 
   /* ---------- names ---------- */
@@ -68,7 +70,7 @@
 
   L.createBatch = (s, { store, count, totalCost, currency, margin, date }) => {
     count = parseInt(count, 10);
-    if (!(count > 0)) throw new Error('Enter a valid number of items.');
+    if (!(count > 0)) throw fail('count');
     const num_ = s.batches.reduce((m, b) => Math.max(m, b.num), 0) + 1;
     const pad = String(num_).padStart(3, '0');
     const batch = {
@@ -92,14 +94,14 @@
   // "Close batch" (script's dual-checkbox action): keeps history; unsold items become Closed.
   L.closeBatch = (s, id) => {
     const b = s.batches.find((x) => x.id === id);
-    if (!b) throw new Error('Batch not found.');
+    if (!b) throw fail('batch');
     b.status = 'Closed';
     s.items.forEach((i) => { if (i.batchId === id && i.status !== 'Paid' && i.status !== 'Owing') i.status = 'Closed'; });
   };
 
   // Permanent delete is only for batches created by mistake (nothing sold from them).
   L.deleteBatch = (s, id) => {
-    if (s.items.some((i) => i.batchId === id && i.invoice)) throw new Error('This batch has invoiced items. Close it instead.');
+    if (s.items.some((i) => i.batchId === id && i.invoice)) throw fail('hasInvoiced');
     s.batches = s.batches.filter((b) => b.id !== id);
     s.items = s.items.filter((i) => i.batchId !== id);
   };
@@ -107,8 +109,8 @@
   L.payClearing = (s, id, amount, date) => {
     const b = s.batches.find((x) => x.id === id);
     amount = num(amount);
-    if (!b) throw new Error('Batch not found.');
-    if (!(amount > 0)) throw new Error('Enter a payment amount greater than 0.');
+    if (!b) throw fail('batch');
+    if (!(amount > 0)) throw fail('payment');
     b.clearingPaid = r2(b.clearingPaid + amount);
     b.dateLastPayment = (date || new Date()).toISOString();
     return b;
@@ -116,7 +118,7 @@
 
   L.makeAvailable = (s, id, date) => {
     const b = s.batches.find((x) => x.id === id);
-    if (!b) throw new Error('Batch not found.');
+    if (!b) throw fail('batch');
     b.dateReceived = b.dateReceived || (date || new Date()).toISOString();
     let n = 0;
     s.items.forEach((i) => { if (i.batchId === id && i.status === 'In Transit') { i.status = 'Available'; n++; } });
@@ -151,12 +153,13 @@
       clearingPct: costTTD > 0 ? b.clearingPaid / costTTD : 0 };
   };
 
-  L.timeInTransit = (b, now) => {
+  // Months/weeks/days between the purchase and the last clearing payment (or today); the app formats it in the chosen language.
+  L.transitParts = (b, now) => {
     const end = b.dateLastPayment ? new Date(b.dateLastPayment) : (now || new Date());
     let days = Math.max(0, Math.floor((end - new Date(b.datePurchased)) / 86400000));
-    const mos = Math.floor(days / 30); days -= mos * 30;
-    const wks = Math.floor(days / 7); days -= wks * 7;
-    return `${mos} mos, ${wks} wks, ${days} days`;
+    const m = Math.floor(days / 30); days -= m * 30;
+    const w = Math.floor(days / 7); days -= w * 7;
+    return { m, w, d: days };
   };
 
   /* ---------- invoices ---------- */
@@ -201,11 +204,11 @@
     client = L.canonicalName(s, client);
     const errors = [];
     paying = num(paying);
-    if (!items.length) errors.push('Select at least one item.');
-    if (!client) errors.push('Enter or choose a customer.');
-    if (items.some((i) => !i.desc.trim())) errors.push('Every selected item needs a description.');
-    if (items.some((i) => num(i.sold) <= 0)) errors.push('Every selected item needs a "Sold For" price.');
-    if (items.length && paying <= 0) errors.push('Enter the amount paying.');
+    if (!items.length) errors.push('noItems');
+    if (!client) errors.push('noClient');
+    if (items.some((i) => !i.desc.trim())) errors.push('noDesc');
+    if (items.some((i) => num(i.sold) <= 0)) errors.push('noPrice');
+    if (items.length && paying <= 0) errors.push('noPaying');
 
     const landed = items.reduce((t, i) => t + L.itemCalc(s.batches.find((b) => b.id === i.batchId), i).landed, 0);
     const totalSold = items.reduce((t, i) => t + num(i.sold), 0);
@@ -238,7 +241,7 @@
 
   L.createInvoice = (s, { itemIds, client, isNew, paying, date }) => {
     const p = L.previewInvoice(s, { itemIds, client, paying });
-    if (p.errors.length) throw new Error(p.errors[0]);
+    if (p.errors.length) throw fail(p.errors[0]);
     client = L.canonicalName(s, client);
     const d = date || new Date();
     const due = new Date(d); due.setDate(due.getDate() + 7);

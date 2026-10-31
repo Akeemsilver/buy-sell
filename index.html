@@ -30,6 +30,7 @@
   <section id="sheet" class="sheet" role="dialog" aria-modal="true" hidden></section>
   <input type="file" id="file" hidden>
   <script src="js/logic.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
   <script>
     // Offline support + automatic updates: look for a new version on open, when you come back to the app and every
@@ -43,7 +44,7 @@
       };
       var applyUpdate = function () {
         if (reloading) return;
-        if (safeNow()) { reloading = true; say('Updating to the latest version…'); setTimeout(function () { location.reload(); }, 600); }
+        if (safeNow()) { reloading = true; say(window.I18n ? I18n.t('upd.updating') : 'Updating…'); setTimeout(function () { location.reload(); }, 600); }
         else setTimeout(applyUpdate, 1500);          // try again once the pop-up is closed / typing has stopped
       };
       navigator.serviceWorker.addEventListener('controllerchange', function () { if (hadController) applyUpdate(); });

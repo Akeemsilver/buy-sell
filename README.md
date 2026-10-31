@@ -25,6 +25,19 @@ When the on-screen keyboard opens, every screen and pop-up adapts: ordinary page
 
 To install: open the site in Chrome (Android) → ⋮ → *Add to Home screen*, or Safari (iPhone) → Share → *Add to Home Screen*.
 
+## Languages (English / Español)
+
+The app is fully bilingual. **More → Settings → Language** switches the whole app at once and remembers the choice; on first run it
+follows the phone's language (Spanish if the phone is set to Spanish, otherwise English). Invoices have their own **English | Español**
+switch (shown above the invoice), because a customer may read a different language from the one the app is set to. The Spanish invoice uses
+a Spanish banner (`icons/invoice-banner-es.jpg`, "FACTURA"). Batch ids show as `LOTE-001` in Spanish but stay `BATCH-001` in your data.
+
+**Rule for everything we add from now on:** every visible text goes through `t('key')` (or `tn('key', n)` for singular/plural) and the key
+is written in both languages in `js/i18n.js`. `npm test` checks that both dictionaries have the same keys and `{placeholders}`, that
+every key the code uses exists, that every logic error has a translation and that key styles are still present; the deploy workflow runs
+the tests first, so a missing translation blocks the deploy. To add a language, add a dictionary to `LANGS` in `js/i18n.js` (the test tells
+you what is missing) and a button for it appears in Settings.
+
 ## Workflow (same as the sheet)
 
 | Sheet action | In the app |

@@ -22,7 +22,7 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   assert.equal(L.makeAvailable(s, b.id), 2);
   assert.ok(s.items.every((i) => i.status === 'Available'));
   assert.equal(L.createBatch(s, { count: 1, totalCost: 1, currency: 'TTD', margin: 0 }).id, 'BATCH-002');
-  assert.throws(() => L.createBatch(s, { count: 0 }));
+  assert.throws(() => L.createBatch(s, { count: 0 }), (e) => e.code === 'count');
 })();
 
 // invoice: full payment, then an overpayment tip, then a partial-pay chain
@@ -104,7 +104,7 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   const a = L.createInvoice(s, { itemIds: ['001-001'], client: 'Renimar ', paying: 50 });
   const b = L.createInvoice(s, { itemIds: ['001-002'], client: '  renimar', paying: 50 });   // same person, different case/spacing
   assert.equal(a.client, 'Renimar'); assert.equal(b.client, 'Renimar'); assert.deepEqual(s.customers, ['Renimar']);
-  assert.equal(L.previewInvoice(s, { itemIds: ['001-003'], client: '   ', paying: 10 }).errors.includes('Enter or choose a customer.'), true);
+  assert.equal(L.previewInvoice(s, { itemIds: ['001-003'], client: '   ', paying: 10 }).errors.includes('noClient'), true);
   // old saved data with messy names is repaired on load; the most common spelling wins
   const old = fresh(); old.customers = ['Renimar ', 'Renimar', 'Ori'];
   old.items.push({ id: 'x', batchId: 'B', store: 'X ', desc: 'Bodys ', cost: 0, sold: 0, status: 'Owing', customer: 'Renimar', delivery: 0, invoice: '' }, { id: 'y', batchId: 'B', store: 'X', desc: 'Pant', cost: 0, sold: 0, status: 'Owing', customer: 'Renimar ', delivery: 0, invoice: '' }, { id: 'z', batchId: 'B', store: 'X', desc: 'Top', cost: 0, sold: 0, status: 'Owing', customer: 'ori', delivery: 0, invoice: '' });
@@ -122,7 +122,7 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   L.makeAvailable(s, b.id); assert.equal(L.batchStatus(s, b), 'Received');
   s.items.forEach((i) => { i.cost = 5; i.sold = 20; i.desc = 'x'; });
   L.createInvoice(s, { itemIds: ['001-001'], client: 'Cy', paying: 20 });
-  assert.throws(() => L.deleteBatch(s, b.id), /Close it instead/);
+  assert.throws(() => L.deleteBatch(s, b.id), (e) => e.code === 'hasInvoiced');
   L.closeBatch(s, b.id);
   assert.equal(L.batchStatus(s, b), 'Closed');
   assert.equal(s.items[0].status, 'Paid'); assert.equal(s.items[1].status, 'Closed'); // sold item kept, unsold closed

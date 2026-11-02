@@ -28,9 +28,14 @@
   <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
   <div id="scrim" class="scrim" hidden></div>
   <section id="sheet" class="sheet" role="dialog" aria-modal="true" hidden></section>
+  <section id="editor" class="editor" aria-label="Photo" hidden></section>
   <input type="file" id="file" hidden>
   <script src="js/logic.js"></script>
   <script src="js/i18n.js"></script>
+  <script src="js/photo.js"></script>
+  <script src="js/photostore.js"></script>
+  <script src="js/reader.js"></script>
+  <script src="js/photoui.js"></script>
   <script src="js/app.js"></script>
   <script>
     // Offline support + automatic updates: look for a new version on open, when you come back to the app and every
@@ -40,7 +45,7 @@
       var say = function (m) { var t = document.getElementById('toast'); if (t) { t.textContent = m; t.classList.add('show'); } };
       var safeNow = function () {
         var a = document.activeElement, typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
-        return !typing && document.getElementById('sheet').hidden;
+        return !typing && document.getElementById('sheet').hidden && document.getElementById('editor').hidden;
       };
       var applyUpdate = function () {
         if (reloading) return;

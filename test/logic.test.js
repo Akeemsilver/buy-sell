@@ -114,6 +114,37 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   assert.equal(L.cleanNames(old), false);   // idempotent
 })();
 
+// photos, selling price, exact-cent prices and what customers may see
+(() => {
+  // numbers from a real batch: US$ 201.17 order, TT$ 664.80 clearing, effective rate 6.9385837, item cost US$ 25.60
+  const s = L.defaultState(); s.settings.rates.USD = 6.9385837 / 1.025;
+  const b = L.createBatch(s, { store: 'SHEIN', count: 4, totalCost: 201.17, currency: 'USD', margin: 100 }); L.payClearing(s, b.id, 664.8);
+  s.items[0].cost = 25.6; const c = L.itemCalc(b, s.items[0]);
+  assert.equal(c.costTTD, 177.63); assert.equal(c.clearing, 84.6); assert.equal(c.landed, 262.23);
+  assert.equal(c.recommended, 524.46);                       // exactly landed x 2, to the cent (no 524.45 vs 262.23 mismatch)
+  assert.equal(L.r2(c.costTTD + c.clearing), c.landed);
+  // new photos fill the next items without a photo, in order; the rest stay plain
+  const r = L.assignPhotos(s, b.id, ['p1', 'p2']);
+  assert.deepEqual(r.assigned.map((a) => a.itemId), ['001-001', '001-002']); assert.equal(r.extra, 0);
+  assert.equal(s.items[0].photo.checked, false); assert.equal(s.items[2].photo, null);
+  const r2_ = L.assignPhotos(s, b.id, ['p3', 'p4', 'p5']);   // only 2 items left -> one photo does not fit
+  assert.deepEqual(r2_.assigned.map((a) => a.itemId), ['001-003', '001-004']); assert.equal(r2_.extra, 1);
+  assert.equal(L.addItems(s, b.id, 1)[0].id, '001-005'); assert.equal(L.photoStats(s, b.id).noPhoto, 1);
+  assert.equal(L.photoStats(s, b.id).needCheck, 4);
+  // sharing is blocked until the photo is checked
+  assert.equal(L.shareStatus(s.items[0]), 'notChecked'); s.items[0].photo.checked = true; assert.equal(L.shareStatus(s.items[0]), 'ok'); assert.equal(L.shareStatus(s.items[4]), 'noPhoto');
+  // what leaves the app never contains a cost
+  s.items[0].desc = 'Brown set'; s.items[0].price = 540;
+  const pv = L.publicView(s.items[0]); assert.deepEqual(Object.keys(pv).sort(), ['id', 'name', 'price']); assert.equal(pv.price, 540);
+  assert.ok(!JSON.stringify(pv).includes('25.6') && !JSON.stringify(pv).includes('262') && !JSON.stringify(pv).includes('524'));
+  s.items[1].price = 0; assert.equal(L.publicView(s.items[1]).price, 0);                 // no price: shared as "available"
+  // selling price pre-fills "sold for" only when nothing is there
+  s.items[2].price = 300; L.prefillSold(s.items[2]); assert.equal(s.items[2].sold, 300); s.items[2].sold = 280; L.prefillSold(s.items[2]); assert.equal(s.items[2].sold, 280);
+  // older saved data gains the new fields
+  const old = L.defaultState(); old.items.push({ id: 'x', batchId: 'B', desc: '', cost: 0, sold: 0, status: 'Available', customer: '', delivery: 0, invoice: '' }); L.migrate(old);
+  assert.equal(old.items[0].price, 0); assert.equal(old.items[0].photo, null);
+})();
+
 // close vs delete
 (() => {
   const s = fresh();

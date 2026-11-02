@@ -1,0 +1,385 @@
+/* Photo screens: adding photos to a batch, the "check photo" editor (crop, then hide marks), thumbnails, sharing.
+   Photos stay on this phone (see photostore.js). The app (app.js) hands over what this file needs through PhotoUI.init(). */
+(function (root) {
+  const P = root.Photo, S = root.PhotoStore, R = root.Reader, L = root.Logic, I = root.I18n;
+  const t = I.t, tn = I.tn;
+  let A = null;                                    // the app's helpers (see init)
+  const $ = (s, el) => (el || document).querySelector(s);
+  const item = (id) => A.state().items.find((i) => i.id === id);
+  const num = (v) => Number(v) || 0;
+
+  /* ---------- thumbnails ---------- */
+
+  const urls = new Map();                          // "id:kind" -> object URL
+  const pending = new Map();
+  function urlFor(id, kind) {
+    const k = id + ':' + kind;
+    if (urls.has(k)) return Promise.resolve(urls.get(k));
+    if (pending.has(k)) return pending.get(k);
+    const p = S.get(id).then((rec) => { const b = rec && rec[kind]; if (!b) return null; const u = URL.createObjectURL(b); urls.set(k, u); return u; }).catch(() => null).then((u) => { pending.delete(k); return u; });
+    pending.set(k, p); return p;
+  }
+  function forget(id) { ['thumb', 'full'].forEach((kind) => { const k = id + ':' + kind; if (urls.has(k)) { URL.revokeObjectURL(urls.get(k)); urls.delete(k); } }); }
+  // Fill every <img data-ph="id" data-kind="thumb|full"> that is on screen.
+  function hydrate() {
+    document.querySelectorAll('img[data-ph]').forEach((img) => {
+      if (img.dataset.done === img.dataset.ph) return;
+      img.dataset.done = img.dataset.ph;
+      urlFor(img.dataset.ph, img.dataset.kind || 'thumb').then((u) => { if (u) img.src = u; else img.closest('.ph, .photo-big') && img.closest('.ph, .photo-big').classList.add('miss'); });
+    });
+  }
+  const noTile = () => `<span class="ph none"><i>${t('photo.noPhoto')}</i></span>`;
+  function thumb(it) {
+    if (!it.photo) return noTile();
+    return `<span class="ph"><img data-ph="${it.photo.id}" data-kind="thumb" alt="">${it.photo.checked ? '' : `<em class="warn-badge">${t('photo.check')}</em>`}</span>`;
+  }
+
+  /* ---------- item sheet: what customers see / what stays private ---------- */
+
+  function photoBox(it) {
+    const st = L.shareStatus(it);
+    const pic = it.photo ? `<div class="photo-big"><img data-ph="${it.photo.id}" data-kind="full" alt="">${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
+    return `${pic}<div class="photo-actions">
+      <button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
+      ${it.photo ? `<button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.edit') : t('photo.checkNow')}</button>
+      <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replace')}</button>
+      <button class="btn danger" data-act="photo-remove" data-id="${it.id}">${t('photo.remove')}</button>` : `<button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.addOne')}</button>`}</div>`;
+  }
+
+  /* ---------- adding photos ---------- */
+
+  function pickFiles(multiple, camera) {
+    return new Promise((ok) => {
+      const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.multiple = !!multiple; if (camera) f.setAttribute('capture', 'environment');
+      f.style.display = 'none'; document.body.appendChild(f);
+      let settled = false; const done = (v) => { if (settled) return; settled = true; f.remove(); ok(v); };
+      f.onchange = () => done([...f.files]); f.addEventListener('cancel', () => done([]));
+      f.click();
+    });
+  }
+  // Decode, find the picture inside the screenshot, and keep the original plus a first (unchecked) crop. Returns the new photo id.
+  async function createPhoto(file) {
+    const c = await P.loadCanvas(file, 3000), area = P.findPhotoArea(P.pixels(c)), cr = P.crop(c, area), id = S.newId();
+    const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(cr, 200), 0.8), P.toBlob(P.scaled(cr, 640), 0.82)]);
+    await S.put({ id, thumb: thumbB, full: fullB, orig: file });
+    return id;
+  }
+  let busy = 0;                                    // photos being added: do not tidy the store meanwhile
+  async function addFiles(batchId, files) {
+    if (!files.length) return; busy++;
+    try { await addFiles2(batchId, files); } finally { busy--; }
+  }
+  async function addFiles2(batchId, files) {
+    const st = A.state(), b = st.batches.find((x) => x.id === batchId); if (!b) return;
+    const free = st.items.filter((i) => i.batchId === batchId && !i.photo).length;
+    if (files.length > free) {
+      const extra = files.length - free;
+      if (!A.confirm(tn('photo.extraAsk', extra, { id: A.bl(batchId) }))) files = files.slice(0, free);
+      else L.addItems(st, batchId, extra);
+    }
+    if (!files.length) return A.toast(t('photo.noRoom'));
+    const ids = []; let failed = 0;
+    for (let n = 0; n < files.length; n++) {
+      A.toast(t('photo.adding', { done: n + 1, total: files.length }));
+      try { ids.push(await createPhoto(files[n])); } catch (e) { failed++; }
+    }
+    const r = L.assignPhotos(st, batchId, ids);
+    A.save(); A.render();
+    A.toast(tn('photo.added', ids.length) + (failed ? ' · ' + tn('photo.failed', failed) : ''));
+    if (ids.length) startCheck(r.assigned.map((a) => a.itemId));
+  }
+  async function replaceOne(itemId) {
+    const files = await pickFiles(false, false); if (!files.length) return;
+    const it = item(itemId); if (!it) return; busy++;
+    A.toast(t('photo.adding', { done: 1, total: 1 }));
+    try {
+      const id = await createPhoto(files[0]), old = it.photo && it.photo.id;
+      it.photo = { id, checked: false }; A.save(); if (old) { forget(old); S.del(old).catch(() => {}); }
+      A.closeSheet(); A.render(); startCheck([itemId]);
+    } catch (e) { A.toast(t('photo.readErr')); } finally { busy--; }
+  }
+  function removeOne(itemId) {
+    const it = item(itemId); if (!it || !it.photo || !A.confirm(t('photo.removeAsk'))) return;
+    const old = it.photo.id; it.photo = null; A.save(); forget(old); S.del(old).catch(() => {}); A.closeSheet(); A.render();
+  }
+  function addSheet(batchId) {
+    const row = (icon, title, sub, act) => `<button class="row tap" data-act="${act}" data-id="${batchId}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${title}</b><small>${sub}</small></div></button>`;
+    const stt = L.photoStats(A.state(), batchId);
+    A.openSheet(`<h3>${t('photo.add')}</h3><p class="muted small">${t('photo.addNote', { id: A.bl(batchId), free: stt.noPhoto })}</p>
+      <div class="list" style="margin-top:12px">${row('🖼️', t('photo.gallery'), t('photo.gallerySub'), 'photo-gallery')}${row('📷', t('photo.camera'), t('photo.cameraSub'), 'photo-camera')}</div>
+      <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+  }
+
+  /* ---------- sharing ---------- */
+
+  const safeName = (s) => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'item';
+  async function share(itemId) {
+    const it = item(itemId); if (!it) return;
+    const st = L.shareStatus(it);
+    if (st === 'noPhoto') return A.toast(t('photo.needPhoto'));
+    if (st === 'notChecked') {
+      A.closeSheet();
+      return A.openSheet(`<h3>${t('photo.gate.title')}</h3><p>${t('photo.gate.text')}</p>
+        <div class="btns"><button class="btn primary" data-act="photo-check-now" data-id="${it.id}">${t('photo.checkNow')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+    }
+    A.toast(t('photo.prep'));
+    try {
+      const rec = await S.get(it.photo.id); if (!rec || !rec.full) return A.toast(t('photo.missing'));
+      const c = await P.loadCanvas(rec.full, 2000), pub = L.publicView(it), price = num(pub.price), lg = A.invoiceLang();
+      if (price > 0) P.priceTag(c, A.invMoney(price));
+      const blob = await new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('encode'))), 'image/jpeg', 0.9));
+      const file = new File([blob], safeName(pub.name || pub.id) + '.jpg', { type: 'image/jpeg' });
+      const text = (pub.name ? pub.name + '\n' : '') + (price > 0 ? A.invMoney(price) : t('photo.available', null, lg));
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: pub.name || pub.id, text }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+      }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      A.toast(t('photo.noShare'));
+    } catch (e) { A.toast('⚠️ ' + t('photo.shareFail')); }
+  }
+
+  /* ---------- long-press menu ---------- */
+
+  function menu(itemId) {
+    const it = item(itemId); if (!it) return;
+    const st = L.shareStatus(it), row = (icon, title, act, off) => `<button class="row tap" data-act="${act}" data-id="${it.id}" ${off ? 'disabled' : ''}><span style="font-size:22px">${icon}</span><div class="grow"><b>${title}</b></div></button>`;
+    A.openSheet(`<h3>${A.esc(it.desc) || t('item.untitled')}</h3><div class="muted small">${it.id}</div>
+      <div class="list" style="margin-top:12px">${row('📤', t('photo.share'), 'photo-share', st === 'noPhoto')}${row('✂️', st === 'ok' ? t('photo.edit') : t('photo.checkNow'), 'photo-check-now', st === 'noPhoto')}${row('✏️', t('photo.menu.open'), 'edit-item')}</div>
+      <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+  }
+  // Press and hold an item card for about half a second.
+  (function () {
+    let timer = null, fired = false, sx = 0, sy = 0;
+    const clear = () => { clearTimeout(timer); timer = null; };
+    document.addEventListener('touchstart', (e) => {
+      const el = e.target.closest('.item .main'); fired = false; clear(); if (!el || e.touches.length !== 1) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      timer = setTimeout(() => { fired = true; if (navigator.vibrate) navigator.vibrate(15); menu(el.dataset.id); }, 520);
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => { if (timer && (Math.abs(e.touches[0].clientX - sx) > 10 || Math.abs(e.touches[0].clientY - sy) > 10)) clear(); }, { passive: true });
+    ['touchend', 'touchcancel'].forEach((n) => document.addEventListener(n, clear, { passive: true }));
+    document.addEventListener('contextmenu', (e) => { const el = e.target.closest('.item .main'); if (el) { e.preventDefault(); if (!fired) menu(el.dataset.id); } });
+    document.addEventListener('click', (e) => { if (fired && e.target.closest('.item .main')) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);   // the release after a long press is not a tap
+  })();
+
+  /* ---------- the check-photo editor ---------- */
+
+  const RATIOS = [['free', 0], ['square', 1], ['r45', 0.8], ['r34', 0.75]];
+  let ed = null;                                   // editor state, null when closed
+  const edEl = () => $('#editor');
+
+  function startCheck(ids) {
+    const list = ids.filter((id) => { const it = item(id); return it && it.photo; }); if (!list.length) return;
+    ed = { queue: list, idx: 0, total: list.length };
+    A.closeSheet(); document.body.style.overflow = 'hidden'; edEl().hidden = false; A.sync();
+    loadCurrent();
+  }
+  const isOpen = () => !!ed;
+  function closeEditor() {
+    if (!ed) return; if (R && R.cancel) R.cancel();
+    ed = null; edEl().hidden = true; edEl().innerHTML = ''; document.body.style.overflow = ''; A.sync(); A.render();
+  }
+  function back() { if (!ed) return; if (ed.step === 'marks') return showCrop(); closeEditor(); }
+
+  async function loadCurrent() {
+    const id = ed.queue[ed.idx], it = item(id);
+    if (!it || !it.photo) return next();
+    edEl().innerHTML = `<div class="ed-head"><b>${t('ed.title', { i: ed.idx + 1, n: ed.total })}</b></div><div class="ed-wait">${t('ed.loading')}</div>`;
+    try {
+      const rec = await S.get(it.photo.id); if (!rec) throw new Error('missing');
+      ed.itemId = id; ed.photoId = it.photo.id;
+      ed.src = await P.loadCanvas(rec.orig, 3000);
+      ed.ratio = 0; ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.marks = null; ed.mode = 'blur';
+      showCrop();
+    } catch (e) { A.toast(t('photo.missing')); next(); }
+  }
+  function next() {
+    if (!ed) return;
+    if (ed.idx + 1 < ed.total) { ed.idx++; return loadCurrent(); }
+    const n = ed.total; closeEditor(); A.toast(n > 1 ? t('ed.allChecked') : t('ed.saved'));
+  }
+  const head = () => `<div class="ed-head"><button class="ed-x" data-act="ed-close" aria-label="${t('btn.close')}">✕</button><b>${ed.total > 1 ? t('ed.title', { i: ed.idx + 1, n: ed.total }) : t('ed.single')}</b></div>`;
+
+  /* -- step 1: crop -- */
+  function showCrop() {
+    ed.step = 'crop';
+    edEl().innerHTML = `${head()}<div class="ed-stage" id="ed-stage"><canvas id="ed-cv"></canvas></div>
+      <div class="ed-panel"><p class="muted small">${t('ed.cropHint')}</p>
+        <div class="chips ed-chips">${RATIOS.map(([k, r]) => `<button class="chip ${ed.ratio === r ? 'on' : ''}" data-act="ed-ratio" data-id="${r}">${t('ed.' + k)}</button>`).join('')}
+          <button class="chip" data-act="ed-rotate">⟳ ${t('ed.rotate')}</button><button class="chip" data-act="ed-reset">${t('ed.reset')}</button></div>
+        <button class="btn primary" data-act="ed-next">${t('ed.next')}</button></div>`;
+    layout(); drawCrop(); bindCrop();
+  }
+  let view = null;                                 // {k, w, h, dpr}: how the picture is drawn in the stage
+  function layout() {
+    const stage = $('#ed-stage'), cv = $('#ed-cv'), img = ed.step === 'crop' ? ed.src : ed.work;
+    const aw = stage.clientWidth - 16 - (ed.step === 'crop' ? 28 : 0), ah = stage.clientHeight - 16 - (ed.step === 'crop' ? 28 : 0), k = Math.min(aw / img.width, ah / img.height), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k)), pad = ed.step === 'crop' ? 14 : 0;
+    cv.style.width = (w + 2 * pad) + 'px'; cv.style.height = (h + 2 * pad) + 'px'; cv.width = Math.round((w + 2 * pad) * dpr); cv.height = Math.round((h + 2 * pad) * dpr); view = { k, w, h, dpr, pad };
+  }
+  function drawCrop() {
+    const cv = $('#ed-cv'); if (!cv || ed.step !== 'crop') return;
+    const x = cv.getContext('2d'), { k, dpr } = view, f = ed.frame, s = k * dpr;
+    const iw = view.w * dpr, ih = view.h * dpr;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height); x.translate(view.pad * dpr, view.pad * dpr); x.imageSmoothingQuality = 'high'; x.drawImage(ed.src, 0, 0, iw, ih);
+    x.fillStyle = 'rgba(0,0,0,.55)';
+    x.fillRect(0, 0, iw, f.y * s); x.fillRect(0, (f.y + f.h) * s, iw, ih - (f.y + f.h) * s);
+    x.fillRect(0, f.y * s, f.x * s, f.h * s); x.fillRect((f.x + f.w) * s, f.y * s, iw - (f.x + f.w) * s, f.h * s);
+    x.strokeStyle = '#fff'; x.lineWidth = 2 * dpr; x.strokeRect(f.x * s, f.y * s, f.w * s, f.h * s);
+    x.lineWidth = 1 * dpr; x.strokeStyle = 'rgba(255,255,255,.45)';
+    for (let i = 1; i < 3; i++) { x.beginPath(); x.moveTo((f.x + f.w * i / 3) * s, f.y * s); x.lineTo((f.x + f.w * i / 3) * s, (f.y + f.h) * s); x.moveTo(f.x * s, (f.y + f.h * i / 3) * s); x.lineTo((f.x + f.w) * s, (f.y + f.h * i / 3) * s); x.stroke(); }
+    [[f.x, f.y], [f.x + f.w, f.y], [f.x, f.y + f.h], [f.x + f.w, f.y + f.h]].forEach(([cx, cy]) => { x.beginPath(); x.arc(cx * s, cy * s, 11 * dpr, 0, 7); x.fillStyle = '#fff'; x.fill(); x.lineWidth = 3 * dpr; x.strokeStyle = '#741b47'; x.stroke(); });
+  }
+  function bindCrop() {
+    const cv = $('#ed-cv'); let drag = null;
+    const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left - view.pad) / view.k, y: (e.clientY - r.top - view.pad) / view.k }; };
+    cv.onpointerdown = (e) => {
+      const p = pos(e), f = ed.frame, hit = 30 / view.k, corners = [[f.x, f.y], [f.x + f.w, f.y], [f.x, f.y + f.h], [f.x + f.w, f.y + f.h]];
+      let ci = -1, best = hit; corners.forEach(([cx, cy], i) => { const d = Math.hypot(p.x - cx, p.y - cy); if (d < best) { best = d; ci = i; } });
+      if (ci >= 0) { const o = corners[3 - ci]; drag = { type: 'corner', ax: o[0], ay: o[1] }; }
+      else if (p.x >= f.x && p.x <= f.x + f.w && p.y >= f.y && p.y <= f.y + f.h) drag = { type: 'move', dx: p.x - f.x, dy: p.y - f.y };
+      if (drag) { cv.setPointerCapture(e.pointerId); e.preventDefault(); }
+    };
+    cv.onpointermove = (e) => {
+      if (!drag) return; const p = pos(e), W = ed.src.width, H = ed.src.height, min = 40;
+      if (drag.type === 'move') ed.frame = P.clampFrame({ x: p.x - drag.dx, y: p.y - drag.dy, w: ed.frame.w, h: ed.frame.h }, W, H);
+      else {
+        const sx = p.x >= drag.ax ? 1 : -1, sy = p.y >= drag.ay ? 1 : -1, maxW = sx > 0 ? W - drag.ax : drag.ax, maxH = sy > 0 ? H - drag.ay : drag.ay;
+        let w = Math.min(Math.max(Math.abs(p.x - drag.ax), min), maxW), h = Math.min(Math.max(Math.abs(p.y - drag.ay), min), maxH);
+        if (ed.ratio) { if (w / h > ed.ratio) w = h * ed.ratio; else h = w / ed.ratio; if (w > maxW) { w = maxW; h = w / ed.ratio; } if (h > maxH) { h = maxH; w = h * ed.ratio; } }
+        ed.frame = { x: sx > 0 ? drag.ax : drag.ax - w, y: sy > 0 ? drag.ay : drag.ay - h, w, h };
+      }
+      drawCrop();
+    };
+    cv.onpointerup = cv.onpointercancel = () => { drag = null; };
+  }
+  function setRatio(r) {
+    ed.ratio = r; const f = ed.frame, g = P.frameFor(f.w, f.h, r);
+    ed.frame = r ? { x: f.x + g.x, y: f.y + g.y, w: g.w, h: g.h } : f; showCrop();
+  }
+  function rotate() {
+    const f = ed.frame, H = ed.src.height;
+    ed.src = P.rotate90(ed.src); ed.frame = P.clampFrame({ x: H - (f.y + f.h), y: f.x, w: f.h, h: f.w }, ed.src.width, ed.src.height); ed.ratio = 0; showCrop();
+  }
+  function resetCrop() { ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.ratio = 0; showCrop(); }
+
+  /* -- step 2: hide marks -- */
+  let logoImg = null, prevRaf = 0;
+  function loadLogo() { return logoImg ? Promise.resolve(logoImg) : new Promise((ok) => { const im = new Image(); im.onload = () => { logoImg = im; ok(im); }; im.onerror = () => ok(null); im.src = 'icons/logo.png'; }); }
+
+  function showMarks() {
+    ed.step = 'marks';
+    const cr = P.crop(ed.src, ed.frame); ed.work = P.scaled(cr, 1800);
+    const first = !ed.marks; if (first) ed.marks = [];
+    edEl().innerHTML = `${head()}<div class="ed-stage" id="ed-stage"><canvas id="ed-cv"></canvas></div>
+      <div class="ed-panel"><div id="ed-info" class="small"></div><div id="ed-marks"></div>
+        <div class="seg" role="radiogroup" aria-label="${t('ed.mode')}" id="ed-mode">${['blur', 'cover', 'logo'].map((m) => `<button class="${ed.mode === m ? 'on' : ''}" role="radio" aria-checked="${ed.mode === m}" data-act="ed-mode" data-id="${m}">${t('ed.' + m)}</button>`).join('')}</div>
+        <p class="muted small" id="ed-note"></p>
+        <div class="ed-btns"><button class="btn" data-act="ed-back">${t('ed.back')}</button><button class="btn primary" id="ed-save" data-act="ed-save">${ed.idx + 1 < ed.total ? t('ed.saveNext') : t('ed.save')}</button></div></div>`;
+    layout(); bindMarks(); preview(); listMarks();
+    if (first) findMarks();
+    else $('#ed-info').textContent = '';
+  }
+  function findMarks() {
+    const info = $('#ed-info'); ed.reading = true;
+    info.innerHTML = `${t('ed.finding', { pct: 0 })}<div class="ed-bar"><i id="ed-prog"></i></div><div class="muted small">${t('ed.findingFirst')}</div><button class="chip" data-act="ed-stop">${t('ed.stop')}</button>`;
+    const mine = ed;
+    R.suggest(ed.work, (p) => { if (ed === mine && $('#ed-prog')) { $('#ed-prog').style.width = Math.round(p * 100) + '%'; } })
+      .then((found) => {
+        if (ed !== mine) return; ed.reading = false;
+        found.forEach((m, n) => ed.marks.push({ id: 'a' + n, text: m.text, ticked: m.ticked, box: m.box, auto: true }));
+        $('#ed-info').innerHTML = !found.length ? t('ed.foundNone') : found[0].ticked ? tn('ed.found', found.length) : t('ed.guess');
+        listMarks(); preview();
+      })
+      .catch((e) => { if (ed !== mine) return; ed.reading = false; $('#ed-info').innerHTML = e && e.message === 'cancelled' ? t('ed.draw') : `<span class="bad">${t('ed.finderOff')}</span>`; });
+  }
+  function listMarks() {
+    const el = $('#ed-marks'); if (!el) return;
+    el.innerHTML = ed.marks.map((m, n) => `<label class="ed-mark"><input type="checkbox" data-mk="${n}" ${m.ticked ? 'checked' : ''}><span>${m.auto ? `“${A.esc(m.text)}”` : t('ed.mine', { n: n + 1 })}</span>${m.auto ? '' : `<button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button>`}</label>`).join('');
+    const k = ed.marks.filter((m) => m.ticked).length;
+    $('#ed-note').textContent = (k ? tn('ed.hiding', k) + ' · ' : t('ed.nothing') + ' · ') + t('ed.preview') + ' ' + t('ed.drawHint');
+  }
+  function render() {
+    const c = P.canvas(ed.work.width, ed.work.height), x = c.getContext('2d'); x.drawImage(ed.work, 0, 0);
+    const marks = ed.marks.filter((m) => m.ticked).map((m) => m.box);
+    if (marks.length) { const d = x.getImageData(0, 0, c.width, c.height); P.applyMarks(d, marks, ed.mode === 'blur' ? 'blur' : 'cover'); x.putImageData(d, 0, 0); if (ed.mode === 'logo' && logoImg) P.drawLogo(c, marks, logoImg); }
+    return c;
+  }
+  function preview() {
+    if (ed.mode === 'logo' && !logoImg) { loadLogo().then(() => ed && ed.step === 'marks' && preview()); }
+    cancelAnimationFrame(prevRaf);
+    prevRaf = requestAnimationFrame(() => {
+      if (!ed || ed.step !== 'marks') return; const cv = $('#ed-cv'); if (!cv) return;
+      const out = render(), x = cv.getContext('2d'), s = view.k * view.dpr;
+      x.setTransform(1, 0, 0, 1, 0, 0); x.imageSmoothingQuality = 'high'; x.clearRect(0, 0, cv.width, cv.height); x.drawImage(out, 0, 0, cv.width, cv.height);
+      ed.marks.forEach((m) => {                    // outlines: solid = will be hidden, dashed = left as is
+        const b = m.box; x.lineWidth = 2 * view.dpr; x.strokeStyle = m.ticked ? '#ffd166' : 'rgba(255,255,255,.8)'; x.setLineDash(m.ticked ? [] : [6 * view.dpr, 5 * view.dpr]);
+        x.strokeRect(b.x * s / view.k * view.k, b.y * s, b.w * s, b.h * s);
+      });
+      x.setLineDash([]);
+      if (ed.draw) { x.strokeStyle = '#fff'; x.setLineDash([6 * view.dpr, 4 * view.dpr]); x.strokeRect(ed.draw.x * s, ed.draw.y * s, ed.draw.w * s, ed.draw.h * s); x.setLineDash([]); }
+    });
+  }
+  function bindMarks() {
+    const cv = $('#ed-cv'); let st = null;
+    const pos = (e) => { const r = cv.getBoundingClientRect(), k = view.w / ed.work.width; return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k }; };
+    view.k = view.w / ed.work.width;               // here boxes are in the 1200px working picture
+    cv.onpointerdown = (e) => { st = { p: pos(e), moved: false }; cv.setPointerCapture(e.pointerId); e.preventDefault(); };
+    cv.onpointermove = (e) => {
+      if (!st) return; const p = pos(e); if (Math.hypot(p.x - st.p.x, p.y - st.p.y) * view.k > 8) st.moved = true;
+      if (st.moved) { ed.draw = { x: Math.min(st.p.x, p.x), y: Math.min(st.p.y, p.y), w: Math.abs(p.x - st.p.x), h: Math.abs(p.y - st.p.y) }; preview(); }
+    };
+    cv.onpointerup = (e) => {
+      if (!st) return; const p = pos(e);
+      if (st.moved && ed.draw && ed.draw.w * view.k > 12 && ed.draw.h * view.k > 12) { ed.marks.push({ id: 'm' + Date.now(), ticked: true, box: ed.draw, auto: false }); listMarks(); }
+      else if (!st.moved) { const hit = ed.marks.find((m) => p.x >= m.box.x && p.x <= m.box.x + m.box.w && p.y >= m.box.y && p.y <= m.box.y + m.box.h); if (hit) { hit.ticked = !hit.ticked; listMarks(); } }
+      ed.draw = null; st = null; preview();
+    };
+    cv.onpointercancel = () => { st = null; ed.draw = null; preview(); };
+  }
+
+  async function save() {
+    const btn = $('#ed-save'); if (btn) { btn.disabled = true; btn.textContent = t('ed.saving'); }
+    try {
+      const out = render(), rec = await S.get(ed.photoId); if (!rec) throw new Error('missing');
+      const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(out, 200), 0.8), P.toBlob(P.scaled(out, 640), 0.82)]);
+      rec.thumb = thumbB; rec.full = fullB; await S.put(rec);
+      const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) it.photo.checked = true;
+      forget(ed.photoId); A.save(); next();
+    } catch (e) { A.toast('⚠️ ' + t('photo.saveFail')); if (btn) { btn.disabled = false; btn.textContent = t('ed.save'); } }
+  }
+
+  /* ---------- events from the app ---------- */
+
+  function act(a, id, el) {
+    switch (a) {
+      case 'photo-add': return addSheet(id);
+      case 'photo-gallery': A.closeSheet(); return pickFiles(true, false).then((f) => addFiles(id, f));
+      case 'photo-camera': A.closeSheet(); return pickFiles(false, true).then((f) => addFiles(id, f));
+      case 'photo-share': return share(id);
+      case 'photo-check': case 'photo-check-now': return startCheck([id]);
+      case 'photo-check-all': return startCheck(A.state().items.filter((i) => i.batchId === id && i.photo && !i.photo.checked).sort((x, y) => x.id.localeCompare(y.id)).map((i) => i.id));
+      case 'photo-replace': return replaceOne(id);
+      case 'photo-remove': return removeOne(id);
+      case 'ed-close': return closeEditor();
+      case 'ed-ratio': return setRatio(parseFloat(id));
+      case 'ed-rotate': return rotate();
+      case 'ed-reset': return resetCrop();
+      case 'ed-next': return showMarks();
+      case 'ed-back': return showCrop();
+      case 'ed-mode': ed.mode = id; document.querySelectorAll('#ed-mode button').forEach((b) => { const on = b.dataset.id === id; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); }); return preview();
+      case 'ed-del': ed.marks.splice(+id, 1); listMarks(); return preview();
+      case 'ed-stop': if (R) R.cancel(); return;
+      case 'ed-save': return save();
+    }
+  }
+  document.addEventListener('change', (e) => { const el = e.target; if (ed && el.dataset && el.dataset.mk != null) { ed.marks[+el.dataset.mk].ticked = el.checked; listMarks(); preview(); } });
+  window.addEventListener('resize', () => { if (!ed || !view) return; if (ed.step === 'crop') { layout(); drawCrop(); } else if (ed.step === 'marks') { layout(); view.k = view.w / ed.work.width; preview(); } });
+
+  root.PhotoUI = {
+    init: (api) => { A = api; },
+    hydrate, thumb, noTile, photoBox, act, isOpen, back, closeEditor, share,
+    // forget photos that no item points to any more (deleted items, batches, replaced photos)
+    cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
+  };
+})(window);

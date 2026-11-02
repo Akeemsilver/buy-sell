@@ -141,7 +141,8 @@
     return null;
   }
   const swatchRow = (cur) => `<div class="swatches" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button type="button" class="swatch ${cur === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur === p.id}" aria-label="${t('pal.' + p.id)}" data-act="gate-color" data-id="${p.id}"></button>`).join('')}</div>`;
-  function gateHTML(v) {
+  const gateHTML = (v) => gatePage(v).replace(/<\/div>$/, gateLang() + '</div>');
+  function gatePage(v) {
     if (v === 'welcome') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.welcome')}</h1><p class="g-mute">${t('gate.tag')}</p>
       <button class="g-btn primary" data-act="gate-create">${t('gate.create')}</button><button class="g-btn" data-act="gate-have">${t('gate.have')}</button>
       <p class="g-small">${t('gate.note')}</p><button class="g-link" data-act="gate-skip">${t('gate.skip')}</button><p class="g-small">${t('gate.skipNote')}</p></div>`;
@@ -164,6 +165,12 @@
         <button class="g-btn primary" style="margin-top:18px">${t('gate.continue')}</button></form></div>`;
     }
     return `<div class="g-wrap g-center"><div class="g-logo">✦</div><p class="g-mute">${t('gate.waiting')}</p></div>`;
+  }
+  const gateLang = () => `<div class="g-lang" role="radiogroup" aria-label="${t('gate.language')}"><span>${t('gate.language')}</span>${Object.keys(I.LANGS).map((l) => `<button type="button" class="${I.getLang() === l ? 'on' : ''}" role="radio" aria-checked="${I.getLang() === l}" data-act="gate-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>`;
+  // redraw the open page (e.g. after a language change) without losing what was typed
+  function regate() {
+    const el = $('#gate'), vals = {}; el.querySelectorAll('input[name]').forEach((i) => { vals[i.name] = i.value; });
+    el.innerHTML = gateHTML(gateView); el.querySelectorAll('input[name]').forEach((i) => { if (vals[i.name] != null) i.value = vals[i.name]; });
   }
   function updateGate() {
     const el = $('#gate'), want = wantedGate();
@@ -740,6 +747,7 @@
       case 'install-guide': if (installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); render(); }).catch(() => {}); } return sheetInstallHelp();
       case 'copy-link': return (navigator.clipboard ? navigator.clipboard.writeText(location.href.split('#')[0]) : Promise.reject()).then(() => toast(t('toast.linkCopied')), () => toast(t('toast.copyManual')));
       case 'install-dismiss': setPref('installDismissed', Date.now()); return render();
+      case 'gate-lang': I.setLang(id, true); applyStaticText(); regate(); return;
       case 'gate-create': gateMode = 'create'; gateView = null; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-have': gateMode = 'in'; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-back': gateView = 'welcome'; $('#gate').innerHTML = gateHTML('welcome'); return;

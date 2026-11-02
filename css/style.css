@@ -258,3 +258,9 @@ h2.sec{margin:18px 0 6px}
 .g-err{margin-top:12px;color:#b3261e;font-size:13px}
 .gate .swatch{border-color:transparent}
 .appbar h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+.g-lang{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:30px;color:var(--g-mute);font-size:13px}
+.g-lang button{border:1px solid var(--g-line);background:transparent;color:inherit;border-radius:99px;padding:8px 16px;font-weight:700;min-height:40px}
+.g-lang button.on{background:var(--g-main);color:#fff;border-color:var(--g-main)}
+:root[data-theme=dark] .g-lang button.on{color:#14171b}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .g-lang button.on{color:#14171b}}

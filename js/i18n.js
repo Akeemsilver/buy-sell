@@ -282,7 +282,7 @@
     'pal.purple': 'Purple',
     'pal.charcoal': 'Charcoal',
     /* welcome + sign-up pages */
-    'gate.welcome': 'Welcome',
+    'gate.language': 'Language', 'gate.welcome': 'Welcome',
     'gate.tag': 'Keep track of what you buy and sell, and who owes you.',
     'gate.create': 'Create an account',
     'gate.have': 'I already have an account',
@@ -557,7 +557,7 @@
     'pal.purple': 'Morado',
     'pal.charcoal': 'Carbón',
     /* welcome + sign-up pages */
-    'gate.welcome': 'Bienvenido',
+    'gate.language': 'Idioma', 'gate.welcome': 'Bienvenido',
     'gate.tag': 'Lleva el control de lo que compras y vendes, y de quién te debe.',
     'gate.create': 'Crear una cuenta',
     'gate.have': 'Ya tengo una cuenta',

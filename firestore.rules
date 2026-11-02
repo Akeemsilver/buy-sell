@@ -1,5 +1,5 @@
 rules_version = '2';
-// B-RUIZ Firestore rules — version 1.00
+// B Ruiz Firestore rules 1.00
 // Paste this into Firebase console > Firestore Database > Rules > Publish.
 // Only signed-in people can touch data, only their own user record, and only workspaces they are a member of.
 service cloud.firestore {

@@ -38,6 +38,16 @@ every key the code uses exists, that every logic error has a translation and tha
 the tests first, so a missing translation blocks the deploy. To add a language, add a dictionary to `LANGS` in `js/i18n.js` (the test tells
 you what is missing) and a button for it appears in Settings.
 
+## Photos (step 1: on the phone)
+
+- In **Stock**, "Add photos" (gallery, several at once, or camera) fills the next items of the batch that have no photo, in item order. Extra photos offer to add more items.
+- Every photo must be **checked** (cropped and saved) before it can be shared. Unchecked photos show "⚠ Check", the "Need check" filter lists them, and sharing one opens "Check this photo first".
+- The check screen has two steps: crop (the phone's screenshot around the picture is cut away automatically; drag the frame, pick Free/Square/4:5/3:4, rotate, reset), then hide marks (the phone suggests watermarks and page counters, you tick/untick or draw your own boxes, choose blur / smart cover / own logo; the preview is exactly what is saved).
+- **Shown to customers** (picture, name, selling price) is separate from **Private — never shared** (cost, conversion, clearing share, landed cost, recommended price, profit). Sharing sends the picture with the price drawn as a tag and "name + price" (or "Available") as the caption, in the invoice language. No cost is ever included.
+- Photos are stored in the phone's IndexedDB (a ~200 px thumbnail, a ~640 px picture and the original). **They are not in JSON backups yet** and are not synced to other phones; cloud storage comes in a later step.
+- The mark finder is Tesseract (Apache-2.0) in `vendor/tesseract`, run on the phone. It downloads once (~8 MB) the first time it is used and is then cached for offline use. It reads only the corners/edges and only suggests words several readings agree on. It cannot read stylised script logos or find symbol-only logos; hide those with a box. Always look at the preview before saving.
+- Code: `js/photo.js` (pixels: find the picture, hide marks, size boxes), `js/reader.js` (mark finder), `js/photostore.js` (IndexedDB), `js/photoui.js` (screens). Tests: `test/photo.test.js`.
+
 ## Workflow (same as the sheet)
 
 | Sheet action | In the app |

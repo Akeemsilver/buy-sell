@@ -27,11 +27,11 @@ Object.keys(EN).forEach((k) => {
 });
 
 // 4. every key the code asks for exists (static t('key') calls, plural tn('key'), and the dynamic prefixes)
-const code = ['js/app.js', 'index.html'].map(read).join('\n');
+const code = ['js/app.js', 'js/photoui.js', 'index.html'].map(read).join('\n');
 const used = new Set();
 for (const m of code.matchAll(/\b(?:t|ti|I18n\.t)\(\s*'([\w.]+)'/g)) used.add(m[1]);
 for (const m of code.matchAll(/\btn\(\s*'([\w.]+)'/g)) { used.add(m[1] + '.one'); used.add(m[1] + '.other'); }
-for (const m of code.matchAll(/'((?:status|invstatus|nav|err|csv|title)\.)'\s*\+/g)) Object.keys(EN).filter((k) => k.startsWith(m[1])).forEach((k) => used.add(k));
+for (const m of code.matchAll(/'((?:status|invstatus|nav|err|csv|title|ed)\.)'\s*\+/g)) Object.keys(EN).filter((k) => k.startsWith(m[1])).forEach((k) => used.add(k));
 for (const m of code.matchAll(/t\('((?:csv|nav)\.)'/g)) Object.keys(EN).filter((k) => k.startsWith(m[1])).forEach((k) => used.add(k));
 // a call like t('status.' + x) builds its key at run time: the prefixes handled above cover those
 [...used].filter((k) => !k.endsWith('.')).forEach((k) => check(k in EN, `the code uses "${k}" but it is not in the dictionary`));

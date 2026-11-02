@@ -10,6 +10,7 @@
   const money = (n) => `<span class="amt">${moneyText(n)}</span>`;   // wrapped so the eye button can blur amounts
   const plain = (html) => String(html).replace(/<[^>]+>/g, '');
   const day = (d) => (d ? new Date(d).toLocaleDateString(I.locale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+  const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
   const invStLabel = (s) => t('invstatus.' + s);
@@ -32,6 +33,7 @@
   };
   const TABS = ['home', 'stock', 'sell', 'people', 'more'];
 
+  const PUI = window.PhotoUI;
   let state = load();
   let tab = 'home', moreView = null;
   let stockBatch = null, stockFilter = 'All';
@@ -87,7 +89,7 @@
   }
   // Run a state change, save, report. Errors become a toast and leave the sheet open.
   function run(fn, ok, keepSheet) {
-    try { const r = fn(); save(); if (!keepSheet) closeSheet(); if (ok) toast(typeof ok === 'function' ? ok(r) : ok); render(); return r; }
+    try { const r = fn(); save(); tidyPhotos(); if (!keepSheet) closeSheet(); if (ok) toast(typeof ok === 'function' ? ok(r) : ok); render(); return r; }
     catch (e) { toast('⚠️ ' + errMsg(e)); }
   }
   const cleanSelected = () => { selected = new Set([...selected].filter((id) => state.items.some((i) => i.id === id))); };
@@ -111,6 +113,7 @@
     renderActionBar();
     syncHistory();
     showVersion();
+    PUI.hydrate();
   }
 
   // The deploy stamps the commit id into the cache name, so the saved copy tells us which version is running.
@@ -177,23 +180,29 @@
     if (!open.some((b) => b.id === stockBatch)) stockBatch = open[0].id;
     const b = state.batches.find((x) => x.id === stockBatch);
     const all = state.items.filter((i) => i.batchId === b.id);
-    const items = all.filter((i) => stockFilter === 'All' || i.status === stockFilter);
+    const ps = L.photoStats(state, b.id);
+    if (stockFilter === 'NeedCheck' && !ps.needCheck) stockFilter = 'All';
+    const items = all.filter((i) => (stockFilter === 'All' ? true : stockFilter === 'NeedCheck' ? i.photo && !i.photo.checked : i.status === stockFilter));
     const st = L.batchStats(state, b);
     const chips = (arr, cur, act, label) => arr.map((x) => `<button class="chip ${x === cur ? 'on' : ''}" data-act="${act}" data-id="${esc(x)}">${esc(label ? label(x) : x)}</button>`).join('');
     return `<div class="chips">${chips(open.map((x) => x.id), stockBatch, 'pick-batch', bl)}<button class="chip" data-act="new-batch">${t('stock.addBatch')}</button></div>
       <div class="row" style="margin-bottom:10px"><div class="grow"><b>${t('stock.invested', { status: stLabel(bStatus(b)), amount: money(st.investment) })}</b><small>${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</small></div>
         <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div></div>
-      <div class="chips">${chips(['All', ...STATUSES], stockFilter, 'pick-filter', (x) => (x === 'All' ? t('filter.all') : stLabel(x)))}</div>
+      <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>
+        ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button></div>
+      <div class="chips">${chips(['All', ...STATUSES, ...(ps.needCheck ? ['NeedCheck'] : [])], stockFilter, 'pick-filter', (x) => (x === 'All' ? t('filter.all') : x === 'NeedCheck' ? t('filter.needCheck') + ' (' + ps.needCheck + ')' : stLabel(x)))}</div>
       <div class="list">${items.map((i) => itemCard(b, i)).join('') || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
   }
 
   function itemCard(b, i) {
-    const c = L.itemCalc(b, i), sel = selected.has(i.id);
+    const c = L.itemCalc(b, i), sel = selected.has(i.id), noPhoto = L.shareStatus(i) === 'noPhoto';
+    const priceHtml = i.sold ? money(i.sold) : i.price ? money(i.price) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : '';
     return `<div class="item ${sel ? 'sel' : ''}" data-id="${i.id}">
       <label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-sel ${sel ? 'checked' : ''}></label>
-      <button class="main" data-act="edit-item" data-id="${i.id}"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}</b>
-        <small>${i.id}${i.customer ? ' · ' + esc(i.customer) : ''}${i.invoice ? ' · ' + i.invoice : ''}</small></button>
-      <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${i.sold ? money(i.sold) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : ''}</b></div></div>`;
+      <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i)}<span class="txt"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}</b>
+        <small>${i.id}${i.customer ? ' · ' + esc(i.customer) : ''}${i.invoice ? ' · ' + i.invoice : ''}</small></span></button>
+      <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${priceHtml}</b></div>
+      <button class="share-btn" data-act="photo-share" data-id="${i.id}" aria-label="${t('photo.share')}" ${noPhoto ? 'disabled' : ''}>${SHARE}</button></div>`;
   }
 
   /* ---------- Sell ---------- */
@@ -254,6 +263,7 @@
       <h2>${t('more.data')}</h2><div class="list">
         ${act('import-xlsx', '📥', t('more.import'), t('more.importSub'))}${act('export-json', '💾', t('more.backup'), t('more.backupSub'))}
         ${act('import-json', '♻️', t('more.restore'), t('more.restoreSub'))}${act('reset', '🗑️', t('more.erase'), t('more.eraseSub'), true)}</div>
+      <p class="note">${t('photo.backupNote')}</p>
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
   }
 
@@ -299,6 +309,7 @@
     document.body.style.overflow = 'hidden';
     syncKeyboard();
     syncHistory();
+    PUI.hydrate();
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
@@ -337,7 +348,8 @@
       ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
       <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
       <div class="grid2"><input name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>
-      <div class="btns"><button class="btn" data-act="open-stock" data-id="${b.id}">${t('batch.viewItems')}</button>
+      <div class="btns"><button class="btn" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')} · ${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</button>
+      <button class="btn" data-act="open-stock" data-id="${b.id}">${t('batch.viewItems')}</button>
       ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
       ${bStatus(b) !== 'Closed' ? `<button class="btn danger" data-act="close-batch" data-id="${b.id}">${t('batch.close')}</button>` : ''}
       ${st.sold === 0 ? `<button class="btn danger" data-act="del-batch" data-id="${b.id}">${t('batch.delete')}</button>` : ''}</div>
@@ -362,12 +374,18 @@
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const b = batchOf(i);
     openSheet(`<h3>${i.id}</h3><div class="muted small">${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</div>
+      <h2 class="sec">${t('item.shown')}</h2>
+      ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
-      <div class="grid2"><div><label>${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}"></div>
-      <div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div></div>
-      <div class="grid2"><div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div>
-      <div><label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select></div></div>
+      <label>${t('item.price')}</label><div class="grid2"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
+      <p class="muted small">${t('item.shownNote')}</p>
+      <h2 class="sec">${t('item.private')}</h2>
+      <label>${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <div class="sumbox" id="calc"></div>
+      <h2 class="sec">${t('item.sale')}</h2>
+      <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
+      <div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
+      <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       <div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render);
     $('#sheet').dataset.item = id; calcBox(i);
@@ -572,6 +590,7 @@
         ${row('🧾', t('dl.invoices'), t('dl.rows', { n: state.invoices.length }), 'data-act="csv" data-id="invoices"')}
         ${row('📋', t('dl.items'), t('dl.rows', { n: state.items.length }), 'data-act="csv" data-id="items"')}
         ${row('👥', t('dl.customers'), t('dl.rows', { n: L.customerStats(state).length }), 'data-act="csv" data-id="customers"')}</div>
+      <p class="note">${t('photo.backupNote')}</p>
       <div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
   }
 
@@ -599,6 +618,7 @@
     const t_ = e.target.closest('[data-tab],[data-act]'); if (!t_) return;
     if (t_.dataset.tab) { tab = t_.dataset.tab; if (tab === 'more') moreView = null; window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
+    if (/^(photo|ed)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
     switch (t_.dataset.act) {
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
@@ -631,8 +651,9 @@
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return; }
       case 'unselect': selected.delete(id); return render();
-      case 'select-close': selected.add(id); closeSheet(); return toast(t('item.added'));
+      case 'select-close': { const it = state.items.find((x) => x.id === id); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
       case 'pick-client': invForm.client = id; return render();
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
@@ -674,7 +695,7 @@
     }
     if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
-      i[f] = ['cost', 'sold', 'delivery'].includes(f) ? Math.max(0, parseFloat(el.value) || 0) : el.value;
+      i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(el.value) || 0) : el.value;
       save(); calcBox(i);
     }
   });
@@ -685,14 +706,14 @@
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
-      if (['cost', 'sold', 'delivery'].includes(f)) { i[f] = Math.max(0, parseFloat(el.value) || 0); calcBox(i); } else { i[f] = el.value; }
+      if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(el.value) || 0); calcBox(i); } else { i[f] = el.value; }
       save();
     } else if (el.form && el.form.id === 'f-batch') {
       const f = el.form, r = L.effectiveRate(state, f.currency.value), c = parseFloat(f.totalCost.value) || 0;
       $('#rate-hint').innerHTML = t('batch.rateHint', { rate: r.toFixed(4), amount: money(c * r) });
     }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (PUI.isOpen()) PUI.back(); else closeSheet(); } });
 
   /* ---------- files ---------- */
 
@@ -729,7 +750,7 @@
   // Every layer you can back out of (non-home tab, a More sub-screen, an open sheet) is one history entry,
   // so the system Back button / gesture closes the top layer first. At Home, Back asks to press again to exit.
   let hist = 0, skipPops = 0, exitArmed = false, exitTimer, reconTimer;
-  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + ($('#sheet').hidden ? 0 : 1);
+  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + ($('#sheet').hidden ? 0 : 1) + (PUI.isOpen() ? 1 : 0);
   function reconcile() {
     reconTimer = null;
     if (skipPops > 0) return;                        // a back traversal is still in flight
@@ -749,7 +770,8 @@
     const n = st.d == null ? 0 : st.d;
     if (n >= hist) return;                           // stale entry from before a reload: nothing to undo
     hist = n;
-    if (!$('#sheet').hidden) closeSheet();
+    if (PUI.isOpen()) PUI.back();
+    else if (!$('#sheet').hidden) closeSheet();
     else if (tab === 'more' && moreView) moreView = null;
     else if (tab !== 'home') tab = 'home';
     render();
@@ -828,6 +850,9 @@
     sh.addEventListener('touchcancel', () => end(true));
   })();
 
+  const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
+  const tidyPhotos = debounce(() => PUI.cleanup(), 2500);
+  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang() });
   save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyStaticText();
   applyTheme();

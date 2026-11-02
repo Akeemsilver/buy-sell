@@ -82,7 +82,7 @@
     s.batches.push(batch);
     for (let i = 1; i <= count; i++) {
       s.items.push({ id: pad + '-' + String(i).padStart(3, '0'), batchId: batch.id, store: batch.store,
-        desc: '', cost: 0, sold: 0, status: 'In Transit', customer: '', delivery: 0, invoice: '' });
+        desc: '', cost: 0, sold: 0, price: 0, photo: null, status: 'In Transit', customer: '', delivery: 0, invoice: '' });
     }
     return batch;
   };
@@ -126,17 +126,53 @@
   };
 
   // Per-item derived money, mirroring the Inventory Log formulas.
+  // Every step is rounded to the cent so what is shown always adds up: cost + clearing = landed, landed x (1 + margin) = recommended.
   L.itemCalc = (b, it) => {
     const cost = num(it.cost);
     if (!b || cost <= 0) return { costTTD: 0, clearing: 0, landed: 0, recommended: 0, profit: 0 };
-    const costTTD = cost * b.rate;
-    const totalTTD = b.totalCost * b.rate;
-    const clearing = b.clearingPaid > 0 && totalTTD > 0 ? (b.clearingPaid / totalTTD) * costTTD : 0;
-    const landed = costTTD + clearing;
-    const recommended = landed * (1 + b.margin / 100);
+    const rawTTD = cost * b.rate, totalTTD = b.totalCost * b.rate;
+    const costTTD = r2(rawTTD);
+    const clearing = b.clearingPaid > 0 && totalTTD > 0 ? r2((b.clearingPaid / totalTTD) * rawTTD) : 0;
+    const landed = r2(costTTD + clearing);
+    const recommended = r2(landed * (1 + b.margin / 100));
     const sold = num(it.sold);
-    return { costTTD, clearing, landed, recommended, profit: sold > 0 ? sold - landed : recommended - landed };
+    return { costTTD, clearing, landed, recommended, profit: r2(sold > 0 ? sold - landed : recommended - landed) };
   };
+
+  /* ---------- photos, selling price and what customers may see ---------- */
+
+  // Only these fields ever leave the app when an item is shared. Costs, landed cost, margin, recommended price are never in here.
+  L.publicView = (it) => ({ id: it.id, name: String(it.desc || '').trim(), price: num(it.price) > 0 ? r2(num(it.price)) : 0 });
+
+  // A photo may be shared only after it has been cropped and checked.
+  L.shareStatus = (it) => (!it.photo ? 'noPhoto' : it.photo.checked ? 'ok' : 'notChecked');
+
+  L.photoStats = (s, batchId) => {
+    const items = s.items.filter((i) => !batchId || i.batchId === batchId);
+    const withPhoto = items.filter((i) => i.photo);
+    return { total: items.length, withPhoto: withPhoto.length, noPhoto: items.length - withPhoto.length, needCheck: withPhoto.filter((i) => !i.photo.checked).length };
+  };
+
+  // New photos go to the next items of the batch that have none, in item order. Returns what was assigned and how many photos did not fit.
+  L.assignPhotos = (s, batchId, photoIds) => {
+    const free = s.items.filter((i) => i.batchId === batchId && !i.photo).sort((a, b) => a.id.localeCompare(b.id));
+    const assigned = [];
+    photoIds.slice(0, free.length).forEach((id, n) => { free[n].photo = { id, checked: false }; assigned.push({ itemId: free[n].id, photoId: id }); });
+    return { assigned, extra: Math.max(0, photoIds.length - free.length) };
+  };
+
+  // More photos than plain items: add more items to the batch (same numbering).
+  L.addItems = (s, batchId, count) => {
+    const b = s.batches.find((x) => x.id === batchId); if (!b) throw fail('batch');
+    const mine = s.items.filter((i) => i.batchId === batchId);
+    let n = mine.reduce((m, i) => Math.max(m, parseInt(i.id.split('-')[1], 10) || 0), 0);
+    const pad = String(b.num).padStart(3, '0'), made = [];
+    for (let k = 0; k < count; k++) { n++; const it = { id: pad + '-' + String(n).padStart(3, '0'), batchId, store: b.store, desc: '', cost: 0, sold: 0, price: 0, photo: null, status: b.status === 'Received' ? 'Available' : 'In Transit', customer: '', delivery: 0, invoice: '' }; s.items.push(it); made.push(it); }
+    return made;
+  };
+
+  // When an item is added to an invoice its "Sold for" starts as your selling price (if you set one and none is filled in).
+  L.prefillSold = (it) => { if (num(it.sold) <= 0 && num(it.price) > 0) it.sold = r2(num(it.price)); return it; };
 
   L.batchStats = (s, b) => {
     const items = s.items.filter((i) => i.batchId === b.id);
@@ -185,6 +221,7 @@
   // Bring data saved by an older version up to date (idempotent): recompute per-item paid/owing.
   L.migrate = (s) => {
     L.cleanNames(s);
+    s.items.forEach((i) => { if (i.price === undefined) i.price = 0; if (i.photo === undefined) i.photo = null; });
     if (s.items.some((i) => i.invoice && i.paid === undefined)) {
       new Set(s.items.map((i) => i.invoice).filter(Boolean)).forEach((no) => L.applyWaterfall(s, no));
     }

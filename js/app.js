@@ -10,6 +10,8 @@
   const money = (n) => `<span class="amt">${moneyText(n)}</span>`;   // wrapped so the eye button can blur amounts
   const plain = (html) => String(html).replace(/<[^>]+>/g, '');
   const day = (d) => (d ? new Date(d).toLocaleDateString(I.locale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+  const bizName = () => state.settings.businessName || 'B-RUIZ';
+  const initials = (n) => String(n).trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toUpperCase() || '·';
   const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
@@ -126,6 +128,54 @@
     });
   }
 
+  /* ---------- welcome / create account / sign in / business setup (neutral look, not the business's colors) ---------- */
+
+  let gateView = null, gateMode = 'create', gateDraft = { name: '' };
+  const hasData = () => window.Sync.hasData(state);
+  function wantedGate() {
+    if (cloud.signedIn) {
+      if (state.settings.setupDone || hasData()) return null;
+      return /synced|syncing/.test(cloud.status) ? 'setup' : 'wait';
+    }
+    if (cloud.status === 'signedOut' && !hasData() && !pref('gateSkipped', false)) return gateView === 'auth' ? 'auth' : 'welcome';
+    return null;
+  }
+  const swatchRow = (cur) => `<div class="swatches" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button type="button" class="swatch ${cur === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur === p.id}" aria-label="${t('pal.' + p.id)}" data-act="gate-color" data-id="${p.id}"></button>`).join('')}</div>`;
+  function gateHTML(v) {
+    if (v === 'welcome') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.welcome')}</h1><p class="g-mute">${t('gate.tag')}</p>
+      <button class="g-btn primary" data-act="gate-create">${t('gate.create')}</button><button class="g-btn" data-act="gate-have">${t('gate.have')}</button>
+      <p class="g-small">${t('gate.note')}</p><button class="g-link" data-act="gate-skip">${t('gate.skip')}</button><p class="g-small">${t('gate.skipNote')}</p></div>`;
+    if (v === 'auth') return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
+      <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
+      <button class="g-btn" data-act="gate-google" style="margin-top:16px">${t('acct.google')}</button><p class="g-small" style="text-align:center">${t('acct.or')}</p>
+      <form id="f-gate"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
+      <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="${gateMode === 'create' ? 'new-password' : 'current-password'}" minlength="6" required>
+      <div id="g-err" class="g-err" hidden></div>
+      <button class="g-btn primary" style="margin-top:18px">${gateMode === 'create' ? t('acct.create') : t('acct.signIn')}</button>
+      ${gateMode === 'in' ? `<button type="button" class="g-link" data-act="gate-forgot">${t('acct.forgot')}</button>` : ''}</form></div>`;
+    if (v === 'setup') {
+      const cur = Theme.current();
+      return `<div class="g-wrap"><h1 style="font-size:24px">${t('gate.setup.title')}</h1><p class="g-mute">${t('gate.setup.sub')}</p>
+        <form id="f-setup"><label>${t('gate.bizName')}</label><input name="biz" value="${esc(gateDraft.name)}" placeholder="${t('gate.bizPh')}" autocomplete="off" required>
+        <div id="g-err" class="g-err" hidden></div>
+        <label>${t('gate.pickColor')}</label>${swatchRow(cur)}
+        <div class="pv" style="margin-top:14px"><div class="pv-bar"><i></i><span id="pv-name">${esc(gateDraft.name || t('gate.bizPh'))}</span></div><div class="pv-body"><div class="pv-hero"><small>${t('pv.profit')}</small><b>TT$ 1,240.00</b></div>
+          <div class="pv-row"><div><small>${t('pv.owing')}</small><b>TT$ 300.00</b></div><div><small>${t('nav.stock')}</small><b>6 · 0</b></div></div><div class="pv-btn">${t('pv.batch')}</div></div></div>
+        <button class="g-btn primary" style="margin-top:18px">${t('gate.continue')}</button></form></div>`;
+    }
+    return `<div class="g-wrap g-center"><div class="g-logo">✦</div><p class="g-mute">${t('gate.waiting')}</p></div>`;
+  }
+  function updateGate() {
+    const el = $('#gate'), want = wantedGate();
+    if (want === gateView && (want || el.hidden)) return;
+    gateView = want;
+    if (!want) { el.hidden = true; el.innerHTML = ''; document.body.style.overflow = ''; return; }
+    el.innerHTML = gateHTML(want); el.hidden = false; el.scrollTop = 0; document.body.style.overflow = 'hidden';
+  }
+  const gateErr = (m) => { const e = $('#g-err'); if (e) { e.textContent = m; e.hidden = !m; } };
+  document.addEventListener('focusin', (e) => { if (e.target.closest && e.target.closest('#gate') && /INPUT/.test(e.target.tagName)) setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); });
+  document.addEventListener('input', (e) => { if (e.target.name === 'biz' && e.target.form && e.target.form.id === 'f-setup') { gateDraft.name = e.target.value; const n = $('#pv-name'); if (n) n.textContent = e.target.value || t('gate.bizPh'); } });
+
   const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
 
   function load() {
@@ -151,10 +201,11 @@
   function render() {
     cleanSelected();
     const moreTitles = { invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: 'B-RUIZ', stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? t(moreTitles[moreView]) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? t(moreTitles[moreView]) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !(tab === 'more' && moreView);
-    $('#brand').hidden = !$('#back').hidden;
+    const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
+    $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'sell' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     $('#appbar-right').innerHTML = $('#back').hidden ? `<div class="tools">${btn('view', hideAmounts ? t('tool.show') : t('tool.hide'), hideAmounts ? 'eyeoff' : 'eye')}${btn('download', t('tool.download'), 'download')}${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
@@ -344,13 +395,13 @@
       <div class="swatches" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button class="swatch ${cur_pal === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur_pal === p.id}" aria-label="${t('pal.' + p.id)}" data-act="set-palette" data-id="${p.id}"></button>`).join('')}</div>
       <p class="muted small" style="margin:6px 2px 0"><b>${t('pal.' + cur_pal)}</b> · ${t('set.colorNote')}</p>
       <h2>${t('set.preview')}</h2>
-      <div class="pv"><div class="pv-bar"><i></i>B-RUIZ</div><div class="pv-body"><div class="pv-hero"><small>${t('pv.profit')}</small><b>TT$ 1,240.00</b></div>
+      <div class="pv"><div class="pv-bar"><i></i>${esc(bizName())}</div><div class="pv-body"><div class="pv-hero"><small>${t('pv.profit')}</small><b>TT$ 1,240.00</b></div>
         <div class="pv-row"><div><small>${t('pv.owing')}</small><b>TT$ 300.00</b></div><div><small>${t('nav.stock')}</small><b>6 · 0</b></div></div><div class="pv-chips"><span class="on">${t('filter.all')}</span><span>${stLabel('Available')}</span><span>${stLabel('Paid')}</span></div><div class="pv-btn">${t('pv.batch')}</div></div></div>
       <h2>${t('set.appearance')}</h2>
       <div class="seg" role="radiogroup" aria-label="${t('set.theme')}">${seg.map(([k, l]) => `<button class="${theme === k ? 'on' : ''}" role="radio" aria-checked="${theme === k}" data-act="set-theme" data-id="${k}">${l}</button>`).join('')}</div>
       <p class="muted small">${t('set.autoNote')}</p>
       <h2>${t('set.business')}</h2>
-      <form id="f-settings"><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="number" inputmode="numeric" value="${s.year}"></div>
+      <form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off"><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="number" inputmode="numeric" value="${s.year}"></div>
       <div><label>${t('set.margin')}</label><input name="defaultMargin" type="number" inputmode="decimal" value="${s.defaultMargin}"></div></div>
       <label>${t('set.markup')}</label><input name="markup" type="number" inputmode="decimal" step="0.001" value="${s.markup}">
       ${['USD', 'EUR', 'GBP'].map((c) => `<label>${t('set.rate', { c })}</label><input name="${c}" type="number" inputmode="decimal" step="0.0001" value="${s.rates[c]}">`).join('')}
@@ -689,6 +740,14 @@
       case 'install-guide': if (installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); render(); }).catch(() => {}); } return sheetInstallHelp();
       case 'copy-link': return (navigator.clipboard ? navigator.clipboard.writeText(location.href.split('#')[0]) : Promise.reject()).then(() => toast(t('toast.linkCopied')), () => toast(t('toast.copyManual')));
       case 'install-dismiss': setPref('installDismissed', Date.now()); return render();
+      case 'gate-create': gateMode = 'create'; gateView = null; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
+      case 'gate-have': gateMode = 'in'; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
+      case 'gate-back': gateView = 'welcome'; $('#gate').innerHTML = gateHTML('welcome'); return;
+      case 'gate-tab': gateMode = id; $('#gate').innerHTML = gateHTML('auth'); return;
+      case 'gate-skip': setPref('gateSkipped', true); return updateGate();
+      case 'gate-google': return Cloud.signInGoogle().catch((e) => gateErr(acctErr(e)));
+      case 'gate-forgot': { const em = ($('#f-gate [name=email]') || {}).value; if (!em) return gateErr(t('acct.needEmail')); return Cloud.reset(em).then(() => gateErr(t('acct.resetSent', { email: em })), (e) => gateErr(acctErr(e))); }
+      case 'gate-color': Theme.apply(id); $('#gate').innerHTML = gateHTML('setup'); { const f = $('#f-setup [name=biz]'); if (f) f.value = gateDraft.name; } return;
       case 'acct-open': return sheetAccount();
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
       case 'acct-google': return acctDone(Cloud.signInGoogle());
@@ -741,12 +800,14 @@
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
+    if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).catch((e) => gateErr(acctErr(e))); }
+    if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = Theme.current(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
     if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; } }
     if (f.id === 'f-clear') run(() => L.payClearing(state, d.batch, d.amount), t('clear.recorded', { id: bl(d.batch) }));
     if (f.id === 'f-receive') run(() => L.makeAvailable(state, d.batch), (n) => t('recv.done', { id: bl(d.batch), n }));
     if (f.id === 'f-settings') run(() => {
-      Object.assign(state.settings, { year: +d.year || state.settings.year, markup: +d.markup || 1, defaultMargin: d.defaultMargin === '' ? 100 : +d.defaultMargin });
+      Object.assign(state.settings, { businessName: /^b-?ruiz$/i.test((d.businessName || '').trim()) ? '' : (d.businessName || '').trim(), year: +d.year || state.settings.year, markup: +d.markup || 1, defaultMargin: d.defaultMargin === '' ? 100 : +d.defaultMargin });
       ['USD', 'EUR', 'GBP'].forEach((c) => { state.settings.rates[c] = +d[c] || state.settings.rates[c]; });
     }, t('set.saved'), true);
   });
@@ -921,8 +982,8 @@
   Cloud.init({
     getState: () => state,
     askConflict,
-    onStatus: (i) => { const was = cloud.signedIn; cloud = i; const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
-    onRemote: () => { L.migrate(state); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
+    onStatus: (i) => { const was = cloud.signedIn; cloud = i; updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
+    onRemote: () => { L.migrate(state); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });
   save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyStaticText();

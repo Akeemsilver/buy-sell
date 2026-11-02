@@ -281,6 +281,26 @@
     'pal.navy': 'Navy',
     'pal.purple': 'Purple',
     'pal.charcoal': 'Charcoal',
+    /* welcome + sign-up pages */
+    'gate.welcome': 'Welcome',
+    'gate.tag': 'Keep track of what you buy and sell, and who owes you.',
+    'gate.create': 'Create an account',
+    'gate.have': 'I already have an account',
+    'gate.note': 'Your business data is saved in the cloud and also works without a connection.',
+    'gate.skip': 'Use without an account',
+    'gate.skipNote': 'Your data stays on this phone only.',
+    'gate.tabCreate': 'Create account',
+    'gate.tabSignIn': 'Sign in',
+    'gate.back': 'Back',
+    'gate.waiting': 'Setting things up…',
+    'gate.setup.title': 'Set up your business',
+    'gate.setup.sub': 'You can change these any time in Settings.',
+    'gate.bizName': 'Business name',
+    'gate.bizPh': 'e.g. My Boutique',
+    'gate.bizNeed': 'Type your business name.',
+    'gate.continue': 'Continue',
+    'gate.pickColor': 'Pick your colors',
+    'set.bizName': 'Business name',
   };
 
   const ES = {
@@ -536,6 +556,26 @@
     'pal.navy': 'Azul marino',
     'pal.purple': 'Morado',
     'pal.charcoal': 'Carbón',
+    /* welcome + sign-up pages */
+    'gate.welcome': 'Bienvenido',
+    'gate.tag': 'Lleva el control de lo que compras y vendes, y de quién te debe.',
+    'gate.create': 'Crear una cuenta',
+    'gate.have': 'Ya tengo una cuenta',
+    'gate.note': 'Los datos de tu negocio se guardan en la nube y también funcionan sin conexión.',
+    'gate.skip': 'Usar sin cuenta',
+    'gate.skipNote': 'Tus datos se quedan solo en este teléfono.',
+    'gate.tabCreate': 'Crear cuenta',
+    'gate.tabSignIn': 'Iniciar sesión',
+    'gate.back': 'Atrás',
+    'gate.waiting': 'Preparando todo…',
+    'gate.setup.title': 'Configura tu negocio',
+    'gate.setup.sub': 'Puedes cambiar esto cuando quieras en Ajustes.',
+    'gate.bizName': 'Nombre del negocio',
+    'gate.bizPh': 'p. ej. Mi Boutique',
+    'gate.bizNeed': 'Escribe el nombre de tu negocio.',
+    'gate.continue': 'Continuar',
+    'gate.pickColor': 'Elige tus colores',
+    'set.bizName': 'Nombre del negocio',
   };
 
   const LANGS = { en: EN, es: ES };

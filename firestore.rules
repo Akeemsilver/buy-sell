@@ -1,0 +1,22 @@
+rules_version = '2';
+// Paste this into Firebase console > Firestore Database > Rules > Publish.
+// Only signed-in people can touch data, only their own user record, and only workspaces they are a member of.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMember(w) { return signedIn() && get(/databases/$(database)/documents/workspaces/$(w)).data.members[request.auth.uid] != null; }
+    function isOwner(w) { return signedIn() && get(/databases/$(database)/documents/workspaces/$(w)).data.members[request.auth.uid] == 'owner'; }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+    match /workspaces/{w} {
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.members[request.auth.uid] == 'owner';
+      allow read: if isMember(w);
+      allow update, delete: if isOwner(w);
+      match /{collection}/{doc} {
+        allow read, write: if isMember(w);
+      }
+    }
+  }
+}

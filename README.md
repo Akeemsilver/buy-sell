@@ -48,6 +48,15 @@ you what is missing) and a button for it appears in Settings.
 - The mark finder is Tesseract (Apache-2.0) in `vendor/tesseract`, run on the phone. It downloads once (~8 MB) the first time it is used and is then cached for offline use. It reads only the corners/edges and only suggests words several readings agree on. It cannot read stylised script logos or find symbol-only logos; hide those with a box. Always look at the preview before saving.
 - Code: `js/photo.js` (pixels: find the picture, hide marks, size boxes), `js/reader.js` (mark finder), `js/photostore.js` (IndexedDB), `js/photoui.js` (screens). Tests: `test/photo.test.js`.
 
+## Cloud account (step 2)
+
+- Sign in with Google or email/password (Settings > Account, or the banner on Home). Firebase project `b-ruiz`; the web config in `js/cloud.js` is public by design, the data is protected by `firestore.rules`.
+- **One-time setup in the Firebase console:** Authentication > Sign-in method (Google + Email/Password), Authorized domains (`akeemsilver.github.io`), Firestore database, then paste `firestore.rules` into Firestore > Rules and Publish. Until the rules are published, the app shows "the cloud database is not set up to accept data yet".
+- Data lives in a **workspace** (`workspaces/{id}`, members map `{uid: role}`), so one project can later serve many businesses. Each batch, item and invoice is its own document, plus `meta/settings` and `meta/customers`.
+- The phone keeps its own copy and works offline. `js/sync.js` (tested in `test/sync.test.js`) sends what changed here and brings down what changed in the cloud; if the same record was edited on both sides, the unsent phone edit wins.
+- First sign-in: empty cloud = this phone's data is uploaded (nothing is deleted from the phone); empty phone = the cloud data comes down; both have data = you choose which copy to keep (closing the question changes nothing and signs you out).
+- Photos are still phone-only (step 3 moves them to cloud storage). Firebase's browser files are vendored in `vendor/firebase` so the app does not depend on a CDN.
+
 ## Workflow (same as the sheet)
 
 | Sheet action | In the app |

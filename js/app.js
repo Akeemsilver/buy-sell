@@ -76,13 +76,63 @@
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (tab === 'home') render(); });
   window.addEventListener('appinstalled', () => { installEvt = null; setPref('installed', true); toast(t('install.done')); render(); });
 
+  /* ---------- account (Firebase sign-in, cloud copy) ---------- */
+
+  let cloud = { status: 'loading', error: '', email: '', signedIn: false };
+  function signInBanner() {
+    if (cloud.signedIn || cloud.status === 'loading' || cloud.status === 'unavailable' || Date.now() - pref('signinDismissed', 0) < WEEK) return '';
+    return `<div class="install"><div class="grow"><b>${t('acct.banner.title')}</b><small>${t('acct.banner.sub')}</small></div>
+      <button class="pill-btn solid" data-act="acct-open">${t('acct.banner.btn')}</button><button class="x" data-act="signin-dismiss" aria-label="${t('aria.dismiss')}">✕</button></div>`;
+  }
+  const acctErr = (e) => {
+    const c = (e && e.code) || '';
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return t('acct.err.cred');
+    if (/email-already-in-use/.test(c)) return t('acct.err.exists');
+    if (/weak-password/.test(c)) return t('acct.err.weak');
+    if (/invalid-email|missing-email/.test(c)) return t('acct.err.email');
+    if (/network/.test(c)) return t('acct.err.network');
+    if (/too-many/.test(c)) return t('acct.err.many');
+    if (/popup-closed|cancelled-popup/.test(c)) return t('acct.err.popup');
+    if (/unauthorized-domain/.test(c)) return t('acct.err.domain');
+    if (/unavailable/.test(c)) return t('acct.err.unavailable');
+    return t('acct.err.generic');
+  };
+  const acctStatus = () => t('acct.st.' + cloud.status);
+  function acctCard() {
+    return cloud.signedIn
+      ? `<div class="sumbox"><div><span>${t('acct.signedInAs', { email: esc(cloud.email) })}</span></div><div class="${cloud.status === 'synced' ? 'good' : /error|rules|unavailable/.test(cloud.status) ? 'bad' : ''}"><span id="acct-st">${acctStatus()}</span></div></div>
+         <div class="btns"><button class="btn" data-act="acct-out">${t('acct.signOut')}</button></div><p class="muted small">${t('acct.signOutNote')}</p>`
+      : `<div class="row tap" data-act="acct-open" role="button"><div class="grow"><b>${t('acct.notSignedIn')}</b><small>${t('acct.signInSub')}</small></div><span class="chev">›</span></div>`;
+  }
+  function sheetAccount() {
+    if (cloud.signedIn) return openSheet(`<h3>${t('acct.title')}</h3>${acctCard()}<div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
+    openSheet(`<h3>${t('acct.title')}</h3><p class="muted small">${t('acct.signInSub')}</p>
+      <button class="btn primary" data-act="acct-google" style="margin-top:12px">${t('acct.google')}</button>
+      <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>
+      <form id="f-acct"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
+      <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="current-password" minlength="6">
+      <div id="acct-err" class="err" hidden></div>
+      <div class="btns"><button class="btn primary" name="mode" value="in">${t('acct.signIn')}</button><button class="btn" name="mode" value="up">${t('acct.create')}</button>
+      <button type="button" class="btn" data-act="acct-forgot">${t('acct.forgot')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
+  }
+  const acctShow = (msg) => { const el = $('#acct-err'); if (el) { el.textContent = msg; el.hidden = !msg; } };
+  const acctDone = (p) => { acctShow(''); return p.then(() => { closeSheet(); toast(t('acct.signedIn')); }).catch((e) => acctShow(acctErr(e))); };
+  function askConflict() {
+    return new Promise((ok) => {
+      let done = false; const finish = (v) => { if (!done) { done = true; ok(v); } };
+      window.__conflict = finish;
+      openSheet(`<h3>${t('acct.conflict.title')}</h3><p>${t('acct.conflict.text')}</p>
+        <div class="btns"><button class="btn primary" data-act="conflict" data-id="cloud">${t('acct.conflict.cloud')}</button><button class="btn" data-act="conflict" data-id="phone">${t('acct.conflict.phone')}</button></div>`, () => finish('cancel'));
+    });
+  }
+
   const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
 
   function load() {
     try { const raw = localStorage.getItem(KEY); if (raw) return L.migrate(JSON.parse(raw)); } catch (e) { /* use default */ }
     return L.defaultState();
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(t('err.save')); } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(t('err.save')); } if (window.Cloud) Cloud.changed(); }
   function toast(msg) {
     const el = $('#toast'); el.textContent = plain(msg); el.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
@@ -109,7 +159,7 @@
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     $('#appbar-right').innerHTML = $('#back').hidden ? `<div class="tools">${btn('view', hideAmounts ? t('tool.show') : t('tool.hide'), hideAmounts ? 'eyeoff' : 'eye')}${btn('download', t('tool.download'), 'download')}${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
     document.body.classList.toggle('hide-amounts', hideAmounts);
-    $('#view').innerHTML = (tab === 'home' ? installBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
+    $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
     syncHistory();
     showVersion();
@@ -287,7 +337,8 @@
   function Settings() {
     const s = state.settings, cur = I.getLang();
     const seg = [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]];
-    return `<h2 style="margin-top:4px">${t('set.language')}</h2>
+    return `<h2 style="margin-top:4px">${t('set.account')}</h2>${acctCard()}
+      <h2>${t('set.language')}</h2>
       <div class="seg two" role="radiogroup" aria-label="${t('set.language')}">${Object.keys(I.LANGS).map((l) => `<button class="${cur === l ? 'on' : ''}" role="radio" aria-checked="${cur === l}" data-act="set-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <h2>${t('set.appearance')}</h2>
       <div class="seg" role="radiogroup" aria-label="${t('set.theme')}">${seg.map(([k, l]) => `<button class="${theme === k ? 'on' : ''}" role="radio" aria-checked="${theme === k}" data-act="set-theme" data-id="${k}">${l}</button>`).join('')}</div>
@@ -631,6 +682,12 @@
       case 'install-guide': if (installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); render(); }).catch(() => {}); } return sheetInstallHelp();
       case 'copy-link': return (navigator.clipboard ? navigator.clipboard.writeText(location.href.split('#')[0]) : Promise.reject()).then(() => toast(t('toast.linkCopied')), () => toast(t('toast.copyManual')));
       case 'install-dismiss': setPref('installDismissed', Date.now()); return render();
+      case 'acct-open': return sheetAccount();
+      case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
+      case 'acct-google': return acctDone(Cloud.signInGoogle());
+      case 'acct-forgot': { const em = ($('#f-acct [name=email]') || {}).value; if (!em) return acctShow(t('acct.needEmail')); return Cloud.reset(em).then(() => acctShow(t('acct.resetSent', { email: em })), (e) => acctShow(acctErr(e))); }
+      case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); toast(t('acct.signedOut')); });
+      case 'conflict': { const f = window.__conflict; closeSheet(); if (f) f(id); return; }
       case 'download': return sheetDownload();
       case 'filter': return sheetFilter();
       case 'settings': closeSheet(); tab = 'more'; moreView = 'settings'; window.scrollTo(0, 0); return render();
@@ -677,6 +734,7 @@
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
+    if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; } }
     if (f.id === 'f-clear') run(() => L.payClearing(state, d.batch, d.amount), t('clear.recorded', { id: bl(d.batch) }));
     if (f.id === 'f-receive') run(() => L.makeAvailable(state, d.batch), (n) => t('recv.done', { id: bl(d.batch), n }));
@@ -853,6 +911,12 @@
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const tidyPhotos = debounce(() => PUI.cleanup(), 2500);
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang() });
+  Cloud.init({
+    getState: () => state,
+    askConflict,
+    onStatus: (i) => { const was = cloud.signedIn; cloud = i; const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
+    onRemote: () => { L.migrate(state); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
+  });
   save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyStaticText();
   applyTheme();

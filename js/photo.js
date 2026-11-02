@@ -236,7 +236,7 @@
     const w = x.measureText(text).width + pad * 2, h = size + pad, X = m, Y = canvas.height - m - h, r = h / 2;
     x.save(); x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = size * 0.4; x.shadowOffsetY = 2;
     x.fillStyle = '#fff'; x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); x.fill(); x.restore();
-    x.fillStyle = '#741b47'; x.textAlign = 'left'; x.fillText(text, X + pad, Y + h / 2 + 1);
+    x.fillStyle = root.Theme ? root.Theme.brand() : '#741b47'; x.textAlign = 'left'; x.fillText(text, X + pad, Y + h / 2 + 1);
   };
   // Draw the shop logo, centred, inside each box (used by the "own logo" way of hiding marks, after the box was covered).
   P.drawLogo = (canvas, marks, logo) => {

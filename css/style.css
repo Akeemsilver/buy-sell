@@ -215,3 +215,46 @@ h2.sec{margin:18px 0 6px}
 .item .main small{display:block;margin-top:2px}
 .item .side{padding:10px 6px 10px 2px}
 .item .chk{width:44px}
+
+/* color scheme picker */
+.swatches{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 6px;scrollbar-width:none}.swatches::-webkit-scrollbar{display:none}
+.swatch{flex:none;width:46px;height:46px;border-radius:50%;border:3px solid var(--card);box-shadow:0 0 0 1px var(--line);position:relative}
+.swatch.on{box-shadow:0 0 0 3px var(--brand)}
+.swatch.on::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-weight:900;font-size:20px}
+.pv{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--bg);pointer-events:none}
+.pv-bar{background:var(--bar);color:#fff;font-weight:800;padding:10px 14px;display:flex;align-items:center;gap:8px}.pv-bar i{width:22px;height:22px;border-radius:50%;background:#fff;opacity:.9}
+.pv-body{padding:10px;display:grid;gap:8px}
+.pv-hero{background:var(--brand);color:#fff;border-radius:12px;padding:10px 12px}.pv-hero small{display:block;opacity:.8;font-size:11px}.pv-hero b{font-size:20px}
+.pv-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pv-row div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px}.pv-row small{display:block;color:var(--mute);font-size:11px}
+.pv-chips{display:flex;gap:6px}.pv-chips span{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 11px;font-size:12px;font-weight:600}.pv-chips span.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.pv-btn{background:var(--brand);color:#fff;text-align:center;border-radius:12px;padding:11px;font-weight:800}
+
+/* brand initials when a business has its own name (instead of the B-RUIZ logo) */
+.brandtxt{display:grid;place-items:center;color:var(--brand);font-weight:900;font-size:15px;line-height:1}
+.brandtxt[hidden]{display:none}
+/* welcome, sign-up and sign-in pages: neutral on purpose, they come before the business picks its colors */
+.gate{position:fixed;inset:0;z-index:100;overflow:auto;background:#f5f6f8;color:#1f2933;font-size:16px;--g-line:#d9dde3;--g-mute:#66707d;--g-main:#27323f}
+.gate[hidden]{display:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .gate{background:#14171b;color:#eceff3;--g-line:#2d333b;--g-mute:#9aa4b0;--g-main:#dfe5ec}}
+:root[data-theme=dark] .gate{background:#14171b;color:#eceff3;--g-line:#2d333b;--g-mute:#9aa4b0;--g-main:#dfe5ec}
+.g-wrap{max-width:420px;margin:0 auto;padding:calc(28px + var(--sat)) 22px calc(40px + var(--sab));min-height:100dvh}
+.g-center{display:flex;flex-direction:column;justify-content:center;text-align:center}
+.g-logo{width:76px;height:76px;border-radius:22px;background:var(--g-main);color:#fff;display:grid;place-items:center;font-size:34px;margin:0 auto 18px}
+:root[data-theme=dark] .g-logo{color:#14171b}
+.gate h1{margin:0 0 6px;font-size:30px}
+.g-mute{color:var(--g-mute);margin:0 0 26px}
+.g-small{color:var(--g-mute);font-size:12.5px;margin:12px 0 0}
+.g-btn{display:block;width:100%;min-height:52px;margin-top:10px;border-radius:14px;border:1px solid var(--g-line);background:transparent;color:inherit;font-weight:700}
+.g-btn.primary{background:var(--g-main);color:#fff;border-color:var(--g-main)}
+:root[data-theme=dark] .g-btn.primary{color:#14171b}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .g-btn.primary{color:#14171b}:root:not([data-theme=light]) .g-logo{color:#14171b}}
+.g-link{background:none;border:0;color:var(--g-mute);text-decoration:underline;padding:12px 6px;margin-top:6px}
+.g-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--g-line);border-radius:14px;padding:4px;margin-top:6px}
+.g-tabs button{min-height:42px;border:0;border-radius:11px;background:transparent;font-weight:700;color:var(--g-mute)}
+.g-tabs button.on{background:#fff;color:#1f2933;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+:root[data-theme=dark] .g-tabs button.on{background:#222831;color:#eceff3}
+.gate label{color:var(--g-mute)}
+.gate input{background:transparent;border-color:var(--g-line)}
+.g-err{margin-top:12px;color:#b3261e;font-size:13px}
+.gate .swatch{border-color:transparent}
+.appbar h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}

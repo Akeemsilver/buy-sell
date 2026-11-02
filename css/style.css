@@ -215,3 +215,16 @@ h2.sec{margin:18px 0 6px}
 .item .main small{display:block;margin-top:2px}
 .item .side{padding:10px 6px 10px 2px}
 .item .chk{width:44px}
+
+/* color scheme picker */
+.swatches{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 6px;scrollbar-width:none}.swatches::-webkit-scrollbar{display:none}
+.swatch{flex:none;width:46px;height:46px;border-radius:50%;border:3px solid var(--card);box-shadow:0 0 0 1px var(--line);position:relative}
+.swatch.on{box-shadow:0 0 0 3px var(--brand)}
+.swatch.on::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-weight:900;font-size:20px}
+.pv{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--bg);pointer-events:none}
+.pv-bar{background:var(--bar);color:#fff;font-weight:800;padding:10px 14px;display:flex;align-items:center;gap:8px}.pv-bar i{width:22px;height:22px;border-radius:50%;background:#fff;opacity:.9}
+.pv-body{padding:10px;display:grid;gap:8px}
+.pv-hero{background:var(--brand);color:#fff;border-radius:12px;padding:10px 12px}.pv-hero small{display:block;opacity:.8;font-size:11px}.pv-hero b{font-size:20px}
+.pv-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pv-row div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px}.pv-row small{display:block;color:var(--mute);font-size:11px}
+.pv-chips{display:flex;gap:6px}.pv-chips span{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 11px;font-size:12px;font-weight:600}.pv-chips span.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.pv-btn{background:var(--brand);color:#fff;text-align:center;border-radius:12px;padding:11px;font-weight:800}

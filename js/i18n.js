@@ -262,6 +262,25 @@
     'acct.conflict.text': 'Which copy do you want to keep? The other one is replaced. If you are not sure, close this and nothing changes — you will be signed out.',
     'acct.conflict.cloud': 'Use the cloud copy',
     'acct.conflict.phone': 'Use this phone’s copy',
+    /* color schemes */
+    'set.color': 'Color scheme',
+    'set.colorNote': 'Pick one dark color. The app chooses the lighter shades to match, in light and dark mode.',
+    'set.preview': 'Preview',
+    'pv.profit': 'Profit on items sold',
+    'pv.owing': 'Owing to you',
+    'pv.batch': 'Pay clearing',
+    'pal.magenta': 'Magenta',
+    'pal.wine': 'Wine',
+    'pal.red': 'Red',
+    'pal.orange': 'Orange',
+    'pal.gold': 'Gold',
+    'pal.olive': 'Olive',
+    'pal.green': 'Green',
+    'pal.teal': 'Teal',
+    'pal.blue': 'Blue',
+    'pal.navy': 'Navy',
+    'pal.purple': 'Purple',
+    'pal.charcoal': 'Charcoal',
   };
 
   const ES = {
@@ -498,6 +517,25 @@
     'acct.conflict.text': '¿Qué copia quieres conservar? La otra se reemplaza. Si no estás seguro, cierra esto y no cambia nada — se cerrará tu sesión.',
     'acct.conflict.cloud': 'Usar la copia de la nube',
     'acct.conflict.phone': 'Usar la copia de este teléfono',
+    /* color schemes */
+    'set.color': 'Esquema de color',
+    'set.colorNote': 'Elige un color oscuro. La app escoge los tonos más claros que combinan, en modo claro y oscuro.',
+    'set.preview': 'Vista previa',
+    'pv.profit': 'Ganancia de lo vendido',
+    'pv.owing': 'Te deben',
+    'pv.batch': 'Pagar liquidación',
+    'pal.magenta': 'Magenta',
+    'pal.wine': 'Vino',
+    'pal.red': 'Rojo',
+    'pal.orange': 'Naranja',
+    'pal.gold': 'Dorado',
+    'pal.olive': 'Oliva',
+    'pal.green': 'Verde',
+    'pal.teal': 'Turquesa',
+    'pal.blue': 'Azul',
+    'pal.navy': 'Azul marino',
+    'pal.purple': 'Morado',
+    'pal.charcoal': 'Carbón',
   };
 
   const LANGS = { en: EN, es: ES };

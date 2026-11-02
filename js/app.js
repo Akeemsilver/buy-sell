@@ -50,7 +50,7 @@
   function applyTheme() {
     if (theme === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', theme);
     const dark = theme === 'dark' || (theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#3a1128' : '#741b47';
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = window.Theme ? Theme.barColor(dark) : (dark ? '#3a1128' : '#741b47');
   }
   // The few texts that live in index.html rather than in a template are refreshed whenever the language changes.
   function applyStaticText() {
@@ -335,11 +335,17 @@
   }
 
   function Settings() {
-    const s = state.settings, cur = I.getLang();
+    const s = state.settings, cur = I.getLang(), cur_pal = Theme.find(s.palette || Theme.saved()).id;
     const seg = [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]];
     return `<h2 style="margin-top:4px">${t('set.account')}</h2>${acctCard()}
       <h2>${t('set.language')}</h2>
       <div class="seg two" role="radiogroup" aria-label="${t('set.language')}">${Object.keys(I.LANGS).map((l) => `<button class="${cur === l ? 'on' : ''}" role="radio" aria-checked="${cur === l}" data-act="set-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+      <h2>${t('set.color')}</h2>
+      <div class="swatches" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button class="swatch ${cur_pal === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur_pal === p.id}" aria-label="${t('pal.' + p.id)}" data-act="set-palette" data-id="${p.id}"></button>`).join('')}</div>
+      <p class="muted small" style="margin:6px 2px 0"><b>${t('pal.' + cur_pal)}</b> · ${t('set.colorNote')}</p>
+      <h2>${t('set.preview')}</h2>
+      <div class="pv"><div class="pv-bar"><i></i>B-RUIZ</div><div class="pv-body"><div class="pv-hero"><small>${t('pv.profit')}</small><b>TT$ 1,240.00</b></div>
+        <div class="pv-row"><div><small>${t('pv.owing')}</small><b>TT$ 300.00</b></div><div><small>${t('nav.stock')}</small><b>6 · 0</b></div></div><div class="pv-chips"><span class="on">${t('filter.all')}</span><span>${stLabel('Available')}</span><span>${stLabel('Paid')}</span></div><div class="pv-btn">${t('pv.batch')}</div></div></div>
       <h2>${t('set.appearance')}</h2>
       <div class="seg" role="radiogroup" aria-label="${t('set.theme')}">${seg.map(([k, l]) => `<button class="${theme === k ? 'on' : ''}" role="radio" aria-checked="${theme === k}" data-act="set-theme" data-id="${k}">${l}</button>`).join('')}</div>
       <p class="muted small">${t('set.autoNote')}</p>
@@ -674,6 +680,7 @@
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); return render();
+      case 'set-palette': state.settings.palette = id; Theme.apply(id); applyTheme(); save(); return render();
       case 'set-lang': I.setLang(id, true); applyStaticText(); return render();
       case 'inv-lang': setPref('invoiceLang', id); return sheetInvoice(t_.dataset.no);
       case 'install':
@@ -915,10 +922,11 @@
     getState: () => state,
     askConflict,
     onStatus: (i) => { const was = cloud.signedIn; cloud = i; const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
-    onRemote: () => { L.migrate(state); try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
+    onRemote: () => { L.migrate(state); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });
   save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyStaticText();
+  if (state.settings.palette) Theme.apply(state.settings.palette);
   applyTheme();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   render();

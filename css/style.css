@@ -356,5 +356,4 @@ h2.sec{margin:18px 0 6px}
 .photo-actions3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .photo-actions3 .btn{min-height:46px;font-size:14px;padding:0 8px}
 
-.lblrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.privnote{font-size:12px;font-weight:700;color:var(--mute);margin-top:12px;white-space:nowrap}
+.privnote{margin-left:8px;font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--brand);background:var(--tint);border-radius:99px;padding:2px 9px;white-space:nowrap}

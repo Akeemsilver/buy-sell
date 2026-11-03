@@ -416,8 +416,7 @@
         ${trow('🌓', t('set.appearance'), themeName, 'data-act="pick-appearance"')}
         ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
         ${trow('✂️', t('set.autoFind'), pref('autoFind', true) ? t('set.on') : t('set.off'), 'data-act="pick-autofind"')}
-        ${trow('🗣️', t('set.custLang'), { app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[pref('custLang', 'app')] || t('cust.same'), 'data-act="pick-custlang"')}
-        <button class="row tap srow" data-act="toggle-askshare" role="checkbox" aria-checked="${pref('askShareLang', true)}"><span class="tile">❓</span><div class="grow"><b>${t('set.askShare')}</b><small>${t('set.askShareSub')}</small></div><span class="tick ${pref('askShareLang', true) ? 'on' : ''}">${pref('askShareLang', true) ? '✓' : ''}</span></button></div>
+        ${trow('🗣️', t('set.custLang'), { ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}</div>
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}</div>
       <h2>${t('set.sec.data')}</h2><div class="list grp">
         ${trow('💾', t('set.backupRow'), t('set.backupSub'), nav('set-backup'))}
@@ -429,17 +428,17 @@
         ${trow('⚠️', t('more.erase'), t('more.eraseSub'), 'data-act="reset"', true)}</div>`;
   }
   // A small pop-up with the choices for one setting; tapping a choice applies it.
-  function sheetChoice(title, act, cur, opts) {
-    openSheet(`<h3>${title}</h3><div class="list" style="margin-top:12px">${opts.map(([k, l]) => `<button class="row tap" data-act="${act}" data-id="${k}"><div class="grow"><b>${l}</b></div><span style="font-weight:900;color:var(--brand)">${cur === k ? '✓' : ''}</span></button>`).join('')}</div>
+  function sheetChoice(title, act, cur, opts, note) {
+    openSheet(`<h3>${title}</h3><div class="list" style="margin-top:12px">${opts.map(([k, l]) => `<button class="row tap" data-act="${act}" data-id="${k}"><div class="grow"><b>${l}</b></div><span style="font-weight:900;color:var(--brand)">${cur === k ? '✓' : ''}</span></button>`).join('')}</div>${note ? `<p class="note">${note}</p>` : ''}
       <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
   }
   // Before a photo is shared: which language for the caption? Resolves 'en' | 'es', or null when closed without choosing.
   function shareLang() {
-    if (!pref('askShareLang', true)) return Promise.resolve(custLang());
+    if (custMode() !== 'ask') return Promise.resolve(custLang());
     const sh = $('#sheet'), was = !sh.hidden && sh.classList.contains('full') && sh.dataset.item ? sh.dataset.item : null;   // the item page it was started from
     return new Promise((ok) => {
       let done = false; const finish = (v) => { if (!done) { done = true; ok(v); if (was) setTimeout(() => sheetItem(was), 0); } };
-      window.__shareLang = (lang) => { const ck = $('#sl-never'); if (ck && ck.checked) { setPref('askShareLang', false); setPref('custLang', lang); } finish(lang); };
+      window.__shareLang = (lang) => { const ck = $('#sl-never'); if (ck && ck.checked) { setPref('custLang', lang); } finish(lang); };      // 'don't ask again' = from now on always this language
       openSheet(`<h3>${t('share.langTitle')}</h3><p class="muted small">${t('share.langSub')}</p>
         <div class="btns" style="margin-top:12px">${Object.keys(I.LANGS).map((l) => `<button class="btn primary" data-act="share-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
         <label class="chkrow"><input type="checkbox" id="sl-never"><span>${t('share.dontAsk')}</span></label>
@@ -610,7 +609,9 @@
   // "Language for customers" (Settings) decides invoices and the caption of shared photos: same as the app, English or Spanish.
   // The English | Español switch on an invoice only changes that invoice while it is open.
   let invLangSession = null;
-  const custLang = () => { const p = pref('custLang', 'app'); return p === 'en' || p === 'es' ? p : I.getLang(); };
+  // custMode: 'ask' (the default: ask when sharing), 'app' (same as the app), 'en' or 'es'. Older saved choices carry over.
+  const custMode = () => { const v = pref('custLang', null); if (v === 'ask' || v === 'app' || v === 'en' || v === 'es') return v; return pref('askShareLang', true) ? 'ask' : 'app'; };
+  const custLang = () => { const m = custMode(); return m === 'en' || m === 'es' ? m : I.getLang(); };
   const invoiceLang = () => invLangSession || custLang();
   const ti = (key, vars) => t(key, vars, invoiceLang());
   const bannerSrc = () => (invoiceLang() === 'es' ? 'icons/invoice-banner-es.jpg' : 'icons/invoice-banner.jpg');
@@ -869,9 +870,8 @@
       case 'pick-appearance': return sheetChoice(t('set.appearance'), 'set-theme', theme, [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]]);
       case 'pick-autofind': return sheetChoice(t('set.autoFind'), 'set-autofind', pref('autoFind', true) ? 'on' : 'off', [['on', t('set.on')], ['off', t('set.off')]]);
       case 'share-lang': { const f = window.__shareLang; if (f) f(id); closeSheet(); return; }     // answer first: closing the pop-up counts as 'cancel'
-      case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', pref('custLang', 'app'), [['app', t('cust.same')], ...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']])]);
+      case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
       case 'set-custlang': setPref('custLang', id); closeSheet(); return render();
-      case 'toggle-askshare': setPref('askShareLang', !pref('askShareLang', true)); return render();
       case 'check-update': return checkUpdate();
       case 'check-rules': return checkRules();
       case 'draft-palette': themeDraft = id; return render();

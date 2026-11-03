@@ -266,7 +266,7 @@
   /* -- step 2: hide marks -- */
   const MAX_MARKS = 4;                             // a photo can hide up to 4 areas: keeps the screen easy to use
   let logoImg = null, prevRaf = 0;
-  function loadLogo() { return logoImg ? Promise.resolve(logoImg) : new Promise((ok) => { const im = new Image(); im.onload = () => { logoImg = im; ok(im); }; im.onerror = () => ok(null); im.src = 'icons/logo.png'; }); }
+  function loadLogo() { return logoImg ? Promise.resolve(logoImg) : new Promise((ok) => { const im = new Image(); im.onload = () => { logoImg = im; ok(im); }; im.onerror = () => ok(null); im.src = 'icons/icon-512.png'; }); }
 
   function showMarks() {
     ed.step = 'marks'; if (!ed.tool) ed.tool = 'move';
@@ -317,7 +317,7 @@
           const k = ed.work.width / ed.frame.w, fr = r.frame, room = Math.max(0, MAX_MARKS - ed.marks.length);
           r.boxes.map((m) => ({ m, b: { x: (m.box.x + fr.x - ed.frame.x) * k, y: (m.box.y + fr.y - ed.frame.y) * k, w: m.box.w * k, h: m.box.h * k } }))
             .filter(({ b }) => b.x + b.w / 2 > 0 && b.y + b.h / 2 > 0 && b.x + b.w / 2 < ed.work.width && b.y + b.h / 2 < ed.work.height).slice(0, room)
-            .forEach(({ m, b }, n) => ed.marks.push({ id: 'a' + n, text: m.text, ticked: m.ticked, box: b, auto: true }));
+            .forEach(({ m, b }, n) => ed.marks.push({ id: 'a' + n, text: m.text, ticked: m.ticked, box: b, auto: true, mode: ed.mode }));
         }
         ed.sugCount = ed.marks.filter((m) => m.auto).length; listMarks(); preview();
       } else if (r && r.failed) { ed.sugDone = true; ed.sugFailed = true; }
@@ -327,21 +327,30 @@
     else if (A.autoFind()) info.innerHTML = `${t('ed.bg')} <button class="chip" data-act="ed-stop">${t('ed.stop')}</button>`;
     else info.textContent = t('ed.draw');
   }
+  // The How-to-hide buttons show (and change) the way the selected box is hidden; with none selected they set it for the next box.
+  function syncMode() {
+    const m = ed.sel != null ? ed.marks[ed.sel] : null, cur = m ? m.mode : ed.mode;
+    document.querySelectorAll('#ed-mode button').forEach((b) => { const on = b.dataset.id === cur; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  }
   function listMarks() {
     const el = $('#ed-marks'); if (!el) return;
     let man = 0;
-    el.innerHTML = ed.marks.map((m, n) => `<span class="ed-chip ${m.ticked ? 'on' : ''}"><button data-act="ed-toggle" data-id="${n}" aria-pressed="${m.ticked}">${m.ticked ? '✓ ' : ''}${m.auto ? `“${A.esc(m.text)}”` : t('ed.mine', { n: ++man })}</button><button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button></span>`).join('') || '';
+    el.innerHTML = ed.marks.map((m, n) => `<span class="ed-chip ${m.ticked ? 'on' : ''} ${ed.sel === n ? 'sel' : ''}"><button data-act="ed-toggle" data-id="${n}" aria-pressed="${m.ticked}">${m.ticked ? '✓ ' : ''}${m.auto ? `“${A.esc(m.text)}”` : t('ed.mine', { n: ++man })}</button><button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button></span>`).join('') || '';
     const k = ed.marks.filter((m) => m.ticked).length;
     $('#ed-note').textContent = (k ? tn('ed.hiding', k) : t('ed.nothing')) + ' · ' + (ed.tool === 'draw' ? t('ed.hintDraw') : t('ed.hintMove'));
   }
   function render() {
     const c = P.canvas(ed.work.width, ed.work.height), x = c.getContext('2d'); x.drawImage(ed.work, 0, 0);
-    const marks = ed.marks.filter((m) => m.ticked).map((m) => m.box);
-    if (marks.length) { const d = x.getImageData(0, 0, c.width, c.height); P.applyMarks(d, marks, ed.mode === 'blur' ? 'blur' : 'cover'); x.putImageData(d, 0, 0); if (ed.mode === 'logo' && logoImg) P.drawLogo(c, marks, logoImg); }
+    const on = ed.marks.filter((m) => m.ticked), by = (mode) => on.filter((m) => (m.mode || 'blur') === mode).map((m) => m.box);
+    if (on.length) {
+      const d = x.getImageData(0, 0, c.width, c.height);
+      P.applyMarks(d, by('blur'), 'blur'); P.applyMarks(d, by('cover').concat(by('logo')), 'cover');     // logo boxes are covered first, the logo goes on top
+      x.putImageData(d, 0, 0); if (by('logo').length && logoImg) P.drawLogo(c, by('logo'), logoImg);
+    }
     return c;
   }
   function preview() {
-    if (ed.mode === 'logo' && !logoImg) { loadLogo().then(() => ed && ed.step === 'marks' && preview()); }
+    if (!logoImg && ed.marks.some((m) => m.mode === 'logo')) { loadLogo().then(() => ed && ed.step === 'marks' && preview()); }
     cancelAnimationFrame(prevRaf);
     prevRaf = requestAnimationFrame(() => {
       if (!ed || ed.step !== 'marks') return; const cv = $('#ed-cv'); if (!cv) return;
@@ -370,8 +379,8 @@
     cv.onpointerup = (e) => {
       if (!st) return; const p = pos(e);
       if (ed.tool === 'draw') {
-        if (st.moved && ed.draw && ed.draw.w * view.k > 12 && ed.draw.h * view.k > 12) { if (ed.marks.length >= MAX_MARKS) A.toast(t('ed.max')); else { ed.marks.push({ id: 'm' + Date.now(), ticked: true, box: ed.draw, auto: false }); listMarks(); } }
-      } else if (!st.moved) { const hit = ed.marks.find((m) => p.x >= m.box.x && p.x <= m.box.x + m.box.w && p.y >= m.box.y && p.y <= m.box.y + m.box.h); if (hit) { hit.ticked = !hit.ticked; listMarks(); } }
+        if (st.moved && ed.draw && ed.draw.w * view.k > 12 && ed.draw.h * view.k > 12) { if (ed.marks.length >= MAX_MARKS) A.toast(t('ed.max')); else { ed.marks.push({ id: 'm' + Date.now(), ticked: true, box: ed.draw, auto: false, mode: ed.mode }); ed.sel = ed.marks.length - 1; listMarks(); syncMode(); } }
+      } else if (!st.moved) { const hit = ed.marks.find((m) => p.x >= m.box.x && p.x <= m.box.x + m.box.w && p.y >= m.box.y && p.y <= m.box.y + m.box.h); if (hit) { hit.ticked = !hit.ticked; ed.sel = ed.marks.indexOf(hit); listMarks(); syncMode(); } }
       ed.draw = null; st = null; preview();
     };
     cv.onpointercancel = () => { st = null; ed.draw = null; preview(); };
@@ -406,9 +415,9 @@
       case 'ed-reset': return resetCrop();
       case 'ed-next': return showMarks();
       case 'ed-back': return showCrop();
-      case 'ed-mode': ed.mode = id; document.querySelectorAll('#ed-mode button').forEach((b) => { const on = b.dataset.id === id; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); }); return preview();
-      case 'ed-del': ed.marks.splice(+id, 1); listMarks(); return preview();
-      case 'ed-toggle': ed.marks[+id].ticked = !ed.marks[+id].ticked; listMarks(); return preview();
+      case 'ed-mode': ed.mode = id; if (ed.sel != null && ed.marks[ed.sel]) ed.marks[ed.sel].mode = id; syncMode(); if (id === 'logo' && !logoImg) loadLogo(); return preview();
+      case 'ed-del': ed.marks.splice(+id, 1); ed.sel = null; listMarks(); syncMode(); return preview();
+      case 'ed-toggle': ed.marks[+id].ticked = !ed.marks[+id].ticked; ed.sel = +id; listMarks(); syncMode(); return preview();
       case 'ed-tool': ed.tool = id; document.querySelectorAll('.ed-tools > .chip').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); $('#ed-cv').style.touchAction = id === 'draw' ? 'none' : 'pan-y'; return listMarks();
       case 'ed-stop': if (bg.ctl && bg.running === ed.photoId) R.cancel(bg.ctl); else { bg.q = bg.q.filter((x) => x !== ed.photoId); bg.res.set(ed.photoId, { boxes: [] }); suggestState(); } return;
       case 'ed-save': return save();

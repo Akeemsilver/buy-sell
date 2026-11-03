@@ -351,3 +351,15 @@ h2.sec{margin:18px 0 6px}
 .srow .tick.on{background:var(--brand);border-color:var(--brand)}
 .chkrow{display:flex;align-items:center;gap:12px;margin:16px 2px 0;font-weight:600;color:var(--ink)}
 .chkrow input{width:24px;height:24px;min-height:0;accent-color:var(--brand);flex:none}
+
+/* item page: small photo beside the description, one row of four actions */
+.itemhead{display:flex;gap:12px;align-items:flex-end;margin-top:8px}
+.itemhead .grow{min-width:0}
+.ph.big{width:84px;height:84px;border-radius:16px;border:0;padding:0;flex:none;box-shadow:var(--sh1)}
+.pactions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.pactions.one{grid-template-columns:1fr}
+.pact{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:62px;border:1px solid var(--line);background:var(--card);border-radius:14px;box-shadow:var(--sh1);font-weight:700;font-size:12px;color:var(--ink)}
+.pact i{font-style:normal;font-size:20px}
+.pact.main{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:var(--shbtn)}
+.pact.bad{color:var(--bad)}
+.pact:disabled{opacity:.4}

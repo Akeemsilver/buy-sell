@@ -136,7 +136,7 @@
     const landed = r2(costTTD + clearing);
     const recommended = r2(landed * (1 + b.margin / 100));
     const sold = num(it.sold);
-    return { costTTD, clearing, landed, recommended, profit: r2(sold > 0 ? sold - landed : recommended - landed) };
+    return { costTTD, clearing, landed, recommended, profit: r2((sold > 0 ? sold : num(it.price) > 0 ? num(it.price) : recommended) - landed) };   // sold for, else the selling price, else the recommended price
   };
 
   /* ---------- photos, selling price and what customers may see ---------- */

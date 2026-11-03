@@ -36,14 +36,15 @@
 
   /* ---------- item sheet: what customers see / what stays private ---------- */
 
-  function photoBox(it) {
-    const st = L.shareStatus(it);
-    const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><img data-ph="${it.photo.id}" data-kind="full" alt="">${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
-    return `${pic}<div class="photo-actions">
-      <button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
-      ${it.photo ? `<button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.edit') : t('photo.checkNow')}</button>
-      <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replace')}</button>
-      <button class="btn danger" data-act="photo-remove" data-id="${it.id}">${t('photo.remove')}</button>` : `<button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.addOne')}</button>`}</div>`;
+  // Item page: a small photo beside the description (tap it for the full-screen view) and a row of four actions under it.
+  function photoThumb(it) {
+    if (!it.photo) return noTile();
+    return `<button type="button" class="ph big" data-act="photo-view" data-id="${it.id}" aria-label="${t('photo.view')}"><img data-ph="${it.photo.id}" data-kind="thumb" alt="">${it.photo.checked ? '' : `<em class="warn-badge">${t('photo.check')}</em>`}</button>`;
+  }
+  function photoActions(it) {
+    const st = L.shareStatus(it), b = (act, icon, label, extra) => `<button type="button" class="pact ${extra || ''}" data-act="${act}" data-id="${it.id}"><i>${icon}</i><span>${label}</span></button>`;
+    if (!it.photo) return `<div class="pactions one">${b('photo-replace', '📷', t('photo.addOne'))}</div>`;
+    return `<div class="pactions">${b('photo-share', '📤', t('photo.share'), 'main')}${b('photo-check', '✂️', st === 'ok' ? t('photo.editShort') : t('photo.checkShort'))}${b('photo-replace', '🔄', t('photo.replaceShort'))}${b('photo-remove', '🗑️', t('photo.removeShort'), 'bad')}</div>`;
   }
 
   /* ---------- adding photos ---------- */
@@ -417,7 +418,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share,
+    hydrate, thumb, noTile, photoThumb, photoActions, act, isOpen, layers, back, closeEditor, share,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

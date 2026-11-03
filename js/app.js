@@ -130,7 +130,7 @@
 
   /* ---------- welcome / create account / sign in / business setup (neutral look, not the business's colors) ---------- */
 
-  let gateView = null, gateMode = 'create', gateDraft = { name: '' };
+  let gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null };
   const hasData = () => window.Sync.hasData(state);
   function wantedGate() {
     if (cloud.signedIn) {
@@ -140,8 +140,9 @@
     if (cloud.status === 'signedOut' && !hasData() && !pref('gateSkipped', false)) return gateView === 'auth' ? 'auth' : 'welcome';
     return null;
   }
-  const swatchRow = (cur) => `<div class="swatches" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button type="button" class="swatch ${cur === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur === p.id}" aria-label="${t('pal.' + p.id)}" data-act="gate-color" data-id="${p.id}"></button>`).join('')}</div>`;
-  function gateHTML(v) {
+  const swatchRow = (cur) => `<div class="swatches wrap" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button type="button" class="swatch ${cur === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur === p.id}" aria-label="${t('pal.' + p.id)}" data-act="gate-color" data-id="${p.id}"></button>`).join('')}</div>`;
+  const gateHTML = (v) => gatePage(v).replace(/<\/div>$/, gateLang() + '</div>');
+  function gatePage(v) {
     if (v === 'welcome') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.welcome')}</h1><p class="g-mute">${t('gate.tag')}</p>
       <button class="g-btn primary" data-act="gate-create">${t('gate.create')}</button><button class="g-btn" data-act="gate-have">${t('gate.have')}</button>
       <p class="g-small">${t('gate.note')}</p><button class="g-link" data-act="gate-skip">${t('gate.skip')}</button><p class="g-small">${t('gate.skipNote')}</p></div>`;
@@ -154,16 +155,21 @@
       <button class="g-btn primary" style="margin-top:18px">${gateMode === 'create' ? t('acct.create') : t('acct.signIn')}</button>
       ${gateMode === 'in' ? `<button type="button" class="g-link" data-act="gate-forgot">${t('acct.forgot')}</button>` : ''}</form></div>`;
     if (v === 'setup') {
-      const cur = Theme.current();
+      const cur = gateDraft.palette || Theme.current();
       return `<div class="g-wrap"><h1 style="font-size:24px">${t('gate.setup.title')}</h1><p class="g-mute">${t('gate.setup.sub')}</p>
         <form id="f-setup"><label>${t('gate.bizName')}</label><input name="biz" value="${esc(gateDraft.name)}" placeholder="${t('gate.bizPh')}" autocomplete="off" required>
         <div id="g-err" class="g-err" hidden></div>
         <label>${t('gate.pickColor')}</label>${swatchRow(cur)}
-        <div class="pv" style="margin-top:14px"><div class="pv-bar"><i></i><span id="pv-name">${esc(gateDraft.name || t('gate.bizPh'))}</span></div><div class="pv-body"><div class="pv-hero"><small>${t('pv.profit')}</small><b>TT$ 1,240.00</b></div>
-          <div class="pv-row"><div><small>${t('pv.owing')}</small><b>TT$ 300.00</b></div><div><small>${t('nav.stock')}</small><b>6 · 0</b></div></div><div class="pv-btn">${t('pv.batch')}</div></div></div>
+        <div style="margin-top:14px">${themePreview(cur, gateDraft.name || t('gate.bizPh'))}</div>
         <button class="g-btn primary" style="margin-top:18px">${t('gate.continue')}</button></form></div>`;
     }
     return `<div class="g-wrap g-center"><div class="g-logo">✦</div><p class="g-mute">${t('gate.waiting')}</p></div>`;
+  }
+  const gateLang = () => `<div class="g-lang" role="radiogroup" aria-label="${t('gate.language')}"><span>${t('gate.language')}</span>${Object.keys(I.LANGS).map((l) => `<button type="button" class="${I.getLang() === l ? 'on' : ''}" role="radio" aria-checked="${I.getLang() === l}" data-act="gate-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>`;
+  // redraw the open page (e.g. after a language change) without losing what was typed
+  function regate() {
+    const el = $('#gate'), vals = {}; el.querySelectorAll('input[name]').forEach((i) => { vals[i.name] = i.value; });
+    el.innerHTML = gateHTML(gateView); el.querySelectorAll('input[name]').forEach((i) => { if (vals[i.name] != null) i.value = vals[i.name]; });
   }
   function updateGate() {
     const el = $('#gate'), want = wantedGate();
@@ -201,14 +207,14 @@
   function render() {
     cleanSelected();
     const moreTitles = { invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? t(moreTitles[moreView]) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-account': t('set.account'), 'set-language': t('set.language'), 'set-theme': t('set.theme'), 'set-appearance': t('set.appearance'), 'set-photos': t('set.photos'), 'set-business': t('set.business') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !(tab === 'more' && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
     $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'sell' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
-    $('#appbar-right').innerHTML = $('#back').hidden ? `<div class="tools">${btn('view', hideAmounts ? t('tool.show') : t('tool.hide'), hideAmounts ? 'eyeoff' : 'eye')}${btn('download', t('tool.download'), 'download')}${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
+    $('#appbar-right').innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('view', hideAmounts ? t('tool.show') : t('tool.hide'), hideAmounts ? 'eyeoff' : 'eye')}${btn('download', t('tool.download'), 'download')}${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
     document.body.classList.toggle('hide-amounts', hideAmounts);
     $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
@@ -289,7 +295,7 @@
     return `<div class="chips">${chips(open.map((x) => x.id), stockBatch, 'pick-batch', bl)}<button class="chip" data-act="new-batch">${t('stock.addBatch')}</button></div>
       <div class="row" style="margin-bottom:10px"><div class="grow"><b>${t('stock.invested', { status: stLabel(bStatus(b)), amount: money(st.investment) })}</b><small>${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</small></div>
         <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div></div>
-      <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>
+      <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}<small class="muted" id="bg-st">${PUI.bgText()}</small></div>
         ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button></div>
       <div class="chips">${chips(['All', ...STATUSES, ...(ps.needCheck ? ['NeedCheck'] : [])], stockFilter, 'pick-filter', (x) => (x === 'All' ? t('filter.all') : x === 'NeedCheck' ? t('filter.needCheck') + ' (' + ps.needCheck + ')' : stLabel(x)))}</div>
       <div class="list">${items.map((i) => itemCard(b, i)).join('') || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
@@ -356,6 +362,7 @@
     if (moreView === 'items') return ItemLog();
     if (moreView === 'summary') return Summary();
     if (moreView === 'settings') return Settings();
+    if (moreView && moreView.startsWith('set-')) return SettingsPage();
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     const act = (a, icon, label, sub, bad) => `<button class="row tap" data-act="${a}"><span style="font-size:22px">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
     return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
@@ -385,23 +392,40 @@
       <div class="table"><table><thead><tr><th></th>${names.map((n) => `<th>${n}</th>`).join('')}<th>${t('summary.total')}</th></tr></thead><tbody>${row(t('summary.rowExpense'), 'expense')}${row(t('summary.rowSales'), 'sales')}${row(t('summary.rowProfit'), 'profit')}</tbody></table></div>`;
   }
 
+  /* Settings is a list; each row opens its own page (moreView 'set-...'). The gear opens it, and closes it again. */
+  const isSettings = () => tab === 'more' && moreView && (moreView === 'settings' || moreView.startsWith('set-'));
+  let settingsFrom = null, themeDraft = null;
+  const isDark = () => theme === 'dark' || (theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  const curPal = () => Theme.find(state.settings.palette || Theme.saved()).id;
+  // A small copy of the Home screen wearing a scheme (the app itself is not touched).
+  const themePreview = (id, name) => `<div class="pv" style="${Theme.inline(id, isDark())}"><div class="pv-bar"><i></i><span id="pv-name">${esc(name)}</span></div><div class="pv-body"><div class="pv-hero"><small>${t('pv.profit')}</small><b>TT$ 1,240.00</b></div>
+    <div class="pv-row"><div><small>${t('pv.owing')}</small><b>TT$ 300.00</b></div><div><small>${t('nav.stock')}</small><b>6 · 0</b></div></div><div class="pv-chips"><span class="on">${t('filter.all')}</span><span>${stLabel('Available')}</span><span>${stLabel('Paid')}</span></div><div class="pv-btn">${t('pv.batch')}</div></div></div>`;
+  const swatchBtns = (sel, act) => Theme.PALETTES.map((p) => `<button type="button" class="swatch ${sel === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${sel === p.id}" aria-label="${t('pal.' + p.id)}" data-act="${act}" data-id="${p.id}"></button>`).join('');
+
   function Settings() {
-    const s = state.settings, cur = I.getLang(), cur_pal = Theme.find(s.palette || Theme.saved()).id;
-    const seg = [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]];
-    return `<h2 style="margin-top:4px">${t('set.account')}</h2>${acctCard()}
-      <h2>${t('set.language')}</h2>
-      <div class="seg two" role="radiogroup" aria-label="${t('set.language')}">${Object.keys(I.LANGS).map((l) => `<button class="${cur === l ? 'on' : ''}" role="radio" aria-checked="${cur === l}" data-act="set-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
-      <h2>${t('set.color')}</h2>
-      <div class="swatches" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button class="swatch ${cur_pal === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur_pal === p.id}" aria-label="${t('pal.' + p.id)}" data-act="set-palette" data-id="${p.id}"></button>`).join('')}</div>
-      <p class="muted small" style="margin:6px 2px 0"><b>${t('pal.' + cur_pal)}</b> · ${t('set.colorNote')}</p>
-      <h2>${t('set.preview')}</h2>
-      <div class="pv"><div class="pv-bar"><i></i>${esc(bizName())}</div><div class="pv-body"><div class="pv-hero"><small>${t('pv.profit')}</small><b>TT$ 1,240.00</b></div>
-        <div class="pv-row"><div><small>${t('pv.owing')}</small><b>TT$ 300.00</b></div><div><small>${t('nav.stock')}</small><b>6 · 0</b></div></div><div class="pv-chips"><span class="on">${t('filter.all')}</span><span>${stLabel('Available')}</span><span>${stLabel('Paid')}</span></div><div class="pv-btn">${t('pv.batch')}</div></div></div>
-      <h2>${t('set.appearance')}</h2>
-      <div class="seg" role="radiogroup" aria-label="${t('set.theme')}">${seg.map(([k, l]) => `<button class="${theme === k ? 'on' : ''}" role="radio" aria-checked="${theme === k}" data-act="set-theme" data-id="${k}">${l}</button>`).join('')}</div>
-      <p class="muted small">${t('set.autoNote')}</p>
-      <h2>${t('set.business')}</h2>
-      <form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off"><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="number" inputmode="numeric" value="${s.year}"></div>
+    const row = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
+    const themeName = { light: t('set.light'), dark: t('set.dark'), auto: t('set.auto') }[theme];
+    return `<div class="list">${row('set-account', '👤', t('set.account'), cloud.signedIn ? esc(cloud.email) : t('set.accountOut'))}
+      ${row('set-language', '🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'])}
+      ${row('set-theme', '🎨', t('set.theme'), t('pal.' + curPal()))}
+      ${row('set-appearance', '🌓', t('set.appearance'), themeName)}
+      ${row('set-photos', '📷', t('set.photos'), t('set.autoFind') + ': ' + (pref('autoFind', true) ? t('set.on') : t('set.off')))}
+      ${row('set-business', '🏪', t('set.business'), t('set.businessSub'))}</div>`;
+  }
+  function SettingsPage() {
+    const s = state.settings, cur = I.getLang();
+    if (moreView === 'set-account') return acctCard();
+    if (moreView === 'set-photos') { const on = pref('autoFind', true); return `<div class="seg two" role="radiogroup" aria-label="${t('set.autoFind')}"><button class="${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-act="set-autofind" data-id="on">${t('set.on')}</button><button class="${on ? '' : 'on'}" role="radio" aria-checked="${!on}" data-act="set-autofind" data-id="off">${t('set.off')}</button></div><p class="muted small"><b>${t('set.autoFind')}</b> · ${t('set.autoFindNote')}</p>`; }
+    if (moreView === 'set-language') return `<div class="seg two" role="radiogroup" aria-label="${t('set.language')}">${Object.keys(I.LANGS).map((l) => `<button class="${cur === l ? 'on' : ''}" role="radio" aria-checked="${cur === l}" data-act="set-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>`;
+    if (moreView === 'set-appearance') return `<div class="seg" role="radiogroup" aria-label="${t('set.appearance')}">${[['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]].map(([k, l]) => `<button class="${theme === k ? 'on' : ''}" role="radio" aria-checked="${theme === k}" data-act="set-theme" data-id="${k}">${l}</button>`).join('')}</div><p class="muted small">${t('set.autoNote')}</p>`;
+    if (moreView === 'set-theme') {
+      const sel = themeDraft || curPal(), changed = sel !== curPal();
+      return `<div class="swatches wrap" role="radiogroup" aria-label="${t('set.theme')}">${swatchBtns(sel, 'draft-palette')}</div>
+        <p class="muted small" style="margin:8px 2px 0"><b>${t('pal.' + sel)}</b>${changed ? '' : ' · ' + t('set.current')} · ${t('set.themeNote')}</p>
+        <h2>${t('set.preview')}</h2>${themePreview(sel, bizName())}
+        <div class="btns"><button class="btn primary" data-act="apply-palette" ${changed ? '' : 'disabled'}>${t('set.apply')}</button></div>`;
+    }
+    return `<form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off"><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="number" inputmode="numeric" value="${s.year}"></div>
       <div><label>${t('set.margin')}</label><input name="defaultMargin" type="number" inputmode="decimal" value="${s.defaultMargin}"></div></div>
       <label>${t('set.markup')}</label><input name="markup" type="number" inputmode="decimal" step="0.001" value="${s.markup}">
       ${['USD', 'EUR', 'GBP'].map((c) => `<label>${t('set.rate', { c })}</label><input name="${c}" type="number" inputmode="decimal" step="0.0001" value="${s.rates[c]}">`).join('')}
@@ -411,8 +435,8 @@
 
   /* ---------- sheets ---------- */
 
-  function openSheet(html, onClose) {
-    sheetClose = onClose || null;
+  function openSheet(html, onClose, full) {
+    sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full);
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
     syncKeyboard();
@@ -421,7 +445,7 @@
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -481,7 +505,7 @@
   function sheetItem(id) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const b = batchOf(i);
-    openSheet(`<h3>${i.id}</h3><div class="muted small">${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
       <h2 class="sec">${t('item.shown')}</h2>
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
@@ -495,7 +519,7 @@
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       <div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
-      <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render);
+      <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render, true);
     $('#sheet').dataset.item = id; calcBox(i);
   }
   function calcBox(i) {
@@ -724,14 +748,13 @@
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     const t_ = e.target.closest('[data-tab],[data-act]'); if (!t_) return;
-    if (t_.dataset.tab) { tab = t_.dataset.tab; if (tab === 'more') moreView = null; window.scrollTo(0, 0); return render(); }
+    if (t_.dataset.tab) { tab = t_.dataset.tab; themeDraft = null; if (tab === 'more') moreView = null; window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
     if (/^(photo|ed)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
     switch (t_.dataset.act) {
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); return render();
-      case 'set-palette': state.settings.palette = id; Theme.apply(id); applyTheme(); save(); return render();
       case 'set-lang': I.setLang(id, true); applyStaticText(); return render();
       case 'inv-lang': setPref('invoiceLang', id); return sheetInvoice(t_.dataset.no);
       case 'install':
@@ -740,6 +763,7 @@
       case 'install-guide': if (installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); render(); }).catch(() => {}); } return sheetInstallHelp();
       case 'copy-link': return (navigator.clipboard ? navigator.clipboard.writeText(location.href.split('#')[0]) : Promise.reject()).then(() => toast(t('toast.linkCopied')), () => toast(t('toast.copyManual')));
       case 'install-dismiss': setPref('installDismissed', Date.now()); return render();
+      case 'gate-lang': I.setLang(id, true); applyStaticText(); regate(); return;
       case 'gate-create': gateMode = 'create'; gateView = null; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-have': gateMode = 'in'; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-back': gateView = 'welcome'; $('#gate').innerHTML = gateHTML('welcome'); return;
@@ -747,7 +771,7 @@
       case 'gate-skip': setPref('gateSkipped', true); return updateGate();
       case 'gate-google': return Cloud.signInGoogle().catch((e) => gateErr(acctErr(e)));
       case 'gate-forgot': { const em = ($('#f-gate [name=email]') || {}).value; if (!em) return gateErr(t('acct.needEmail')); return Cloud.reset(em).then(() => gateErr(t('acct.resetSent', { email: em })), (e) => gateErr(acctErr(e))); }
-      case 'gate-color': Theme.apply(id); $('#gate').innerHTML = gateHTML('setup'); { const f = $('#f-setup [name=biz]'); if (f) f.value = gateDraft.name; } return;
+      case 'gate-color': gateDraft.palette = id; regate(); return;
       case 'acct-open': return sheetAccount();
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
       case 'acct-google': return acctDone(Cloud.signInGoogle());
@@ -756,7 +780,14 @@
       case 'conflict': { const f = window.__conflict; closeSheet(); if (f) f(id); return; }
       case 'download': return sheetDownload();
       case 'filter': return sheetFilter();
-      case 'settings': closeSheet(); tab = 'more'; moreView = 'settings'; window.scrollTo(0, 0); return render();
+      case 'settings':
+        closeSheet();
+        if (isSettings()) { const f = settingsFrom || { tab: 'home', moreView: null }; settingsFrom = null; themeDraft = null; tab = f.tab; moreView = f.moreView; }   // the gear closes Settings again
+        else { settingsFrom = { tab, moreView }; tab = 'more'; moreView = 'settings'; }
+        window.scrollTo(0, 0); return render();
+      case 'set-autofind': setPref('autoFind', id === 'on'); if (id !== 'on') PUI.bgStop(); return render();
+      case 'draft-palette': themeDraft = id; return render();
+      case 'apply-palette': if (!themeDraft) return; state.settings.palette = themeDraft; Theme.apply(themeDraft); themeDraft = null; applyTheme(); save(); toast(t('set.applied')); return render();
       case 'set-period': flt.period = id; setPref('filter', flt); render(); return sheetFilter();
       case 'set-fbatch': flt.batch = id; setPref('filter', flt); render(); return sheetFilter();
       case 'clear-filter': flt = { period: 'all', batch: 'all' }; setPref('filter', flt); render(); return sheetFilter();
@@ -788,20 +819,21 @@
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
       case 'save-img': return shareInvoiceImage(id, true);
-      case 'more': moreView = id; window.scrollTo(0, 0); return render();
+      case 'more': if (id === 'settings') settingsFrom = { tab, moreView }; moreView = id; window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
       case 'export-json': return download('buy-sell-backup.json', JSON.stringify(state, null, 2));
       case 'reset': if (confirm(t('confirm.reset1')) && confirm(t('confirm.reset2'))) { state = L.defaultState(); selected = new Set(); run(() => 0, t('toast.cleared')); } return;
     }
   });
-  $('#back').addEventListener('click', () => { moreView = null; render(); });
+  const moreParent = () => (moreView && moreView.startsWith('set-') ? 'settings' : null);
+  $('#back').addEventListener('click', () => { themeDraft = null; moreView = moreParent(); render(); });
 
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
     if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).catch((e) => gateErr(acctErr(e))); }
-    if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = Theme.current(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
+    if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
     if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; } }
     if (f.id === 'f-clear') run(() => L.payClearing(state, d.batch, d.amount), t('clear.recorded', { id: bl(d.batch) }));
@@ -876,7 +908,7 @@
   // Every layer you can back out of (non-home tab, a More sub-screen, an open sheet) is one history entry,
   // so the system Back button / gesture closes the top layer first. At Home, Back asks to press again to exit.
   let hist = 0, skipPops = 0, exitArmed = false, exitTimer, reconTimer;
-  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + ($('#sheet').hidden ? 0 : 1) + (PUI.isOpen() ? 1 : 0);
+  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + (tab === 'more' && moreView && moreView.startsWith('set-') ? 1 : 0) + ($('#sheet').hidden ? 0 : 1) + (PUI.isOpen() ? 1 : 0);
   function reconcile() {
     reconTimer = null;
     if (skipPops > 0) return;                        // a back traversal is still in flight
@@ -898,7 +930,7 @@
     hist = n;
     if (PUI.isOpen()) PUI.back();
     else if (!$('#sheet').hidden) closeSheet();
-    else if (tab === 'more' && moreView) moreView = null;
+    else if (tab === 'more' && moreView) { themeDraft = null; moreView = moreParent(); }
     else if (tab !== 'home') tab = 'home';
     render();
   });
@@ -978,7 +1010,7 @@
 
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const tidyPhotos = debounce(() => PUI.cleanup(), 2500);
-  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang() });
+  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), autoFind: () => pref('autoFind', true) });
   Cloud.init({
     getState: () => state,
     askConflict,

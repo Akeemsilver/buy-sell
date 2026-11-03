@@ -3,9 +3,10 @@
    (state.settings.palette, so it follows the account) and remembered on the phone so the app starts in it without a flash. */
 (function (root) {
   const PALETTES = [
-    { id: 'magenta', brand: '#741b47' }, { id: 'wine', brand: '#7a1f33' }, { id: 'red', brand: '#b3261e' }, { id: 'orange', brand: '#c2570c' },
-    { id: 'gold', brand: '#8a6a00' }, { id: 'olive', brand: '#5b6b1a' }, { id: 'green', brand: '#1c7243' }, { id: 'teal', brand: '#0f6b6b' },
-    { id: 'blue', brand: '#1d5fb4' }, { id: 'navy', brand: '#1f3a73' }, { id: 'purple', brand: '#6a2c91' }, { id: 'charcoal', brand: '#3f3d48' },
+    { id: 'magenta', brand: '#741b47' }, { id: 'rose', brand: '#ad1f57' }, { id: 'wine', brand: '#7a1f33' }, { id: 'red', brand: '#b3261e' }, { id: 'coral', brand: '#c4452d' },
+    { id: 'orange', brand: '#c2570c' }, { id: 'amber', brand: '#a35f00' }, { id: 'gold', brand: '#8a6a00' }, { id: 'olive', brand: '#5b6b1a' }, { id: 'lime', brand: '#4d7c0f' },
+    { id: 'green', brand: '#1c7243' }, { id: 'forest', brand: '#14532d' }, { id: 'teal', brand: '#0f6b6b' }, { id: 'cyan', brand: '#0b7285' }, { id: 'sky', brand: '#0a6a9e' },
+    { id: 'blue', brand: '#1d5fb4' }, { id: 'navy', brand: '#1f3a73' }, { id: 'indigo', brand: '#3f3fa8' }, { id: 'purple', brand: '#6a2c91' }, { id: 'charcoal', brand: '#3f3d48' },
   ];
   const DEFAULT = 'magenta';
   const hsl = (h, s, l) => `hsl(${Math.round(h)},${Math.round(s)}%,${Math.round(l)}%)`;
@@ -44,7 +45,9 @@
     try { localStorage.setItem('buy-sell-pref:palette', JSON.stringify(id)); } catch (e) { /* remembered next time */ }
     return id;
   }
-  const api = { PALETTES, DEFAULT, vars, css, apply, find, contrastWhite, current: () => current, saved: () => lsGet() || DEFAULT,
+  // The variables of one scheme as an inline style, so a preview can wear a scheme without changing the app.
+  const inline = (id, dark) => { const v = vars(id)[dark ? 'dark' : 'light']; return Object.keys(v).map((k) => `--${k}:${v[k]}`).join(';') + ';--card:' + (dark ? v.card : '#fff'); };
+  const api = { PALETTES, inline, DEFAULT, vars, css, apply, find, contrastWhite, current: () => current, saved: () => lsGet() || DEFAULT,
     brand: () => find(current).brand, barColor: (dark) => { const v = vars(current); return dark ? v.dark.bar : v.light.bar; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else { root.Theme = api; if (typeof document !== 'undefined') api.apply(api.saved()); }
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -258,3 +258,35 @@ h2.sec{margin:18px 0 6px}
 .g-err{margin-top:12px;color:#b3261e;font-size:13px}
 .gate .swatch{border-color:transparent}
 .appbar h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+.g-lang{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:30px;color:var(--g-mute);font-size:13px}
+.g-lang button{border:1px solid var(--g-line);background:transparent;color:inherit;border-radius:99px;padding:8px 16px;font-weight:700;min-height:40px}
+.g-lang button.on{background:var(--g-main);color:#fff;border-color:var(--g-main)}
+:root[data-theme=dark] .g-lang button.on{color:#14171b}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .g-lang button.on{color:#14171b}}
+
+.swatches.wrap{flex-wrap:wrap;overflow:visible;justify-content:flex-start}
+.swatch.on{box-shadow:0 0 0 3px var(--ink)}
+
+/* check photo, step 2: compact tray, scrollable picture */
+.ed-stage.marks{display:block;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.ed-stage.marks canvas{display:block;margin:0 auto;border-radius:0}
+.ed-panel.compact{padding:8px 12px calc(10px + var(--sab));max-height:none}
+.ed-panel.compact .small{min-height:20px}
+.ed-tray{display:flex;gap:8px;overflow-x:auto;padding:6px 0;min-height:50px;scrollbar-width:none}.ed-tray::-webkit-scrollbar{display:none}
+.ed-chip{flex:none;display:flex;align-items:center;border:1.5px solid var(--line);border-radius:99px;background:var(--card);min-height:38px;font-weight:600;font-size:14px}
+.ed-chip.on{border-color:var(--brand);background:var(--tint)}
+.ed-chip>button{background:none;border:0;padding:0 8px 0 12px;min-height:38px}
+.ed-chip>button.x{padding:0 12px 0 4px;color:var(--mute)}
+.ed-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ed-tools .seg{flex:1;min-width:180px;margin:0;padding:3px}.ed-tools .seg button{min-height:36px;font-size:13px}
+.ed-tools .chip{min-height:38px;padding:6px 12px}
+.ed-btns .btn{min-height:46px}
+
+/* item page: full screen instead of a pop-up */
+.sheet.full{top:0;max-height:none;height:100dvh;border-radius:0;padding:0 16px calc(24px + var(--sab));animation:none}
+.sheet.full .grab{display:none}
+.sheet.full.kb{border-radius:0}
+.fullbar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:6px;margin:0 -16px 6px;padding:calc(8px + var(--sat)) 12px 8px;background:var(--bar);color:#fff}
+.fullbar>button{background:none;border:0;color:#fff;font-size:34px;line-height:1;width:44px;height:44px}
+.fullbar b{display:block;font-size:19px}.fullbar small{display:block;opacity:.8;font-size:12px}

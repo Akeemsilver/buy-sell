@@ -8,7 +8,8 @@
   const ZONES = { tl: [0, 0, 0.45, 0.20], tr: [0.55, 0, 1, 0.24], bl: [0, 0.76, 0.45, 1], br: [0.55, 0.74, 1, 1] };
   const WORD = /^(?:[A-Za-z][A-Za-z\-.]{2,}|\d{1,2}[/:.]\d{1,2}|\d{2,4})$/, COUNTER = /^\d{1,2}\/\d{1,2}$/;
   const SCALES = [3, 4], PSMS = ['11', '12'];
-  let worker = null, loading = null, cancelled = false;
+  let worker = null, loading = null, lastCtl = null;
+  const tick = () => new Promise((r) => setTimeout(r, 0));          // lets the screen breathe between heavy steps
 
   const abs = (p) => new URL(p, document.baseURI).href;
   function script(src) {
@@ -48,25 +49,25 @@
   };
 
   // canvas = the cropped picture. Resolves to [{text, ticked, box:{x,y,w,h}}] in that canvas's pixels.
-  async function suggest(canvas, onProgress) {
-    cancelled = false;
+  async function suggest(canvas, onProgress, ctl) {
+    ctl = ctl || { cancelled: false }; lastCtl = ctl;
     const k0 = Math.min(1, 1200 / canvas.width), work = k0 < 1 ? P.scaled(canvas, Math.round(Math.max(canvas.width, canvas.height) * k0)) : canvas;
     const W = work.width, H = work.height, w = await getWorker();
     const jobs = []; Object.entries(ZONES).forEach(([z, f]) => SCALES.forEach((s) => jobs.push([z, f, s])));
     const readings = []; let done = 0; const total = jobs.length * 4 * PSMS.length;
     const quiet = {};                                           // zones where a quick first look found nothing word-like: skip the slow readings
     for (const [z, f, s] of jobs) {
-      if (cancelled) throw new Error('cancelled');
+      if (ctl.cancelled) throw new Error('cancelled');
       if (quiet[z] || (s === SCALES[1] && !uncertain(readings, z, W, H))) { done += 4 * PSMS.length; if (onProgress) onProgress(done / total); continue; }
       const zx = Math.round(f[0] * W), zy = Math.round(f[1] * H), zw = Math.round((f[2] - f[0]) * W), zh = Math.round((f[3] - f[1]) * H);
       const big = P.canvas(zw * s, zh * s), bx = big.getContext('2d'); bx.imageSmoothingQuality = 'high'; bx.drawImage(work, zx, zy, zw, zh, 0, 0, zw * s, zh * s);
-      const vs = variants(P.gray(P.pixels(big)));
+      await tick(); const vs = variants(P.gray(P.pixels(big)));
       let seen = 0;
       for (const [pre, G] of Object.entries(vs)) {
         const vc = P.canvas(G.w, G.h); vc.getContext('2d').putImageData(new ImageData(P.grayToImage(G).data, G.w, G.h), 0, 0);
         for (const psm of PSMS) {
-          if (cancelled) throw new Error('cancelled');
-          await w.setParameters({ tessedit_pageseg_mode: psm });
+          if (ctl.cancelled) throw new Error('cancelled');
+          await tick(); await w.setParameters({ tessedit_pageseg_mode: psm });
           const r = await w.recognize(vc);
           (r.data.words || []).forEach((wd) => {
             const box = { x0: zx + wd.bbox.x0 / s, y0: zy + wd.bbox.y0 / s, x1: zx + wd.bbox.x1 / s, y1: zy + wd.bbox.y1 / s };
@@ -87,6 +88,6 @@
       return { text: c.text, ticked, votes: c.votes.size, conf: Math.round(c.conf), box: { x: b.x / k0, y: b.y / k0, w: b.w / k0, h: b.h / k0 } };
     });
   }
-  const api = { suggest, agree, last: null, cancel: () => { cancelled = true; } };
+  const api = { suggest, agree, last: null, cancel: (ctl) => { const c = ctl || lastCtl; if (c) c.cancelled = true; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Reader = api;
 })(typeof window !== 'undefined' ? window : globalThis);

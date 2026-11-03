@@ -1,7 +1,7 @@
 const assert = require('assert');
 const T = require('../js/theme.js');
-assert.strictEqual(T.PALETTES.length, 12);
-assert.strictEqual(new Set(T.PALETTES.map((p) => p.id)).size, 12, 'unique ids');
+assert.strictEqual(T.PALETTES.length, 20);
+assert.strictEqual(new Set(T.PALETTES.map((p) => p.id)).size, 20, 'unique ids');
 T.PALETTES.forEach((p) => {
   assert(T.contrastWhite(p.brand) >= 4.5, `${p.id}: white text on ${p.brand} is hard to read (${T.contrastWhite(p.brand).toFixed(2)})`);
   const v = T.vars(p.id);
@@ -11,4 +11,5 @@ T.PALETTES.forEach((p) => {
 });
 assert.strictEqual(T.find('nope').id, 'magenta', 'unknown scheme falls back to the original');
 assert.strictEqual(T.vars('magenta').light.brand, '#741b47', 'the original color is unchanged');
+const iv = T.inline('green', false); assert(iv.includes('--brand:#1c7243') && iv.includes('--card:#fff')); assert(T.inline('green', true).includes('--bg:'));
 console.log('theme tests passed');

@@ -84,7 +84,7 @@
       try { ids.push(await createPhoto(files[n])); } catch (e) { failed++; }
     }
     const r = L.assignPhotos(st, batchId, ids);
-    A.save(); A.render();
+    A.save(); A.render(); ids.forEach((id) => bgAdd(id));
     A.toast(tn('photo.added', ids.length) + (failed ? ' · ' + tn('photo.failed', failed) : ''));
     if (ids.length) startCheck(r.assigned.map((a) => a.itemId));
   }
@@ -94,7 +94,7 @@
     A.toast(t('photo.adding', { done: 1, total: 1 }));
     try {
       const id = await createPhoto(files[0]), old = it.photo && it.photo.id;
-      it.photo = { id, checked: false }; A.save(); if (old) { forget(old); S.del(old).catch(() => {}); }
+      it.photo = { id, checked: false }; A.save(); bgAdd(id); if (old) { forget(old); S.del(old).catch(() => {}); }
       A.closeSheet(); A.render(); startCheck([itemId]);
     } catch (e) { A.toast(t('photo.readErr')); } finally { busy--; }
   }
@@ -176,7 +176,7 @@
   }
   const isOpen = () => !!ed;
   function closeEditor() {
-    if (!ed) return; if (R && R.cancel) R.cancel();
+    if (!ed) return;
     ed = null; edEl().hidden = true; edEl().innerHTML = ''; document.body.style.overflow = ''; A.sync(); A.render();
   }
   function back() { if (!ed) return; if (ed.step === 'marks') return showCrop(); closeEditor(); }
@@ -189,7 +189,7 @@
       const rec = await S.get(it.photo.id); if (!rec) throw new Error('missing');
       ed.itemId = id; ed.photoId = it.photo.id;
       ed.src = await P.loadCanvas(rec.orig, 3000);
-      ed.ratio = 0; ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.marks = null; ed.mode = 'blur';
+      ed.ratio = 0; ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.marks = null; ed.mode = 'blur'; ed.tool = 'move'; ed.rotated = false; ed.sugFailed = false;
       showCrop();
     } catch (e) { A.toast(t('photo.missing')); next(); }
   }
@@ -213,7 +213,7 @@
   let view = null;                                 // {k, w, h, dpr}: how the picture is drawn in the stage
   function layout() {
     const stage = $('#ed-stage'), cv = $('#ed-cv'), img = ed.step === 'crop' ? ed.src : ed.work;
-    const aw = stage.clientWidth - 16 - (ed.step === 'crop' ? 28 : 0), ah = stage.clientHeight - 16 - (ed.step === 'crop' ? 28 : 0), k = Math.min(aw / img.width, ah / img.height), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const aw = stage.clientWidth - (ed.step === 'crop' ? 44 : 0), ah = stage.clientHeight - 16 - (ed.step === 'crop' ? 28 : 0), k = ed.step === 'marks' ? Math.min(1, aw / img.width) : Math.min(aw / img.width, ah / img.height), dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k)), pad = ed.step === 'crop' ? 14 : 0;
     cv.style.width = (w + 2 * pad) + 'px'; cv.style.height = (h + 2 * pad) + 'px'; cv.width = Math.round((w + 2 * pad) * dpr); cv.height = Math.round((h + 2 * pad) * dpr); view = { k, w, h, dpr, pad };
   }
@@ -259,45 +259,80 @@
   }
   function rotate() {
     const f = ed.frame, H = ed.src.height;
-    ed.src = P.rotate90(ed.src); ed.frame = P.clampFrame({ x: H - (f.y + f.h), y: f.x, w: f.h, h: f.w }, ed.src.width, ed.src.height); ed.ratio = 0; showCrop();
+    ed.rotated = true; ed.src = P.rotate90(ed.src); ed.frame = P.clampFrame({ x: H - (f.y + f.h), y: f.x, w: f.h, h: f.w }, ed.src.width, ed.src.height); ed.ratio = 0; showCrop();
   }
   function resetCrop() { ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.ratio = 0; showCrop(); }
 
   /* -- step 2: hide marks -- */
+  const MAX_MARKS = 4;                             // a photo can hide up to 4 areas: keeps the screen easy to use
   let logoImg = null, prevRaf = 0;
   function loadLogo() { return logoImg ? Promise.resolve(logoImg) : new Promise((ok) => { const im = new Image(); im.onload = () => { logoImg = im; ok(im); }; im.onerror = () => ok(null); im.src = 'icons/logo.png'; }); }
 
   function showMarks() {
-    ed.step = 'marks';
+    ed.step = 'marks'; if (!ed.tool) ed.tool = 'move';
     const cr = P.crop(ed.src, ed.frame); ed.work = P.scaled(cr, 1800);
-    const first = !ed.marks; if (first) ed.marks = [];
-    edEl().innerHTML = `${head()}<div class="ed-stage" id="ed-stage"><canvas id="ed-cv"></canvas></div>
-      <div class="ed-panel"><div id="ed-info" class="small"></div><div id="ed-marks"></div>
-        <div class="seg" role="radiogroup" aria-label="${t('ed.mode')}" id="ed-mode">${['blur', 'cover', 'logo'].map((m) => `<button class="${ed.mode === m ? 'on' : ''}" role="radio" aria-checked="${ed.mode === m}" data-act="ed-mode" data-id="${m}">${t('ed.' + m)}</button>`).join('')}</div>
+    if (!ed.marks) { ed.marks = []; ed.sugDone = false; }
+    edEl().innerHTML = `${head()}<div class="ed-stage marks" id="ed-stage"><canvas id="ed-cv"></canvas></div>
+      <div class="ed-panel compact"><div id="ed-info" class="small"></div><div class="ed-tray" id="ed-marks"></div>
+        <div class="ed-tools"><button class="chip ${ed.tool === 'move' ? 'on' : ''}" data-act="ed-tool" data-id="move">✋ ${t('ed.move')}</button><button class="chip ${ed.tool === 'draw' ? 'on' : ''}" data-act="ed-tool" data-id="draw">▭ ${t('ed.drawBox')}</button>
+          <div class="seg" role="radiogroup" aria-label="${t('ed.mode')}" id="ed-mode">${['blur', 'cover', 'logo'].map((m) => `<button class="${ed.mode === m ? 'on' : ''}" role="radio" aria-checked="${ed.mode === m}" data-act="ed-mode" data-id="${m}">${t('ed.' + m)}</button>`).join('')}</div></div>
         <p class="muted small" id="ed-note"></p>
         <div class="ed-btns"><button class="btn" data-act="ed-back">${t('ed.back')}</button><button class="btn primary" id="ed-save" data-act="ed-save">${ed.idx + 1 < ed.total ? t('ed.saveNext') : t('ed.save')}</button></div></div>`;
-    layout(); bindMarks(); preview(); listMarks();
-    if (first) findMarks();
-    else $('#ed-info').textContent = '';
+    layout(); bindMarks(); preview(); listMarks(); suggestState();
   }
-  function findMarks() {
-    const info = $('#ed-info'); ed.reading = true;
-    info.innerHTML = `${t('ed.finding', { pct: 0 })}<div class="ed-bar"><i id="ed-prog"></i></div><div class="muted small">${t('ed.findingFirst')}</div><button class="chip" data-act="ed-stop">${t('ed.stop')}</button>`;
-    const mine = ed;
-    R.suggest(ed.work, (p) => { if (ed === mine && $('#ed-prog')) { $('#ed-prog').style.width = Math.round(p * 100) + '%'; } })
-      .then((found) => {
-        if (ed !== mine) return; ed.reading = false;
-        found.forEach((m, n) => ed.marks.push({ id: 'a' + n, text: m.text, ticked: m.ticked, box: m.box, auto: true }));
-        $('#ed-info').innerHTML = !found.length ? t('ed.foundNone') : found[0].ticked ? tn('ed.found', found.length) : t('ed.guess');
-        listMarks(); preview();
-      })
-      .catch((e) => { if (ed !== mine) return; ed.reading = false; $('#ed-info').innerHTML = e && e.message === 'cancelled' ? t('ed.draw') : `<span class="bad">${t('ed.finderOff')}</span>`; });
+
+  /* -- automatic mark finder: runs in the background, one photo at a time, starting as soon as photos are added -- */
+  const bg = { q: [], running: null, ctl: null, res: new Map() };
+  const bgLeft = () => bg.q.length + (bg.running ? 1 : 0);
+  function bgText() { const n = bgLeft(); return n ? t('photo.bgLeft', { n }) : ''; }
+  function bgNote() { const el = document.getElementById('bg-st'); if (el) el.textContent = bgText(); }
+  function bgAdd(photoId, front) {
+    if (!A.autoFind() || !R || bg.res.has(photoId) || bg.running === photoId) return;
+    bg.q = bg.q.filter((x) => x !== photoId); if (front) bg.q.unshift(photoId); else bg.q.push(photoId);
+    bgNote(); bgRun();
+  }
+  async function bgRun() {
+    if (bg.running || !bg.q.length) return;
+    const id = bg.q.shift(); bg.running = id; bgNote();
+    try {
+      const rec = await S.get(id);
+      if (rec && rec.orig) {
+        const c = await P.loadCanvas(rec.orig, 3000), frame = P.findPhotoArea(P.pixels(c)), cr = P.crop(c, frame); bg.ctl = { cancelled: false };
+        const found = await R.suggest(cr, null, bg.ctl); bg.res.set(id, { frame, boxes: found });
+      }
+    } catch (e) { if (!(e && e.message === 'cancelled')) bg.res.set(id, { failed: true, boxes: [] }); else bg.res.set(id, { boxes: [] }); }
+    bg.running = null; bg.ctl = null; bgNote();
+    if (ed && ed.step === 'marks' && ed.photoId === id) suggestState();
+    bgRun();
+  }
+  function bgStop() { bg.q = []; if (bg.ctl) R.cancel(bg.ctl); bgNote(); }
+  // Show the finder's result for the open photo (or say it is still working / switched off).
+  function suggestState() {
+    const info = $('#ed-info'); if (!info || !ed || ed.step !== 'marks') return;
+    if (!ed.sugDone) {
+      const r = bg.res.get(ed.photoId);
+      if (r && !r.failed) {
+        ed.sugDone = true;
+        if (!ed.rotated) {                          // boxes were found on the automatic crop: move them onto the crop in use
+          const k = ed.work.width / ed.frame.w, fr = r.frame, room = Math.max(0, MAX_MARKS - ed.marks.length);
+          r.boxes.map((m) => ({ m, b: { x: (m.box.x + fr.x - ed.frame.x) * k, y: (m.box.y + fr.y - ed.frame.y) * k, w: m.box.w * k, h: m.box.h * k } }))
+            .filter(({ b }) => b.x + b.w / 2 > 0 && b.y + b.h / 2 > 0 && b.x + b.w / 2 < ed.work.width && b.y + b.h / 2 < ed.work.height).slice(0, room)
+            .forEach(({ m, b }, n) => ed.marks.push({ id: 'a' + n, text: m.text, ticked: m.ticked, box: b, auto: true }));
+        }
+        ed.sugCount = ed.marks.filter((m) => m.auto).length; listMarks(); preview();
+      } else if (r && r.failed) { ed.sugDone = true; ed.sugFailed = true; }
+      else if (A.autoFind()) { if (bg.running !== ed.photoId) bgAdd(ed.photoId, true); }
+    }
+    if (ed.sugDone) info.innerHTML = ed.sugFailed ? `<span class="bad">${t('ed.finderOff')}</span>` : !ed.sugCount ? t('ed.foundNone') : (ed.marks.find((m) => m.auto) || {}).ticked ? tn('ed.found', ed.sugCount) : t('ed.guess');
+    else if (A.autoFind()) info.innerHTML = `${t('ed.bg')} <button class="chip" data-act="ed-stop">${t('ed.stop')}</button>`;
+    else info.textContent = t('ed.draw');
   }
   function listMarks() {
     const el = $('#ed-marks'); if (!el) return;
-    el.innerHTML = ed.marks.map((m, n) => `<label class="ed-mark"><input type="checkbox" data-mk="${n}" ${m.ticked ? 'checked' : ''}><span>${m.auto ? `“${A.esc(m.text)}”` : t('ed.mine', { n: n + 1 })}</span>${m.auto ? '' : `<button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button>`}</label>`).join('');
+    let man = 0;
+    el.innerHTML = ed.marks.map((m, n) => `<span class="ed-chip ${m.ticked ? 'on' : ''}"><button data-act="ed-toggle" data-id="${n}" aria-pressed="${m.ticked}">${m.ticked ? '✓ ' : ''}${m.auto ? `“${A.esc(m.text)}”` : t('ed.mine', { n: ++man })}</button><button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button></span>`).join('') || '';
     const k = ed.marks.filter((m) => m.ticked).length;
-    $('#ed-note').textContent = (k ? tn('ed.hiding', k) + ' · ' : t('ed.nothing') + ' · ') + t('ed.preview') + ' ' + t('ed.drawHint');
+    $('#ed-note').textContent = (k ? tn('ed.hiding', k) : t('ed.nothing')) + ' · ' + (ed.tool === 'draw' ? t('ed.hintDraw') : t('ed.hintMove'));
   }
   function render() {
     const c = P.canvas(ed.work.width, ed.work.height), x = c.getContext('2d'); x.drawImage(ed.work, 0, 0);
@@ -314,25 +349,29 @@
       x.setTransform(1, 0, 0, 1, 0, 0); x.imageSmoothingQuality = 'high'; x.clearRect(0, 0, cv.width, cv.height); x.drawImage(out, 0, 0, cv.width, cv.height);
       ed.marks.forEach((m) => {                    // outlines: solid = will be hidden, dashed = left as is
         const b = m.box; x.lineWidth = 2 * view.dpr; x.strokeStyle = m.ticked ? '#ffd166' : 'rgba(255,255,255,.8)'; x.setLineDash(m.ticked ? [] : [6 * view.dpr, 5 * view.dpr]);
-        x.strokeRect(b.x * s / view.k * view.k, b.y * s, b.w * s, b.h * s);
+        x.strokeRect(b.x * s, b.y * s, b.w * s, b.h * s);
       });
       x.setLineDash([]);
       if (ed.draw) { x.strokeStyle = '#fff'; x.setLineDash([6 * view.dpr, 4 * view.dpr]); x.strokeRect(ed.draw.x * s, ed.draw.y * s, ed.draw.w * s, ed.draw.h * s); x.setLineDash([]); }
     });
   }
+  // Move mode: the finger scrolls the picture (so a tall picture can be seen to the bottom) and a tap switches a box on/off.
+  // Draw mode: the finger draws a new box.
   function bindMarks() {
     const cv = $('#ed-cv'); let st = null;
+    cv.style.touchAction = ed.tool === 'draw' ? 'none' : 'pan-y';
     const pos = (e) => { const r = cv.getBoundingClientRect(), k = view.w / ed.work.width; return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k }; };
-    view.k = view.w / ed.work.width;               // here boxes are in the 1200px working picture
-    cv.onpointerdown = (e) => { st = { p: pos(e), moved: false }; cv.setPointerCapture(e.pointerId); e.preventDefault(); };
+    view.k = view.w / ed.work.width;               // boxes are in the working picture's pixels
+    cv.onpointerdown = (e) => { st = { p: pos(e), moved: false, cx: e.clientX, cy: e.clientY }; if (ed.tool === 'draw') { cv.setPointerCapture(e.pointerId); e.preventDefault(); } };
     cv.onpointermove = (e) => {
-      if (!st) return; const p = pos(e); if (Math.hypot(p.x - st.p.x, p.y - st.p.y) * view.k > 8) st.moved = true;
-      if (st.moved) { ed.draw = { x: Math.min(st.p.x, p.x), y: Math.min(st.p.y, p.y), w: Math.abs(p.x - st.p.x), h: Math.abs(p.y - st.p.y) }; preview(); }
+      if (!st) return; if (Math.hypot(e.clientX - st.cx, e.clientY - st.cy) > 8) st.moved = true;
+      if (ed.tool === 'draw' && st.moved) { const p = pos(e); ed.draw = { x: Math.min(st.p.x, p.x), y: Math.min(st.p.y, p.y), w: Math.abs(p.x - st.p.x), h: Math.abs(p.y - st.p.y) }; preview(); }
     };
     cv.onpointerup = (e) => {
       if (!st) return; const p = pos(e);
-      if (st.moved && ed.draw && ed.draw.w * view.k > 12 && ed.draw.h * view.k > 12) { ed.marks.push({ id: 'm' + Date.now(), ticked: true, box: ed.draw, auto: false }); listMarks(); }
-      else if (!st.moved) { const hit = ed.marks.find((m) => p.x >= m.box.x && p.x <= m.box.x + m.box.w && p.y >= m.box.y && p.y <= m.box.y + m.box.h); if (hit) { hit.ticked = !hit.ticked; listMarks(); } }
+      if (ed.tool === 'draw') {
+        if (st.moved && ed.draw && ed.draw.w * view.k > 12 && ed.draw.h * view.k > 12) { if (ed.marks.length >= MAX_MARKS) A.toast(t('ed.max')); else { ed.marks.push({ id: 'm' + Date.now(), ticked: true, box: ed.draw, auto: false }); listMarks(); } }
+      } else if (!st.moved) { const hit = ed.marks.find((m) => p.x >= m.box.x && p.x <= m.box.x + m.box.w && p.y >= m.box.y && p.y <= m.box.y + m.box.h); if (hit) { hit.ticked = !hit.ticked; listMarks(); } }
       ed.draw = null; st = null; preview();
     };
     cv.onpointercancel = () => { st = null; ed.draw = null; preview(); };
@@ -369,16 +408,17 @@
       case 'ed-back': return showCrop();
       case 'ed-mode': ed.mode = id; document.querySelectorAll('#ed-mode button').forEach((b) => { const on = b.dataset.id === id; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); }); return preview();
       case 'ed-del': ed.marks.splice(+id, 1); listMarks(); return preview();
-      case 'ed-stop': if (R) R.cancel(); return;
+      case 'ed-toggle': ed.marks[+id].ticked = !ed.marks[+id].ticked; listMarks(); return preview();
+      case 'ed-tool': ed.tool = id; document.querySelectorAll('.ed-tools > .chip').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); $('#ed-cv').style.touchAction = id === 'draw' ? 'none' : 'pan-y'; return listMarks();
+      case 'ed-stop': if (bg.ctl && bg.running === ed.photoId) R.cancel(bg.ctl); else { bg.q = bg.q.filter((x) => x !== ed.photoId); bg.res.set(ed.photoId, { boxes: [] }); suggestState(); } return;
       case 'ed-save': return save();
     }
   }
-  document.addEventListener('change', (e) => { const el = e.target; if (ed && el.dataset && el.dataset.mk != null) { ed.marks[+el.dataset.mk].ticked = el.checked; listMarks(); preview(); } });
   window.addEventListener('resize', () => { if (!ed || !view) return; if (ed.step === 'crop') { layout(); drawCrop(); } else if (ed.step === 'marks') { layout(); view.k = view.w / ed.work.width; preview(); } });
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoBox, act, isOpen, back, closeEditor, share,
+    hydrate, thumb, noTile, photoBox, act, isOpen, back, closeEditor, share, bgText, bgStop,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

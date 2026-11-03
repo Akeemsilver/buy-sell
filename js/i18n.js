@@ -330,7 +330,7 @@
     'set.off': 'Off',
     'set.autoFindNote': 'After you add photos, the phone looks for watermarks and page counters in the background. It can be slow, and it never hides anything without you checking. Turn it off to draw boxes yourself.',
     /* app updates */
-    'upd.available': 'A new version is ready',
+    'upd.available': 'Update available',
     'upd.btn': 'Update',
   };
 
@@ -636,7 +636,7 @@
     'set.off': 'No',
     'set.autoFindNote': 'Después de añadir fotos, el teléfono busca marcas de agua y contadores de página en segundo plano. Puede ser lento y nunca oculta nada sin que lo revises. Apágalo para dibujar los cuadros tú mismo.',
     /* app updates */
-    'upd.available': 'Hay una versión nueva',
+    'upd.available': 'Actualización disponible',
     'upd.btn': 'Actualizar',
   };
 

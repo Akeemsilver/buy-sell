@@ -750,7 +750,7 @@
     const t_ = e.target.closest('[data-tab],[data-act]'); if (!t_) return;
     if (t_.dataset.tab) { tab = t_.dataset.tab; themeDraft = null; if (tab === 'more') moreView = null; window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
-    if (/^(photo|ed)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
+    if (/^(photo|ed|viewer)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
     switch (t_.dataset.act) {
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();

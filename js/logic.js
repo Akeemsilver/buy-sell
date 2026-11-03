@@ -136,13 +136,16 @@
     const landed = r2(costTTD + clearing);
     const recommended = r2(landed * (1 + b.margin / 100));
     const sold = num(it.sold);
-    return { costTTD, clearing, landed, recommended, profit: r2((sold > 0 ? sold : num(it.price) > 0 ? num(it.price) : recommended) - landed) };   // sold for, else the selling price, else the recommended price
+    return { costTTD, clearing, landed, recommended, profit: r2((sold > 0 ? sold : L.salePrice(it) > 0 ? L.salePrice(it) : num(it.price) > 0 ? num(it.price) : recommended) - landed) };   // sold for, else the selling price, else the recommended price
   };
 
   /* ---------- photos, selling price and what customers may see ---------- */
 
   // Only these fields ever leave the app when an item is shared. Costs, landed cost, margin, recommended price are never in here.
-  L.publicView = (it) => ({ id: it.id, name: String(it.desc || '').trim(), price: num(it.price) > 0 ? r2(num(it.price)) : 0 });
+  // A sale takes a percentage (1-99) off the selling price. It is active only when it is switched on, a percentage is set and there is a selling price.
+  L.saleActive = (it) => !!it.saleOn && num(it.discount) >= 1 && num(it.discount) <= 99 && num(it.price) > 0;
+  L.salePrice = (it) => (L.saleActive(it) ? r2(num(it.price) * (1 - num(it.discount) / 100)) : 0);
+  L.publicView = (it) => ({ id: it.id, name: String(it.desc || '').trim(), price: num(it.price) > 0 ? r2(num(it.price)) : 0, salePrice: L.salePrice(it), discount: L.saleActive(it) ? Math.round(num(it.discount) * 100) / 100 : 0 });
 
   // A photo may be shared only after it has been cropped and checked.
   L.shareStatus = (it) => (!it.photo ? 'noPhoto' : it.photo.checked ? 'ok' : 'notChecked');
@@ -172,7 +175,8 @@
   };
 
   // When an item is added to an invoice its "Sold for" starts as your selling price (if you set one and none is filled in).
-  L.prefillSold = (it) => { if (num(it.sold) <= 0 && num(it.price) > 0) it.sold = r2(num(it.price)); return it; };
+  // Not while a sale is on: then Sold for is left for you to type.
+  L.prefillSold = (it) => { if (num(it.sold) <= 0 && num(it.price) > 0 && !L.saleActive(it)) it.sold = r2(num(it.price)); return it; };
 
   L.batchStats = (s, b) => {
     const items = s.items.filter((i) => i.batchId === b.id);
@@ -221,7 +225,7 @@
   // Bring data saved by an older version up to date (idempotent): recompute per-item paid/owing.
   L.migrate = (s) => {
     L.cleanNames(s);
-    s.items.forEach((i) => { if (i.price === undefined) i.price = 0; if (i.photo === undefined) i.photo = null; });
+    s.items.forEach((i) => { if (i.price === undefined) i.price = 0; if (i.photo === undefined) i.photo = null; if (i.discount === undefined) i.discount = 0; if (i.saleOn === undefined) i.saleOn = false; });
     if (s.items.some((i) => i.invoice && i.paid === undefined)) {
       new Set(s.items.map((i) => i.invoice).filter(Boolean)).forEach((no) => L.applyWaterfall(s, no));
     }

@@ -393,6 +393,19 @@
     'photo.replaceShort': 'Replace',
     'photo.removeShort': 'Remove',
     'item.privateNote': 'Private — never shared',
+    /* sale price */
+    'item.onSale': 'On sale',
+    'item.onSaleSub': 'Take a percentage off the selling price',
+    'item.saleOther': 'Other',
+    'item.discount': 'Discount %',
+    'item.discountPh': 'e.g. 50',
+    'item.sellingWas': 'Selling price',
+    'item.discountRow': 'Discount',
+    'item.salePriceLbl': 'Sale price',
+    'calc.profitSale': 'Profit at (sale price)',
+    'sale.locked': 'Turn the sale off to change the selling price.',
+    'photo.off': '{pct}% OFF',
+    'photo.was': 'was',
   };
 
   const ES = {
@@ -760,6 +773,19 @@
     'photo.replaceShort': 'Cambiar',
     'photo.removeShort': 'Quitar',
     'item.privateNote': 'Privado — nunca se comparte',
+    /* sale price */
+    'item.onSale': 'En oferta',
+    'item.onSaleSub': 'Quita un porcentaje al precio de venta',
+    'item.saleOther': 'Otro',
+    'item.discount': 'Descuento %',
+    'item.discountPh': 'p. ej. 50',
+    'item.sellingWas': 'Precio de venta',
+    'item.discountRow': 'Descuento',
+    'item.salePriceLbl': 'Precio de oferta',
+    'calc.profitSale': 'Ganancia al (precio de oferta)',
+    'sale.locked': 'Apaga la oferta para cambiar el precio de venta.',
+    'photo.off': '{pct}% DESC.',
+    'photo.was': 'antes',
   };
 
   const LANGS = { en: EN, es: ES };

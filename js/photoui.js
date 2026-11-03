@@ -126,11 +126,12 @@
     A.toast(t('photo.prep'));
     try {
       const rec = await S.get(it.photo.id); if (!rec || !rec.full) return A.toast(t('photo.missing'));
-      const c = await P.loadCanvas(rec.full, 2000), pub = L.publicView(it), price = num(pub.price);
-      if (price > 0) P.priceTag(c, A.invMoney(price));
+      const c = await P.loadCanvas(rec.full, 2000), pub = L.publicView(it), price = num(pub.price), sale = num(pub.salePrice);
+      if (sale > 0) P.priceTag(c, A.invMoney(sale), { was: A.invMoney(price), badge: t('photo.off', { pct: pub.discount }, lg) });   // on sale: new price, old price crossed out, % OFF
+      else if (price > 0) P.priceTag(c, A.invMoney(price));
       const blob = await new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('encode'))), 'image/jpeg', 0.9));
       const file = new File([blob], safeName(pub.name || pub.id) + '.jpg', { type: 'image/jpeg' });
-      const text = (pub.name ? pub.name + '\n' : '') + (price > 0 ? A.invMoney(price) : t('photo.available', null, lg));
+      const text = (pub.name ? pub.name + '\n' : '') + (sale > 0 ? `${A.invMoney(sale)} (${t('photo.was', null, lg)} ${A.invMoney(price)}) · ${t('photo.off', { pct: pub.discount }, lg)}` : price > 0 ? A.invMoney(price) : t('photo.available', null, lg));
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         return navigator.share({ files: [file], title: pub.name || pub.id, text }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
       }

@@ -108,7 +108,7 @@
     /* item sheet */
     'item.desc': 'Description', 'item.descPh': 'e.g. Blue dress', 'item.cost': 'Cost ({cur})', 'item.sold': 'Sold for (TTD)', 'item.delivery': 'Delivery (TTD)', 'item.status': 'Status',
     'item.invoice': ' · invoice {no}', 'item.addInv': 'Add to invoice', 'item.removeInv': 'Remove from invoice', 'item.added': 'Added to invoice.',
-    'calc.costTTD': 'Cost (TTD)', 'calc.clearing': 'Clearing share', 'calc.landed': 'Landed cost', 'calc.rec': 'Recommended price', 'calc.profit': 'Profit', 'calc.profitRec': 'Profit at recommended',
+    'calc.costTTD': 'Cost (TTD)', 'calc.clearing': 'Clearing cost', 'calc.landed': 'Landed cost', 'calc.rec': 'Recommended price', 'calc.profit': 'Profit', 'calc.profitRec': 'Profit at (recommended)',
     /* invoice screen + document */
     'invUI.share': 'Share invoice image', 'invUI.save': 'Save as image', 'invUI.print': 'Print / Save as PDF', 'invUI.delete': 'Delete invoice', 'invUI.status': 'Status:',
     'invUI.profit': 'profit', 'invUI.loss': 'loss', 'invUI.tip': 'tip', 'invUI.lang': 'Invoice language',
@@ -385,8 +385,8 @@
     'cust.ask': 'Always ask',
     'cust.note': 'Used for invoices and for the caption of shared photos. Always ask shows an English | Español question every time you share a photo.',
     /* item page */
-    'calc.profitPrice': 'Profit at selling price',
-    'calc.profitSold': 'Profit at sold for',
+    'calc.profitPrice': 'Profit at (selling price)',
+    'calc.profitSold': 'Profit at (sold for)',
     'photo.view': 'View photo full screen',
     'photo.editShort': 'Edit',
     'photo.checkShort': 'Check',
@@ -477,7 +477,7 @@
     'confirm.reset1': '¿Borrar TODOS los datos de este dispositivo? Haz una copia de seguridad primero.', 'confirm.reset2': '¿Seguro que quieres borrar todo?', 'confirm.import': 'Importar reemplaza los datos de este dispositivo. ¿Continuar?',
     'item.desc': 'Descripción', 'item.descPh': 'p. ej. Vestido azul', 'item.cost': 'Costo ({cur})', 'item.sold': 'Vendido en (TTD)', 'item.delivery': 'Entrega (TTD)', 'item.status': 'Estado',
     'item.invoice': ' · factura {no}', 'item.addInv': 'Agregar a la factura', 'item.removeInv': 'Quitar de la factura', 'item.added': 'Agregado a la factura.',
-    'calc.costTTD': 'Costo (TTD)', 'calc.clearing': 'Parte del despacho', 'calc.landed': 'Costo final', 'calc.rec': 'Precio recomendado', 'calc.profit': 'Ganancia', 'calc.profitRec': 'Ganancia (al precio recomendado)',
+    'calc.costTTD': 'Costo (TTD)', 'calc.clearing': 'Costo del despacho', 'calc.landed': 'Costo final', 'calc.rec': 'Precio recomendado', 'calc.profit': 'Ganancia', 'calc.profitRec': 'Ganancia al (recomendado)',
     'invUI.share': 'Compartir imagen de la factura', 'invUI.save': 'Guardar como imagen', 'invUI.print': 'Imprimir / Guardar como PDF', 'invUI.delete': 'Eliminar factura', 'invUI.status': 'Estado:',
     'invUI.profit': 'ganancia', 'invUI.loss': 'pérdida', 'invUI.tip': 'propina', 'invUI.lang': 'Idioma de la factura',
     'doc.billTo': 'FACTURAR A', 'doc.invoiceNo': 'FACTURA N.º', 'doc.date': 'FECHA', 'doc.due': 'VENCE', 'doc.desc': 'Descripción', 'doc.qty': 'CANT.', 'doc.price': 'Precio', 'doc.amount': 'Importe',
@@ -751,8 +751,8 @@
     'cust.ask': 'Preguntar siempre',
     'cust.note': 'Se usa para las facturas y para el texto de las fotos compartidas. Preguntar siempre muestra una pregunta Español | English cada vez que compartes una foto.',
     /* item page */
-    'calc.profitPrice': 'Ganancia al precio de venta',
-    'calc.profitSold': 'Ganancia al precio vendido',
+    'calc.profitPrice': 'Ganancia al (precio de venta)',
+    'calc.profitSold': 'Ganancia al (vendido en)',
     'photo.view': 'Ver la foto a pantalla completa',
     'photo.editShort': 'Editar',
     'photo.checkShort': 'Revisar',

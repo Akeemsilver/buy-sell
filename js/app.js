@@ -69,16 +69,16 @@
   const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
   const WEEK = 7 * 864e5;
+  // Shown at the top of Home whenever the app is not running as an installed app (no way to dismiss it, so it is never "lost").
+  // With the browser's own install prompt the button installs; otherwise it opens the how-to-install guide.
   function installBanner() {
-    if (isStandalone() || pref('installed', false) || Date.now() - pref('installDismissed', 0) < WEEK) return '';
-    if (!installEvt && !isIOS) return '';                  // browser can't install it (or already did): stay hidden
+    if (isStandalone()) return '';
     return `<div class="install"><img src="icons/logo.png" alt="" width="44" height="44">
       <div class="grow"><b>${t('install.title')}</b><small>${installEvt ? t('install.sub.prompt') : t('install.sub.add')}</small></div>
-      <button class="pill-btn solid" data-act="install">${installEvt ? t('install.btn') : t('install.how')}</button>
-      <button class="x" data-act="install-dismiss" aria-label="${t('aria.dismiss')}">✕</button></div>`;
+      <button class="pill-btn solid" data-act="install">${installEvt ? t('install.btn') : t('install.how')}</button></div>`;
   }
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (tab === 'home') render(); });
-  window.addEventListener('appinstalled', () => { installEvt = null; setPref('installed', true); toast(t('install.done')); render(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; toast(t('install.done')); render(); });
 
   /* ---------- account (Firebase sign-in, cloud copy) ---------- */
 

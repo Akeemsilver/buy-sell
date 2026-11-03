@@ -356,4 +356,5 @@ h2.sec{margin:18px 0 6px}
 .photo-actions3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .photo-actions3 .btn{min-height:46px;font-size:14px;padding:0 8px}
 
-.privnote{margin:6px 2px 0;font-size:12px;font-weight:700;color:var(--mute)}
+.lblrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.privnote{font-size:12px;font-weight:700;color:var(--mute);margin-top:12px;white-space:nowrap}

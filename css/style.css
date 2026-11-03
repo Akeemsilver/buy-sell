@@ -346,3 +346,8 @@ h2.sec{margin:18px 0 6px}
 /* Google sign-in button with the Google "G" */
 .g-google,.btn.g-google{display:flex;align-items:center;justify-content:center;gap:12px;background:#fff;color:#1f1f1f;border:1px solid #dadce0;font-weight:700}
 .glogo{width:20px;height:20px;flex:none}
+
+.srow .tick{flex:none;width:28px;height:28px;border-radius:8px;border:2px solid var(--line);display:grid;place-items:center;font-weight:900;color:#fff;font-size:16px}
+.srow .tick.on{background:var(--brand);border-color:var(--brand)}
+.chkrow{display:flex;align-items:center;gap:12px;margin:16px 2px 0;font-weight:600;color:var(--ink)}
+.chkrow input{width:24px;height:24px;min-height:0;accent-color:var(--brand);flex:none}

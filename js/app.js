@@ -415,7 +415,9 @@
         ${trow('🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'], 'data-act="pick-lang"')}
         ${trow('🌓', t('set.appearance'), themeName, 'data-act="pick-appearance"')}
         ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
-        ${trow('✂️', t('set.autoFind'), pref('autoFind', true) ? t('set.on') : t('set.off'), 'data-act="pick-autofind"')}</div>
+        ${trow('✂️', t('set.autoFind'), pref('autoFind', true) ? t('set.on') : t('set.off'), 'data-act="pick-autofind"')}
+        ${trow('🗣️', t('set.custLang'), { app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[pref('custLang', 'app')] || t('cust.same'), 'data-act="pick-custlang"')}
+        <button class="row tap srow" data-act="toggle-askshare" role="checkbox" aria-checked="${pref('askShareLang', true)}"><span class="tile">❓</span><div class="grow"><b>${t('set.askShare')}</b><small>${t('set.askShareSub')}</small></div><span class="tick ${pref('askShareLang', true) ? 'on' : ''}">${pref('askShareLang', true) ? '✓' : ''}</span></button></div>
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}</div>
       <h2>${t('set.sec.data')}</h2><div class="list grp">
         ${trow('💾', t('set.backupRow'), t('set.backupSub'), nav('set-backup'))}
@@ -430,6 +432,20 @@
   function sheetChoice(title, act, cur, opts) {
     openSheet(`<h3>${title}</h3><div class="list" style="margin-top:12px">${opts.map(([k, l]) => `<button class="row tap" data-act="${act}" data-id="${k}"><div class="grow"><b>${l}</b></div><span style="font-weight:900;color:var(--brand)">${cur === k ? '✓' : ''}</span></button>`).join('')}</div>
       <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+  }
+  // Before a photo is shared: which language for the caption? Resolves 'en' | 'es', or null when closed without choosing.
+  function shareLang() {
+    if (!pref('askShareLang', true)) return Promise.resolve(custLang());
+    const sh = $('#sheet'), was = !sh.hidden && sh.classList.contains('full') && sh.dataset.item ? sh.dataset.item : null;   // the item page it was started from
+    return new Promise((ok) => {
+      let done = false; const finish = (v) => { if (!done) { done = true; ok(v); if (was) setTimeout(() => sheetItem(was), 0); } };
+      window.__shareLang = (lang) => { const ck = $('#sl-never'); if (ck && ck.checked) { setPref('askShareLang', false); setPref('custLang', lang); } finish(lang); };
+      openSheet(`<h3>${t('share.langTitle')}</h3><p class="muted small">${t('share.langSub')}</p>
+        <div class="btns" style="margin-top:12px">${Object.keys(I.LANGS).map((l) => `<button class="btn primary" data-act="share-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+        <label class="chkrow"><input type="checkbox" id="sl-never"><span>${t('share.dontAsk')}</span></label>
+        <p class="note">${t('share.note')}</p>
+        <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, () => finish(null));
+    });
   }
   function checkUpdate() {
     if (!('serviceWorker' in navigator)) return toast(t('upd.latest'));
@@ -504,7 +520,7 @@
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -591,7 +607,11 @@
   // Invoice design follows the Google Sheets invoice template (banner, mauve table header, balance bar, pink footer).
   // The invoice can be in a different language from the app (customers may read the other one): invoiceLang() / ti().
   const INV = { mauve: '#cea8bd', band: '#e6d2db', grey: '#767676', mid: '#545454' };
-  const invoiceLang = () => { const p = pref('invoiceLang', null); return p === 'en' || p === 'es' ? p : I.getLang(); };
+  // "Language for customers" (Settings) decides invoices and the caption of shared photos: same as the app, English or Spanish.
+  // The English | Español switch on an invoice only changes that invoice while it is open.
+  let invLangSession = null;
+  const custLang = () => { const p = pref('custLang', 'app'); return p === 'en' || p === 'es' ? p : I.getLang(); };
+  const invoiceLang = () => invLangSession || custLang();
   const ti = (key, vars) => t(key, vars, invoiceLang());
   const bannerSrc = () => (invoiceLang() === 'es' ? 'icons/invoice-banner-es.jpg' : 'icons/invoice-banner.jpg');
   const invMoney = (n) => 'TT$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -815,7 +835,7 @@
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); closeSheet(); return render();
       case 'set-lang': I.setLang(id, true); applyStaticText(); closeSheet(); return render();
-      case 'inv-lang': setPref('invoiceLang', id); return sheetInvoice(t_.dataset.no);
+      case 'inv-lang': invLangSession = id; return sheetInvoice(t_.dataset.no);
       case 'install':
         if (installEvt) { const ev = installEvt; installEvt = null; render(); ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); }).catch(() => {}); }
         return sheetInstallHelp();
@@ -836,7 +856,7 @@
       case 'acct-google': return acctDone(Cloud.signInGoogle());
       case 'acct-forgot': { const em = ($('#f-acct [name=email]') || {}).value; if (!em) return acctShow(t('acct.needEmail')); return Cloud.reset(em).then(() => acctShow(t('acct.resetSent', { email: em })), (e) => acctShow(acctErr(e))); }
       case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); toast(t('acct.signedOut')); });
-      case 'conflict': { const f = window.__conflict; closeSheet(); if (f) f(id); return; }
+      case 'conflict': { const f = window.__conflict; if (f) f(id); closeSheet(); return; }          // answer first: closing the pop-up counts as 'cancel'
       case 'download': return sheetDownload();
       case 'filter': return sheetFilter();
       case 'settings':
@@ -848,6 +868,10 @@
       case 'pick-lang': return sheetChoice(t('set.language'), 'set-lang', I.getLang(), Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]));
       case 'pick-appearance': return sheetChoice(t('set.appearance'), 'set-theme', theme, [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]]);
       case 'pick-autofind': return sheetChoice(t('set.autoFind'), 'set-autofind', pref('autoFind', true) ? 'on' : 'off', [['on', t('set.on')], ['off', t('set.off')]]);
+      case 'share-lang': { const f = window.__shareLang; if (f) f(id); closeSheet(); return; }     // answer first: closing the pop-up counts as 'cancel'
+      case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', pref('custLang', 'app'), [['app', t('cust.same')], ...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']])]);
+      case 'set-custlang': setPref('custLang', id); closeSheet(); return render();
+      case 'toggle-askshare': setPref('askShareLang', !pref('askShareLang', true)); return render();
       case 'check-update': return checkUpdate();
       case 'check-rules': return checkRules();
       case 'draft-palette': themeDraft = id; return render();
@@ -1074,7 +1098,7 @@
 
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const tidyPhotos = debounce(() => PUI.cleanup(), 2500);
-  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), autoFind: () => pref('autoFind', true) });
+  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, autoFind: () => pref('autoFind', true) });
   Cloud.init({
     getState: () => state,
     askConflict,

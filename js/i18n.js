@@ -383,6 +383,15 @@
     'rules.noAccess': 'The rules refused your own workspace. Publish the latest rules in the Firebase console.',
     'rules.tooOpen': 'Warning: another workspace was not refused. Publish the latest rules in the Firebase console.',
     'rules.error': 'Could not check the rules (no connection?).',
+    /* language for customers */
+    'set.custLang': 'Language for customers',
+    'cust.same': 'Same as the app',
+    'set.askShare': 'Ask the language when sharing a photo',
+    'set.askShareSub': 'Asks every time; on the pop-up you can tick “don’t ask me again”',
+    'share.langTitle': 'Language for this message',
+    'share.langSub': 'The picture’s caption says “Available” or “Disponible”, and the price format follows it.',
+    'share.dontAsk': 'Don’t ask me again',
+    'share.note': 'You can change this any time in Settings → Language for customers.',
   };
 
   const ES = {
@@ -740,6 +749,15 @@
     'rules.noAccess': 'Las reglas rechazaron tu propio espacio. Publica las últimas reglas en la consola de Firebase.',
     'rules.tooOpen': 'Aviso: otro espacio no fue rechazado. Publica las últimas reglas en la consola de Firebase.',
     'rules.error': 'No se pudieron revisar las reglas (¿sin conexión?).',
+    /* language for customers */
+    'set.custLang': 'Idioma para clientes',
+    'cust.same': 'El mismo de la app',
+    'set.askShare': 'Preguntar el idioma al compartir una foto',
+    'set.askShareSub': 'Pregunta cada vez; en la ventana puedes marcar “no preguntar de nuevo”',
+    'share.langTitle': 'Idioma de este mensaje',
+    'share.langSub': 'El texto de la foto dice “Available” o “Disponible”, y el formato del precio lo sigue.',
+    'share.dontAsk': 'No preguntar de nuevo',
+    'share.note': 'Puedes cambiarlo cuando quieras en Ajustes → Idioma para clientes.',
   };
 
   const LANGS = { en: EN, es: ES };

@@ -579,8 +579,8 @@
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const b = batchOf(i);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
-      <div class="itemhead">${PUI.photoThumb(i)}<div class="grow"><label style="margin-top:0">${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off"></div></div>
-      ${PUI.photoActions(i)}
+      ${PUI.photoBox(i)}
+      <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
       <label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <div class="sumbox" id="calc"></div>
       <label>${t('item.price')}</label><div class="grid2"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>

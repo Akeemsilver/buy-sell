@@ -36,15 +36,14 @@
 
   /* ---------- item sheet: what customers see / what stays private ---------- */
 
-  // Item page: a small photo beside the description (tap it for the full-screen view) and a row of four actions under it.
-  function photoThumb(it) {
-    if (!it.photo) return noTile();
-    return `<button type="button" class="ph big" data-act="photo-view" data-id="${it.id}" aria-label="${t('photo.view')}"><img data-ph="${it.photo.id}" data-kind="thumb" alt="">${it.photo.checked ? '' : `<em class="warn-badge">${t('photo.check')}</em>`}</button>`;
-  }
-  function photoActions(it) {
-    const st = L.shareStatus(it), b = (act, icon, label, extra) => `<button type="button" class="pact ${extra || ''}" data-act="${act}" data-id="${it.id}"><i>${icon}</i><span>${label}</span></button>`;
-    if (!it.photo) return `<div class="pactions one">${b('photo-replace', '📷', t('photo.addOne'))}</div>`;
-    return `<div class="pactions">${b('photo-share', '📤', t('photo.share'), 'main')}${b('photo-check', '✂️', st === 'ok' ? t('photo.editShort') : t('photo.checkShort'))}${b('photo-replace', '🔄', t('photo.replaceShort'))}${b('photo-remove', '🗑️', t('photo.removeShort'), 'bad')}</div>`;
+  // Item page: the photo as before (tap it for the full-screen view), Share under it, then Edit / Replace / Remove side by side.
+  function photoBox(it) {
+    const st = L.shareStatus(it);
+    const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><img data-ph="${it.photo.id}" data-kind="full" alt="">${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
+    return `${pic}<button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
+      ${it.photo ? `<div class="photo-actions3"><button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.editShort') : t('photo.checkShort')}</button>
+        <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replaceShort')}</button>
+        <button class="btn danger" data-act="photo-remove" data-id="${it.id}">${t('photo.removeShort')}</button></div>` : `<button class="btn" style="margin-top:8px" data-act="photo-replace" data-id="${it.id}">${t('photo.addOne')}</button>`}`;
   }
 
   /* ---------- adding photos ---------- */
@@ -418,7 +417,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoThumb, photoActions, act, isOpen, layers, back, closeEditor, share,
+    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

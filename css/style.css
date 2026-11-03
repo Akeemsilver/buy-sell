@@ -357,3 +357,16 @@ h2.sec{margin:18px 0 6px}
 .photo-actions3 .btn{min-height:46px;font-size:14px;padding:0 8px}
 
 .privnote{margin-left:8px;font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--brand);background:var(--tint);border-radius:99px;padding:2px 9px;white-space:nowrap}
+
+/* sale price */
+.fade{opacity:.42}
+.fade input,.fade button{pointer-events:none}
+.sw2{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px;box-shadow:var(--sh1)}
+.sw2 small{display:block;color:var(--mute);font-size:12px}
+.tog{flex:none;width:48px;height:28px;border-radius:99px;border:0;background:var(--line);position:relative;padding:0;transition:background .2s}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s}
+.tog.on{background:var(--brand)}.tog.on::after{left:23px}
+.chiprow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+.was{text-decoration:line-through;color:var(--mute)}
+.big{font-size:18px;font-weight:900;color:var(--brand)}
+.saleoff{display:inline-block;margin-left:6px;background:#c62828;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:800}

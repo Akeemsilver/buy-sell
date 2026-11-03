@@ -155,14 +155,25 @@
     x.drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, size, size); return c;
   };
   P.pixels = (canvas) => canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-  // Draw the price as a white tag at the bottom-left of a picture.
-  P.priceTag = (canvas, text) => {
-    const x = canvas.getContext('2d'), size = Math.max(16, Math.round(canvas.width * 0.06)), pad = size * 0.5, m = Math.round(canvas.width * 0.04);
-    x.font = `800 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`; x.textBaseline = 'middle';
-    const w = x.measureText(text).width + pad * 2, h = size + pad, X = m, Y = canvas.height - m - h, r = h / 2;
+  // Draw the price as a white tag at the bottom-left of a picture. With opt = {was, badge} (a sale) it also shows the old price
+  // crossed out and a small red badge, e.g. "TT$150.00  ~~TT$300.00~~  50% OFF".
+  P.priceTag = (canvas, text, opt) => {
+    const x = canvas.getContext('2d'), m = Math.round(canvas.width * 0.04), face = (w, sz) => `${w} ${sz}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    let size = Math.max(16, Math.round(canvas.width * 0.06));
+    const measure = (sz) => { const pad = sz * 0.5, gap = sz * 0.45; x.font = face(800, sz); const main = x.measureText(text).width; let was = 0, badge = 0;
+      if (opt) { x.font = face(600, sz * 0.62); was = opt.was ? x.measureText(opt.was).width : 0; x.font = face(800, sz * 0.5); badge = opt.badge ? x.measureText(opt.badge).width + sz * 0.5 : 0; }
+      return { pad, gap, main, was, badge, w: pad * 2 + main + (was ? gap + was : 0) + (badge ? gap + badge : 0) }; };
+    let k = measure(size); while (k.w > canvas.width - m * 2 && size > 12) { size -= 2; k = measure(size); }
+    const h = size + k.pad, X = m, Y = canvas.height - m - h, r = h / 2;
     x.save(); x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = size * 0.4; x.shadowOffsetY = 2;
-    x.fillStyle = '#fff'; x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); x.fill(); x.restore();
-    x.fillStyle = root.Theme ? root.Theme.brand() : '#741b47'; x.textAlign = 'left'; x.fillText(text, X + pad, Y + h / 2 + 1);
+    x.fillStyle = '#fff'; x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + k.w, Y, X + k.w, Y + h, r); x.arcTo(X + k.w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + k.w, Y, r); x.closePath(); x.fill(); x.restore();
+    x.textBaseline = 'middle'; x.textAlign = 'left'; let cx = X + k.pad; const cy = Y + h / 2 + 1;
+    x.font = face(800, size); x.fillStyle = root.Theme ? root.Theme.brand() : '#741b47'; x.fillText(text, cx, cy); cx += k.main;
+    if (k.was) { cx += k.gap; x.font = face(600, size * 0.62); x.fillStyle = '#8a8a8a'; x.fillText(opt.was, cx, cy); x.fillRect(cx, cy, k.was, Math.max(1.5, size * 0.07)); cx += k.was; }
+    if (k.badge) {
+      cx += k.gap; const bh = size * 0.78, by = cy - bh / 2, br = bh / 2; x.fillStyle = '#c62828'; x.beginPath(); x.moveTo(cx + br, by); x.arcTo(cx + k.badge, by, cx + k.badge, by + bh, br); x.arcTo(cx + k.badge, by + bh, cx, by + bh, br); x.arcTo(cx, by + bh, cx, by, br); x.arcTo(cx, by, cx + k.badge, by, br); x.closePath(); x.fill();
+      x.fillStyle = '#fff'; x.font = face(800, size * 0.5); x.fillText(opt.badge, cx + size * 0.25, cy);
+    }
   };
   // Draw the shop logo, centred, inside each box (used by the "own logo" way of hiding marks, after the box was covered).
   P.drawLogo = (canvas, marks, logo) => {

@@ -308,7 +308,7 @@
 
   function itemCard(b, i) {
     const c = L.itemCalc(b, i), sel = selected.has(i.id), noPhoto = L.shareStatus(i) === 'noPhoto';
-    const priceHtml = i.sold ? money(i.sold) : i.price ? money(i.price) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : '';
+    const sale = L.salePrice(i), priceHtml = i.sold ? money(i.sold) : sale ? `${money(sale)}<small class="saleoff">−${Number(i.discount)}%</small>` : i.price ? money(i.price) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : '';
     return `<div class="item ${sel ? 'sel' : ''}" data-id="${i.id}">
       <label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-sel ${sel ? 'checked' : ''}></label>
       <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i)}<span class="txt"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}</b>
@@ -582,7 +582,8 @@
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
-      <label>${t('item.price')}</label><div class="grid2"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
+      <label>${t('item.price')}</label><div class="grid2 ${L.saleActive(i) ? 'fade' : ''}" id="pricerow"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00" ${L.saleActive(i) ? 'readonly' : ''}><button class="btn" type="button" data-act="use-rec" data-id="${i.id}" ${L.saleActive(i) ? 'disabled' : ''}>${t('item.useRec')}</button></div>
+      <div id="saleblock">${saleHTML(i)}</div>
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
@@ -590,17 +591,40 @@
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       <div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render, true);
-    $('#sheet').dataset.item = id; calcBox(i);
+    $('#sheet').dataset.item = id; updateSale(i);
   }
+  /* A sale takes a percentage off the selling price: a switch, quick percentages, and the sale price worked out for you. */
+  function saleSum(i) {
+    const pct = Number(i.discount) || 0, sp = L.salePrice(i);
+    return `<div><span>${t('item.sellingWas')}</span><span class="${sp ? 'was' : ''}">${money(Number(i.price) || 0)}</span></div><div><span>${t('item.discountRow')}</span><span>${pct ? '−' + pct + '%' : '—'}</span></div>
+      <div class="t"><span class="big">${t('item.salePriceLbl')}</span><span class="big">${money(sp)}</span></div>`;
+  }
+  function saleHTML(i) {
+    const on = !!i.saleOn, pct = Number(i.discount) || 0;
+    return `<div class="sw2"><div><b>${t('item.onSale')}</b><small>${t('item.onSaleSub')}</small></div><button type="button" class="tog ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="${t('item.onSale')}" data-act="toggle-sale" data-id="${i.id}"></button></div>
+      ${on ? `<div class="chiprow">${[10, 20, 25, 50].map((c) => `<button type="button" class="chip ${pct === c ? 'on' : ''}" data-act="sale-pct" data-id="${i.id}" data-v="${c}">${c}%</button>`).join('')}<button type="button" class="chip" data-act="sale-other" data-id="${i.id}">${t('item.saleOther')}</button></div>
+      <label>${t('item.discount')}</label><input data-f="discount" type="text" inputmode="decimal" value="${pct ? pct + '%' : ''}" placeholder="${t('item.discountPh')}" autocomplete="off">
+      <div class="sumbox" id="salesum">${saleSum(i)}</div>` : ''}`;
+  }
+  // Keeps everything that depends on the prices in step (profit lines, sale summary, the locked selling price).
+  function updateSale(i) {
+    calcBox(i);
+    const sum = $('#salesum'); if (sum) sum.innerHTML = saleSum(i);
+    const lock = L.saleActive(i), row = $('#pricerow'); if (row) { row.classList.toggle('fade', lock); const inp = row.querySelector('input'); if (inp) inp.readOnly = lock; const b = row.querySelector('button'); if (b) b.disabled = lock; }
+  }
+  function refreshSaleBlock(i) { const el = $('#saleblock'); if (el) el.innerHTML = saleHTML(i); updateSale(i); }
+  const parsePct = (v) => Math.min(99, Math.max(0, Math.round((parseFloat(String(v).replace('%', '').replace(',', '.')) || 0) * 100) / 100));
+
   function calcBox(i) {
-    const c = L.itemCalc(batchOf(i), i), has = c.landed > 0, price = Number(i.price) || 0, sold = Number(i.sold) || 0;
+    const c = L.itemCalc(batchOf(i), i), has = c.landed > 0, price = Number(i.price) || 0, sold = Number(i.sold) || 0, sale = L.salePrice(i);
     const line = (label, price0, strong) => { const ok = has && price0 > 0, v = L.r2(price0 - c.landed); return `<div${strong ? ' class="t"' : ''}><span>${label}</span><span class="${ok && v < 0 ? 'bad' : ''}">${ok ? money(v) : '—'}</span></div>`; };
-    // First profit line follows the Selling price box: empty or equal to the recommended price = "recommended", any other number = "selling price".
+    // First profit line follows the selling-price part: a sale price while a sale is on; otherwise the Selling price box (empty or equal to the recommended price = "recommended").
     // A second line (sold for) appears only when something is typed in Sold for.
     const isRec = price <= 0 || Math.abs(price - c.recommended) < 0.005;
+    const first = sale > 0 ? line(t('calc.profitSale'), sale, true) : line(isRec ? t('calc.profitRec') : t('calc.profitPrice'), isRec ? c.recommended : price, true);
     $('#calc').innerHTML = `<div><span>${t('calc.costTTD')}</span><span>${money(c.costTTD)}</span></div><div><span>${t('calc.clearing')}</span><span>${money(c.clearing)}</span></div>
       <div class="t"><span>${t('calc.landed')}</span><span>${money(c.landed)}</span></div><div><span>${t('calc.rec')}</span><span>${money(c.recommended)}</span></div>
-      ${line(isRec ? t('calc.profitRec') : t('calc.profitPrice'), isRec ? c.recommended : price, true)}${sold > 0 ? line(t('calc.profitSold'), sold, false) : ''}`;
+      ${first}${sold > 0 ? line(t('calc.profitSold'), sold, false) : ''}`;
   }
 
   // Invoice design follows the Google Sheets invoice template (banner, mauve table header, balance bar, pink footer).
@@ -891,7 +915,10 @@
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
-      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return; }
+      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
+      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
+      case 'sale-other': { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.saleActive(it)) return toast(t('sale.locked')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return; }
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
@@ -939,8 +966,9 @@
     }
     if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
+      if (f === 'discount') { i.discount = parsePct(el.value); el.value = i.discount ? i.discount + '%' : ''; save(); return refreshSaleBlock(i); }   // "50" becomes "50%"
       i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(el.value) || 0) : el.value;
-      save(); calcBox(i);
+      save(); updateSale(i);
     }
   });
 
@@ -950,14 +978,16 @@
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
-      if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(el.value) || 0); calcBox(i); } else { i[f] = el.value; }
+      if (f === 'discount') { i.discount = parsePct(el.value); updateSale(i); }
+      else if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(el.value) || 0); updateSale(i); } else { i[f] = el.value; }
       save();
     } else if (el.form && el.form.id === 'f-batch') {
       const f = el.form, r = L.effectiveRate(state, f.currency.value), c = parseFloat(f.totalCost.value) || 0;
       $('#rate-hint').innerHTML = t('batch.rateHint', { rate: r.toFixed(4), amount: money(c * r) });
     }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (PUI.isOpen()) PUI.back(); else closeSheet(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.f === 'discount') { e.preventDefault(); e.target.blur(); return; }
+    if (e.key === 'Escape') { if (PUI.isOpen()) PUI.back(); else closeSheet(); } });
 
   /* ---------- files ---------- */
 

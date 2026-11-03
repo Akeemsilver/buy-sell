@@ -135,7 +135,7 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   assert.equal(L.shareStatus(s.items[0]), 'notChecked'); s.items[0].photo.checked = true; assert.equal(L.shareStatus(s.items[0]), 'ok'); assert.equal(L.shareStatus(s.items[4]), 'noPhoto');
   // what leaves the app never contains a cost
   s.items[0].desc = 'Brown set'; s.items[0].price = 540;
-  const pv = L.publicView(s.items[0]); assert.deepEqual(Object.keys(pv).sort(), ['id', 'name', 'price']); assert.equal(pv.price, 540);
+  const pv = L.publicView(s.items[0]); assert.deepEqual(Object.keys(pv).sort(), ['discount', 'id', 'name', 'price', 'salePrice']); assert.equal(pv.price, 540);
   assert.ok(!JSON.stringify(pv).includes('25.6') && !JSON.stringify(pv).includes('262') && !JSON.stringify(pv).includes('524'));
   s.items[1].price = 0; assert.equal(L.publicView(s.items[1]).price, 0);                 // no price: shared as "available"
   // selling price pre-fills "sold for" only when nothing is there
@@ -187,3 +187,23 @@ if (path && fs.existsSync(path)) {
     'batch2 profit', Math.round(st.profit), 'margin', s.batches[1].margin, 'owing', L.totals(s).owing);
 }
 console.log('all tests passed');
+
+// ---- sale price (a percentage off the selling price)
+{
+  const L2 = require('../js/logic.js');
+  const it = { id: '001-001', desc: 'Dress', cost: 25.6, price: 300, sold: 0, discount: 50, saleOn: true };
+  assert.strictEqual(L2.salePrice(it), 150, '50% off 300');
+  assert.strictEqual(L2.salePrice({ ...it, saleOn: false }), 0, 'switched off = no sale');
+  assert.strictEqual(L2.salePrice({ ...it, discount: 0 }), 0, '0% = no sale');
+  assert.strictEqual(L2.salePrice({ ...it, discount: 100 }), 0, '100% is not a sale');
+  assert.strictEqual(L2.salePrice({ ...it, price: 0 }), 0, 'no selling price');
+  assert.strictEqual(L2.salePrice({ ...it, price: 199.99, discount: 33 }), 133.99, 'rounded to the cent');
+  const pv = L2.publicView(it); assert.deepStrictEqual(Object.keys(pv).sort(), ['discount', 'id', 'name', 'price', 'salePrice'], 'shared view has no cost');
+  assert.strictEqual(pv.salePrice, 150); assert.strictEqual(pv.discount, 50);
+  const f = { ...it }; L2.prefillSold(f); assert.strictEqual(f.sold, 0, 'on sale: Sold for stays empty');
+  const g = { ...it, saleOn: false }; L2.prefillSold(g); assert.strictEqual(g.sold, 300, 'no sale: Sold for starts as the selling price');
+  const b = { rate: 7, totalCost: 25.6, clearingPaid: 0, margin: 100 };
+  const c1 = L2.itemCalc(b, it), c2 = L2.itemCalc(b, { ...it, saleOn: false });
+  assert(c1.profit < c2.profit, 'projected profit uses the sale price when a sale is on');
+}
+console.log('sale price tests passed');

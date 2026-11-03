@@ -297,3 +297,5 @@ h2.sec{margin:18px 0 6px}
 .update span{flex:1;font-weight:600}
 .update button{border:0;border-radius:12px;background:#fff;color:#27323f;font-weight:800;min-height:42px;padding:0 18px}
 .update button:disabled{opacity:.7}
+
+.ed-chip.sel{box-shadow:0 0 0 3px var(--tint),0 0 0 4.5px var(--brand)}

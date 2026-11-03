@@ -222,7 +222,12 @@
   };
   P.crop = (src, f) => { const c = P.canvas(Math.round(f.w), Math.round(f.h)); c.getContext('2d').drawImage(src, f.x, f.y, f.w, f.h, 0, 0, c.width, c.height); return c; };
   P.rotate90 = (src) => { const c = P.canvas(src.height, src.width), x = c.getContext('2d'); x.translate(c.width, 0); x.rotate(Math.PI / 2); x.drawImage(src, 0, 0); return c; };
-  P.scaled = (src, max) => { const s = P.fit(src.width, src.height, max), c = P.canvas(s.w, s.h), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, s.w, s.h); return c; };
+  // Smooth downscale: halve step by step while the picture is more than twice the target, then the last step (sharper than one big jump).
+  P.scaled = (src, max) => {
+    const s = P.fit(src.width, src.height, max); let cur = src;
+    while (cur.width > s.w * 2 && cur.height > s.h * 2) { const c = P.canvas(Math.ceil(cur.width / 2), Math.ceil(cur.height / 2)), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, c.width, c.height); cur = c; }
+    const c = P.canvas(s.w, s.h), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, s.w, s.h); return c;
+  };
   // Square thumbnail (centre crop) of `size` pixels.
   P.thumb = (src, size) => {
     const s = Math.min(src.width, src.height), c = P.canvas(size, size), x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
@@ -240,10 +245,11 @@
   };
   // Draw the shop logo, centred, inside each box (used by the "own logo" way of hiding marks, after the box was covered).
   P.drawLogo = (canvas, marks, logo) => {
-    const x = canvas.getContext('2d');
+    const x = canvas.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
     marks.forEach((b) => {
-      const k = Math.min(b.w / logo.width, b.h / logo.height) * 0.92, w = logo.width * k, h = logo.height * k;
-      x.drawImage(logo, b.x + (b.w - w) / 2, b.y + (b.h - h) / 2, w, h);
+      const d = Math.min(b.w, b.h) * 0.94, cx = b.x + b.w / 2, cy = b.y + b.h / 2;           // the round logo sits in the middle of the box, as a badge
+      x.save(); x.beginPath(); x.arc(cx, cy, d / 2, 0, Math.PI * 2); x.closePath(); x.clip();
+      x.fillStyle = '#fff'; x.fillRect(cx - d / 2, cy - d / 2, d, d); x.drawImage(logo, cx - d / 2, cy - d / 2, d, d); x.restore();
     });
   };
 

@@ -36,30 +36,5 @@ const noise = (x, y) => { let a = (x * 73856093) ^ (y * 19349663); a = Math.imul
     assert(varIn < varRef * 0.15, `${mode}: the stripes are gone (${varIn} vs ${varRef})`);
   }
 }
-// 4. autofit: grows over a white word on a dark flat area, stays small when nothing is around
-{
-  const G = P.gray(mk(400, 300, (x, y) => (x > 120 && x < 260 && y > 100 && y < 128 && ((x >> 2) & 1) ? [255, 255, 255] : [30, 30, 30])));
-  const fit = P.autofit(G, { x: 150, y: 102, w: 80, h: 24 });
-  assert(fit.x <= 130 && fit.x + fit.w >= 250, 'box grew along the line: ' + JSON.stringify(fit));
-  assert(fit.h < 20 * 7 + 60, 'and stayed sane vertically');
-  const lone = P.autofit(P.gray(mk(400, 300, () => [30, 30, 30])), { x: 150, y: 100, w: 40, h: 20 });
-  assert.deepStrictEqual(lone, { x: 150, y: 100, w: 40, h: 20 }, 'nothing around: word box as is');
-}
 console.log('photo engine tests passed');
 
-// 5. the mark finder's agreement rules (pure part, no OCR needed)
-{
-  globalThis.Photo = P; const R = require('../js/reader.js');
-  const box = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 }), rd = (text, conf, b, key) => ({ text, conf, box: b, key });
-  const W = 1000, H = 1200, reads = [];
-  for (let i = 0; i < 3; i++) reads.push(rd('SHEIN', 80, box(20, 10, 120, 40), 'k' + i));       // three readings agree, top-left corner
-  for (let i = 0; i < 6; i++) reads.push(rd('Veilorie', 90, box(400, 600, 520, 650), 'm' + i)); // product text in the middle: never suggested
-  reads.push(rd('1/7', 70, box(900, 30, 960, 60), 'c1'));                                        // page counter: one confident reading is enough
-  reads.push(rd('Dress', 90, box(30, 30, 120, 60), 'd1'));                                        // a single reading: not enough
-  reads.push(rd('xx', 95, box(30, 100, 120, 130), 'e1')); reads.push(rd('Sale', 95, box(30, 700, 130, 740), 'e2'));   // too short / not in a margin
-  const out = R.agree(reads, W, H, 3, 50, 60).map((c) => c.text).sort();
-  assert.deepStrictEqual(out, ['1/7', 'SHEIN']);
-  const huge = [0, 1, 2].map((i) => rd('Wide', 90, box(0, 0, 700, 100), 'h' + i));
-  assert.strictEqual(R.agree(huge, W, H, 3, 50, 60).length, 0, 'a "word" as wide as half the picture is junk');
-}
-console.log('mark finder rules passed');

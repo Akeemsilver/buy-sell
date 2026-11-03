@@ -77,7 +77,7 @@
     'more.invoices': 'Invoices', 'more.invoicesSub': '{n} total', 'more.items': 'Item log', 'more.itemsSub': '{n} items',
     'more.summary': 'Summary', 'more.summarySub': 'Monthly sales, expenses, profit', 'more.settings': 'Settings', 'more.settingsSub': 'Language, theme, exchange rates',
     'more.install': 'Install app', 'more.installIOS': 'Add to your iPhone home screen', 'more.installOther': 'Add to your home screen',
-    'more.data': 'Data', 'more.import': 'Import .xlsx workbook', 'more.importSub': 'Replaces data on this device', 'more.backup': 'Backup', 'more.backupSub': 'Save everything as a file',
+    'more.import': 'Import .xlsx workbook', 'more.importSub': 'Replaces data on this device', 'more.backup': 'Backup', 'more.backupSub': 'Save everything as a file',
     'more.restore': 'Restore backup', 'more.restoreSub': 'Load a backup file', 'more.erase': 'Erase all data', 'more.eraseSub': 'Cannot be undone — back up first',
     'more.local': 'Data is stored on this device only.', 'more.version': 'Version {v}',
     'invoices.none': 'No invoices yet.', 'items.all': 'All items',
@@ -86,7 +86,7 @@
     'summary.rowExpense': 'Expense', 'summary.rowSales': 'Sales', 'summary.rowProfit': 'Profit',
     /* settings */
     'set.language': 'Language', 'set.appearance': 'Appearance', 'set.light': '☀️ Light', 'set.dark': '🌙 Dark', 'set.auto': '📱 Auto', 'set.theme': 'Theme',
-    'set.autoNote': 'Auto follows your phone\'s light or dark setting.', 'set.business': 'Business', 'set.year': 'Year', 'set.margin': 'Default margin %',
+    'set.business': 'Business', 'set.year': 'Year', 'set.margin': 'Default margin %',
     'set.markup': 'Rate markup (×)', 'set.rate': '{c} → TTD (market rate)',
     'set.rateNote': 'Effective rate = market × markup. Type in today\'s rate; new batches use it, existing batches keep theirs.', 'set.save': 'Save settings', 'set.saved': 'Settings saved.',
     /* batch sheets */
@@ -195,14 +195,10 @@
     'ed.save': 'Save photo',
     'ed.saveNext': 'Save and check next',
     'ed.saving': 'Saving…',
-    'ed.finding': 'Looking for marks… {pct}%',
-    'ed.findingFirst': 'The first time, the mark finder downloads (about 8 MB); after that it also works offline. It runs on this phone only.',
-    'ed.stop': 'Stop looking',
-    'ed.found.one': 'Found {n} possible mark. Tick the ones to hide.',
-    'ed.found.other': 'Found {n} possible marks. Tick the ones to hide.',
-    'ed.guess': 'Not sure about these guesses — tick only the ones that really are marks.',
-    'ed.foundNone': 'No marks found. Drag on the picture to draw a box over anything you want to hide.',
-    'ed.finderOff': 'The mark finder could not start (no connection?). You can still draw boxes yourself.',
+    
+    
+    
+    
     'ed.draw': 'Drag on the picture to draw a box over anything you want to hide.',
     'ed.mine': 'My box {n}',
     'ed.mode': 'How to hide',
@@ -264,7 +260,7 @@
     'acct.conflict.phone': 'Use this phone’s copy',
     /* color schemes */
     'set.color': 'Color scheme',
-    'set.colorNote': 'Pick one dark color. The app chooses the lighter shades to match, in light and dark mode.',
+    
     'set.preview': 'Preview',
     'pv.profit': 'Profit on items sold',
     'pv.owing': 'Owing to you',
@@ -319,22 +315,19 @@
     /* photo marks: background finder, tools */
     'ed.move': 'Move',
     'ed.drawBox': 'Draw box',
-    'ed.bg': 'Looking for marks in the background. Keep going, or draw boxes yourself.',
+    
     'ed.max': 'You can hide up to 4 areas on a photo.',
     'ed.hintMove': 'Drag the picture to scroll. Tap a box to select it and pick how it is hidden. The ✕ removes it. Tap the picture to see it full screen.',
     'ed.hintDraw': 'Drag on the picture to draw a box.',
-    'photo.bgLeft': 'Finding marks in the background: {n} left',
-    'set.photos': 'Photos',
-    'set.autoFind': 'Find marks automatically',
-    'set.on': 'On',
-    'set.off': 'Off',
-    'set.autoFindNote': 'After you add photos, the phone looks for watermarks and page counters in the background. It can be slow, and it never hides anything without you checking. Turn it off to draw boxes yourself.',
+    
+    
+    
     /* app updates */
     'upd.available': 'Update available',
     'upd.btn': 'Update',
     'ed.oldNote': 'This photo was saved before edits were remembered, so its boxes cannot be brought back. Set it up once more and save: from then on it reopens exactly as you leave it.',
     /* settings list + about */
-    'set.sec.you': 'You',
+    
     'set.sec.app': 'App',
     'set.sec.business': 'Business',
     'set.sec.data': 'Data',
@@ -343,8 +336,7 @@
     'set.businessRow': 'Business details',
     'set.backupRow': 'Backup & restore',
     'set.backupSub': 'Photos are not included yet',
-    'set.aboutRow': 'About this app',
-    'set.aboutSub': 'Version {v}, rules, storage',
+    
     'about.versions': 'Versions',
     'about.app': 'App version',
     'about.build': 'Build',
@@ -449,7 +441,7 @@
     'more.invoices': 'Facturas', 'more.invoicesSub': '{n} en total', 'more.items': 'Registro de artículos', 'more.itemsSub': '{n} artículos',
     'more.summary': 'Resumen', 'more.summarySub': 'Ventas, gastos y ganancia por mes', 'more.settings': 'Ajustes', 'more.settingsSub': 'Idioma, tema, tasas de cambio',
     'more.install': 'Instalar app', 'more.installIOS': 'Agrégala a la pantalla de inicio de tu iPhone', 'more.installOther': 'Agrégala a tu pantalla de inicio',
-    'more.data': 'Datos', 'more.import': 'Importar libro .xlsx', 'more.importSub': 'Reemplaza los datos de este dispositivo', 'more.backup': 'Copia de seguridad', 'more.backupSub': 'Guarda todo en un archivo',
+    'more.import': 'Importar libro .xlsx', 'more.importSub': 'Reemplaza los datos de este dispositivo', 'more.backup': 'Copia de seguridad', 'more.backupSub': 'Guarda todo en un archivo',
     'more.restore': 'Restaurar copia', 'more.restoreSub': 'Carga un archivo de copia', 'more.erase': 'Borrar todos los datos', 'more.eraseSub': 'No se puede deshacer — haz una copia primero',
     'more.local': 'Los datos se guardan solo en este dispositivo.', 'more.version': 'Versión {v}',
     'invoices.none': 'Aún no hay facturas.', 'items.all': 'Todos los artículos',
@@ -457,7 +449,7 @@
     'summary.legend': 'Rosa = ventas, gris = gastos (se cuentan en el mes en que se pidió el lote).', 'summary.total': 'Total',
     'summary.rowExpense': 'Gastos', 'summary.rowSales': 'Ventas', 'summary.rowProfit': 'Ganancia',
     'set.language': 'Idioma', 'set.appearance': 'Apariencia', 'set.light': '☀️ Claro', 'set.dark': '🌙 Oscuro', 'set.auto': '📱 Auto', 'set.theme': 'Tema',
-    'set.autoNote': 'Auto sigue el modo claro u oscuro de tu teléfono.', 'set.business': 'Negocio', 'set.year': 'Año', 'set.margin': 'Margen predeterminado %',
+    'set.business': 'Negocio', 'set.year': 'Año', 'set.margin': 'Margen predeterminado %',
     'set.markup': 'Recargo sobre la tasa (×)', 'set.rate': '{c} → TTD (tasa de mercado)',
     'set.rateNote': 'Tasa efectiva = mercado × recargo. Escribe la tasa de hoy; los lotes nuevos la usan y los existentes conservan la suya.', 'set.save': 'Guardar ajustes', 'set.saved': 'Ajustes guardados.',
     'batch.prefix': 'LOTE', 'batch.new': 'Nuevo lote', 'batch.newNote': 'Igual que pedir en la hoja: indica la tienda, la cantidad de artículos y el costo total.', 'batch.store': 'Tienda', 'batch.count': 'N.º de artículos',
@@ -561,14 +553,10 @@
     'ed.save': 'Guardar foto',
     'ed.saveNext': 'Guardar y revisar la siguiente',
     'ed.saving': 'Guardando…',
-    'ed.finding': 'Buscando marcas… {pct}%',
-    'ed.findingFirst': 'La primera vez, el buscador de marcas se descarga (unos 8 MB); después también funciona sin conexión. Funciona solo en este teléfono.',
-    'ed.stop': 'Dejar de buscar',
-    'ed.found.one': 'Encontré {n} posible marca. Marca las que quieras ocultar.',
-    'ed.found.other': 'Encontré {n} posibles marcas. Marca las que quieras ocultar.',
-    'ed.guess': 'No estoy seguro de estas sugerencias: marca solo las que de verdad sean marcas.',
-    'ed.foundNone': 'No encontré marcas. Arrastra sobre la imagen para dibujar un cuadro sobre lo que quieras ocultar.',
-    'ed.finderOff': 'El buscador de marcas no pudo iniciar (¿sin conexión?). Aún puedes dibujar cuadros tú mismo.',
+    
+    
+    
+    
     'ed.draw': 'Arrastra sobre la imagen para dibujar un cuadro sobre lo que quieras ocultar.',
     'ed.mine': 'Mi cuadro {n}',
     'ed.mode': 'Cómo ocultar',
@@ -630,7 +618,7 @@
     'acct.conflict.phone': 'Usar la copia de este teléfono',
     /* color schemes */
     'set.color': 'Esquema de color',
-    'set.colorNote': 'Elige un color oscuro. La app escoge los tonos más claros que combinan, en modo claro y oscuro.',
+    
     'set.preview': 'Vista previa',
     'pv.profit': 'Ganancia de lo vendido',
     'pv.owing': 'Te deben',
@@ -685,22 +673,19 @@
     /* photo marks: background finder, tools */
     'ed.move': 'Mover',
     'ed.drawBox': 'Dibujar cuadro',
-    'ed.bg': 'Buscando marcas en segundo plano. Sigue, o dibuja los cuadros tú mismo.',
+    
     'ed.max': 'Puedes ocultar hasta 4 zonas en una foto.',
     'ed.hintMove': 'Arrastra la imagen para desplazarla. Toca un cuadro para seleccionarlo y elegir cómo se oculta. La ✕ lo quita. Toca la imagen para verla a pantalla completa.',
     'ed.hintDraw': 'Arrastra sobre la imagen para dibujar un cuadro.',
-    'photo.bgLeft': 'Buscando marcas en segundo plano: faltan {n}',
-    'set.photos': 'Fotos',
-    'set.autoFind': 'Buscar marcas automáticamente',
-    'set.on': 'Sí',
-    'set.off': 'No',
-    'set.autoFindNote': 'Después de añadir fotos, el teléfono busca marcas de agua y contadores de página en segundo plano. Puede ser lento y nunca oculta nada sin que lo revises. Apágalo para dibujar los cuadros tú mismo.',
+    
+    
+    
     /* app updates */
     'upd.available': 'Actualización disponible',
     'upd.btn': 'Actualizar',
     'ed.oldNote': 'Esta foto se guardó antes de que se recordaran las ediciones, así que no se pueden recuperar sus cuadros. Configúrala una vez más y guarda: desde entonces se abre exactamente como la dejes.',
     /* settings list + about */
-    'set.sec.you': 'Tú',
+    
     'set.sec.app': 'App',
     'set.sec.business': 'Negocio',
     'set.sec.data': 'Datos',
@@ -709,8 +694,7 @@
     'set.businessRow': 'Datos del negocio',
     'set.backupRow': 'Copia y restauración',
     'set.backupSub': 'Las fotos aún no se incluyen',
-    'set.aboutRow': 'Acerca de esta app',
-    'set.aboutSub': 'Versión {v}, reglas, almacenamiento',
+    
     'about.versions': 'Versiones',
     'about.app': 'Versión de la app',
     'about.build': 'Compilación',

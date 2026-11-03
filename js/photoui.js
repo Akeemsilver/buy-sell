@@ -1,7 +1,7 @@
 /* Photo screens: adding photos to a batch, the "check photo" editor (crop, then hide marks), thumbnails, sharing.
    Photos stay on this phone (see photostore.js). The app (app.js) hands over what this file needs through PhotoUI.init(). */
 (function (root) {
-  const P = root.Photo, S = root.PhotoStore, R = root.Reader, L = root.Logic, I = root.I18n;
+  const P = root.Photo, S = root.PhotoStore, L = root.Logic, I = root.I18n;
   const t = I.t, tn = I.tn;
   let A = null;                                    // the app's helpers (see init)
   const $ = (s, el) => (el || document).querySelector(s);
@@ -84,7 +84,7 @@
       try { ids.push(await createPhoto(files[n])); } catch (e) { failed++; }
     }
     const r = L.assignPhotos(st, batchId, ids);
-    A.save(); A.render(); ids.forEach((id) => bgAdd(id));
+    A.save(); A.render();
     A.toast(tn('photo.added', ids.length) + (failed ? ' · ' + tn('photo.failed', failed) : ''));
     if (ids.length) startCheck(r.assigned.map((a) => a.itemId));
   }
@@ -94,7 +94,7 @@
     A.toast(t('photo.adding', { done: 1, total: 1 }));
     try {
       const id = await createPhoto(files[0]), old = it.photo && it.photo.id;
-      it.photo = { id, checked: false }; A.save(); bgAdd(id); if (old) { forget(old); S.del(old).catch(() => {}); }
+      it.photo = { id, checked: false }; A.save(); if (old) { forget(old); S.del(old).catch(() => {}); }
       A.closeSheet(); A.render(); startCheck([itemId]);
     } catch (e) { A.toast(t('photo.readErr')); } finally { busy--; }
   }
@@ -215,13 +215,13 @@
       ed.src = await P.loadCanvas(rec.orig, 3000); const sv = it.photo.checked && rec.edit;
       if (sv) {                                    // already checked once: open it as it was left, at the hide-marks step
         for (let i = 0; i < (sv.rot || 0); i++) ed.src = P.rotate90(ed.src);
-        Object.assign(ed, { rot: sv.rot || 0, frame: sv.frame, ratio: sv.ratio || 0, mode: sv.mode || 'blur', tool: 'move', rotated: true, sugFailed: false, sugDone: true, sugCount: sv.sugCount || 0, restored: true, sel: null,
+        Object.assign(ed, { rot: sv.rot || 0, frame: sv.frame, ratio: sv.ratio || 0, mode: sv.mode || 'blur', tool: 'move', rotated: true, restored: true, sel: null,
           marks: (sv.marks || []).map((m) => Object.assign({}, m)) });
         return showMarks();
       }
       ed.rot = 0; ed.restored = false; ed.sel = null;
       ed.oldPhoto = !!it.photo.checked && !rec.edit;       // saved before edits were remembered: nothing to bring back
-      ed.ratio = 0; ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.marks = null; ed.mode = 'blur'; ed.tool = 'move'; ed.rotated = false; ed.sugFailed = false;
+      ed.ratio = 0; ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.marks = null; ed.mode = 'blur'; ed.tool = 'move'; ed.rotated = false; 
       showCrop();
     } catch (e) { A.toast(t('photo.missing')); next(); }
   }
@@ -303,63 +303,16 @@
   function showMarks() {
     ed.step = 'marks'; if (!ed.tool) ed.tool = 'move';
     const cr = P.crop(ed.src, ed.frame); ed.work = P.scaled(cr, 1800);
-    if (!ed.marks) { ed.marks = []; ed.sugDone = false; }
+    if (!ed.marks) ed.marks = [];
     edEl().innerHTML = `${head()}<div class="ed-stage marks" id="ed-stage"><canvas id="ed-cv"></canvas></div>
       <div class="ed-panel compact"><div id="ed-info" class="small"></div><div class="ed-tray" id="ed-marks"></div>
         <div class="ed-tools"><button class="chip ${ed.tool === 'move' ? 'on' : ''}" data-act="ed-tool" data-id="move">✋ ${t('ed.move')}</button><button class="chip ${ed.tool === 'draw' ? 'on' : ''}" data-act="ed-tool" data-id="draw">▭ ${t('ed.drawBox')}</button>
           <div class="seg" role="radiogroup" aria-label="${t('ed.mode')}" id="ed-mode">${['blur', 'cover', 'logo'].map((m) => `<button class="${ed.mode === m ? 'on' : ''}" role="radio" aria-checked="${ed.mode === m}" data-act="ed-mode" data-id="${m}">${t('ed.' + m)}</button>`).join('')}</div></div>
         <p class="muted small" id="ed-note"></p>
         <div class="ed-btns"><button class="btn" data-act="ed-back">${t('ed.back')}</button><button class="btn primary" id="ed-save" data-act="ed-save">${ed.idx + 1 < ed.total ? t('ed.saveNext') : t('ed.save')}</button></div></div>`;
-    layout(); bindMarks(); preview(); listMarks(); suggestState();
+    layout(); bindMarks(); preview(); listMarks();
   }
 
-  /* -- automatic mark finder: runs in the background, one photo at a time, starting as soon as photos are added -- */
-  const bg = { q: [], running: null, ctl: null, res: new Map() };
-  const bgLeft = () => bg.q.length + (bg.running ? 1 : 0);
-  function bgText() { const n = bgLeft(); return n ? t('photo.bgLeft', { n }) : ''; }
-  function bgNote() { const el = document.getElementById('bg-st'); if (el) el.textContent = bgText(); }
-  function bgAdd(photoId, front) {
-    if (!A.autoFind() || !R || bg.res.has(photoId) || bg.running === photoId) return;
-    bg.q = bg.q.filter((x) => x !== photoId); if (front) bg.q.unshift(photoId); else bg.q.push(photoId);
-    bgNote(); bgRun();
-  }
-  async function bgRun() {
-    if (bg.running || !bg.q.length) return;
-    const id = bg.q.shift(); bg.running = id; bgNote();
-    try {
-      const rec = await S.get(id);
-      if (rec && rec.orig) {
-        const c = await P.loadCanvas(rec.orig, 3000), frame = P.findPhotoArea(P.pixels(c)), cr = P.crop(c, frame); bg.ctl = { cancelled: false };
-        const found = await R.suggest(cr, null, bg.ctl); bg.res.set(id, { frame, boxes: found });
-      }
-    } catch (e) { if (!(e && e.message === 'cancelled')) bg.res.set(id, { failed: true, boxes: [] }); else bg.res.set(id, { boxes: [] }); }
-    bg.running = null; bg.ctl = null; bgNote();
-    if (ed && ed.step === 'marks' && ed.photoId === id) suggestState();
-    bgRun();
-  }
-  function bgStop() { bg.q = []; if (bg.ctl) R.cancel(bg.ctl); bgNote(); }
-  // Show the finder's result for the open photo (or say it is still working / switched off).
-  function suggestState() {
-    const info = $('#ed-info'); if (!info || !ed || ed.step !== 'marks') return;
-    if (ed.restored) { info.textContent = ''; return; }
-    if (!ed.sugDone) {
-      const r = bg.res.get(ed.photoId);
-      if (r && !r.failed) {
-        ed.sugDone = true;
-        if (!ed.rotated) {                          // boxes were found on the automatic crop: move them onto the crop in use
-          const k = ed.work.width / ed.frame.w, fr = r.frame, room = Math.max(0, MAX_MARKS - ed.marks.length);
-          r.boxes.map((m) => ({ m, b: { x: (m.box.x + fr.x - ed.frame.x) * k, y: (m.box.y + fr.y - ed.frame.y) * k, w: m.box.w * k, h: m.box.h * k } }))
-            .filter(({ b }) => b.x + b.w / 2 > 0 && b.y + b.h / 2 > 0 && b.x + b.w / 2 < ed.work.width && b.y + b.h / 2 < ed.work.height).slice(0, room)
-            .forEach(({ m, b }, n) => ed.marks.push({ id: 'a' + n, text: m.text, ticked: m.ticked, box: b, auto: true, mode: ed.mode }));
-        }
-        ed.sugCount = ed.marks.filter((m) => m.auto).length; listMarks(); preview();
-      } else if (r && r.failed) { ed.sugDone = true; ed.sugFailed = true; }
-      else if (A.autoFind()) { if (bg.running !== ed.photoId) bgAdd(ed.photoId, true); }
-    }
-    if (ed.sugDone) info.innerHTML = ed.sugFailed ? `<span class="bad">${t('ed.finderOff')}</span>` : !ed.sugCount ? t('ed.foundNone') : (ed.marks.find((m) => m.auto) || {}).ticked ? tn('ed.found', ed.sugCount) : t('ed.guess');
-    else if (A.autoFind()) info.innerHTML = `${t('ed.bg')} <button class="chip" data-act="ed-stop">${t('ed.stop')}</button>`;
-    else info.textContent = t('ed.draw');
-  }
   // The How-to-hide buttons show (and change) the way the selected box is hidden; with none selected they set it for the next box.
   function syncMode() {
     const m = ed.sel != null ? ed.marks[ed.sel] : null, cur = m ? m.mode : ed.mode;
@@ -368,8 +321,9 @@
   function listMarks() {
     const el = $('#ed-marks'); if (!el) return;
     let man = 0;
-    el.innerHTML = ed.marks.map((m, n) => `<span class="ed-chip ${m.ticked ? 'on' : ''} ${ed.sel === n ? 'sel' : ''}"><button data-act="ed-toggle" data-id="${n}" aria-pressed="${m.ticked}">${m.ticked ? '✓ ' : ''}${m.auto ? `“${A.esc(m.text)}”` : t('ed.mine', { n: ++man })}</button><button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button></span>`).join('') || '';
+    el.innerHTML = ed.marks.map((m, n) => `<span class="ed-chip ${m.ticked ? 'on' : ''} ${ed.sel === n ? 'sel' : ''}"><button data-act="ed-toggle" data-id="${n}" aria-pressed="${m.ticked}">${m.ticked ? '✓ ' : ''}${t('ed.mine', { n: ++man })}</button><button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button></span>`).join('') || '';
     const k = ed.marks.filter((m) => m.ticked).length;
+    const inf = $('#ed-info'); if (inf) inf.textContent = ed.marks.length ? '' : t('ed.draw');
     $('#ed-note').textContent = (k ? tn('ed.hiding', k) : t('ed.nothing')) + ' · ' + (ed.tool === 'draw' ? t('ed.hintDraw') : t('ed.hintMove'));
   }
   function render() {
@@ -425,7 +379,7 @@
       const out = render(), rec = await S.get(ed.photoId); if (!rec) throw new Error('missing');
       const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(out, 200), 0.8), P.toBlob(P.scaled(out, 900), 0.84)]);
       rec.thumb = thumbB; rec.full = fullB;
-      rec.edit = { rot: ed.rot || 0, frame: ed.frame, ratio: ed.ratio || 0, mode: ed.mode, sugCount: ed.sugCount || 0, marks: ed.marks.map((m) => ({ text: m.text, ticked: m.ticked, box: m.box, auto: m.auto, mode: m.mode })) };   // so Check or edit photo reopens exactly this
+      rec.edit = { rot: ed.rot || 0, frame: ed.frame, ratio: ed.ratio || 0, mode: ed.mode, marks: ed.marks.map((m) => ({ text: m.text, ticked: m.ticked, box: m.box, auto: m.auto, mode: m.mode })) };   // so Check or edit photo reopens exactly this
       await S.put(rec);
       const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) it.photo.checked = true;
       forget(ed.photoId); A.save(); next();
@@ -456,7 +410,6 @@
       case 'ed-del': ed.marks.splice(+id, 1); ed.sel = null; listMarks(); syncMode(); return preview();
       case 'ed-toggle': ed.marks[+id].ticked = true; ed.sel = +id; listMarks(); syncMode(); return preview();   // selects (and switches on a guess); the X removes a box
       case 'ed-tool': ed.tool = id; document.querySelectorAll('.ed-tools > .chip').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); $('#ed-cv').style.touchAction = id === 'draw' ? 'none' : 'pan-y'; return listMarks();
-      case 'ed-stop': if (bg.ctl && bg.running === ed.photoId) R.cancel(bg.ctl); else { bg.q = bg.q.filter((x) => x !== ed.photoId); bg.res.set(ed.photoId, { boxes: [] }); suggestState(); } return;
       case 'ed-save': return save();
     }
   }
@@ -464,7 +417,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, bgText, bgStop,
+    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

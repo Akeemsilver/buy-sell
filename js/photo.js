@@ -1,17 +1,10 @@
-/* Photo pixel engine: finds the picture inside a screenshot, hides marks (blur / smart cover / logo), sizes boxes around
-   marks that were read, draws nothing on its own. Works on plain {width,height,data} RGBA pixels, so it runs in the phone
+/* Photo pixel engine: finds the picture inside a screenshot and hides marks (blur / smart cover / logo). Works on plain {width,height,data} RGBA pixels, so it runs in the phone
    and in Node tests alike. The few canvas-only helpers at the bottom are skipped when there is no document. */
 (function (root) {
   const P = {};
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
   /* ---------- grey pictures and filters (Float32Array, one value per pixel) ---------- */
-
-  P.gray = (img) => {
-    const n = img.width * img.height, g = new Float32Array(n), d = img.data;
-    for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
-    return { w: img.width, h: img.height, g };
-  };
 
   // One box-blur pass along rows (axis 0) or columns (axis 1), edges repeat.
   function boxPass(src, w, h, r, axis) {
@@ -30,37 +23,6 @@
   // Three box passes in both directions are very close to a Gaussian blur.
   P.blurGray = (g, w, h, r) => { let a = g; if (r < 1) return Float32Array.from(g); for (let k = 0; k < 3; k++) { a = boxPass(a, w, h, r, 0); a = boxPass(a, w, h, r, 1); } return a; };
 
-  P.halve = (G) => {
-    const w = G.w >> 1, h = G.h >> 1, g = new Float32Array(w * h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = 2 * y * G.w + 2 * x; g[y * w + x] = (G.g[i] + G.g[i + 1] + G.g[i + G.w] + G.g[i + G.w + 1]) / 4; }
-    return { w, h, g };
-  };
-
-  // Stretch the contrast, ignoring the darkest and brightest `cut` percent (like Pillow's autocontrast(cutoff=2)).
-  P.autocontrast = (G, cut) => {
-    const hist = new Uint32Array(256), n = G.g.length; for (let i = 0; i < n; i++) hist[clamp(Math.round(G.g[i]), 0, 255)]++;
-    const lim = n * (cut || 0) / 100; let lo = 0, hi = 255, a = 0;
-    for (; lo < 255; lo++) { a += hist[lo]; if (a > lim) break; }
-    a = 0; for (; hi > 0; hi--) { a += hist[hi]; if (a > lim) break; }
-    if (hi <= lo) return G;
-    const out = new Float32Array(n), k = 255 / (hi - lo); for (let i = 0; i < n; i++) out[i] = clamp((G.g[i] - lo) * k, 0, 255);
-    return { w: G.w, h: G.h, g: out };
-  };
-  P.otsu = (G) => {
-    const hist = new Float64Array(256), n = G.g.length; for (let i = 0; i < n; i++) hist[clamp(Math.round(G.g[i]), 0, 255)]++;
-    let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
-    let wB = 0, sB = 0, best = 0, th = 127;
-    for (let i = 0; i < 256; i++) { wB += hist[i]; if (!wB) continue; const wF = n - wB; if (!wF) break; sB += i * hist[i]; const m = sB / wB - (sum - sB) / wF, v = wB * wF * m * m; if (v > best) { best = v; th = i; } }
-    const out = new Float32Array(n); for (let i = 0; i < n; i++) out[i] = G.g[i] > th ? 255 : 0;
-    return { w: G.w, h: G.h, g: out };
-  };
-  P.invert = (G) => { const out = new Float32Array(G.g.length); for (let i = 0; i < out.length; i++) out[i] = 255 - G.g[i]; return { w: G.w, h: G.h, g: out }; };
-  P.unsharp = (G, r, percent) => {
-    const b = P.blurGray(G.g, G.w, G.h, Math.max(1, Math.round(r * 0.9))), k = percent / 100, out = new Float32Array(G.g.length);
-    for (let i = 0; i < out.length; i++) out[i] = clamp(G.g[i] + (G.g[i] - b[i]) * k, 0, 255);
-    return { w: G.w, h: G.h, g: out };
-  };
-  P.grayToImage = (G) => { const d = new Uint8ClampedArray(G.w * G.h * 4); for (let i = 0, j = 0; i < G.g.length; i++, j += 4) { d[j] = d[j + 1] = d[j + 2] = G.g[i]; d[j + 3] = 255; } return { width: G.w, height: G.h, data: d }; };
 
   /* ---------- where the picture is inside a screenshot ---------- */
 
@@ -140,47 +102,6 @@
   };
   // Apply every mark: marks = [{x, y, w, h}], mode = 'blur' | 'cover' | 'logo' (logo = cover here; the logo itself is drawn on top by the app).
   P.applyMarks = (img, marks, mode) => marks.forEach((b) => (mode === 'blur' ? P.blurBox(img, b) : P.coverBox(img, b)));
-
-  /* ---------- sizing a box around a word the reader found ---------- */
-
-  function dil1d(m, w, h, r, axis) {
-    if (r <= 0) return m;
-    const out = new Uint8Array(m.length), len = axis === 0 ? w : h, lines = axis === 0 ? h : w, at = (l, i) => (axis === 0 ? l * w + i : i * w + l);
-    for (let l = 0; l < lines; l++) {
-      const pre = new Int32Array(len + 1); for (let i = 0; i < len; i++) pre[i + 1] = pre[i] + m[at(l, i)];
-      for (let i = 0; i < len; i++) out[at(l, i)] = pre[Math.min(len, i + r + 1)] - pre[Math.max(0, i - r)] > 0 ? 1 : 0;
-    }
-    return out;
-  }
-  // Starts from the word's own box and grows over the text/graphic it belongs to (marks differ from their surroundings
-  // by a clear amount of brightness), but never into a large part of the picture. box = {x, y, w, h}; returns the same shape.
-  P.autofit = (G, box, opt) => {
-    const o = Object.assign({ tdiff: 35, gapk: 0.25, up: 4, side: 0.2, gapx: 0.4, small: false }, opt || {}), SC = 2;
-    const W = G.w, H = G.h, x0 = box.x, y0 = box.y, x1 = box.x + box.w, y1 = box.y + box.h, bw = box.w, bh = box.h;
-    const hs = P.halve(G), sw = hs.w, sh = hs.h, bl = P.blurGray(hs.g, sw, sh, 10);
-    const rx = Math.max(o.side * bw, 3.2 * bh);
-    const ra = Math.max(0, Math.floor((y0 - o.up * bh) / SC)), rb = Math.min(sh, Math.ceil((y1 + o.up * bh) / SC)), rc = Math.max(0, Math.floor((x0 - rx) / SC)), rd = Math.min(sw, Math.ceil((x1 + rx) / SC));
-    const mk = new Uint8Array(sw * sh);
-    for (let y = ra; y < rb; y++) for (let x = rc; x < rd; x++) mk[y * sw + x] = Math.abs(hs.g[y * sw + x] - bl[y * sw + x]) > o.tdiff ? 1 : 0;
-    const gap = Math.max(2, Math.floor(o.gapk * bh / SC)), gx = Math.max(gap, Math.floor(o.gapx * bh / SC));
-    const dil = dil1d(dil1d(mk, sw, sh, gx, 0), sw, sh, gap, 1);
-    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) if (y < ra || y >= rb || x < rc || x >= rd) dil[y * sw + x] = 0;
-    const seen = new Uint8Array(sw * sh), q = [];
-    for (let y = Math.floor(y0 / SC); y <= Math.min(sh - 1, Math.floor(y1 / SC)); y++) for (let x = Math.floor(x0 / SC); x <= Math.min(sw - 1, Math.floor(x1 / SC)); x++) { const i = y * sw + x; if (dil[i] && !seen[i]) { seen[i] = 1; q.push(i); } }
-    const fallback = { x: Math.max(0, x0 - 14), y: Math.max(0, y0 - 14), w: Math.min(W, x1 + 14) - Math.max(0, x0 - 14), h: Math.min(H, y1 + 14) - Math.max(0, y0 - 14) };
-    if (!q.length) return { x: x0, y: y0, w: bw, h: bh };
-    let mnx = 1e9, mny = 1e9, mxx = -1, mxy = -1;
-    for (let k = 0; k < q.length; k++) {
-      const i = q[k], x = i % sw, y = (i / sw) | 0;
-      if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= sw || ny >= sh) continue; const ni = ny * sw + nx; if (dil[ni] && !seen[ni]) { seen[ni] = 1; q.push(ni); } }
-    }
-    const fx0 = Math.min(mnx * SC, x0), fy0 = Math.min(mny * SC, y0), fx1 = Math.max((mxx + 1) * SC, x1), fy1 = Math.max((mxy + 1) * SC, y1);
-    const wc = o.small ? 2.6 * bw + 40 : bw * 2.4 + 50, hc = o.small ? 3.2 * bh + 40 : bh * 3.8 + 40;    // small marks (counters) may not balloon into the texture around them
-    if (fx1 - fx0 > wc || fy1 - fy0 > hc) return fallback;
-    const pad = Math.floor(0.1 * Math.max(fx1 - fx0, fy1 - fy0)) + 8, ax = Math.max(0, fx0 - pad), ay = Math.max(0, fy0 - pad), bx = Math.min(W, fx1 + pad), by = Math.min(H, fy1 + pad);
-    return { x: ax, y: ay, w: bx - ax, h: by - ay };
-  };
 
   /* ---------- sizes ---------- */
 

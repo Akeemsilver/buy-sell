@@ -38,6 +38,10 @@ every key the code uses exists, that every logic error has a translation and tha
 the tests first, so a missing translation blocks the deploy. To add a language, add a dictionary to `LANGS` in `js/i18n.js` (the test tells
 you what is missing) and a button for it appears in Settings.
 
+## Settings
+
+One page: an account card, then sections of rows (App: Language, Appearance, Theme, Find marks automatically; Business details; Data: Backup & restore, Import workbook, Storage used; About: App version, Check the rules, Erase all data). Small choices open a short pop-up; Theme, Business details, Backup & restore and Storage used open their own page. **App version** shows `APP_VERSION` (js/app.js, goes up by 0.01 per release, like the rules 1.00, 1.01 … 1.99, 2.00) and the rules version it needs; tapping it checks for an update. **Check the rules** reads your own workspace (must work) and another workspace (must be refused). **Storage used** shows versions, cloud data against the free ~1 GB, space on the phone, counts and an estimate of today's cloud reads/writes (this phone only). `test/version.test.js` fails if the rules version in the app differs from `firestore.rules`.
+
 ## Photos (step 1: on the phone)
 
 - In **Stock**, "Add photos" (gallery, several at once, or camera) fills the next items of the batch that have no photo, in item order. Extra photos offer to add more items.

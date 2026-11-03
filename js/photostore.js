@@ -19,6 +19,12 @@
     put: (rec) => tx('readwrite', (s) => s.put(rec)),
     get: (id) => tx('readonly', (s) => s.get(id)),
     del: (id) => tx('readwrite', (s) => s.delete(id)),
+    // How many photos and how many bytes they take (for the About page).
+    stats: () => open().then((db) => new Promise((ok, no) => {
+      const out = { count: 0, bytes: 0 }, rq = db.transaction(STORE, 'readonly').objectStore(STORE).openCursor();
+      rq.onsuccess = () => { const c = rq.result; if (!c) return ok(out); const r = c.value; out.count++; ['thumb', 'full', 'orig'].forEach((k) => { if (r[k] && r[k].size) out.bytes += r[k].size; }); c.continue(); };
+      rq.onerror = () => no(rq.error);
+    })),
     keys: () => tx('readonly', (s) => s.getAllKeys()),
     // Remove photos no item points to any more (deleted items, batches, replaced photos).
     clean: (usedIds) => api.keys().then((ks) => Promise.all((ks || []).filter((k) => !usedIds.has(k)).map(api.del))),

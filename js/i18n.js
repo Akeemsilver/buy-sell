@@ -392,6 +392,7 @@
     'photo.checkShort': 'Check',
     'photo.replaceShort': 'Replace',
     'photo.removeShort': 'Remove',
+    'item.privateNote': 'Private — never shared',
   };
 
   const ES = {
@@ -758,6 +759,7 @@
     'photo.checkShort': 'Revisar',
     'photo.replaceShort': 'Cambiar',
     'photo.removeShort': 'Quitar',
+    'item.privateNote': 'Privado — nunca se comparte',
   };
 
   const LANGS = { en: EN, es: ES };

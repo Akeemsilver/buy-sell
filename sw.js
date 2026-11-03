@@ -6,7 +6,9 @@ const SHELL = ['./', 'index.html', 'css/style.css', 'js/logic.js', 'js/theme.js'
 // Third-party code (vendor/: the mark finder, about 8 MB, and Firebase) never changes between deploys: it is saved once, in a cache of its own that
 // survives updates, the first time it is used, and is not downloaded again.
 const VENDOR = 'vendor-v1';
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
+self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))); });
+// A new version waits until the person taps the Update button in the app (which sends this message).
+self.addEventListener('message', (e) => { if (e.data === 'skip-waiting') self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== VENDOR).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });

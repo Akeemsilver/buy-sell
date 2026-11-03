@@ -290,3 +290,10 @@ h2.sec{margin:18px 0 6px}
 .fullbar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:6px;margin:0 -16px 6px;padding:calc(8px + var(--sat)) 12px 8px;background:var(--bar);color:#fff}
 .fullbar>button{background:none;border:0;color:#fff;font-size:34px;line-height:1;width:44px;height:44px}
 .fullbar b{display:block;font-size:19px}.fullbar small{display:block;opacity:.8;font-size:12px}
+
+/* "new version" bar: nothing updates by itself, you press the button */
+.update{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabh) + var(--sab) + 84px);z-index:120;width:calc(100% - 28px);max-width:592px;display:flex;align-items:center;gap:12px;background:#27323f;color:#fff;border-radius:16px;padding:10px 10px 10px 16px;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.update[hidden]{display:none}
+.update span{flex:1;font-weight:600}
+.update button{border:0;border-radius:12px;background:#fff;color:#27323f;font-weight:800;min-height:42px;padding:0 18px}
+.update button:disabled{opacity:.7}

@@ -41,23 +41,25 @@
   <script src="js/sync.js"></script>
   <script src="js/cloud.js"></script>
   <script src="js/app.js"></script>
+  <div id="update" class="update" role="alert" hidden><span id="update-t"></span><button id="update-b" type="button"></button></div>
   <script>
-    // Offline support + automatic updates: look for a new version on open, when you come back to the app and every
-    // 10 minutes. When one takes over, reload into it (waiting while you are typing or a pop-up is open).
+    // Offline support + updates: look for a new version on open, when you come back to the app and every 10 minutes.
+    // When one is ready a bar appears at the bottom with an Update button; nothing reloads until you press it.
     if ('serviceWorker' in navigator) {
-      var hadController = !!navigator.serviceWorker.controller, reloading = false;
-      var say = function (m) { var t = document.getElementById('toast'); if (t) { t.textContent = m; t.classList.add('show'); } };
-      var safeNow = function () {
-        var a = document.activeElement, typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
-        return !typing && document.getElementById('sheet').hidden && document.getElementById('editor').hidden;
+      var pressed = false;
+      var tx = function (k, d) { return window.I18n ? I18n.t(k) : d; };
+      var showUpdate = function (worker) {
+        var bar = document.getElementById('update'); if (!bar || !bar.hidden) return;
+        document.getElementById('update-t').textContent = tx('upd.available', 'A new version is ready');
+        var b = document.getElementById('update-b'); b.textContent = tx('upd.btn', 'Update');
+        b.onclick = function () { pressed = true; b.disabled = true; b.textContent = tx('upd.updating', 'Updating…'); worker.postMessage('skip-waiting'); };
+        bar.hidden = false;
       };
-      var applyUpdate = function () {
-        if (reloading) return;
-        if (safeNow()) { reloading = true; say(window.I18n ? I18n.t('upd.updating') : 'Updating…'); setTimeout(function () { location.reload(); }, 600); }
-        else setTimeout(applyUpdate, 1500);          // try again once the pop-up is closed / typing has stopped
-      };
-      navigator.serviceWorker.addEventListener('controllerchange', function () { if (hadController) applyUpdate(); });
+      navigator.serviceWorker.addEventListener('controllerchange', function () { if (pressed) location.reload(); });
       navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+        var watch = function (w) { w.addEventListener('statechange', function () { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(w); }); };
+        if (reg.waiting && navigator.serviceWorker.controller) showUpdate(reg.waiting);
+        reg.addEventListener('updatefound', function () { if (reg.installing) watch(reg.installing); });
         var check = function () { reg.update().catch(function () {}); };
         document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
         window.addEventListener('online', check);

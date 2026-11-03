@@ -594,12 +594,14 @@
     $('#sheet').dataset.item = id; calcBox(i);
   }
   function calcBox(i) {
-    const c = L.itemCalc(batchOf(i), i), has = c.landed > 0;
-    // Three profit lines, one per price: what it sold for, the recommended price and the selling price you set ("—" when there is none).
-    const prof = (label, price) => { const ok = has && price > 0, v = L.r2(price - c.landed); return `<div><span>${label}</span><span class="${ok && v < 0 ? 'bad' : ''}">${ok ? money(v) : '—'}</span></div>`; };
+    const c = L.itemCalc(batchOf(i), i), has = c.landed > 0, price = Number(i.price) || 0, sold = Number(i.sold) || 0;
+    const line = (label, price0, strong) => { const ok = has && price0 > 0, v = L.r2(price0 - c.landed); return `<div${strong ? ' class="t"' : ''}><span>${label}</span><span class="${ok && v < 0 ? 'bad' : ''}">${ok ? money(v) : '—'}</span></div>`; };
+    // First profit line follows the Selling price box: empty or equal to the recommended price = "recommended", any other number = "selling price".
+    // A second line (sold for) appears only when something is typed in Sold for.
+    const isRec = price <= 0 || Math.abs(price - c.recommended) < 0.005;
     $('#calc').innerHTML = `<div><span>${t('calc.costTTD')}</span><span>${money(c.costTTD)}</span></div><div><span>${t('calc.clearing')}</span><span>${money(c.clearing)}</span></div>
       <div class="t"><span>${t('calc.landed')}</span><span>${money(c.landed)}</span></div><div><span>${t('calc.rec')}</span><span>${money(c.recommended)}</span></div>
-      <div class="t"><span>${t('calc.profitSold')}</span><span class="${has && i.sold > 0 && i.sold - c.landed < 0 ? 'bad' : ''}">${has && i.sold > 0 ? money(L.r2(i.sold - c.landed)) : '—'}</span></div>${prof(t('calc.profitRec'), c.recommended)}${prof(t('calc.profitPrice'), Number(i.price) || 0)}`;
+      ${line(isRec ? t('calc.profitRec') : t('calc.profitPrice'), isRec ? c.recommended : price, true)}${sold > 0 ? line(t('calc.profitSold'), sold, false) : ''}`;
   }
 
   // Invoice design follows the Google Sheets invoice template (banner, mauve table header, balance bar, pink footer).

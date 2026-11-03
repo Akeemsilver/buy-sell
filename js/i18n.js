@@ -386,12 +386,12 @@
     /* language for customers */
     'set.custLang': 'Language for customers',
     'cust.same': 'Same as the app',
-    'set.askShare': 'Ask the language when sharing a photo',
-    'set.askShareSub': 'Asks every time; on the pop-up you can tick “don’t ask me again”',
     'share.langTitle': 'Language for this message',
     'share.langSub': 'The picture’s caption says “Available” or “Disponible”, and the price format follows it.',
     'share.dontAsk': 'Don’t ask me again',
-    'share.note': 'You can change this any time in Settings → Language for customers.',
+    'share.note': 'You can change this any time in Settings → Language for customers (choose Always ask to see this question again).',
+    'cust.ask': 'Always ask',
+    'cust.note': 'Used for invoices and for the caption of shared photos. Always ask shows an English | Español question every time you share a photo.',
   };
 
   const ES = {
@@ -752,12 +752,12 @@
     /* language for customers */
     'set.custLang': 'Idioma para clientes',
     'cust.same': 'El mismo de la app',
-    'set.askShare': 'Preguntar el idioma al compartir una foto',
-    'set.askShareSub': 'Pregunta cada vez; en la ventana puedes marcar “no preguntar de nuevo”',
     'share.langTitle': 'Idioma de este mensaje',
     'share.langSub': 'El texto de la foto dice “Available” o “Disponible”, y el formato del precio lo sigue.',
     'share.dontAsk': 'No preguntar de nuevo',
-    'share.note': 'Puedes cambiarlo cuando quieras en Ajustes → Idioma para clientes.',
+    'share.note': 'Puedes cambiarlo cuando quieras en Ajustes → Idioma para clientes (elige Preguntar siempre para volver a ver esta pregunta).',
+    'cust.ask': 'Preguntar siempre',
+    'cust.note': 'Se usa para las facturas y para el texto de las fotos compartidas. Preguntar siempre muestra una pregunta Español | English cada vez que compartes una foto.',
   };
 
   const LANGS = { en: EN, es: ES };

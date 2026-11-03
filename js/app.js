@@ -12,6 +12,8 @@
   const day = (d) => (d ? new Date(d).toLocaleDateString(I.locale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '');
   const bizName = () => state.settings.businessName || 'B-RUIZ';
   const initials = (n) => String(n).trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toUpperCase() || '·';
+  // Versions shown in Settings > About. APP_VERSION goes up by 0.01 with each release; RULES_VERSION must match the header of firestore.rules (a test checks).
+  const APP_VERSION = '1.00', RULES_VERSION = '1.00', CLOUD_LIMIT = 1073741824;
   const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
@@ -189,9 +191,9 @@
     return L.defaultState();
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(t('err.save')); } if (window.Cloud) Cloud.changed(); }
-  function toast(msg) {
+  function toast(msg, ms) {
     const el = $('#toast'); el.textContent = plain(msg); el.classList.add('show');
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms || 3200);
   }
   // Run a state change, save, report. Errors become a toast and leave the sheet open.
   function run(fn, ok, keepSheet) {
@@ -207,7 +209,7 @@
   function render() {
     cleanSelected();
     const moreTitles = { invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-account': t('set.account'), 'set-language': t('set.language'), 'set-theme': t('set.theme'), 'set-appearance': t('set.appearance'), 'set-photos': t('set.photos'), 'set-business': t('set.business') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !(tab === 'more' && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
@@ -368,10 +370,6 @@
     return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
       ${go('summary', '📈', t('more.summary'), t('more.summarySub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
       ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>${t('more.install')}</b><small>${isIOS ? t('more.installIOS') : t('more.installOther')}</small></div><span class="chev">›</span></button></div>`}
-      <h2>${t('more.data')}</h2><div class="list">
-        ${act('import-xlsx', '📥', t('more.import'), t('more.importSub'))}${act('export-json', '💾', t('more.backup'), t('more.backupSub'))}
-        ${act('import-json', '♻️', t('more.restore'), t('more.restoreSub'))}${act('reset', '🗑️', t('more.erase'), t('more.eraseSub'), true)}</div>
-      <p class="note">${t('photo.backupNote')}</p>
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
   }
 
@@ -402,22 +400,80 @@
     <div class="pv-row"><div><small>${t('pv.owing')}</small><b>TT$ 300.00</b></div><div><small>${t('nav.stock')}</small><b>6 · 0</b></div></div><div class="pv-chips"><span class="on">${t('filter.all')}</span><span>${stLabel('Available')}</span><span>${stLabel('Paid')}</span></div><div class="pv-btn">${t('pv.batch')}</div></div></div>`;
   const swatchBtns = (sel, act) => Theme.PALETTES.map((p) => `<button type="button" class="swatch ${sel === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${sel === p.id}" aria-label="${t('pal.' + p.id)}" data-act="${act}" data-id="${p.id}"></button>`).join('');
 
+  // Settings: one page. An account card, then sections of rows (icon, title, what it does, arrow). Nothing is tucked inside another settings page.
+  const trow = (icon, title, sub, attrs, bad) => `<button class="row tap srow" ${attrs}><span class="tile">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${title}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
   function Settings() {
-    const row = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
-    const themeName = { light: t('set.light'), dark: t('set.dark'), auto: t('set.auto') }[theme];
-    return `<div class="list">${row('set-account', '👤', t('set.account'), cloud.signedIn ? esc(cloud.email) : t('set.accountOut'))}
-      ${row('set-language', '🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'])}
-      ${row('set-theme', '🎨', t('set.theme'), t('pal.' + curPal()))}
-      ${row('set-appearance', '🌓', t('set.appearance'), themeName)}
-      ${row('set-photos', '📷', t('set.photos'), t('set.autoFind') + ': ' + (pref('autoFind', true) ? t('set.on') : t('set.off')))}
-      ${row('set-business', '🏪', t('set.business'), t('set.businessSub'))}</div>`;
+    const themeName = { light: t('set.light'), dark: t('set.dark'), auto: t('set.auto') }[theme], nav = (v) => `data-act="more" data-id="${v}"`;
+    const acct = cloud.signedIn
+      ? `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${esc(cloud.email)}</div><div class="st ${cloud.status === 'synced' ? 'good' : /error|rules|unavailable/.test(cloud.status) ? 'bad' : ''}" id="acct-st">${acctStatus()}</div><button class="btn" data-act="acct-out">${t('acct.signOut')}</button></div>`
+      : `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${t('set.accountOut')}</div><p class="muted small" style="margin:6px 0 10px">${t('acct.signInSub')}</p><button class="btn primary" data-act="acct-open">${t('acct.signIn')} / ${t('acct.create')}</button></div>`;
+    return `${acct}
+      <h2>${t('set.sec.app')}</h2><div class="list grp">
+        ${trow('🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'], 'data-act="pick-lang"')}
+        ${trow('🌓', t('set.appearance'), themeName, 'data-act="pick-appearance"')}
+        ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
+        ${trow('✂️', t('set.autoFind'), pref('autoFind', true) ? t('set.on') : t('set.off'), 'data-act="pick-autofind"')}</div>
+      <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}</div>
+      <h2>${t('set.sec.data')}</h2><div class="list grp">
+        ${trow('💾', t('set.backupRow'), t('set.backupSub'), nav('set-backup'))}
+        ${trow('📥', t('more.import'), t('more.importSub'), 'data-act="import-xlsx"')}
+        ${trow('📊', t('set.storageRow'), t('set.storageSub'), nav('set-about'))}</div>
+      <h2>${t('set.sec.about')}</h2><div class="list grp">
+        ${trow('⬆️', t('set.versionRow', { v: APP_VERSION }), t('set.versionSub', { r: RULES_VERSION }), 'data-act="check-update"')}
+        ${trow('🛡️', t('set.rulesRow'), t('set.rulesSub', { r: RULES_VERSION }), 'data-act="check-rules"')}
+        ${trow('⚠️', t('more.erase'), t('more.eraseSub'), 'data-act="reset"', true)}</div>`;
+  }
+  // A small pop-up with the choices for one setting; tapping a choice applies it.
+  function sheetChoice(title, act, cur, opts) {
+    openSheet(`<h3>${title}</h3><div class="list" style="margin-top:12px">${opts.map(([k, l]) => `<button class="row tap" data-act="${act}" data-id="${k}"><div class="grow"><b>${l}</b></div><span style="font-weight:900;color:var(--brand)">${cur === k ? '✓' : ''}</span></button>`).join('')}</div>
+      <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+  }
+  function checkUpdate() {
+    if (!('serviceWorker' in navigator)) return toast(t('upd.latest'));
+    toast(t('upd.checking'));
+    navigator.serviceWorker.getRegistration().then((r) => (r ? r.update().then(() => new Promise((ok) => setTimeout(() => ok(r), 1800))) : null))
+      .then((r) => { if (r && (r.waiting || r.installing)) return toast(t('upd.found')); toast(t('upd.latest')); }).catch(() => toast(t('upd.latest')));
+  }
+  function checkRules() {
+    if (!window.Cloud || !cloud.signedIn) return toast(t('rules.signIn'));
+    toast(t('rules.checking'));
+    Cloud.checkRules().then((r) => toast(t('rules.' + r), 6000)).catch(() => toast(t('rules.error'), 6000));
+  }
+  const fmtBytes = (n) => (n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+  const meter = (id, pct) => `<div class="meter"><i id="${id}" style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`;
+  function AboutPage() {
+    const u = window.Cloud ? Cloud.usage() : { bytes: 0, reads: 0, writes: 0, known: false }, c = { b: state.batches.length, i: state.items.length, v: state.invoices.length };
+    const line = (k, v, id) => `<div><span>${k}</span><span${id ? ` id="${id}"` : ''}>${v}</span></div>`;
+    setTimeout(fillAbout, 0);
+    return `<h2 style="margin-top:4px">${t('about.versions')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.app'), APP_VERSION)}${line(t('about.build'), '<span id="ab-build">…</span>')}${line(t('about.rules'), RULES_VERSION)}</div>
+      <p class="muted small">${t('about.rulesNote')}</p>
+      <h2>${t('about.storage')}</h2><div class="sumbox" style="margin-top:0"><div><span>${t('about.cloud')}</span><b>${cloud.signedIn ? fmtBytes(u.bytes) + ' ' + t('about.of') + ' 1 GB' : t('about.signedOut')}</b></div>${meter('m-cloud', u.bytes / CLOUD_LIMIT * 100)}<p class="muted small" style="margin:4px 0 0">${t('about.cloudNote')}</p></div>
+      <div class="sumbox"><div><span>${t('about.phone')}</span><b id="ab-phone">${t('about.measuring')}</b></div>${meter('m-phone', 0)}<p class="muted small" id="ab-phone-note" style="margin:4px 0 0"></p></div>
+      <h2>${t('about.counts')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.cBatches'), c.b)}${line(t('about.cItems'), c.i)}${line(t('about.cInvoices'), c.v)}${line(t('about.cPhotos'), '<span id="ab-photos">…</span>')}</div>
+      <h2>${t('about.usage')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.reads'), u.reads.toLocaleString() + ' / 50,000')}${meter('m-r', u.reads / 500)}${line(t('about.writes'), u.writes.toLocaleString() + ' / 20,000')}${meter('m-w', u.writes / 200)}<p class="muted small" style="margin:4px 0 0">${t('about.usageNote')}</p></div>`;
+  }
+  // The parts that need the phone to measure something (build id, browser storage, photos, offline tools).
+  function fillAbout() {
+    const put = (id, v) => { const e = document.getElementById(id); if (e) e.innerHTML = v; };
+    if (window.caches) caches.keys().then((ks) => { const k = ks.find((x) => /^buy-sell-/.test(x)); put('ab-build', k ? esc(k.replace('buy-sell-', '')) : '—'); }).catch(() => put('ab-build', '—'));
+    const rec = new Blob([localStorage.getItem(KEY) || '']).size;
+    const tools = window.caches ? caches.open('vendor-v1').then((c) => c.keys().then((rs) => Promise.all(rs.map((r) => c.match(r).then((x) => (x ? x.clone().blob().then((b) => b.size) : 0)))))).then((a) => a.reduce((x, y) => x + y, 0)).catch(() => 0) : Promise.resolve(0);
+    Promise.all([PhotoStore.stats().catch(() => ({ count: 0, bytes: 0 })), tools, navigator.storage && navigator.storage.estimate ? navigator.storage.estimate().catch(() => null) : null]).then(([ph, tl, est]) => {
+      put('ab-photos', ph.count);
+      const total = est && est.usage ? est.usage : rec + ph.bytes + tl;
+      put('ab-phone', fmtBytes(total) + (est && est.quota ? ' ' + t('about.of') + ' ' + fmtBytes(est.quota) : ''));
+      const m = document.getElementById('m-phone'); if (m && est && est.quota) m.style.width = Math.min(100, Math.max(1, total / est.quota * 100)) + '%';
+      put('ab-phone-note', t('about.phoneNote', { rec: fmtBytes(rec), ph: fmtBytes(ph.bytes), tools: fmtBytes(tl) }));
+    });
+  }
+  function BackupPage() {
+    const act = (a, label, sub, bad) => `<button class="row tap" data-act="${a}"><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
+    return `<div class="list">${act('export-json', t('more.backup'), t('more.backupSub'))}${act('import-json', t('more.restore'), t('more.restoreSub'))}${act('reset', t('more.erase'), t('more.eraseSub'), true)}</div><p class="note">${t('photo.backupNote')}</p>`;
   }
   function SettingsPage() {
     const s = state.settings, cur = I.getLang();
-    if (moreView === 'set-account') return acctCard();
-    if (moreView === 'set-photos') { const on = pref('autoFind', true); return `<div class="seg two" role="radiogroup" aria-label="${t('set.autoFind')}"><button class="${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-act="set-autofind" data-id="on">${t('set.on')}</button><button class="${on ? '' : 'on'}" role="radio" aria-checked="${!on}" data-act="set-autofind" data-id="off">${t('set.off')}</button></div><p class="muted small"><b>${t('set.autoFind')}</b> · ${t('set.autoFindNote')}</p>`; }
-    if (moreView === 'set-language') return `<div class="seg two" role="radiogroup" aria-label="${t('set.language')}">${Object.keys(I.LANGS).map((l) => `<button class="${cur === l ? 'on' : ''}" role="radio" aria-checked="${cur === l}" data-act="set-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>`;
-    if (moreView === 'set-appearance') return `<div class="seg" role="radiogroup" aria-label="${t('set.appearance')}">${[['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]].map(([k, l]) => `<button class="${theme === k ? 'on' : ''}" role="radio" aria-checked="${theme === k}" data-act="set-theme" data-id="${k}">${l}</button>`).join('')}</div><p class="muted small">${t('set.autoNote')}</p>`;
+    if (moreView === 'set-about') return AboutPage();
+    if (moreView === 'set-backup') return BackupPage();
     if (moreView === 'set-theme') {
       const sel = themeDraft || curPal(), changed = sel !== curPal();
       return `<div class="swatches wrap" role="radiogroup" aria-label="${t('set.theme')}">${swatchBtns(sel, 'draft-palette')}</div>
@@ -754,8 +810,8 @@
     switch (t_.dataset.act) {
       case 'close': return closeSheet();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
-      case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); return render();
-      case 'set-lang': I.setLang(id, true); applyStaticText(); return render();
+      case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); closeSheet(); return render();
+      case 'set-lang': I.setLang(id, true); applyStaticText(); closeSheet(); return render();
       case 'inv-lang': setPref('invoiceLang', id); return sheetInvoice(t_.dataset.no);
       case 'install':
         if (installEvt) { const ev = installEvt; installEvt = null; render(); ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); }).catch(() => {}); }
@@ -785,7 +841,12 @@
         if (isSettings()) { const f = settingsFrom || { tab: 'home', moreView: null }; settingsFrom = null; themeDraft = null; tab = f.tab; moreView = f.moreView; }   // the gear closes Settings again
         else { settingsFrom = { tab, moreView }; tab = 'more'; moreView = 'settings'; }
         window.scrollTo(0, 0); return render();
-      case 'set-autofind': setPref('autoFind', id === 'on'); if (id !== 'on') PUI.bgStop(); return render();
+      case 'set-autofind': setPref('autoFind', id === 'on'); if (id !== 'on') PUI.bgStop(); closeSheet(); return render();
+      case 'pick-lang': return sheetChoice(t('set.language'), 'set-lang', I.getLang(), Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]));
+      case 'pick-appearance': return sheetChoice(t('set.appearance'), 'set-theme', theme, [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]]);
+      case 'pick-autofind': return sheetChoice(t('set.autoFind'), 'set-autofind', pref('autoFind', true) ? 'on' : 'off', [['on', t('set.on')], ['off', t('set.off')]]);
+      case 'check-update': return checkUpdate();
+      case 'check-rules': return checkRules();
       case 'draft-palette': themeDraft = id; return render();
       case 'apply-palette': if (!themeDraft) return; state.settings.palette = themeDraft; Theme.apply(themeDraft); themeDraft = null; applyTheme(); save(); toast(t('set.applied')); return render();
       case 'set-period': flt.period = id; setPref('filter', flt); render(); return sheetFilter();

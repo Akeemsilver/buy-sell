@@ -12,6 +12,9 @@
   const info = () => ({ status: st.status, error: st.error, email: user ? user.email || user.displayName || '' : '', signedIn: !!user });
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full: sync state is rebuilt next time */ } };
+  // Rough tally of what THIS phone used today against the free daily limits (the real total is in the Firebase console).
+  const today = () => new Date().toISOString().slice(0, 10);
+  function tally(kind, n) { if (!n) return; let u = lsGet('buy-sell-cloud-usage'); if (!u || u.day !== today()) u = { day: today(), reads: 0, writes: 0 }; u[kind] += n; lsSet('buy-sell-cloud-usage', u); }
   const lastKey = () => 'buy-sell-cloud:' + wid;
   const saveLast = () => lsSet(lastKey(), last);
 
@@ -71,6 +74,7 @@
     COLS.forEach((c) => {
       unsubs.push(col(c).onSnapshot({ includeMetadataChanges: true }, (snap) => {
         if (my !== runId) return;
+        tally('reads', snap.docChanges ? snap.docChanges().length : 0);
         const changed = S.reconcile(hooks.getState(), last, c, toMap(snap)); saveLast();
         if (changed) hooks.onRemote();
         if (!seen.has(c)) { seen.add(c); if (seen.size === COLS.length) { ready = true; push(); } }
@@ -85,7 +89,7 @@
     if (!ready || !user) return;
     const d = S.diff(hooks.getState(), last); if (!d.sets.length && !d.dels.length) return;
     const before = { sets: d.sets.map((o) => [o.col, o.id, last[o.col][o.id]]), dels: d.dels.map((o) => [o.col, o.id, last[o.col][o.id]]) };
-    S.commit(last, d); saveLast(); set('syncing');
+    S.commit(last, d); saveLast(); set('syncing'); tally('writes', d.sets.length + d.dels.length);
     const ops = [...d.sets.map((o) => ({ o, del: false })), ...d.dels.map((o) => ({ o, del: true }))];
     try {
       for (let i = 0; i < ops.length; i += 400) {
@@ -101,9 +105,19 @@
     }
   }
 
+  // Bytes the business records take in the cloud (the text of every document), and today's tally.
+  const usage = () => { const u = lsGet('buy-sell-cloud-usage'), t0 = u && u.day === today() ? u : { reads: 0, writes: 0 }; let bytes = 0, docs = 0; if (last) COLS.forEach((c) => Object.keys(last[c] || {}).forEach((id) => { bytes += last[c][id].length + id.length + 40; docs++; })); return { bytes, docs, reads: t0.reads, writes: t0.writes, known: !!last }; };
+  // Tests the published rules: this workspace must be readable, and a workspace that is not ours must be refused.
+  async function checkRules() {
+    if (!db || !wid) throw new Error('not ready');
+    let mine = false, others = false;
+    try { await col('meta').doc('settings').get({ source: 'server' }); mine = true; } catch (e) { mine = false; }
+    try { await db.collection('workspaces').doc('rules-check-not-mine').collection('meta').doc('settings').get({ source: 'server' }); others = false; } catch (e) { others = !!(e && e.code === 'permission-denied'); }
+    return mine && others ? 'ok' : !mine ? 'noAccess' : 'tooOpen';
+  }
   const need = () => { if (!auth) throw Object.assign(new Error('unavailable'), { code: 'app/unavailable' }); return auth; };
   const api = {
-    init, changed, info, push,
+    init, changed, info, push, usage, checkRules,
     signInGoogle: () => { const a = need(); return a.signInWithPopup(new root.firebase.auth.GoogleAuthProvider()); },
     signIn: (email, pw) => need().signInWithEmailAndPassword(email, pw),
     signUp: (email, pw) => need().createUserWithEmailAndPassword(email, pw),

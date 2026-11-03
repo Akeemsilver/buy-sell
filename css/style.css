@@ -307,3 +307,18 @@ h2.sec{margin:18px 0 6px}
 .vstage img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:center;user-select:none;-webkit-user-drag:none;will-change:transform}
 .vx{position:absolute;top:calc(10px + var(--sat));right:12px;z-index:2;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.2);color:#fff;font-size:20px}
 .photo-big{cursor:zoom-in}
+
+/* settings: switches inside list rows, storage meters */
+.mseg{display:flex;gap:4px;flex:none;background:var(--line);padding:3px;border-radius:99px}
+.mseg button{border:0;background:transparent;border-radius:99px;padding:6px 12px;min-height:34px;font-size:13px;font-weight:700;color:var(--mute)}
+.mseg button.on{background:var(--brand);color:#fff}
+.meter{height:9px;border-radius:9px;background:var(--line);overflow:hidden;margin:6px 0}.meter i{display:block;height:100%;background:var(--brand2);transition:width .3s}
+
+/* settings rows like a list of tiles */
+.srow{align-items:center;padding:12px 14px}
+.srow .tile{flex:none;width:46px;height:46px;border-radius:14px;background:var(--tint);display:grid;place-items:center;font-size:23px}
+.srow small{white-space:normal}
+.list.grp{gap:0;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.list.grp .row{border:0;border-radius:0;border-bottom:1px solid var(--line)}.list.grp .row:last-child{border-bottom:0}
+.acctcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:4px}
+.acctcard h3{margin:0 0 6px;font-size:20px}.acctcard .biz{font-weight:700}.acctcard .who{color:var(--mute);font-size:14px;margin-top:2px}.acctcard .st{font-size:13px;margin:8px 0 12px}

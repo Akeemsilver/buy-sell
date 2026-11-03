@@ -351,3 +351,7 @@ h2.sec{margin:18px 0 6px}
 .srow .tick.on{background:var(--brand);border-color:var(--brand)}
 .chkrow{display:flex;align-items:center;gap:12px;margin:16px 2px 0;font-weight:600;color:var(--ink)}
 .chkrow input{width:24px;height:24px;min-height:0;accent-color:var(--brand);flex:none}
+
+/* item page: three photo actions side by side under Share */
+.photo-actions3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.photo-actions3 .btn{min-height:46px;font-size:14px;padding:0 8px}

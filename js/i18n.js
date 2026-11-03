@@ -108,7 +108,7 @@
     /* item sheet */
     'item.desc': 'Description', 'item.descPh': 'e.g. Blue dress', 'item.cost': 'Cost ({cur})', 'item.sold': 'Sold for (TTD)', 'item.delivery': 'Delivery (TTD)', 'item.status': 'Status',
     'item.invoice': ' · invoice {no}', 'item.addInv': 'Add to invoice', 'item.removeInv': 'Remove from invoice', 'item.added': 'Added to invoice.',
-    'calc.costTTD': 'Cost (TTD)', 'calc.clearing': 'Clearing share', 'calc.landed': 'Landed cost', 'calc.rec': 'Recommended price', 'calc.profit': 'Profit', 'calc.profitRec': 'Profit (at recommended)',
+    'calc.costTTD': 'Cost (TTD)', 'calc.clearing': 'Clearing share', 'calc.landed': 'Landed cost', 'calc.rec': 'Recommended price', 'calc.profit': 'Profit', 'calc.profitRec': 'Profit at recommended',
     /* invoice screen + document */
     'invUI.share': 'Share invoice image', 'invUI.save': 'Save as image', 'invUI.print': 'Print / Save as PDF', 'invUI.delete': 'Delete invoice', 'invUI.status': 'Status:',
     'invUI.profit': 'profit', 'invUI.loss': 'loss', 'invUI.tip': 'tip', 'invUI.lang': 'Invoice language',
@@ -176,7 +176,7 @@
     'item.shown': 'Shown to customers',
     'item.price': 'Selling price (TT$)',
     'item.useRec': 'Use recommended',
-    'item.shownNote': 'Customers only get the picture, the name and this price. Nothing from the private part below is ever shared.',
+    'item.shownNote': 'Customers only get the picture, the name and this price. Costs and profit are never shared.',
     'item.noRec': 'Enter the cost first.',
     'item.private': '🔒 Private — never shared',
     'item.sale': 'Sale',
@@ -384,6 +384,14 @@
     'share.note': 'You can change this any time in Settings → Language for customers (choose Always ask to see this question again).',
     'cust.ask': 'Always ask',
     'cust.note': 'Used for invoices and for the caption of shared photos. Always ask shows an English | Español question every time you share a photo.',
+    /* item page */
+    'calc.profitPrice': 'Profit at selling price',
+    'calc.profitSold': 'Profit at sold for',
+    'photo.view': 'View photo full screen',
+    'photo.editShort': 'Edit',
+    'photo.checkShort': 'Check',
+    'photo.replaceShort': 'Replace',
+    'photo.removeShort': 'Remove',
   };
 
   const ES = {
@@ -534,7 +542,7 @@
     'item.shown': 'Lo que ven los clientes',
     'item.price': 'Precio de venta (TT$)',
     'item.useRec': 'Usar recomendado',
-    'item.shownNote': 'Los clientes solo reciben la foto, el nombre y este precio. Nada de la parte privada de abajo se comparte jamás.',
+    'item.shownNote': 'Los clientes solo reciben la foto, el nombre y este precio. Los costos y la ganancia nunca se comparten.',
     'item.noRec': 'Primero escribe el costo.',
     'item.private': '🔒 Privado — nunca se comparte',
     'item.sale': 'Venta',
@@ -742,6 +750,14 @@
     'share.note': 'Puedes cambiarlo cuando quieras en Ajustes → Idioma para clientes (elige Preguntar siempre para volver a ver esta pregunta).',
     'cust.ask': 'Preguntar siempre',
     'cust.note': 'Se usa para las facturas y para el texto de las fotos compartidas. Preguntar siempre muestra una pregunta Español | English cada vez que compartes una foto.',
+    /* item page */
+    'calc.profitPrice': 'Ganancia al precio de venta',
+    'calc.profitSold': 'Ganancia al precio vendido',
+    'photo.view': 'Ver la foto a pantalla completa',
+    'photo.editShort': 'Editar',
+    'photo.checkShort': 'Revisar',
+    'photo.replaceShort': 'Cambiar',
+    'photo.removeShort': 'Quitar',
   };
 
   const LANGS = { en: EN, es: ES };

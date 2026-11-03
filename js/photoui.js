@@ -36,14 +36,14 @@
 
   /* ---------- item sheet: what customers see / what stays private ---------- */
 
+  // Item page: the photo as before (tap it for the full-screen view), Share under it, then Edit / Replace / Remove side by side.
   function photoBox(it) {
     const st = L.shareStatus(it);
     const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><img data-ph="${it.photo.id}" data-kind="full" alt="">${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
-    return `${pic}<div class="photo-actions">
-      <button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
-      ${it.photo ? `<button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.edit') : t('photo.checkNow')}</button>
-      <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replace')}</button>
-      <button class="btn danger" data-act="photo-remove" data-id="${it.id}">${t('photo.remove')}</button>` : `<button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.addOne')}</button>`}</div>`;
+    return `${pic}<button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
+      ${it.photo ? `<div class="photo-actions3"><button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.editShort') : t('photo.checkShort')}</button>
+        <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replaceShort')}</button>
+        <button class="btn danger" data-act="photo-remove" data-id="${it.id}">${t('photo.removeShort')}</button></div>` : `<button class="btn" style="margin-top:8px" data-act="photo-replace" data-id="${it.id}">${t('photo.addOne')}</button>`}`;
   }
 
   /* ---------- adding photos ---------- */

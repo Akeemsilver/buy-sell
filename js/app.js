@@ -579,15 +579,12 @@
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const b = batchOf(i);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
-      <h2 class="sec">${t('item.shown')}</h2>
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
+      <label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
+      <div class="sumbox" id="calc"></div>
       <label>${t('item.price')}</label><div class="grid2"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <p class="muted small">${t('item.shownNote')}</p>
-      <h2 class="sec">${t('item.private')}</h2>
-      <label>${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
-      <div class="sumbox" id="calc"></div>
-      <h2 class="sec">${t('item.sale')}</h2>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
@@ -597,9 +594,11 @@
   }
   function calcBox(i) {
     const c = L.itemCalc(batchOf(i), i);
+    // One profit line that says what it is based on: the price it sold for, else the selling price you set, else the recommended price.
+    const label = i.sold > 0 ? t('calc.profitSold') : i.price > 0 ? t('calc.profitPrice') : t('calc.profitRec');
     $('#calc').innerHTML = `<div><span>${t('calc.costTTD')}</span><span>${money(c.costTTD)}</span></div><div><span>${t('calc.clearing')}</span><span>${money(c.clearing)}</span></div>
       <div class="t"><span>${t('calc.landed')}</span><span>${money(c.landed)}</span></div><div><span>${t('calc.rec')}</span><span>${money(c.recommended)}</span></div>
-      <div><span>${i.sold > 0 ? t('calc.profit') : t('calc.profitRec')}</span><span>${c.landed ? money(c.profit) : money(0)}</span></div>`;
+      <div class="t"><span>${label}</span><span class="${c.landed && c.profit < 0 ? 'bad' : ''}">${c.landed ? money(c.profit) : money(0)}</span></div>`;
   }
 
   // Invoice design follows the Google Sheets invoice template (banner, mauve table header, balance bar, pink footer).

@@ -322,3 +322,23 @@ h2.sec{margin:18px 0 6px}
 .list.grp .row{border:0;border-radius:0;border-bottom:1px solid var(--line)}.list.grp .row:last-child{border-bottom:0}
 .acctcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:4px}
 .acctcard h3{margin:0 0 6px;font-size:20px}.acctcard .biz{font-weight:700}.acctcard .who{color:var(--mute);font-size:14px;margin-top:2px}.acctcard .st{font-size:13px;margin:8px 0 12px}
+
+/* depth: soft shadows so cards, buttons and bars lift off the page */
+:root{--sh1:0 1px 2px rgba(40,20,50,.07),0 3px 10px rgba(40,20,50,.07);--sh2:0 2px 4px rgba(40,20,50,.08),0 8px 22px rgba(40,20,50,.12);--shup:0 -2px 14px rgba(40,20,50,.10);--shbtn:0 3px 10px color-mix(in srgb,var(--brand) 38%,transparent)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--sh1:inset 0 1px 0 rgba(255,255,255,.07),0 1px 2px rgba(0,0,0,.5),0 5px 16px rgba(0,0,0,.45);--sh2:0 2px 4px rgba(0,0,0,.5),0 10px 26px rgba(0,0,0,.45);--shup:0 -2px 16px rgba(0,0,0,.45)}}
+:root[data-theme=dark]{--sh1:inset 0 1px 0 rgba(255,255,255,.07),0 1px 2px rgba(0,0,0,.5),0 5px 16px rgba(0,0,0,.45);--sh2:0 2px 4px rgba(0,0,0,.5),0 10px 26px rgba(0,0,0,.45);--shup:0 -2px 16px rgba(0,0,0,.45)}
+.stat,.row,.item,.quick button,.install,.acctcard,.list.grp,.photo-big,.pv,.table,.mbars{box-shadow:var(--sh1)}
+.stat.hero{box-shadow:var(--shbtn),var(--sh1)}
+.chip,.btn,.share-btn,.swatch{box-shadow:var(--sh1)}
+.btn.primary,.pill-btn.solid{box-shadow:var(--shbtn)}
+.chip.on{box-shadow:var(--shbtn)}
+.appbar{box-shadow:0 3px 14px rgba(0,0,0,.28)}
+.tabbar{box-shadow:var(--shup)}
+.sheet{box-shadow:0 -10px 40px rgba(0,0,0,.35)}
+.sheet.full{box-shadow:none}
+.list.grp .row,.item .chk,.item .main,.sheet .row,.row .chip{box-shadow:none}
+.sheet .row.tap,.sheet .btn,.sheet .stat{box-shadow:var(--sh1)}
+.sheet .btn.primary{box-shadow:var(--shbtn)}
+.row.tap:active,.btn:active,.chip:active,.quick button:active{box-shadow:none;transform:translateY(1px)}
+.gate .g-btn{box-shadow:var(--sh1)}.gate .g-btn.primary{box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.update{box-shadow:var(--sh2)}

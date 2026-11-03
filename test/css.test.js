@@ -5,7 +5,7 @@ const css = fs.readFileSync(path.join(__dirname, '..', 'css', 'style.css'), 'utf
 const need = [
   '.appbar', '.round', '.tabbar', '.actionbar', '.sheet', '.sheet .grab', '.scrim', '.stat', '.row', '.chip', '.item', '.pill', '.btn', '.sumbox', '.seg', '.seg.two',
   '.install', '.step', '.note', '.mock', '.safari', '.rows', '.dlg', '.dlg .hdr', '.mock.home', '.ico',
-  '.editor', '.gate', '.g-btn', '.g-wrap', '.brandtxt', '.swatch', '.pv', '.ed-stage', '.ed-panel', '.ph', '.ph.none', '.warn-badge', '.share-btn', '.photo-big', '.photo-actions',
+  '.editor', '.sheet.full', '.fullbar', '.gate', '.g-btn', '.g-wrap', '.brandtxt', '.swatch', '.pv', '.ed-stage', '.ed-panel', '.ph', '.ph.none', '.warn-badge', '.share-btn', '.photo-big', '.photo-actions',
   '.inv', '.inv-banner', '.inv-t', '.inv-tot', '.inv-terms', '.inv-foot', '.stamp', '.table', '.mbars', '.hide-amounts .amt', '.sheet.kb', 'body.kb .tabbar',
 ];
 const missing = need.filter((s) => !css.includes(s + '{') && !css.includes(s + ',') && !css.includes(s + ' {') && !new RegExp('(^|[},\\s])' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[{,]').test(css));

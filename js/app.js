@@ -435,8 +435,8 @@
 
   /* ---------- sheets ---------- */
 
-  function openSheet(html, onClose) {
-    sheetClose = onClose || null;
+  function openSheet(html, onClose, full) {
+    sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full);
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
     syncKeyboard();
@@ -445,7 +445,7 @@
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -505,7 +505,7 @@
   function sheetItem(id) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const b = batchOf(i);
-    openSheet(`<h3>${i.id}</h3><div class="muted small">${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
       <h2 class="sec">${t('item.shown')}</h2>
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
@@ -519,7 +519,7 @@
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       <div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
-      <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render);
+      <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render, true);
     $('#sheet').dataset.item = id; calcBox(i);
   }
   function calcBox(i) {

@@ -282,3 +282,11 @@ h2.sec{margin:18px 0 6px}
 .ed-tools .seg{flex:1;min-width:180px;margin:0;padding:3px}.ed-tools .seg button{min-height:36px;font-size:13px}
 .ed-tools .chip{min-height:38px;padding:6px 12px}
 .ed-btns .btn{min-height:46px}
+
+/* item page: full screen instead of a pop-up */
+.sheet.full{top:0;max-height:none;height:100dvh;border-radius:0;padding:0 16px calc(24px + var(--sab));animation:none}
+.sheet.full .grab{display:none}
+.sheet.full.kb{border-radius:0}
+.fullbar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:6px;margin:0 -16px 6px;padding:calc(8px + var(--sat)) 12px 8px;background:var(--bar);color:#fff}
+.fullbar>button{background:none;border:0;color:#fff;font-size:34px;line-height:1;width:44px;height:44px}
+.fullbar b{display:block;font-size:19px}.fullbar small{display:block;opacity:.8;font-size:12px}

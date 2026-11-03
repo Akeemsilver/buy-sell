@@ -219,6 +219,7 @@
         return showMarks();
       }
       ed.rot = 0; ed.restored = false; ed.sel = null;
+      ed.oldPhoto = !!it.photo.checked && !rec.edit;       // saved before edits were remembered: nothing to bring back
       ed.ratio = 0; ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.marks = null; ed.mode = 'blur'; ed.tool = 'move'; ed.rotated = false; ed.sugFailed = false;
       showCrop();
     } catch (e) { A.toast(t('photo.missing')); next(); }
@@ -234,7 +235,7 @@
   function showCrop() {
     ed.step = 'crop';
     edEl().innerHTML = `${head()}<div class="ed-stage" id="ed-stage"><canvas id="ed-cv"></canvas></div>
-      <div class="ed-panel"><p class="muted small">${t('ed.cropHint')}</p>
+      <div class="ed-panel">${ed.oldPhoto ? `<div class="note">${t('ed.oldNote')}</div>` : ''}<p class="muted small">${t('ed.cropHint')}</p>
         <div class="chips ed-chips">${RATIOS.map(([k, r]) => `<button class="chip ${ed.ratio === r ? 'on' : ''}" data-act="ed-ratio" data-id="${r}">${t('ed.' + k)}</button>`).join('')}
           <button class="chip" data-act="ed-rotate">⟳ ${t('ed.rotate')}</button><button class="chip" data-act="ed-reset">${t('ed.reset')}</button></div>
         <button class="btn primary" data-act="ed-next">${t('ed.next')}</button></div>`;

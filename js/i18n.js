@@ -332,6 +332,7 @@
     /* app updates */
     'upd.available': 'Update available',
     'upd.btn': 'Update',
+    'ed.oldNote': 'This photo was saved before edits were remembered, so its boxes cannot be brought back. Set it up once more and save: from then on it reopens exactly as you leave it.',
   };
 
   const ES = {
@@ -638,6 +639,7 @@
     /* app updates */
     'upd.available': 'Actualización disponible',
     'upd.btn': 'Actualizar',
+    'ed.oldNote': 'Esta foto se guardó antes de que se recordaran las ediciones, así que no se pueden recuperar sus cuadros. Configúrala una vez más y guarda: desde entonces se abre exactamente como la dejes.',
   };
 
   const LANGS = { en: EN, es: ES };

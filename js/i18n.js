@@ -321,7 +321,7 @@
     'ed.drawBox': 'Draw box',
     'ed.bg': 'Looking for marks in the background. Keep going, or draw boxes yourself.',
     'ed.max': 'You can hide up to 4 areas on a photo.',
-    'ed.hintMove': 'Drag the picture to scroll. Tap a box to select it, switch it on or off, and pick how it is hidden.',
+    'ed.hintMove': 'Drag the picture to scroll. Tap a box to select it and pick how it is hidden. The ✕ removes it. Tap the picture to see it full screen.',
     'ed.hintDraw': 'Drag on the picture to draw a box.',
     'photo.bgLeft': 'Finding marks in the background: {n} left',
     'set.photos': 'Photos',
@@ -330,7 +330,7 @@
     'set.off': 'Off',
     'set.autoFindNote': 'After you add photos, the phone looks for watermarks and page counters in the background. It can be slow, and it never hides anything without you checking. Turn it off to draw boxes yourself.',
     /* app updates */
-    'upd.available': 'A new version is ready',
+    'upd.available': 'Update available',
     'upd.btn': 'Update',
   };
 
@@ -627,7 +627,7 @@
     'ed.drawBox': 'Dibujar cuadro',
     'ed.bg': 'Buscando marcas en segundo plano. Sigue, o dibuja los cuadros tú mismo.',
     'ed.max': 'Puedes ocultar hasta 4 zonas en una foto.',
-    'ed.hintMove': 'Arrastra la imagen para desplazarla. Toca un cuadro para seleccionarlo, activarlo o desactivarlo y elegir cómo se oculta.',
+    'ed.hintMove': 'Arrastra la imagen para desplazarla. Toca un cuadro para seleccionarlo y elegir cómo se oculta. La ✕ lo quita. Toca la imagen para verla a pantalla completa.',
     'ed.hintDraw': 'Arrastra sobre la imagen para dibujar un cuadro.',
     'photo.bgLeft': 'Buscando marcas en segundo plano: faltan {n}',
     'set.photos': 'Fotos',
@@ -636,7 +636,7 @@
     'set.off': 'No',
     'set.autoFindNote': 'Después de añadir fotos, el teléfono busca marcas de agua y contadores de página en segundo plano. Puede ser lento y nunca oculta nada sin que lo revises. Apágalo para dibujar los cuadros tú mismo.',
     /* app updates */
-    'upd.available': 'Hay una versión nueva',
+    'upd.available': 'Actualización disponible',
     'upd.btn': 'Actualizar',
   };
 

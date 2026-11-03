@@ -38,7 +38,7 @@
 
   function photoBox(it) {
     const st = L.shareStatus(it);
-    const pic = it.photo ? `<div class="photo-big"><img data-ph="${it.photo.id}" data-kind="full" alt="">${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
+    const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><img data-ph="${it.photo.id}" data-kind="full" alt="">${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
     return `${pic}<div class="photo-actions">
       <button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
       ${it.photo ? `<button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.edit') : t('photo.checkNow')}</button>
@@ -60,7 +60,7 @@
   // Decode, find the picture inside the screenshot, and keep the original plus a first (unchecked) crop. Returns the new photo id.
   async function createPhoto(file) {
     const c = await P.loadCanvas(file, 3000), area = P.findPhotoArea(P.pixels(c)), cr = P.crop(c, area), id = S.newId();
-    const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(cr, 200), 0.8), P.toBlob(P.scaled(cr, 640), 0.82)]);
+    const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(cr, 200), 0.8), P.toBlob(P.scaled(cr, 900), 0.84)]);
     await S.put({ id, thumb: thumbB, full: fullB, orig: file });
     return id;
   }
@@ -162,6 +162,28 @@
     document.addEventListener('click', (e) => { if (fired && e.target.closest('.item .main')) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);   // the release after a long press is not a tap
   })();
 
+  /* ---------- full-screen photo viewer: pinch or double-tap to zoom, drag to move ---------- */
+  let viewerOn = false;
+  function openViewer(src) {
+    const v = document.getElementById('viewer'), img = v.querySelector('img'); if (!v) return;
+    let sc = 1, tx = 0, ty = 0; const pts = new Map(); let d0 = 0, s0 = 1, last = 0;
+    const apply = () => { img.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`; };
+    const clampPan = () => { const r = img.getBoundingClientRect(), W = innerWidth, H = innerHeight, bw = (r.width), bh = (r.height); const mx = Math.max(0, (bw - W) / 2), my = Math.max(0, (bh - H) / 2); tx = Math.max(-mx, Math.min(mx, tx)); ty = Math.max(-my, Math.min(my, ty)); };
+    const zoomTo = (n) => { sc = Math.max(1, Math.min(6, n)); if (sc === 1) { tx = 0; ty = 0; } apply(); clampPan(); apply(); };
+    img.onload = () => { sc = 1; tx = ty = 0; apply(); };
+    img.src = src; v.hidden = false; viewerOn = true; document.body.style.overflow = 'hidden'; A.sync();
+    const st = v.querySelector('.vstage');
+    st.onpointerdown = (e) => { st.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; d0 = Math.hypot(a.x - b.x, a.y - b.y); s0 = sc; }
+      else { const now = Date.now(); if (now - last < 300) zoomTo(sc > 1.2 ? 1 : 2.5); last = now; } };
+    st.onpointermove = (e) => { const p = pts.get(e.pointerId); if (!p) return;
+      if (pts.size === 2) { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); const [a, b] = [...pts.values()]; zoomTo(s0 * Math.hypot(a.x - b.x, a.y - b.y) / (d0 || 1)); }
+      else if (sc > 1) { tx += e.clientX - p.x; ty += e.clientY - p.y; pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); clampPan(); apply(); } };
+    st.onpointerup = st.onpointercancel = (e) => { pts.delete(e.pointerId); if (pts.size === 1) { const r = [...pts.values()][0]; /* keep panning with the remaining finger */ } };
+    st.onwheel = (e) => { e.preventDefault(); zoomTo(sc * (e.deltaY < 0 ? 1.15 : 0.87)); };
+  }
+  function closeViewer() { const v = document.getElementById('viewer'); if (!viewerOn) return; viewerOn = false; v.hidden = true; v.querySelector('img').removeAttribute('src'); if (!ed) document.body.style.overflow = ''; A.sync(); }
+
   /* ---------- the check-photo editor ---------- */
 
   const RATIOS = [['free', 0], ['square', 1], ['r45', 0.8], ['r34', 0.75]];
@@ -174,12 +196,13 @@
     A.closeSheet(); document.body.style.overflow = 'hidden'; edEl().hidden = false; A.sync();
     loadCurrent();
   }
-  const isOpen = () => !!ed;
+  const isOpen = () => !!ed || viewerOn;
+  const layers = () => (ed ? 1 : 0) + (viewerOn ? 1 : 0);
   function closeEditor() {
     if (!ed) return;
     ed = null; edEl().hidden = true; edEl().innerHTML = ''; document.body.style.overflow = ''; A.sync(); A.render();
   }
-  function back() { if (!ed) return; if (ed.step === 'marks') return showCrop(); closeEditor(); }
+  function back() { if (viewerOn) return closeViewer(); if (!ed) return; if (ed.step === 'marks') return showCrop(); closeEditor(); }
 
   async function loadCurrent() {
     const id = ed.queue[ed.idx], it = item(id);
@@ -188,7 +211,14 @@
     try {
       const rec = await S.get(it.photo.id); if (!rec) throw new Error('missing');
       ed.itemId = id; ed.photoId = it.photo.id;
-      ed.src = await P.loadCanvas(rec.orig, 3000);
+      ed.src = await P.loadCanvas(rec.orig, 3000); const sv = it.photo.checked && rec.edit;
+      if (sv) {                                    // already checked once: open it as it was left, at the hide-marks step
+        for (let i = 0; i < (sv.rot || 0); i++) ed.src = P.rotate90(ed.src);
+        Object.assign(ed, { rot: sv.rot || 0, frame: sv.frame, ratio: sv.ratio || 0, mode: sv.mode || 'blur', tool: 'move', rotated: true, sugFailed: false, sugDone: true, sugCount: sv.sugCount || 0, restored: true, sel: null,
+          marks: (sv.marks || []).map((m) => Object.assign({}, m)) });
+        return showMarks();
+      }
+      ed.rot = 0; ed.restored = false; ed.sel = null;
       ed.ratio = 0; ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.marks = null; ed.mode = 'blur'; ed.tool = 'move'; ed.rotated = false; ed.sugFailed = false;
       showCrop();
     } catch (e) { A.toast(t('photo.missing')); next(); }
@@ -259,7 +289,7 @@
   }
   function rotate() {
     const f = ed.frame, H = ed.src.height;
-    ed.rotated = true; ed.src = P.rotate90(ed.src); ed.frame = P.clampFrame({ x: H - (f.y + f.h), y: f.x, w: f.h, h: f.w }, ed.src.width, ed.src.height); ed.ratio = 0; showCrop();
+    ed.rotated = true; ed.rot = ((ed.rot || 0) + 1) % 4; ed.src = P.rotate90(ed.src); ed.frame = P.clampFrame({ x: H - (f.y + f.h), y: f.x, w: f.h, h: f.w }, ed.src.width, ed.src.height); ed.ratio = 0; showCrop();
   }
   function resetCrop() { ed.frame = P.findPhotoArea(P.pixels(ed.src)); ed.ratio = 0; showCrop(); }
 
@@ -309,6 +339,7 @@
   // Show the finder's result for the open photo (or say it is still working / switched off).
   function suggestState() {
     const info = $('#ed-info'); if (!info || !ed || ed.step !== 'marks') return;
+    if (ed.restored) { info.textContent = ''; return; }
     if (!ed.sugDone) {
       const r = bg.res.get(ed.photoId);
       if (r && !r.failed) {
@@ -380,7 +411,7 @@
       if (!st) return; const p = pos(e);
       if (ed.tool === 'draw') {
         if (st.moved && ed.draw && ed.draw.w * view.k > 12 && ed.draw.h * view.k > 12) { if (ed.marks.length >= MAX_MARKS) A.toast(t('ed.max')); else { ed.marks.push({ id: 'm' + Date.now(), ticked: true, box: ed.draw, auto: false, mode: ed.mode }); ed.sel = ed.marks.length - 1; listMarks(); syncMode(); } }
-      } else if (!st.moved) { const hit = ed.marks.find((m) => p.x >= m.box.x && p.x <= m.box.x + m.box.w && p.y >= m.box.y && p.y <= m.box.y + m.box.h); if (hit) { hit.ticked = !hit.ticked; ed.sel = ed.marks.indexOf(hit); listMarks(); syncMode(); } }
+      } else if (!st.moved) { const hit = ed.marks.find((m) => p.x >= m.box.x && p.x <= m.box.x + m.box.w && p.y >= m.box.y && p.y <= m.box.y + m.box.h); if (hit) { hit.ticked = true; ed.sel = ed.marks.indexOf(hit); listMarks(); syncMode(); } else openViewer(render().toDataURL('image/jpeg', 0.92)); }
       ed.draw = null; st = null; preview();
     };
     cv.onpointercancel = () => { st = null; ed.draw = null; preview(); };
@@ -390,8 +421,10 @@
     const btn = $('#ed-save'); if (btn) { btn.disabled = true; btn.textContent = t('ed.saving'); }
     try {
       const out = render(), rec = await S.get(ed.photoId); if (!rec) throw new Error('missing');
-      const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(out, 200), 0.8), P.toBlob(P.scaled(out, 640), 0.82)]);
-      rec.thumb = thumbB; rec.full = fullB; await S.put(rec);
+      const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(out, 200), 0.8), P.toBlob(P.scaled(out, 900), 0.84)]);
+      rec.thumb = thumbB; rec.full = fullB;
+      rec.edit = { rot: ed.rot || 0, frame: ed.frame, ratio: ed.ratio || 0, mode: ed.mode, sugCount: ed.sugCount || 0, marks: ed.marks.map((m) => ({ text: m.text, ticked: m.ticked, box: m.box, auto: m.auto, mode: m.mode })) };   // so Check or edit photo reopens exactly this
+      await S.put(rec);
       const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) it.photo.checked = true;
       forget(ed.photoId); A.save(); next();
     } catch (e) { A.toast('⚠️ ' + t('photo.saveFail')); if (btn) { btn.disabled = false; btn.textContent = t('ed.save'); } }
@@ -409,6 +442,8 @@
       case 'photo-check-all': return startCheck(A.state().items.filter((i) => i.batchId === id && i.photo && !i.photo.checked).sort((x, y) => x.id.localeCompare(y.id)).map((i) => i.id));
       case 'photo-replace': return replaceOne(id);
       case 'photo-remove': return removeOne(id);
+      case 'photo-view': { const it = item(id); if (!it || !it.photo) return; return urlFor(it.photo.id, 'full').then((u) => u && openViewer(u)); }
+      case 'viewer-close': return closeViewer();
       case 'ed-close': return closeEditor();
       case 'ed-ratio': return setRatio(parseFloat(id));
       case 'ed-rotate': return rotate();
@@ -417,7 +452,7 @@
       case 'ed-back': return showCrop();
       case 'ed-mode': ed.mode = id; if (ed.sel != null && ed.marks[ed.sel]) ed.marks[ed.sel].mode = id; syncMode(); if (id === 'logo' && !logoImg) loadLogo(); return preview();
       case 'ed-del': ed.marks.splice(+id, 1); ed.sel = null; listMarks(); syncMode(); return preview();
-      case 'ed-toggle': ed.marks[+id].ticked = !ed.marks[+id].ticked; ed.sel = +id; listMarks(); syncMode(); return preview();
+      case 'ed-toggle': ed.marks[+id].ticked = true; ed.sel = +id; listMarks(); syncMode(); return preview();   // selects (and switches on a guess); the X removes a box
       case 'ed-tool': ed.tool = id; document.querySelectorAll('.ed-tools > .chip').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); $('#ed-cv').style.touchAction = id === 'draw' ? 'none' : 'pan-y'; return listMarks();
       case 'ed-stop': if (bg.ctl && bg.running === ed.photoId) R.cancel(bg.ctl); else { bg.q = bg.q.filter((x) => x !== ed.photoId); bg.res.set(ed.photoId, { boxes: [] }); suggestState(); } return;
       case 'ed-save': return save();
@@ -427,7 +462,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoBox, act, isOpen, back, closeEditor, share, bgText, bgStop,
+    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, bgText, bgStop,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

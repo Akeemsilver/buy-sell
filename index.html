@@ -29,6 +29,7 @@
   <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
   <div id="scrim" class="scrim" hidden></div>
   <section id="sheet" class="sheet" role="dialog" aria-modal="true" hidden></section>
+  <section id="viewer" class="viewer" aria-label="Photo" hidden><button class="vx" data-act="viewer-close" aria-label="Close">✕</button><div class="vstage"><img alt="" draggable="false"></div></section>
   <section id="gate" class="gate" hidden></section>
   <section id="editor" class="editor" aria-label="Photo" hidden></section>
   <input type="file" id="file" hidden>
@@ -47,12 +48,17 @@
     // When one is ready a bar appears at the bottom with an Update button; nothing reloads until you press it.
     if ('serviceWorker' in navigator) {
       var pressed = false;
-      var tx = function (k, d) { return window.I18n ? I18n.t(k) : d; };
+      // The page that is already open may be an older version without these texts, so the bar carries its own copy.
+      var FALLBACK = { en: { 'upd.available': 'Update available', 'upd.btn': 'Update', 'upd.updating': 'Updating…' }, es: { 'upd.available': 'Actualización disponible', 'upd.btn': 'Actualizar', 'upd.updating': 'Actualizando…' } };
+      var tx = function (k) {
+        var v = window.I18n ? I18n.t(k) : k; if (v !== k) return v;
+        var l = (document.documentElement.lang || 'en').slice(0, 2); return (FALLBACK[l] || FALLBACK.en)[k];
+      };
       var showUpdate = function (worker) {
         var bar = document.getElementById('update'); if (!bar || !bar.hidden) return;
-        document.getElementById('update-t').textContent = tx('upd.available', 'A new version is ready');
-        var b = document.getElementById('update-b'); b.textContent = tx('upd.btn', 'Update');
-        b.onclick = function () { pressed = true; b.disabled = true; b.textContent = tx('upd.updating', 'Updating…'); worker.postMessage('skip-waiting'); };
+        document.getElementById('update-t').textContent = tx('upd.available');
+        var b = document.getElementById('update-b'); b.textContent = tx('upd.btn');
+        b.onclick = function () { pressed = true; b.disabled = true; b.textContent = tx('upd.btn') + '…'; worker.postMessage('skip-waiting'); };
         bar.hidden = false;
       };
       navigator.serviceWorker.addEventListener('controllerchange', function () { if (pressed) location.reload(); });

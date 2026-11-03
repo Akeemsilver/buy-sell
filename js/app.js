@@ -908,7 +908,7 @@
   // Every layer you can back out of (non-home tab, a More sub-screen, an open sheet) is one history entry,
   // so the system Back button / gesture closes the top layer first. At Home, Back asks to press again to exit.
   let hist = 0, skipPops = 0, exitArmed = false, exitTimer, reconTimer;
-  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + (tab === 'more' && moreView && moreView.startsWith('set-') ? 1 : 0) + ($('#sheet').hidden ? 0 : 1) + (PUI.isOpen() ? 1 : 0);
+  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + (tab === 'more' && moreView && moreView.startsWith('set-') ? 1 : 0) + ($('#sheet').hidden ? 0 : 1) + PUI.layers();
   function reconcile() {
     reconTimer = null;
     if (skipPops > 0) return;                        // a back traversal is still in flight

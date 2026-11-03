@@ -8,6 +8,7 @@
   const COLS = ['batches', 'items', 'invoices', 'meta'];
   let hooks = null, auth = null, db = null, user = null, wid = null, last = null, unsubs = [], ready = false, pushTimer = null, runId = 0;
   const st = { status: 'loading', error: '' };
+  let readyRes; const sdkReady = new Promise((r) => { readyRes = r; });     // resolves once the sign-in code has loaded (or failed to)
   const set = (status, error) => { st.status = status; st.error = error || ''; if (hooks && hooks.onStatus) hooks.onStatus(info()); };
   const info = () => ({ status: st.status, error: st.error, email: user ? user.email || user.displayName || '' : '', signedIn: !!user });
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
@@ -28,9 +29,9 @@
       const fb = root.firebase; fb.initializeApp(CONFIG); auth = fb.auth(); db = fb.firestore();
       try { auth.useDeviceLanguage(); } catch (e) { /* ignore */ }
       db.enablePersistence({ synchronizeTabs: true }).catch(() => {});      // works offline from the phone's saved copy
-      set('signedOut');
+      set('signedOut'); readyRes();
       auth.onAuthStateChanged((u) => { user = u; teardown(); if (!u) return set('signedOut'); start().catch((e) => set(e && e.code === 'permission-denied' ? 'rules' : (navigator.onLine === false ? 'offline' : 'error'), e && e.message)); });
-    }).catch(() => set('unavailable'));
+    }).catch(() => { set('unavailable'); readyRes(); });
     if (document.readyState === 'complete') go(); else window.addEventListener('load', go);
     window.addEventListener('online', () => { if (user && !ready) start().catch(() => {}); });
     window.addEventListener('offline', () => { if (user) set('offline'); });
@@ -115,14 +116,15 @@
     try { await db.collection('workspaces').doc('rules-check-not-mine').collection('meta').doc('settings').get({ source: 'server' }); others = false; } catch (e) { others = !!(e && e.code === 'permission-denied'); }
     return mine && others ? 'ok' : !mine ? 'noAccess' : 'tooOpen';
   }
-  const need = () => { if (!auth) throw Object.assign(new Error('unavailable'), { code: 'app/unavailable' }); return auth; };
+  // Sign-in calls wait (up to 10 s) for the sign-in code to finish loading, so a very early tap still works.
+  const need = () => Promise.race([sdkReady, new Promise((r) => setTimeout(r, 10000))]).then(() => { if (!auth) throw Object.assign(new Error('unavailable'), { code: 'app/unavailable' }); return auth; });
   const api = {
     init, changed, info, push, usage, checkRules,
-    signInGoogle: () => { const a = need(); return a.signInWithPopup(new root.firebase.auth.GoogleAuthProvider()); },
-    signIn: (email, pw) => need().signInWithEmailAndPassword(email, pw),
-    signUp: (email, pw) => need().createUserWithEmailAndPassword(email, pw),
-    reset: (email) => need().sendPasswordResetEmail(email),
-    signOut: () => need().signOut(),
+    signInGoogle: () => need().then((a) => a.signInWithPopup(new root.firebase.auth.GoogleAuthProvider())),
+    signIn: (email, pw) => need().then((a) => a.signInWithEmailAndPassword(email, pw)),
+    signUp: (email, pw) => need().then((a) => a.createUserWithEmailAndPassword(email, pw)),
+    reset: (email) => need().then((a) => a.sendPasswordResetEmail(email)),
+    signOut: () => need().then((a) => a.signOut()),
   };
   root.Cloud = api;
 })(window);

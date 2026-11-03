@@ -122,10 +122,11 @@
       return A.openSheet(`<h3>${t('photo.gate.title')}</h3><p>${t('photo.gate.text')}</p>
         <div class="btns"><button class="btn primary" data-act="photo-check-now" data-id="${it.id}">${t('photo.checkNow')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
     }
+    const lg = await A.shareLang(); if (!lg) return;             // which language the caption is in (asks, unless told not to)
     A.toast(t('photo.prep'));
     try {
       const rec = await S.get(it.photo.id); if (!rec || !rec.full) return A.toast(t('photo.missing'));
-      const c = await P.loadCanvas(rec.full, 2000), pub = L.publicView(it), price = num(pub.price), lg = A.invoiceLang();
+      const c = await P.loadCanvas(rec.full, 2000), pub = L.publicView(it), price = num(pub.price);
       if (price > 0) P.priceTag(c, A.invMoney(price));
       const blob = await new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('encode'))), 'image/jpeg', 0.9));
       const file = new File([blob], safeName(pub.name || pub.id) + '.jpg', { type: 'image/jpeg' });

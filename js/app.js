@@ -111,7 +111,7 @@
   function sheetAccount() {
     if (cloud.signedIn) return openSheet(`<h3>${t('acct.title')}</h3>${acctCard()}<div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
     openSheet(`<h3>${t('acct.title')}</h3><p class="muted small">${t('acct.signInSub')}</p>
-      <button class="btn primary" data-act="acct-google" style="margin-top:12px">${t('acct.google')}</button>
+      <button class="btn g-google" data-act="acct-google" style="margin-top:12px">${GOOGLE_G}<span>${t('acct.google')}</span></button>
       <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>
       <form id="f-acct"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
       <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="current-password" minlength="6">
@@ -132,13 +132,16 @@
 
   /* ---------- welcome / create account / sign in / business setup (neutral look, not the business's colors) ---------- */
 
-  let gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null };
+  let gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null }, gateForced = false;   // gateForced: opened on purpose from the app (Settings, the Home banner)
+  const GOOGLE_G = '<svg class="glogo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.2 5.6c4.3-3.9 7.1-9.7 7.1-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.2-5.6c-2 1.4-4.6 2.3-8.7 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
   const hasData = () => window.Sync.hasData(state);
   function wantedGate() {
     if (cloud.signedIn) {
+      gateForced = false;
       if (state.settings.setupDone || hasData()) return null;
       return /synced|syncing/.test(cloud.status) ? 'setup' : 'wait';
     }
+    if (gateForced) return 'auth';
     if (cloud.status === 'signedOut' && !hasData() && !pref('gateSkipped', false)) return gateView === 'auth' ? 'auth' : 'welcome';
     return null;
   }
@@ -150,7 +153,7 @@
       <p class="g-small">${t('gate.note')}</p><button class="g-link" data-act="gate-skip">${t('gate.skip')}</button><p class="g-small">${t('gate.skipNote')}</p></div>`;
     if (v === 'auth') return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
       <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
-      <button class="g-btn" data-act="gate-google" style="margin-top:16px">${t('acct.google')}</button><p class="g-small" style="text-align:center">${t('acct.or')}</p>
+      <button class="g-btn g-google" data-act="gate-google" style="margin-top:16px">${GOOGLE_G}<span>${t('acct.google')}</span></button><p class="g-small" style="text-align:center">${t('acct.or')}</p>
       <form id="f-gate"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
       <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="${gateMode === 'create' ? 'new-password' : 'current-password'}" minlength="6" required>
       <div id="g-err" class="g-err" hidden></div>
@@ -822,13 +825,13 @@
       case 'gate-lang': I.setLang(id, true); applyStaticText(); regate(); return;
       case 'gate-create': gateMode = 'create'; gateView = null; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-have': gateMode = 'in'; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
-      case 'gate-back': gateView = 'welcome'; $('#gate').innerHTML = gateHTML('welcome'); return;
+      case 'gate-back': if (gateForced) { gateForced = false; updateGate(); return; } gateView = 'welcome'; $('#gate').innerHTML = gateHTML('welcome'); return;
       case 'gate-tab': gateMode = id; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-skip': setPref('gateSkipped', true); return updateGate();
-      case 'gate-google': return Cloud.signInGoogle().catch((e) => gateErr(acctErr(e)));
+      case 'gate-google': return Cloud.signInGoogle().then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e)));
       case 'gate-forgot': { const em = ($('#f-gate [name=email]') || {}).value; if (!em) return gateErr(t('acct.needEmail')); return Cloud.reset(em).then(() => gateErr(t('acct.resetSent', { email: em })), (e) => gateErr(acctErr(e))); }
       case 'gate-color': gateDraft.palette = id; regate(); return;
-      case 'acct-open': return sheetAccount();
+      case 'acct-open': if (cloud.signedIn) return sheetAccount(); closeSheet(); gateForced = true; gateMode = hasData() ? 'in' : 'create'; gateView = null; updateGate(); return;
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
       case 'acct-google': return acctDone(Cloud.signInGoogle());
       case 'acct-forgot': { const em = ($('#f-acct [name=email]') || {}).value; if (!em) return acctShow(t('acct.needEmail')); return Cloud.reset(em).then(() => acctShow(t('acct.resetSent', { email: em })), (e) => acctShow(acctErr(e))); }
@@ -893,7 +896,7 @@
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
-    if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).catch((e) => gateErr(acctErr(e))); }
+    if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
     if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; } }

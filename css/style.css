@@ -342,3 +342,7 @@ h2.sec{margin:18px 0 6px}
 .row.tap:active,.btn:active,.chip:active,.quick button:active{box-shadow:none;transform:translateY(1px)}
 .gate .g-btn{box-shadow:var(--sh1)}.gate .g-btn.primary{box-shadow:0 3px 10px rgba(0,0,0,.25)}
 .update{box-shadow:var(--sh2)}
+
+/* Google sign-in button with the Google "G" */
+.g-google,.btn.g-google{display:flex;align-items:center;justify-content:center;gap:12px;background:#fff;color:#1f1f1f;border:1px solid #dadce0;font-weight:700}
+.glogo{width:20px;height:20px;flex:none}

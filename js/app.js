@@ -581,24 +581,27 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
-      <label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
-      <div class="sumbox" id="calc"></div>
+      <label>${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
+      <p class="privnote">${t('item.private')}</p>
       <label>${t('item.price')}</label><div class="grid2"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
+      <div class="sumbox" id="calc"></div>
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       <div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render, true);
     $('#sheet').dataset.item = id; calcBox(i);
   }
   function calcBox(i) {
-    const c = L.itemCalc(batchOf(i), i);
-    // One profit line that says what it is based on: the price it sold for, else the selling price you set, else the recommended price.
-    const label = i.sold > 0 ? t('calc.profitSold') : i.price > 0 ? t('calc.profitPrice') : t('calc.profitRec');
+    const c = L.itemCalc(batchOf(i), i), has = c.landed > 0, price = Number(i.price) || 0, sold = Number(i.sold) || 0;
+    const line = (label, price0, strong) => { const ok = has && price0 > 0, v = L.r2(price0 - c.landed); return `<div${strong ? ' class="t"' : ''}><span>${label}</span><span class="${ok && v < 0 ? 'bad' : ''}">${ok ? money(v) : '—'}</span></div>`; };
+    // First profit line follows the Selling price box: empty or equal to the recommended price = "recommended", any other number = "selling price".
+    // A second line (sold for) appears only when something is typed in Sold for.
+    const isRec = price <= 0 || Math.abs(price - c.recommended) < 0.005;
     $('#calc').innerHTML = `<div><span>${t('calc.costTTD')}</span><span>${money(c.costTTD)}</span></div><div><span>${t('calc.clearing')}</span><span>${money(c.clearing)}</span></div>
       <div class="t"><span>${t('calc.landed')}</span><span>${money(c.landed)}</span></div><div><span>${t('calc.rec')}</span><span>${money(c.recommended)}</span></div>
-      <div class="t"><span>${label}</span><span class="${c.landed && c.profit < 0 ? 'bad' : ''}">${c.landed ? money(c.profit) : money(0)}</span></div>`;
+      ${line(isRec ? t('calc.profitRec') : t('calc.profitPrice'), isRec ? c.recommended : price, true)}${sold > 0 ? line(t('calc.profitSold'), sold, false) : ''}`;
   }
 
   // Invoice design follows the Google Sheets invoice template (banner, mauve table header, balance bar, pink footer).

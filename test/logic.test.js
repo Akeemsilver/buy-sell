@@ -214,4 +214,20 @@ console.log('all tests passed');
   assert.strictEqual(L.assignPhotos(s, s.batches[0].id, ['a', 'b']).assigned.length, 1, 'photos are never given to a sold item');
   L.deleteInvoice(s, inv.no); assert.strictEqual(L.isSold(s.items[0]), false, 'returning the invoice unlocks its items');
   s.items[1].status = 'Paid'; s.items[1].customer = 'Z'; L.returnItem(s, s.items[1].id); assert.strictEqual(s.items[1].status, 'Available'); assert.strictEqual(s.items[1].sold, 0); }
+{ // photo storage plan
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 3, currency: 'USD', totalCost: 30, margin: 100 });
+  s.items.forEach((x, n) => { x.desc = 'T' + n; x.cost = 10; x.price = 50; x.sold = 50; x.status = 'Available'; x.photo = { id: 'p' + n, checked: true }; });
+  const DAY = 864e5, now = Date.parse('2026-11-10T12:00:00Z');
+  let plan = L.photoSweepPlan(s, now, 2); assert.deepStrictEqual(plan.stamp.sort(), s.items.map((x) => x.id).sort(), 'saved photos without a time start their timer');
+  s.items.forEach((x) => { x.photo.savedAt = now - 3 * DAY; }); s.items[1].photo.savedAt = now - 1 * DAY;
+  plan = L.photoSweepPlan(s, now, 2); assert.deepStrictEqual(plan.dropOrig, [s.items[0].id, s.items[2].id], 'originals older than the keep time go, newer ones stay');
+  assert.deepStrictEqual(L.photoSweepPlan(s, now, 7).dropOrig, [], '7 day setting keeps 3 day old originals');
+  assert.deepStrictEqual(L.photoSweepPlan(s, now, 'sold').dropOrig, [], 'until sold keeps them');
+  s.items[1].photo.noOrig = true; assert.ok(!L.photoSweepPlan(s, now, 1).dropOrig.includes(s.items[1].id), 'already dropped is not listed again');
+  const inv = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Ari', isNew: true, paying: 50, date: new Date(now - 2 * DAY) });
+  plan = L.photoSweepPlan(s, now, 'sold'); assert.ok(plan.dropOrig.includes(s.items[0].id), 'a sold item drops its original at once even when the setting is until sold');
+  assert.deepStrictEqual(plan.dropFull, [], 'full photo stays for 7 days after the sale'); assert.strictEqual(L.photoDaysLeft(s, s.items[0], now), 5);
+  assert.deepStrictEqual(L.photoSweepPlan(s, now + 6 * DAY, 2).dropFull, [s.items[0].id], '8 days after the sale the full photo goes');
+  s.items[0].photo.noFull = true; assert.strictEqual(L.shareStatus(s.items[0]), 'gone'); assert.strictEqual(L.photoDaysLeft(s, s.items[0], now), null);
+}
 console.log('sale price tests passed');

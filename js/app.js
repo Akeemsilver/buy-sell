@@ -874,12 +874,23 @@
       img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';
     });
   }
+  // The PDF page is US Letter, white, with the invoice as a smaller sheet in the middle and a soft shadow so its edges show.
+  function letterPage(card) {
+    const pw = Math.round(card.width / 0.72), ph = Math.round(pw * 11 / 8.5), o = document.createElement('canvas'); o.width = pw; o.height = ph;
+    const g = o.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, pw, ph);
+    const k = Math.min(1, (0.88 * ph) / card.height), dw = Math.round(card.width * k), dh = Math.round(card.height * k), x = Math.round((pw - dw) / 2), y = Math.round((ph - dh) / 2);
+    g.save(); g.shadowColor = 'rgba(0,0,0,.30)'; g.shadowBlur = pw * 0.014; g.shadowOffsetY = pw * 0.006; g.fillStyle = '#fff'; g.fillRect(x, y, dw, dh); g.restore();
+    g.save(); g.shadowColor = 'rgba(0,0,0,.22)'; g.shadowBlur = pw * 0.003; g.shadowOffsetY = pw * 0.001; g.fillStyle = '#fff'; g.fillRect(x, y, dw, dh); g.restore();
+    g.drawImage(card, x, y, dw, dh);
+    return o;
+  }
   // Share the invoice as a PDF file straight from the phone (the share sheet gets the file; nothing has to be downloaded first).
   function shareInvoicePdf(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
     toast(t('doc.preparing'));
-    invoiceCanvas(v, 'image/jpeg', false, 3, 0.95).then(async (blob) => {   // 3x = about 290 dots per inch on A4: sharp when zoomed and when printed
-      const bmp = await createImageBitmap(blob), pdf = Pdf.jpegToPdf(new Uint8Array(await blob.arrayBuffer()), bmp.width, bmp.height);
+    invoiceCanvas(v, 'image/png', false, 2.6).then(async (blob) => {   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
+      const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
+      const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
       const file = new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         return navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });

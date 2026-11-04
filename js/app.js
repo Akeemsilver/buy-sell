@@ -509,14 +509,17 @@
       <div class="btns" style="margin-top:10px"><button type="button" class="btn primary" data-act="invfs-open">🎨 ${t('invd.wheel')} · ${t('invd.fullEditor')}</button><button type="button" class="btn" data-act="inv-reset">${t('invd.reset')}</button></div></div>`;
   }
   function InvDesignPage() {
-    return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p><div id="invpanel">${invColourPanel()}</div><div class="dsgrid" id="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${invCards()}</div>`;
+    const fr = invFrame(), frames = [['tint', t('invd.frameTint')], ['shadow', t('invd.frameShadow')], ['none', t('invd.frameNone')]];
+    return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p>
+      <div class="invset"><h3>${t('invd.frame')}</h3><div class="chiprow" role="radiogroup" aria-label="${t('invd.frame')}" style="margin:0">${frames.map(([k, l]) => `<button type="button" class="chip ${fr === k ? 'on' : ''}" role="radio" aria-checked="${fr === k}" data-act="inv-frame" data-id="${k}">${l}</button>`).join('')}</div><p class="muted small" style="margin:8px 0 0">${t('invd.frameNote')}</p></div>
+      <div id="invpanel">${invColourPanel()}</div><div class="dsgrid" id="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${invCards()}</div>`;
   }
   /* Full-screen editor: a big live preview of the invoice, a colour wheel, brightness, second colour. Opened from the Invoice design page. */
   let invFsOn = false, invFsHsv = null, invFsTimer = 0, invFsUrl = '';
   const invSample = () => { const d = new Date(); return state.invoices[state.invoices.length - 1] || { no: 'INV00001', client: ti('doc.sampleClient'), date: d.toISOString(), due: new Date(d.getTime() + 6048e5).toISOString(), lines: [{ desc: ti('doc.sampleItem'), qty: 1, price: 250 }], delivery: 0, total: 250, amountPaid: 250, previouslyPaid: 0, balance: 0 }; };
   function invFsPreview() {
     clearTimeout(invFsTimer);
-    invFsTimer = setTimeout(() => invoiceCanvas(invSample()).then((blob) => { const img = $('#invfs-img'); if (!img) return; const old = invFsUrl; invFsUrl = URL.createObjectURL(blob); img.src = invFsUrl; if (old) setTimeout(() => URL.revokeObjectURL(old), 800); }).catch(() => {}), 90);
+    invFsTimer = setTimeout(() => invoiceCanvas(invSample(), 'image/png', true).then((blob) => { const img = $('#invfs-img'); if (!img) return; const old = invFsUrl; invFsUrl = URL.createObjectURL(blob); img.src = invFsUrl; if (old) setTimeout(() => URL.revokeObjectURL(old), 800); }).catch(() => {}), 90);
   }
   function drawWheel(cv, v) {
     const n = cv.width, im = cv.getContext('2d').createImageData(n, n), r = n / 2;
@@ -804,7 +807,20 @@
   }
 
   // Draws the same invoice onto a canvas (800 x N, 2x) so it can be shared or saved as a PNG for WhatsApp etc.
-  function invoiceCanvas(v, type) {
+  // The picture people receive: the invoice as a sheet of paper on a background, so it stands out from the chat. 'tint' = soft colour, 'shadow' = white with a shadow under the sheet, 'none' = the page alone.
+  const invFrame = () => ['tint', 'shadow', 'none'].includes(state.settings.invoiceFrame) ? state.settings.invoiceFrame : 'tint';
+  function framedCanvas(card, mode, S, brand) {
+    const M = 56 * S, R = 26 * S, w = card.width + 2 * M, h = card.height + 2 * M, o = document.createElement('canvas'); o.width = w; o.height = h;
+    const g = o.getContext('2d'), path = () => { g.beginPath(); g.moveTo(M + R, M); g.arcTo(M + card.width, M, M + card.width, M + card.height, R); g.arcTo(M + card.width, M + card.height, M, M + card.height, R); g.arcTo(M, M + card.height, M, M, R); g.arcTo(M, M, M + card.width, M, R); g.closePath(); };
+    g.fillStyle = mode === 'tint' ? InvDesign.mix(brand || '#7a1f33', '#ffffff', 0.9) : '#ffffff'; g.fillRect(0, 0, w, h);
+    if (mode === 'shadow') {
+      g.save(); g.shadowColor = 'rgba(0,0,0,.32)'; g.shadowBlur = 48 * S; g.shadowOffsetY = 18 * S; g.fillStyle = '#fff'; path(); g.fill(); g.restore();
+      g.save(); g.shadowColor = 'rgba(0,0,0,.18)'; g.shadowBlur = 10 * S; g.shadowOffsetY = 3 * S; g.fillStyle = '#fff'; path(); g.fill(); g.restore();
+    }
+    g.save(); path(); g.clip(); g.drawImage(card, M, M); g.restore();
+    return o;
+  }
+  function invoiceCanvas(v, type, frame) {
     return new Promise((ok, fail) => {
       const img = new Image(); img.onerror = () => fail(new Error(ti('doc.loadErr')));
       img.onload = () => {
@@ -852,7 +868,8 @@
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
         x.fillStyle = D.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
-        c.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', 0.92);
+        const out = frame && invFrame() !== 'none' ? framedCanvas(c, invFrame(), S, Theme.brand()) : c;
+        out.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', 0.92);
       };
       img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';
     });
@@ -874,7 +891,7 @@
   function shareInvoiceImage(no, saveOnly) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
     toast(t('doc.preparing'));
-    invoiceCanvas(v).then((blob) => {
+    invoiceCanvas(v, 'image/png', true).then((blob) => {
       const file = new File([blob], `${v.no} ${v.client}.png`, { type: 'image/png' });
       if (!saveOnly && navigator.canShare && navigator.canShare({ files: [file] })) {
         return navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
@@ -1059,8 +1076,9 @@
         const sample = { no: 'INV00001', client: ti('doc.sampleClient'), date: d.toISOString(), due: new Date(d.getTime() + 6048e5).toISOString(), lines: [{ desc: ti('doc.sampleItem'), qty: 1, price: 250 }], delivery: 0, total: 250, amountPaid: 250, previouslyPaid: 0, balance: 0 };
         const inv = real || state.invoices[state.invoices.length - 1] || sample;
         designOverride = t_.dataset.act === 'inv-design-view' ? id : null; toast(t('doc.preparing'));
-        return invoiceCanvas(inv).then((blob) => PUI.openViewer(URL.createObjectURL(blob))).catch((e) => toast('⚠️ ' + errMsg(e))).finally(() => { designOverride = null; });
+        return invoiceCanvas(inv, 'image/png', true).then((blob) => PUI.openViewer(URL.createObjectURL(blob))).catch((e) => toast('⚠️ ' + errMsg(e))).finally(() => { designOverride = null; });
       }
+      case 'inv-frame': state.settings.invoiceFrame = id; save(); return render();
       case 'invfs-open': return openInvEditor();
       case 'invfs-close': return closeInvEditor();
       case 'invfs-pick': state.settings.invoiceDesign = id; save(); invFsChips(); invFsControls(); invFsPreview(); return;

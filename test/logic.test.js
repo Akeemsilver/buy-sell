@@ -230,4 +230,14 @@ console.log('all tests passed');
   assert.deepStrictEqual(L.photoSweepPlan(s, now + 6 * DAY, 2).dropFull, [s.items[0].id], '8 days after the sale the full photo goes');
   s.items[0].photo.noFull = true; assert.strictEqual(L.shareStatus(s.items[0]), 'gone'); assert.strictEqual(L.photoDaysLeft(s, s.items[0], now), null);
 }
+{ // old thumbnails: only sold items, only by sale date, never automatic
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 3, currency: 'USD', totalCost: 30, margin: 100 });
+  s.items.forEach((x, n) => { x.desc = 'T' + n; x.cost = 10; x.price = 50; x.sold = 50; x.status = 'Available'; x.photo = { id: 'p' + n, checked: true }; });
+  const DAY = 864e5, now = Date.parse('2027-12-01T12:00:00Z');
+  L.createInvoice(s, { itemIds: [s.items[0].id], client: 'A', isNew: true, paying: 50, date: new Date(now - 400 * DAY) });
+  L.createInvoice(s, { itemIds: [s.items[1].id], client: 'B', isNew: true, paying: 50, date: new Date(now - 100 * DAY) });
+  assert.deepStrictEqual(L.oldThumbItems(s, now).map((x) => x.id), [s.items[0].id], 'sold over a year ago is listed; recent sale and unsold stock are not');
+  assert.strictEqual(L.oldThumbItems(s, now, 90).length, 2, 'the age can be changed');
+  assert.deepStrictEqual(L.photoSweepPlan(s, now, 2).dropFull.concat(L.photoSweepPlan(s, now, 2).dropOrig).filter((id) => id === s.items[2].id), [], 'the automatic sweep never touches thumbnails or unsold photos');
+}
 console.log('sale price tests passed');

@@ -158,6 +158,9 @@
   L.soldAt = (s, it) => { const v = it.invoice && s.invoices.find((x) => x.no === it.invoice); const d = v && v.date ? new Date(v.date).getTime() : NaN; return isNaN(d) ? null : d; };
   // Days left to open the full photo of a sold item (null when not sold, or no clock to read).
   L.photoDaysLeft = (s, it, now) => { if (!it.photo || it.photo.noFull || !L.isSold(it)) return null; const at = L.soldAt(s, it); return at == null ? null : Math.max(0, Math.ceil((at + L.PHOTO_HOLD_DAYS * DAY - now) / DAY)); };
+  // Sold items whose sale was more than `days` ago and that still have a picture: the thumbnails the owner may choose to remove.
+  // Unsold stock and sales without a date are never listed.
+  L.oldThumbItems = (s, now, days) => s.items.filter((it) => { if (!it.photo || !L.isSold(it)) return false; const at = L.soldAt(s, it); return at != null && now - at >= (days || 365) * DAY; });
   // What to delete now. stamp = checked photos that have no saved time yet (they start their timer today).
   L.photoSweepPlan = (s, now, keep) => {
     const plan = { dropOrig: [], dropFull: [], stamp: [] };

@@ -412,6 +412,13 @@
     A.save(); A.render(); return { n, bytes };
   }
 
+  // The owner's choice (Storage used): remove the thumbnails of items sold over a year ago. The record of the sale stays.
+  async function removeOldThumbs() {
+    const st = A.state(), list = L.oldThumbItems(st, Date.now()); let n = 0, bytes = 0;
+    for (const i of list) { try { const rec = await S.get(i.photo.id); if (rec && rec.thumb) bytes += rec.thumb.size || 0; await S.del(i.photo.id); } catch (e) { continue; } forget(i.photo.id); i.photo = null; n++; }
+    A.save(); A.render(); return { n, bytes };
+  }
+
   /* ---------- events from the app ---------- */
 
   function act(a, id, el) {
@@ -446,7 +453,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer, sweep, freeOriginals,
+    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer, sweep, freeOriginals, removeOldThumbs,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

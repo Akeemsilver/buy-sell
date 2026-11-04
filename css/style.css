@@ -503,3 +503,5 @@ h2.sec{margin:18px 0 6px}
 .cpage .cp-tiles .tile b{font-size:16px;display:block;white-space:nowrap}.cpage .cp-tiles .tile small{font-size:10.5px}
 .cpage h2{font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink);margin:18px 2px 8px}
 .cpage .cp-inv{border-radius:22px;box-shadow:0 8px 24px -14px rgba(0,0,0,.35)}
+
+.cpage .fullbar{background:var(--bg);border-bottom:1px solid var(--line)}

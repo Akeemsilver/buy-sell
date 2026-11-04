@@ -796,6 +796,7 @@
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       <div class="btns"><button class="btn primary" data-act="share-img" data-id="${v.no}">${t('invUI.share')}</button>
+      <button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.sharePdf')}</button>
       <button class="btn" data-act="save-img" data-id="${v.no}">${t('invUI.save')}</button>
       <button class="btn" data-act="print">${t('invUI.print')}</button>
       <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
@@ -803,7 +804,7 @@
   }
 
   // Draws the same invoice onto a canvas (800 x N, 2x) so it can be shared or saved as a PNG for WhatsApp etc.
-  function invoiceCanvas(v) {
+  function invoiceCanvas(v, type) {
     return new Promise((ok, fail) => {
       const img = new Image(); img.onerror = () => fail(new Error(ti('doc.loadErr')));
       img.onload = () => {
@@ -851,10 +852,24 @@
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
         x.fillStyle = D.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
-        c.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), 'image/png');
+        c.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', 0.92);
       };
       img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';
     });
+  }
+  // Share the invoice as a PDF file straight from the phone (the share sheet gets the file; nothing has to be downloaded first).
+  function shareInvoicePdf(no) {
+    const v = state.invoices.find((x) => x.no === no); if (!v) return;
+    toast(t('doc.preparing'));
+    invoiceCanvas(v, 'image/jpeg').then(async (blob) => {
+      const bmp = await createImageBitmap(blob), pdf = Pdf.jpegToPdf(new Uint8Array(await blob.arrayBuffer()), bmp.width, bmp.height);
+      const file = new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+      }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      toast(t('doc.noSharePdf'));
+    }).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
   function shareInvoiceImage(no, saveOnly) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
@@ -1037,6 +1052,7 @@
       case 'del-inv': if (confirm(t('confirm.delInv', { id }))) run(() => L.deleteInvoice(state, id), t('inv.deleted', { id })); return;
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
+      case 'share-pdf': return shareInvoicePdf(id);
       case 'save-img': return shareInvoiceImage(id, true);
       case 'inv-full': case 'inv-design-view': {
         const real = state.invoices.find((x) => x.no === id), d = new Date();

@@ -129,14 +129,16 @@
   // Every step is rounded to the cent so what is shown always adds up: cost + clearing = landed, landed x (1 + margin) = recommended.
   L.itemCalc = (b, it) => {
     const cost = num(it.cost);
-    if (!b || cost <= 0) return { costTTD: 0, clearing: 0, landed: 0, recommended: 0, profit: 0 };
+    if (!b || cost <= 0) return { costTTD: 0, clearing: 0, landed: 0, recommended: 0, paid: 0, profitSoFar: 0, profit: 0 };
     const rawTTD = cost * b.rate, totalTTD = b.totalCost * b.rate;
     const costTTD = r2(rawTTD);
     const clearing = b.clearingPaid > 0 && totalTTD > 0 ? r2((b.clearingPaid / totalTTD) * rawTTD) : 0;
     const landed = r2(costTTD + clearing);
     const recommended = r2(landed * (1 + b.margin / 100));
     const sold = num(it.sold);
-    return { costTTD, clearing, landed, recommended, profit: r2((sold > 0 ? sold : L.salePrice(it) > 0 ? L.salePrice(it) : num(it.price) > 0 ? num(it.price) : recommended) - landed) };   // sold for, else the selling price, else the recommended price
+    // paid: the cash received so far for this item (spread over the invoice's items in order); profitSoFar: what that cash leaves after the landed cost (negative while the cost is not covered yet)
+    const paid = num(it.paid);
+    return { costTTD, clearing, landed, recommended, paid, profitSoFar: r2(paid - landed), profit: r2((sold > 0 ? sold : L.salePrice(it) > 0 ? L.salePrice(it) : num(it.price) > 0 ? num(it.price) : recommended) - landed) };   // sold for, else the selling price, else the recommended price
   };
 
   /* ---------- photos, selling price and what customers may see ---------- */

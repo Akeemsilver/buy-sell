@@ -711,6 +711,16 @@
     // First profit line follows the selling-price part: a sale price while a sale is on; otherwise the Selling price box (empty or equal to the recommended price = "recommended").
     // A second line (sold for) appears only when something is typed in Sold for.
     const isRec = price <= 0 || Math.abs(price - c.recommended) < 0.005;
+    if (L.isSold(i)) {   // a sold item: profit at the recommended price, at what it sold for, and so far (what has been paid minus the landed cost)
+      const so = L.r2(c.paid - c.landed), owing = Math.max(0, L.r2(sold - c.paid));
+      $('#calc').innerHTML = `<div><span>${t('calc.costTTD')}</span><span>${money(c.costTTD)}</span></div><div><span>${t('calc.clearing')}</span><span>${money(c.clearing)}</span></div>
+        <div class="t"><span>${t('calc.landed')}</span><span>${money(c.landed)}</span></div><div><span>${t('calc.rec')}</span><span>${money(c.recommended)}</span></div>
+        ${line(t('calc.profitRec'), c.recommended, false)}${line(t('calc.profitSold'), sold, false)}
+        <div><span>${t('calc.paidSoFar')}</span><span>${money(c.paid)}${owing > 0 ? ` <small class="bad">${t('calc.stillOwed', { amt: money(owing) })}</small>` : ''}</span></div>
+        <div class="t"><span>${t(owing > 0 ? 'calc.profitSoFar' : 'calc.profitMade')}</span><span class="${so < 0 ? 'bad' : ''}">${has ? money(so) : '—'}</span></div>
+        ${has && so < 0 ? `<p class="muted small" style="margin:6px 0 0">${t('calc.notCovered', { amt: money(-so) })}</p>` : ''}`;
+      return;
+    }
     const first = sale > 0 ? line(t('calc.profitSale'), sale, true) : line(isRec ? t('calc.profitRec') : t('calc.profitPrice'), isRec ? c.recommended : price, true);
     $('#calc').innerHTML = `<div><span>${t('calc.costTTD')}</span><span>${money(c.costTTD)}</span></div><div><span>${t('calc.clearing')}</span><span>${money(c.clearing)}</span></div>
       <div class="t"><span>${t('calc.landed')}</span><span>${money(c.landed)}</span></div><div><span>${t('calc.rec')}</span><span>${money(c.recommended)}</span></div>

@@ -7,7 +7,7 @@
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const moneyText = (n) => 'TT$ ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const moneyBare = (n) => `<span class="amt">${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;   // no currency sign: for tight spots (the customer strip)
+  const moneyBare = (n) => `<span class="amt">${'$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;   // short form with just $ (no TT): for tight spots (the customer strip)
   const money = (n) => `<span class="amt">${moneyText(n)}</span>`;   // wrapped so the eye button can blur amounts
   const plain = (html) => String(html).replace(/<[^>]+>/g, '');
   const day = (d) => (d ? new Date(d).toLocaleDateString(I.locale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '');

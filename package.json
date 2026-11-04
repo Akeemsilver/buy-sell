@@ -3,7 +3,7 @@
   "private": true,
   "description": "Buy & sell batch, inventory and invoice tracker",
   "scripts": {
-    "test": "node test/logic.test.js && node test/i18n.test.js && node test/css.test.js && node test/photo.test.js && node test/sync.test.js && node test/theme.test.js && node test/version.test.js",
+    "test": "node test/logic.test.js && node test/i18n.test.js && node test/css.test.js && node test/photo.test.js && node test/sync.test.js && node test/theme.test.js && node test/invdesign.test.js && node test/version.test.js",
     "start": "python3 -m http.server 8080"
   }
 }

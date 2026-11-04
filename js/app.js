@@ -212,7 +212,7 @@
   function render() {
     cleanSelected();
     const moreTitles = { invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !(tab === 'more' && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
@@ -416,7 +416,8 @@
         ${trow('🌓', t('set.appearance'), themeName, 'data-act="pick-appearance"')}
         ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
         ${trow('🗣️', t('set.custLang'), { ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}</div>
-      <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}</div>
+      <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
+        ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}</div>
       <h2>${t('set.sec.data')}</h2><div class="list grp">
         ${trow('💾', t('set.backupRow'), t('set.backupSub'), nav('set-backup'))}
         ${trow('📥', t('more.import'), t('more.importSub'), 'data-act="import-xlsx"')}
@@ -487,10 +488,20 @@
     const act = (a, label, sub, bad) => `<button class="row tap" data-act="${a}"><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
     return `<div class="list">${act('export-json', t('more.backup'), t('more.backupSub'))}${act('import-json', t('more.restore'), t('more.restoreSub'))}${act('reset', t('more.erase'), t('more.eraseSub'), true)}</div><p class="note">${t('photo.backupNote')}</p>`;
   }
+  function InvDesignPage() {
+    const cur = invDesignId(), D0 = InvDesign.DESIGNS;
+    const cards = D0.map((d) => {
+      const c = InvDesign.colours(d.id, Theme.brand()), top = d.id === 'classic' ? bannerSrc() : headerURL(d.id), on = cur === d.id;
+      return `<button class="dsg ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-act="inv-design" data-id="${d.id}" style="--ih:${c.head};--it:${c.tint || '#f6edf2'}">
+        <span class="pg"><img src="${top}" alt=""><i class="th"></i><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="bd"></i></span><b>${t('invd.' + d.id)}</b>${d.themed ? `<small>${t('invd.themed')}</small>` : ''}</button>`;
+    }).join('');
+    return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p><div class="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${cards}</div>`;
+  }
   function SettingsPage() {
     const s = state.settings, cur = I.getLang();
     if (moreView === 'set-about') return AboutPage();
     if (moreView === 'set-backup') return BackupPage();
+    if (moreView === 'set-invdesign') return InvDesignPage();
     if (moreView === 'set-theme') {
       const sel = themeDraft || curPal(), changed = sel !== curPal();
       return `<div class="swatches wrap" role="radiogroup" aria-label="${t('set.theme')}">${swatchBtns(sel, 'draft-palette')}</div>
@@ -498,7 +509,8 @@
         <h2>${t('set.preview')}</h2>${themePreview(sel, bizName())}
         <div class="btns"><button class="btn primary" data-act="apply-palette" ${changed ? '' : 'disabled'}>${t('set.apply')}</button></div>`;
     }
-    return `<form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off"><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="text" inputmode="numeric" value="${s.year}"></div>
+    return `<form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off">
+      <label>${t('set.bizCity')}</label><input name="bizCity" value="${esc(s.bizCity || '')}" autocomplete="off"><div class="grid2"><div><label>${t('set.bizPhone')}</label><input name="bizPhone" type="text" inputmode="tel" value="${esc(s.bizPhone || '')}" autocomplete="off"></div><div><label>${t('set.bizEmail')}</label><input name="bizEmail" type="text" inputmode="email" value="${esc(s.bizEmail || '')}" autocomplete="off"></div></div><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="text" inputmode="numeric" value="${s.year}"></div>
       <div><label>${t('set.margin')}</label><input name="defaultMargin" type="text" inputmode="decimal" value="${s.defaultMargin}"></div></div>
       <label>${t('set.markup')}</label><input name="markup" type="text" inputmode="decimal" step="0.001" value="${s.markup}">
       ${['USD', 'EUR', 'GBP'].map((c) => `<label>${t('set.rate', { c })}</label><input name="${c}" type="text" inputmode="decimal" step="0.0001" value="${s.rates[c]}">`).join('')}
@@ -646,6 +658,23 @@
   const invoiceLang = () => invLangSession || custLang();
   const ti = (key, vars) => t(key, vars, invoiceLang());
   const bannerSrc = () => (invoiceLang() === 'es' ? 'icons/invoice-banner-es.jpg' : 'icons/invoice-banner.jpg');
+  // Invoice design (Settings): the picture at the top and the colours of the table. 'classic' is the flower picture; the others are drawn here.
+  const invDesignId = () => state.settings.invoiceDesign || 'classic';
+  const invDesign = () => InvDesign.colours(invDesignId(), Theme.brand());
+  const invBiz = () => {
+    const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail);
+    return { name: s.businessName || 'B.RUIZ', lines: (own ? [s.bizCity, s.bizPhone, s.bizEmail] : ['Chaguanas', '18683658857', 'berilexy.ruiz93@gmail.com']).filter(Boolean), logo: s.businessName ? null : invLogo };
+  };
+  const invLogo = new Image(); invLogo.src = 'icons/logo.png';
+  const headCache = {};
+  function headerCanvas(id, S) {
+    const b = invBiz(), W = 800, c = document.createElement('canvas'); c.width = W * S; c.height = InvDesign.HEAD_H * S;
+    const x = c.getContext('2d'); x.scale(S, S); InvDesign.drawHeader(x, id, W, { name: b.name, lines: b.lines, title: ti('doc.invoiceWord'), logo: b.logo && b.logo.complete && b.logo.naturalWidth ? b.logo : null }, Theme.brand()); return c;
+  }
+  function headerURL(id) {
+    const b = invBiz(), k = [id, invoiceLang(), b.name, b.lines.join('|'), Theme.brand(), b.logo && b.logo.complete ? 1 : 0].join('~');
+    return headCache[k] || (headCache[k] = headerCanvas(id, 2).toDataURL('image/png'));
+  }
   const invMoney = (n) => 'TT$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const invDate = (d) => new Date(d).toLocaleDateString('en-GB');
   const invLines = (v) => (v.lines && v.lines.length ? v.lines : [{ desc: v.desc, qty: v.qty, price: v.total - v.delivery }]);
@@ -690,7 +719,7 @@
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     openSheet(`<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
-      <div class="printable"><div class="inv"><img class="inv-banner" src="${bannerSrc()}" alt="${ti('doc.bannerAlt')}">
+      <div class="printable"><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
         <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
           <div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div></div>
@@ -712,14 +741,14 @@
     return new Promise((ok, fail) => {
       const img = new Image(); img.onerror = () => fail(new Error(ti('doc.loadErr')));
       img.onload = () => {
-        const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0);
-        const bannerH = Math.round(W * img.naturalHeight / img.naturalWidth), rowH = 36;
+        const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), D = invDesign(), classic = invDesignId() === 'classic';
+        const bannerH = classic ? Math.round(W * img.naturalHeight / img.naturalWidth) : InvDesign.HEAD_H, rowH = 36;
         const H = Math.max(bannerH + 508 + lines.length * rowH + 62, Math.round(W * 1.4142));   // A4 portrait (1 : 1.414) like a paper invoice; longer invoices grow taller. Pink band sits right under the notes
         const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
         const x = c.getContext('2d'); x.scale(S, S);
         const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
         x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-        x.drawImage(img, 0, 0, W, bannerH);
+        if (classic) x.drawImage(img, 0, 0, W, bannerH); else x.drawImage(headerCanvas(invDesignId(), S), 0, 0, W, bannerH);
         const L0 = 36, R0 = W - 36; let y = bannerH + 44;
         x.textBaseline = 'alphabetic';
         F('700', 14); x.fillStyle = INV.grey; x.textAlign = 'left'; x.fillText(ti('doc.billTo'), L0, y);
@@ -729,11 +758,12 @@
           F('400', 16); x.fillStyle = '#000'; x.fillText(val, R0, y + i * 26);
         });
         y += 74;
-        x.fillStyle = INV.mauve; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), 38);
+        x.fillStyle = D.head; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), 38);
         F('700', 14); x.fillStyle = '#fff'; x.textAlign = 'left'; x.fillText(ti('doc.desc'), L0, y + 25);
         x.textAlign = 'right'; x.fillText(ti('doc.qty'), R0 - 250, y + 25); x.fillText(ti('doc.price'), R0 - 130, y + 25); x.fillText(ti('doc.amount'), R0, y + 25);
         y += 38;
-        lines.forEach((l) => {
+        lines.forEach((l, li) => {
+          if (D.tint && li % 2) { x.fillStyle = D.tint; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), rowH); }
           F('400', 16); x.fillStyle = '#000'; x.textAlign = 'left';
           let d = String(l.desc); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(l.desc)) d = d.trim() + '…';
           x.fillText(d, L0, y + 24);
@@ -745,7 +775,7 @@
         [[ti('doc.subtotal'), sub], [ti('doc.delivery'), v.delivery], [ti('doc.total'), v.total], [ti('doc.paid'), v.amountPaid], [ti('doc.prevPaid'), v.previouslyPaid]].forEach(([k, val]) => {
           F('400', 16); x.fillStyle = INV.mid; x.textAlign = 'right'; x.fillText(k, R0 - 130, y); x.fillStyle = '#000'; x.fillText(invMoney(val), R0, y); y += 28;
         });
-        x.fillStyle = INV.mauve; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
+        x.fillStyle = D.head; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
         F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ti('doc.balance'), R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
         if (isPaidInFull(v)) {
           x.save(); x.globalCompositeOperation = 'multiply';
@@ -754,10 +784,10 @@
         y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
-        x.fillStyle = INV.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
+        x.fillStyle = D.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
         c.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), 'image/png');
       };
-      img.src = bannerSrc();
+      img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';
     });
   }
   function shareInvoiceImage(no, saveOnly) {
@@ -940,6 +970,7 @@
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
       case 'save-img': return shareInvoiceImage(id, true);
+      case 'inv-design': state.settings.invoiceDesign = id; save(); toast(t('invd.saved')); return render();
       case 'more': if (id === 'settings') settingsFrom = { tab, moreView }; moreView = id; window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
@@ -960,7 +991,7 @@
     if (f.id === 'f-clear') run(() => L.payClearing(state, d.batch, d.amount), t('clear.recorded', { id: bl(d.batch) }));
     if (f.id === 'f-receive') run(() => L.makeAvailable(state, d.batch), (n) => t('recv.done', { id: bl(d.batch), n }));
     if (f.id === 'f-settings') run(() => {
-      Object.assign(state.settings, { businessName: /^b-?ruiz$/i.test((d.businessName || '').trim()) ? '' : (d.businessName || '').trim(), year: +d.year || state.settings.year, markup: +d.markup || 1, defaultMargin: d.defaultMargin === '' ? 100 : +d.defaultMargin });
+      Object.assign(state.settings, { businessName: /^b-?ruiz$/i.test((d.businessName || '').trim()) ? '' : (d.businessName || '').trim(), bizCity: (d.bizCity || '').trim(), bizPhone: (d.bizPhone || '').trim(), bizEmail: (d.bizEmail || '').trim(), year: +d.year || state.settings.year, markup: +d.markup || 1, defaultMargin: d.defaultMargin === '' ? 100 : +d.defaultMargin });
       ['USD', 'EUR', 'GBP'].forEach((c) => { state.settings.rates[c] = +d[c] || state.settings.rates[c]; });
     }, t('set.saved'), true);
   });

@@ -32,6 +32,8 @@ follows the phone's language (Spanish if the phone is set to Spanish, otherwise 
 switch (shown above the invoice), because a customer may read a different language from the one the app is set to. The Spanish invoice uses
 a Spanish banner (`icons/invoice-banner-es.jpg`, "FACTURA"). Batch ids show as `LOTE-001` in Spanish but stay `BATCH-001` in your data.
 
+**Invoice design** (Settings → Invoice design): eleven looks for the invoices you share and print — the flower picture (Classic) and ten drawn in code (`js/invdesign.js`): Wave (follows the theme colour), Marble, Halftone, Rust, Ember, Honeycomb, Swoosh, Chevron, Navy, Indigo. The business name, town, phone and email (Settings → Business details) are printed in the picture at the top. Invoices are an A4 page shape.
+
 **Rule for everything we add from now on:** every visible text goes through `t('key')` (or `tn('key', n)` for singular/plural) and the key
 is written in both languages in `js/i18n.js`. `npm test` checks that both dictionaries have the same keys and `{placeholders}`, that
 every key the code uses exists, that every logic error has a translation and that key styles are still present; the deploy workflow runs

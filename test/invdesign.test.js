@@ -1,0 +1,13 @@
+const assert = require('assert');
+const D = require('../js/invdesign.js');
+const ids = D.DESIGNS.map((d) => d.id);
+assert.strictEqual(new Set(ids).size, ids.length, 'design ids are unique');
+assert.ok(ids.includes('classic') && D.DESIGNS.length === 11);
+assert.strictEqual(D.find('nope').id, 'classic', 'unknown id falls back to classic');
+const w = D.colours('wave', '#7a1f33');
+assert.strictEqual(w.head, '#7a1f33'); assert.strictEqual(w.band, '#7a1f33'); assert.strictEqual(w.ink, '#7a1f33');
+assert.ok(/^#[0-9a-f]{6}$/.test(w.tint) && w.tint !== w.head, 'themed tint is a light version of the theme colour');
+assert.strictEqual(D.colours('navy', '#7a1f33').head, '#232d57', 'fixed designs ignore the theme');
+assert.strictEqual(D.mix('#000000', '#ffffff', 0.5), '#808080');
+const en = require('../js/i18n.js');
+console.log('invoice design tests passed');

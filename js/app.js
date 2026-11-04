@@ -311,7 +311,7 @@
     const sale = L.salePrice(i), priceHtml = i.sold ? money(i.sold) : sale ? money(sale) : i.price ? money(i.price) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : '';
     return `<div class="item ${sel ? 'sel' : ''}" data-id="${i.id}">
       <label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-sel ${sel ? 'checked' : ''}></label>
-      <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/<\/span>$/, sale && !i.sold ? `<small class="saleoff ph-sale">−${Number(i.discount)}%</small></span>` : '</span>')}<span class="txt"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}</b>
+      <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/<\/span>$/, sale && !L.isSold(i) ? `<small class="saleoff ph-sale">−${Number(i.discount)}%</small></span>` : '</span>')}<span class="txt"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}</b>
         <small>${i.id}${i.customer ? ' · ' + esc(i.customer) : ''}${i.invoice ? ' · ' + i.invoice : ''}</small></span></button>
       <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${priceHtml}</b></div>
       <button class="share-btn" data-act="photo-share" data-id="${i.id}" aria-label="${t('photo.share')}" ${noPhoto ? 'disabled' : ''}>${SHARE}</button></div>`;

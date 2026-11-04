@@ -794,7 +794,7 @@
     // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
     const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="inv-photo" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${d != null ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
-    openSheet(`<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div><div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
         <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
@@ -807,7 +807,7 @@
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${thumbs}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
-      <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
+      <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
   }
 
@@ -920,12 +920,12 @@
   function sheetCustomer(name) {
     const c = L.customerStats(state).find((x) => x.name === name); if (!c) return;
     const invs = state.invoices.filter((v) => v.client === name).reverse();
-    openSheet(`<h3>${esc(c.name)} <span class="pill ${c.owing > 0 ? 'Owing' : 'Up'}">${custStLabel(c)}</span></h3>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${custStLabel(c)}</small></div></div><div style="height:8px"></div>
       <div class="sumbox"><div><span>${t('cust.owingLabel')}</span><span>${money(c.owing)}</span></div><div><span>${t('cust.totalSales')}</span><span>${money(c.sales)}</span></div>
       <div><span>${t('cust.itemsBought')}</span><span>${t('cust.itemsBoughtVal', { n: c.bought, o: c.itemsOwing })}</span></div><div><span>${t('cust.profit')}</span><span>${money(c.profit)}</span></div>
       ${c.lastItem ? `<div><span>${t('cust.lastItem')}</span><span>${esc(c.lastItem)}</span></div>` : ''}</div>
       <h2>${t('cust.invoices')}</h2><div class="list">${invs.map(invoiceRow).join('') || `<div class="muted">${t('cust.none')}</div>`}</div>
-      <div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
+      <div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, true);
   }
 
   /* ---------- top-bar tools ---------- */

@@ -582,7 +582,7 @@
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
-      <label>${t('item.price')}</label><div class="grid2 ${L.saleActive(i) ? 'fade' : ''}" id="pricerow"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00" ${L.saleActive(i) ? 'readonly' : ''}><button class="btn" type="button" data-act="use-rec" data-id="${i.id}" ${L.saleActive(i) ? 'disabled' : ''}>${t('item.useRec')}</button></div>
+      <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <div id="saleblock">${saleHTML(i)}</div>
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
@@ -611,7 +611,6 @@
     calcBox(i); refreshTag(i);
     const sold = $('#sheet [data-f=sold]'); if (sold) { const v = L.salePrice(i) || Number(i.price) || 0; sold.placeholder = v ? L.r2(v).toFixed(2) : ''; }   // what Add to invoice would use
     const sum = $('#salesum'); if (sum) sum.innerHTML = saleSum(i);
-    const lock = L.saleActive(i), row = $('#pricerow'); if (row) { row.classList.toggle('fade', lock); const inp = row.querySelector('input'); if (inp) inp.readOnly = lock; const b = row.querySelector('button'); if (b) b.disabled = lock; }
   }
   // The price tag as it will appear on the shared picture (the item page shows it over the photo).
   function tagHTML(i) {
@@ -926,7 +925,7 @@
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
       case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
       case 'sale-other': { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
-      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.saleActive(it)) return toast(t('sale.locked')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return; }
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); }
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;

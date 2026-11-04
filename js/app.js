@@ -468,7 +468,7 @@
       <p class="muted small">${t('about.rulesNote')}</p>
       <h2>${t('about.storage')}</h2><div class="sumbox" style="margin-top:0"><div><span>${t('about.cloud')}</span><b>${cloud.signedIn ? fmtBytes(u.bytes) + ' ' + t('about.of') + ' 1 GB' : t('about.signedOut')}</b></div>${meter('m-cloud', u.bytes / CLOUD_LIMIT * 100)}<p class="muted small" style="margin:4px 0 0">${t('about.cloudNote')}</p></div>
       <div class="sumbox"><div><span>${t('about.phone')}</span><b id="ab-phone">${t('about.measuring')}</b></div>${meter('m-phone', 0)}<p class="muted small" id="ab-phone-note" style="margin:4px 0 0"></p></div>
-      <h2>${t('about.counts')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.cBatches'), c.b)}${line(t('about.cItems'), c.i)}${line(t('about.cInvoices'), c.v)}${line(t('about.cPhotos'), '<span id="ab-photos">…</span>')}${line(t('about.origs'), '<span id="ab-orig">…</span>')}</div>
+      <h2>${t('about.counts')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.cBatches'), c.b)}${line(t('about.cItems'), c.i)}${line(t('about.cInvoices'), c.v)}${line(t('about.cPhotos'), '<span id="ab-photos">…</span>')}${line(t('about.origs'), '<span id="ab-orig">…</span>')}${line(t('about.oldThumbs'), '<span id="ab-old">…</span>')}</div>
       <h2>${t('about.usage')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.reads'), u.reads.toLocaleString() + ' / 50,000')}${meter('m-r', u.reads / 500)}${line(t('about.writes'), u.writes.toLocaleString() + ' / 20,000')}${meter('m-w', u.writes / 200)}<p class="muted small" style="margin:4px 0 0">${t('about.usageNote')}</p></div>`;
   }
   // The parts that need the phone to measure something (build id, browser storage, photos, offline tools).
@@ -479,6 +479,8 @@
     const tools = window.caches ? caches.open('vendor-v1').then((c) => c.keys().then((rs) => Promise.all(rs.map((r) => c.match(r).then((x) => (x ? x.clone().blob().then((b) => b.size) : 0)))))).then((a) => a.reduce((x, y) => x + y, 0)).catch(() => 0) : Promise.resolve(0);
     Promise.all([PhotoStore.stats().catch(() => ({ count: 0, bytes: 0 })), tools, navigator.storage && navigator.storage.estimate ? navigator.storage.estimate().catch(() => null) : null]).then(([ph, tl, est]) => {
       put('ab-photos', ph.count);
+      const old = L.oldThumbItems(state, Date.now());
+      Promise.all(old.map((i) => PhotoStore.get(i.photo.id).then((r) => (r && r.thumb ? r.thumb.size : 0)).catch(() => 0))).then((a) => { const kb = fmtBytes(a.reduce((x, y) => x + y, 0)); put('ab-old', old.length ? t('about.origLine', { n: old.length, mb: kb }) + ` <button class="chip" data-act="free-thumbs" data-n="${old.length}" data-mb="${kb}">${t('about.thumbsBtn')}</button>` : t('about.origNone')); });
       put('ab-orig', ph.origCount ? t('about.origLine', { n: ph.origCount, mb: fmtBytes(ph.origBytes) }) + ` <button class="chip" data-act="free-space" data-n="${ph.origCount}" data-mb="${fmtBytes(ph.origBytes)}">${t('about.free')}</button>` : t('about.origNone'));
       const total = est && est.usage ? est.usage : rec + ph.bytes + tl;
       put('ab-phone', fmtBytes(total) + (est && est.quota ? ' ' + t('about.of') + ' ' + fmtBytes(est.quota) : ''));
@@ -1045,6 +1047,7 @@
       case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
       case 'pick-keep': return sheetChoice(t('set.keepRow'), 'set-keep', photoKeep(), ['1', '2', '7', 'sold'].map((k) => [k, t('keep.' + k)]), t('keep.note'));
       case 'set-keep': state.settings.photoKeep = id; save(); closeSheet(); PUI.sweep(photoKeep()); return render();
+      case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; if (!confirm(t('about.thumbsAsk', { n, mb: t_.dataset.mb }))) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }
       case 'free-space': { const n = Number(t_.dataset.n) || 0; if (!confirm(t('about.freeAsk', { n, mb: t_.dataset.mb }))) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }
       case 'set-custlang': setPref('custLang', id); closeSheet(); return render();
       case 'check-update': return checkUpdate();

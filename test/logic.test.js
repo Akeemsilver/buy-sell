@@ -240,4 +240,18 @@ console.log('all tests passed');
   assert.strictEqual(L.oldThumbItems(s, now, 90).length, 2, 'the age can be changed');
   assert.deepStrictEqual(L.photoSweepPlan(s, now, 2).dropFull.concat(L.photoSweepPlan(s, now, 2).dropOrig).filter((id) => id === s.items[2].id), [], 'the automatic sweep never touches thumbnails or unsold photos');
 }
+{ // later payments and customer place
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'USD', totalCost: 40, margin: 100 });
+  s.items.forEach((x, n) => { x.desc = 'T' + n; x.cost = 10; x.price = 210; x.sold = 210; x.status = 'Available'; });
+  const a = L.createInvoice(s, { itemIds: s.items.map((x) => x.id), client: 'Ren', isNew: true, paying: 300, date: new Date() });
+  assert.strictEqual(a.balance, 120);
+  assert.throws(() => L.recordPayment(s, a.no, 500), (e) => e.code === 'payTooMuch', 'cannot pay more than is owed');
+  const b = L.recordPayment(s, a.no, 60, new Date());
+  assert.strictEqual(b.previouslyPaid, 300); assert.strictEqual(b.amountPaid, 60); assert.strictEqual(b.balance, 60);
+  assert.strictEqual(s.invoices.find((v) => v.no === a.no).updatedBy, b.no, 'old invoice is marked Updated');
+  assert.ok(s.items.every((x) => x.invoice === b.no && x.status === 'Owing' || x.status === 'Paid'), 'items now sit on the new invoice');
+  assert.throws(() => L.recordPayment(s, a.no, 10), (e) => e.code === 'alreadyUpdated', 'an updated invoice cannot be paid again');
+  const c = L.recordPayment(s, b.no, 60, new Date()); assert.strictEqual(c.balance, 0); assert.ok(s.items.every((x) => x.status === 'Paid'), 'paid in full when nothing is left');
+  L.setPlace(s, 'Ren', ' Chaguanas '); assert.strictEqual(L.place(s, 'Ren'), 'Chaguanas'); L.setPlace(s, 'Ren', ''); assert.strictEqual(L.place(s, 'Ren'), '');
+}
 console.log('sale price tests passed');

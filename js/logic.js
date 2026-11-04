@@ -331,6 +331,17 @@
   // An item that is sold but has no invoice (imported): put it back in stock.
   L.returnItem = (s, id) => { const i = s.items.find((x) => x.id === id); if (!i) return; i.status = 'Available'; i.customer = ''; i.invoice = ''; i.sold = 0; i.owing = 0; };
 
+  // A later payment on an owing invoice: makes the updated invoice (new number, Previously Paid carried over); the old one is kept and marked Updated.
+  L.recordPayment = (s, no, amount, date) => {
+    const inv = s.invoices.find((v) => v.no === no); if (!inv) throw fail('noInvoice');
+    if (inv.updatedBy) throw fail('alreadyUpdated');
+    if (num(amount) > inv.balance + 0.005) throw fail('payTooMuch');
+    return L.createInvoice(s, { itemIds: s.items.filter((i) => i.invoice === no).map((i) => i.id), client: inv.client, paying: amount, date });
+  };
+  // Where a customer is from (a general area, so you can recognise someone when you forget the name). Kept in settings so it syncs.
+  L.place = (s, name) => ((s.settings.places || {})[name] || '').trim();
+  L.setPlace = (s, name, value) => { s.settings.places = Object.assign({}, s.settings.places); const v = String(value || '').trim(); if (v) s.settings.places[name] = v; else delete s.settings.places[name]; };
+
   L.deleteInvoice = (s, no) => {
     const inv = s.invoices.find((v) => v.no === no);
     if (!inv) return;

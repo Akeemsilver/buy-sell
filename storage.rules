@@ -1,0 +1,15 @@
+rules_version = '2';
+// B Ruiz Storage rules 1.00
+// Paste this into Firebase console > Storage > Rules > Publish.
+// Only members of a workspace can read, add or remove its photos, and only small JPEG files (the 900 px photo and the 200 px thumbnail).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function isMember(w) { return signedIn() && firestore.get(/databases/(default)/documents/workspaces/$(w)).data.members[request.auth.uid] != null; }
+
+    match /workspaces/{w}/photos/{file} {
+      allow read, delete: if isMember(w);
+      allow write: if isMember(w) && request.resource.size < 400 * 1024 && request.resource.contentType == 'image/jpeg';
+    }
+  }
+}

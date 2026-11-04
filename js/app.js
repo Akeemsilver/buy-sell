@@ -995,9 +995,12 @@
   });
   // Enter in a field closes the keyboard and leaves the cursor and the scroll where they were (it never jumps to the next field).
   const plainField = (el) => el && el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file)$/.test(el.type) && !el.form;
-  document.addEventListener('focusin', (e) => { if (plainField(e.target) && !e.target.hasAttribute('enterkeyhint')) e.target.setAttribute('enterkeyhint', 'done'); });
+  // Tell the phone's keyboard to show a Done key (not Next) BEFORE a field is focused: every field gets enterkeyhint="done" as soon as it appears.
+  const hintDone = (root) => { (root.querySelectorAll ? root.querySelectorAll('input:not([enterkeyhint]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button]):not([type=submit])') : []).forEach((el) => { if (!el.form) el.setAttribute('enterkeyhint', 'done'); }); if (root.matches && root.matches('input:not([enterkeyhint])') && !root.form) root.setAttribute('enterkeyhint', 'done'); };
+  hintDone(document);
+  new MutationObserver((muts) => muts.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) hintDone(n); }))).observe(document.body, { childList: true, subtree: true });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && plainField(e.target)) {
+    if ((e.key === 'Enter' || e.key === 'Tab') && plainField(e.target) && !e.shiftKey) {                  // Tab = the phone's Next key, if it still shows one
       e.preventDefault(); const sh = $('#sheet'), inSheet = !sh.hidden && sh.contains(e.target), pos = inSheet ? sh.scrollTop : window.scrollY;
       e.target.blur();
       const restore = () => { if (inSheet) sh.scrollTop = pos; else window.scrollTo(0, pos); };

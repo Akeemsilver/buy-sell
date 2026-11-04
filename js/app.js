@@ -306,6 +306,13 @@
       <div class="list">${items.map((i) => itemCard(b, i)).join('') || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
   }
 
+  // The discount a sold item was bought with (shown as a red strip on its picture): the sale percentage, or the real percentage off the selling price if Sold for was changed by hand.
+  const boughtOffPct = (i) => {
+    const price = Number(i.price) || 0, sold = Number(i.sold) || 0;
+    if (!L.isSold(i) || !i.saleOn || price <= 0 || sold <= 0 || sold >= price) return 0;
+    return Math.abs(sold - L.salePrice(i)) < 0.01 ? Number(i.discount) : Math.round((1 - sold / price) * 100);
+  };
+  const offStrip = (i) => { const p = boughtOffPct(i); return p > 0 ? `<small class="saleoff ph-sale">−${p}%</small>` : ''; };
   function itemCard(b, i) {
     const c = L.itemCalc(b, i), sel = selected.has(i.id), noPhoto = L.shareStatus(i) === 'noPhoto';
     const sale = L.salePrice(i), priceHtml = i.sold ? money(i.sold) : sale ? money(sale) : i.price ? money(i.price) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : '';
@@ -803,7 +810,7 @@
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
-    const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
+    const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${offStrip(x)}${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div><div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
@@ -965,7 +972,7 @@
       const from = `data-id="${v.no}" data-from="${esc(name)}"`;
       return `<div class="cp-inv ${due ? 'due' : ''}"><div class="cp-top"><div class="cp-l"><div class="numrow"><button class="num" data-act="view-inv" ${from}><b>${v.no}</b></button>${due && !v.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-from="${esc(name)}" data-back="cust">${t('pay.btn')}</button>` : ''}</div><button class="sub" data-act="view-inv" ${from}><small>${day(v.date)} · ${tn('cust.itemsN', its.length || v.qty || 1)}</small></button></div><button class="cp-r" data-act="view-inv" ${from}><b>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></button></div>
         ${due ? `<div class="cp-owe"><div class="bar"><i style="width:${pct}%"></i></div><span>${t('cust.paidOf', { paid: money(v.total - v.balance), total: money(v.total) })}</span><b>${t('cust.stillOwes', { amt: money(v.balance) })}</b></div>` : ''}
-        ${its.length ? `<div class="cp-mini">${its.map((x) => `<button class="m" data-act="edit-item" data-back="cust" data-from="${esc(name)}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><i>${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}</i><span>${esc(x.desc || x.id)}</span></button>`).join('')}</div>` : ''}</div>`;
+        ${its.length ? `<div class="cp-mini">${its.map((x) => `<button class="m" data-act="edit-item" data-back="cust" data-from="${esc(name)}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><i>${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}${offStrip(x)}</i><span>${esc(x.desc || x.id)}</span></button>`).join('')}</div>` : ''}</div>`;
     };
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div></div>
       <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><small>${invs.length ? lastCap : since}</small></div><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div>

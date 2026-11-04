@@ -506,11 +506,54 @@
         <label class="swatch own" aria-label="${t('invd.custom')}"><input type="color" data-inv="color" value="${own || Theme.brand()}"><span>＋</span></label></div>
       <label for="inv-light">${t('invd.light')}</label><input id="inv-light" type="range" min="-20" max="20" step="1" value="${Number(st.light) || 0}" data-inv="light">
       ${hasBlend ? `<label for="inv-blend">${t('invd.blend')}</label><input id="inv-blend" type="range" min="-90" max="90" step="1" value="${blend}" data-inv="blend">` : ''}
-      <button type="button" class="btn" data-act="inv-reset" style="margin-top:10px">${t('invd.reset')}</button></div>`;
+      <div class="btns" style="margin-top:10px"><button type="button" class="btn primary" data-act="invfs-open">🎨 ${t('invd.wheel')} · ${t('invd.fullEditor')}</button><button type="button" class="btn" data-act="inv-reset">${t('invd.reset')}</button></div></div>`;
   }
   function InvDesignPage() {
     return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p><div id="invpanel">${invColourPanel()}</div><div class="dsgrid" id="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${invCards()}</div>`;
   }
+  /* Full-screen editor: a big live preview of the invoice, a colour wheel, brightness, second colour. Opened from the Invoice design page. */
+  let invFsOn = false, invFsHsv = null, invFsTimer = 0, invFsUrl = '';
+  const invSample = () => { const d = new Date(); return state.invoices[state.invoices.length - 1] || { no: 'INV00001', client: ti('doc.sampleClient'), date: d.toISOString(), due: new Date(d.getTime() + 6048e5).toISOString(), lines: [{ desc: ti('doc.sampleItem'), qty: 1, price: 250 }], delivery: 0, total: 250, amountPaid: 250, previouslyPaid: 0, balance: 0 }; };
+  function invFsPreview() {
+    clearTimeout(invFsTimer);
+    invFsTimer = setTimeout(() => invoiceCanvas(invSample()).then((blob) => { const img = $('#invfs-img'); if (!img) return; const old = invFsUrl; invFsUrl = URL.createObjectURL(blob); img.src = invFsUrl; if (old) setTimeout(() => URL.revokeObjectURL(old), 800); }).catch(() => {}), 90);
+  }
+  function drawWheel(cv, v) {
+    const n = cv.width, im = cv.getContext('2d').createImageData(n, n), r = n / 2;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const dx = x + 0.5 - r, dy = y + 0.5 - r, dist = Math.hypot(dx, dy), i = (y * n + x) * 4;
+      if (dist > r) { im.data[i + 3] = 0; continue; }
+      const hex = InvDesign.hsvHex(Math.atan2(dy, dx) * 180 / Math.PI, dist / r, v); im.data[i] = parseInt(hex.slice(1, 3), 16); im.data[i + 1] = parseInt(hex.slice(3, 5), 16); im.data[i + 2] = parseInt(hex.slice(5, 7), 16); im.data[i + 3] = Math.min(255, (r - dist) * 255);
+    }
+    cv.getContext('2d').putImageData(im, 0, 0);
+  }
+  function invFsControls() {
+    const id = invDesignId(), d = InvDesign.find(id), st = invStyle(id), el = $('#invfs-ctl'); if (!el) return;
+    if (!d.themed) { el.innerHTML = `<p class="muted small" style="margin:6px 0">${t('invd.fixed')}</p><button class="btn primary" data-act="invfs-close">${t('btn.done')}</button>`; return; }
+    invFsHsv = InvDesign.hsvOf(InvDesign.colours(id, Theme.brand(), Object.assign({}, st, { light: 0 })).head);
+    const blend = st.blend != null && st.blend !== '' ? st.blend : (InvDesign.BLEND[id] || 0);
+    el.innerHTML = `<div class="wheelbox"><canvas id="invwheel" width="440" height="440" aria-label="${t('invd.wheel')}"></canvas><i id="wheelpin"></i></div>
+      <label for="invfs-v">${t('invd.bright')}</label><input id="invfs-v" type="range" min="25" max="100" step="1" value="${Math.round(invFsHsv.v * 100)}" data-invfs="v">
+      ${id in InvDesign.BLEND ? `<label for="invfs-b">${t('invd.blend')}</label><input id="invfs-b" type="range" min="-90" max="90" step="1" value="${blend}" data-inv="blend">` : ''}
+      <div class="btns"><button class="btn" data-act="invfs-theme">${t('invd.theme')}</button><button class="btn" data-act="inv-reset">${t('invd.reset')}</button><button class="btn primary" data-act="invfs-close">${t('btn.done')}</button></div>`;
+    const cv = $('#invwheel'); drawWheel(cv, invFsHsv.v); placePin();
+    const pick = (e) => { const r = cv.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), rad = r.width / 2; invFsHsv.h = Math.atan2(dy, dx) * 180 / Math.PI; invFsHsv.s = Math.min(1, Math.hypot(dx, dy) / rad); invFsApply(); };
+    cv.onpointerdown = (e) => { cv.setPointerCapture(e.pointerId); cv.dataset.drag = '1'; pick(e); };
+    cv.onpointermove = (e) => { if (cv.dataset.drag) pick(e); };
+    cv.onpointerup = cv.onpointercancel = () => { delete cv.dataset.drag; };
+  }
+  function placePin() {
+    const pin = $('#wheelpin'), cv = $('#invwheel'); if (!pin || !cv || !invFsHsv) return; const a = invFsHsv.h * Math.PI / 180, rr = invFsHsv.s * 50;
+    pin.style.left = 50 + Math.cos(a) * rr + '%'; pin.style.top = 50 + Math.sin(a) * rr + '%'; pin.style.background = InvDesign.hsvHex(invFsHsv.h, invFsHsv.s, invFsHsv.v);
+  }
+  function invFsApply() { setInvStyle({ color: InvDesign.hsvHex(invFsHsv.h, invFsHsv.s, invFsHsv.v), light: 0 }); placePin(); invFsPreview(); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); }
+  function invFsChips() { $('#invfs-chips').innerHTML = InvDesign.DESIGNS.map((d) => `<button class="chip ${invDesignId() === d.id ? 'on' : ''}" data-act="invfs-pick" data-id="${d.id}">${t('invd.' + d.id)}</button>`).join(''); }
+  function openInvEditor() {
+    let el = $('#invfs'); if (!el) { el = document.createElement('section'); el.id = 'invfs'; el.className = 'invfs'; el.setAttribute('aria-label', t('invd.editor')); document.body.appendChild(el); }
+    el.innerHTML = `<div class="invfs-top"><div class="chiprow" id="invfs-chips"></div><button class="vx" data-act="invfs-close" aria-label="${t('btn.close')}">✕</button></div><div class="invfs-prev"><img id="invfs-img" alt=""></div><div class="invfs-ctl" id="invfs-ctl"></div>`;
+    el.hidden = false; invFsOn = true; document.body.style.overflow = 'hidden'; invFsChips(); invFsControls(); invFsPreview();
+  }
+  function closeInvEditor() { const el = $('#invfs'); if (el) el.hidden = true; invFsOn = false; document.body.style.overflow = ''; if (moreView === 'set-invdesign') render(); }
   function setInvStyle(patch) {
     const id = invDesignId(); state.settings.invoiceStyle = Object.assign({}, state.settings.invoiceStyle); state.settings.invoiceStyle[id] = Object.assign({}, state.settings.invoiceStyle[id], patch); save();
   }
@@ -996,8 +1039,12 @@
         designOverride = t_.dataset.act === 'inv-design-view' ? id : null; toast(t('doc.preparing'));
         return invoiceCanvas(inv).then((blob) => PUI.openViewer(URL.createObjectURL(blob))).catch((e) => toast('⚠️ ' + errMsg(e))).finally(() => { designOverride = null; });
       }
+      case 'invfs-open': return openInvEditor();
+      case 'invfs-close': return closeInvEditor();
+      case 'invfs-pick': state.settings.invoiceDesign = id; save(); invFsChips(); invFsControls(); invFsPreview(); return;
+      case 'invfs-theme': setInvStyle({ color: null, light: 0 }); invFsControls(); invFsPreview(); return;
       case 'inv-color': setInvStyle({ color: id || null }); return render();
-      case 'inv-reset': { const m = Object.assign({}, state.settings.invoiceStyle); delete m[invDesignId()]; state.settings.invoiceStyle = m; save(); return render(); }
+      case 'inv-reset': { const m = Object.assign({}, state.settings.invoiceStyle); delete m[invDesignId()]; state.settings.invoiceStyle = m; save(); if (invFsOn) { invFsControls(); invFsPreview(); } return render(); }
       case 'inv-design': state.settings.invoiceDesign = id; save(); toast(t('invd.saved')); return render();
       case 'more': if (id === 'settings') settingsFrom = { tab, moreView }; moreView = id; window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
@@ -1041,7 +1088,8 @@
 
   document.addEventListener('input', (e) => {
     const el = e.target;
-    if (el.dataset.inv) { setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
+    if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
+    if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); }
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {

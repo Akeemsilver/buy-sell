@@ -13,4 +13,6 @@ assert.notStrictEqual(own.head, '#1d5fb4', 'lighter changes the colour'); assert
 assert.strictEqual(D.colours('dusk', '#7a1f33').blend, 45); assert.strictEqual(D.colours('sunrise', '#7a1f33', { blend: '' }).blend, -40);
 assert.strictEqual(D.colours('deep', '#7a1f33', { color: '#1d5fb4', light: 0 }).head, '#1d5fb4', 'own colour replaces the theme colour');
 assert.ok(D.colours('deep', '#7a1f33', { light: 15 }).head !== D.colours('deep', '#7a1f33', { light: -15 }).head);
+assert.strictEqual(D.hsvHex(0, 1, 1), '#ff0000'); assert.strictEqual(D.hsvHex(120, 1, 1), '#00ff00'); assert.strictEqual(D.hsvHex(0, 0, 1), '#ffffff'); assert.strictEqual(D.hsvHex(240, 1, 0.5), '#000080');
+['#7a1f33', '#1d5fb4', '#ffcc00', '#808080'].forEach((c) => { const h = D.hsvOf(c); assert.ok(Math.abs(parseInt(D.hsvHex(h.h, h.s, h.v).slice(1), 16) - parseInt(c.slice(1), 16)) < 0x030303, 'round trip ' + c); });
 console.log('invoice design tests passed');

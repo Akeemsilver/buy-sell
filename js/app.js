@@ -704,6 +704,7 @@
       <button class="btn" data-act="save-img" data-id="${v.no}">${t('invUI.save')}</button>
       <button class="btn" data-act="print">${t('invUI.print')}</button>
       <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
+    const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
   }
 
   // Draws the same invoice onto a canvas (800 x N, 2x) so it can be shared or saved as a PNG for WhatsApp etc.

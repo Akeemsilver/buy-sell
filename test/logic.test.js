@@ -263,4 +263,21 @@ console.log('all tests passed');
   L.createInvoice(s, { itemIds: [s.items[1].id], client: 'B', isNew: true, paying: 60, date: new Date() });
   assert.strictEqual(L.itemCalc(s.batches[0], s.items[1]).profitSoFar, -40, 'paid less than the landed cost: still 40 to recover');
 }
+{ // renaming a customer
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 3, currency: 'USD', totalCost: 60, margin: 100 });
+  s.items.forEach((x, n) => { x.desc = 'T' + n; x.cost = 10; x.price = 100; x.sold = 100; x.status = 'Available'; });
+  L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Ren', isNew: true, paying: 100, date: new Date() });
+  L.createInvoice(s, { itemIds: [s.items[1].id], client: 'Zed', isNew: true, paying: 100, date: new Date() });
+  L.setPlace(s, 'Ren', 'Couva');
+  assert.strictEqual(L.renameCustomer(s, 'Ren', '  Renwick  J '), 'Renwick J');
+  assert.ok(s.invoices.some((v) => v.client === 'Renwick J') && !s.invoices.some((v) => v.client === 'Ren'), 'invoices renamed');
+  assert.ok(s.items.some((x) => x.customer === 'Renwick J') && !s.items.some((x) => x.customer === 'Ren'), 'items renamed');
+  assert.ok(s.customers.includes('Renwick J') && !s.customers.includes('Ren'), 'customers list renamed');
+  assert.strictEqual(L.place(s, 'Renwick J'), 'Couva', 'the location moves with the name'); assert.strictEqual(L.place(s, 'Ren'), '');
+  assert.throws(() => L.renameCustomer(s, 'Renwick J', '   '), (e) => e.code === 'noName');
+  assert.strictEqual(L.otherCustomerNamed(s, 'Renwick J', 'zed'), true, 'a name used by someone else is detected');
+  assert.strictEqual(L.renameCustomer(s, 'Renwick J', 'zed'), 'Zed', 'it merges into the existing spelling');
+  assert.strictEqual(L.customerStats(s).filter((c) => c.name === 'Zed')[0].bought, 2, 'merged customers share their items');
+  assert.strictEqual(L.renameCustomer(s, 'Zed', 'ZED'), 'ZED', 'capitals can be changed');
+}
 console.log('sale price tests passed');

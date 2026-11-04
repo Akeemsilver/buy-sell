@@ -27,6 +27,9 @@
     const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
     return '#' + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
   };
+  // HSV is what a colour wheel shows: angle = hue, distance from the middle = how strong, plus a brightness slider.
+  const hsvOf = (hex) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255), mx = Math.max(r, g, b), dd = mx - Math.min(r, g, b); let h = 0; if (dd) { h = mx === r ? ((g - b) / dd) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4; h *= 60; if (h < 0) h += 360; } return { h, s: mx ? dd / mx : 0, v: mx }; };
+  const hsvHex = (h, s, v) => { h = ((h % 360) + 360) % 360; const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c; const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return '#' + [r, g, b].map((q) => Math.round((q + m) * 255).toString(16).padStart(2, '0')).join(''); };
   const shift = (hex, dh, dl) => { const c = hslOf(hex); return hexOf(c.h + dh, c.s, Math.max(0.12, Math.min(0.9, c.l + (dl || 0)))); };
 
   // The real colours of a design: the table, bar and footer follow the app colour.
@@ -71,6 +74,6 @@
     F('900', 48); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(info.title, W - 36, H / 2 + 17); x.restore();
   }
 
-  const api = { DESIGNS, HEAD_H, BLEND, find, colours, mix, drawHeader };
+  const api = { DESIGNS, HEAD_H, BLEND, find, colours, mix, drawHeader, hsvOf, hsvHex };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.InvDesign = api;
 })(typeof self !== 'undefined' ? self : this);

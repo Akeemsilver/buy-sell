@@ -442,3 +442,20 @@ h2.sec{margin:18px 0 6px}
 .tb .nm{display:block;margin-top:4px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .b22{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
 .btn.faded{opacity:.45}
+
+/* customer page */
+.cp-hero{display:flex;align-items:center;gap:14px;background:var(--card);border-radius:18px;padding:14px;margin:6px 0 12px;box-shadow:var(--sh1)}
+.cp-hero .av{width:58px;height:58px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:26px;font-weight:800;flex:none}
+.cp-hero .who{flex:1;min-width:0}.cp-hero .nm{font-size:22px;font-weight:800;overflow:hidden;text-overflow:ellipsis}.cp-hero small{color:var(--mute)}
+.cp-hero.owe{border:2px solid var(--warn)}
+.cp-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cp-tiles .tile{background:var(--card);border-radius:14px;padding:10px 12px;box-shadow:var(--sh1)}
+.cp-tiles .tile small{display:block;color:var(--mute);font-size:12px}.cp-tiles .tile b{font-size:18px}.cp-tiles .tile.bad b,.cp-tiles small.bad{color:var(--warn)}
+.cp-inv{background:var(--card);border-radius:16px;padding:6px 12px 12px;margin-bottom:10px;box-shadow:var(--sh1)}.cp-inv.due{border-left:5px solid var(--warn)}
+.cp-top{display:flex;justify-content:space-between;align-items:flex-start;width:100%;background:none;border:0;padding:8px 0 0;text-align:left;box-shadow:none;color:var(--ink)}
+.cp-top b{font-size:16px;display:block}.cp-top small{display:block;color:var(--mute);margin-top:2px}.cp-top .r{text-align:right}.cp-top .r .pill{margin-top:4px;display:inline-block}
+.cp-owe{margin-top:8px;font-size:12.5px;color:var(--mute)}.cp-owe .bar{height:7px;border-radius:99px;background:var(--line);overflow:hidden;margin-bottom:5px}.cp-owe .bar i{display:block;height:100%;background:var(--ok)}
+.cp-owe span{margin-right:8px}.cp-owe b{color:var(--warn)}
+.cp-mini{display:flex;gap:8px;margin-top:10px;overflow-x:auto;scrollbar-width:none}.cp-mini::-webkit-scrollbar{display:none}
+.cp-mini .m{flex:none;width:64px;background:none;border:0;padding:0;text-align:center;font-size:10.5px;box-shadow:none;color:var(--ink)}
+.cp-mini .m i{display:grid;place-items:center;width:64px;height:64px;border-radius:10px;overflow:hidden;background:var(--line)}.cp-mini .m img{width:100%;height:100%;object-fit:cover}
+.cp-mini .m span{display:block;margin-top:3px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

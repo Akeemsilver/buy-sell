@@ -807,7 +807,7 @@
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${thumbs}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
-      <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, true);
+      <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, () => { const f = invFrom; invFrom = null; if (f) sheetCustomer(f); }, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
   }
 
@@ -917,15 +917,26 @@
     }).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
 
+  // A customer's page: who they are to the business (not an account). Summary, then every invoice with its items; tap an invoice to see it, tap a picture to see the item.
+  let invFrom = null;   // the customer whose page we came from, so Back returns there
   function sheetCustomer(name) {
     const c = L.customerStats(state).find((x) => x.name === name); if (!c) return;
-    const invs = state.invoices.filter((v) => v.client === name).reverse();
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${custStLabel(c)}</small></div></div><div style="height:8px"></div>
-      <div class="sumbox"><div><span>${t('cust.owingLabel')}</span><span>${money(c.owing)}</span></div><div><span>${t('cust.totalSales')}</span><span>${money(c.sales)}</span></div>
-      <div><span>${t('cust.itemsBought')}</span><span>${t('cust.itemsBoughtVal', { n: c.bought, o: c.itemsOwing })}</span></div><div><span>${t('cust.profit')}</span><span>${money(c.profit)}</span></div>
-      ${c.lastItem ? `<div><span>${t('cust.lastItem')}</span><span>${esc(c.lastItem)}</span></div>` : ''}</div>
-      <h2>${t('cust.invoices')}</h2><div class="list">${invs.map(invoiceRow).join('') || `<div class="muted">${t('cust.none')}</div>`}</div>
-      <div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, true);
+    const invs = state.invoices.filter((v) => v.client === name).slice().sort((x, y) => new Date(y.date) - new Date(x.date));
+    const mon = (d) => new Date(d).toLocaleDateString(I.locale(I.getLang()), { month: 'short', year: 'numeric' }), day = (d) => new Date(d).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short' });
+    const lastCap = invs.length ? t('cust.lastBought', { d: day(invs[0].date) }).replace(/^./, (ch) => ch.toUpperCase()) : '';
+    const since = invs.length ? t('cust.since', { d: mon(invs[invs.length - 1].date) }) : t('cust.noInv'), last = invs.length ? ' · ' + t('cust.lastBought', { d: day(invs[0].date) }) : '';
+    const owing = c.owing > 0, card = (v) => {
+      const its = state.items.filter((x) => x.invoice === v.no), st = L.invoiceStatus(v), due = v.balance > 0, pct = v.total > 0 ? Math.max(0, Math.min(100, (v.total - v.balance) / v.total * 100)) : 100;
+      return `<div class="cp-inv ${due ? 'due' : ''}"><button class="cp-top" data-act="view-inv" data-id="${v.no}" data-from="${esc(name)}"><div><b>${v.no}</b><small>${day(v.date)} · ${tn('cust.itemsN', its.length || v.qty || 1)}</small></div><div class="r"><b>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></div></button>
+        ${due ? `<div class="cp-owe"><div class="bar"><i style="width:${pct}%"></i></div><span>${t('cust.paidOf', { paid: money(v.total - v.balance), total: money(v.total) })}</span><b>${t('cust.stillOwes', { amt: money(v.balance) })}</b></div>` : ''}
+        ${its.length ? `<div class="cp-mini">${its.map((x) => `<button class="m" data-act="edit-item" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><i>${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}</i><span>${esc(x.desc || x.id)}</span></button>`).join('')}</div>` : ''}</div>`;
+    };
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div></div>
+      <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><small>${invs.length ? lastCap : since}</small></div><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div>
+      <div class="cp-tiles"><div class="tile ${owing ? 'bad' : ''}"><small>${t('cust.owingLabel')}</small><b>${money(c.owing)}</b></div><div class="tile"><small>${t('cust.totalSales')}</small><b>${money(c.sales)}</b></div>
+        <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile"><small>${t('cust.profit')}</small><b>${money(c.profit)}</b></div></div>
+      <h2>${t('cust.invoices')} <span class="muted" style="float:right;text-transform:none;letter-spacing:0">${invs.length}</span></h2>${invs.map(card).join('') || `<div class="muted">${t('cust.none')}</div>`}
+      <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p>`, null, true);
   }
 
   /* ---------- top-bar tools ---------- */
@@ -1083,7 +1094,7 @@
       case 'make-invoice': return run(() => L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying }), (inv) => {
         selected = new Set(); invForm = { client: '', paying: '' }; setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
       case 'customer': closeSheet(); return sheetCustomer(id);
-      case 'view-inv': closeSheet(); return sheetInvoice(id);
+      case 'view-inv': invFrom = t_.dataset.from || null; closeSheet(); return sheetInvoice(id);
       case 'return-inv': { const n = state.items.filter((x) => x.invoice === id).length; if (confirm(t('item.returnAsk', { no: id, n }))) { closeSheet(); run(() => L.deleteInvoice(state, id), t('item.returned')); } return; }
       case 'return-item': if (confirm(t('item.returnItemAsk', { id }))) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } return;
       case 'del-inv': if (confirm(t('confirm.delInv', { id }))) run(() => L.deleteInvoice(state, id), t('inv.deleted', { id })); return;

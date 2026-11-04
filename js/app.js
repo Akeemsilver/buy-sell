@@ -649,9 +649,11 @@
 
   function sheetItem(id) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
-    const b = batchOf(i);
+    const b = batchOf(i), sold = L.isSold(i);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
+      ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small></div></div>` : ''}
       ${PUI.photoBox(i)}
+      <fieldset class="lockset" ${sold ? 'disabled' : ''}>
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
@@ -661,8 +663,10 @@
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="text" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
       <div class="sumbox" id="calc"></div>
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
-      <div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
-      <button class="btn" data-act="close">${t('btn.done')}</button></div>`, render, true);
+      </fieldset>
+      ${sold ? `<div class="btns">${i.invoice ? `<button class="btn" data-act="view-inv" data-id="${i.invoice}">${t('item.viewInv')}</button><button class="btn danger" data-act="return-inv" data-id="${i.invoice}">${t('item.returnInv')}</button>` : `<button class="btn danger" data-act="return-item" data-id="${i.id}">${t('item.returnItem')}</button>`}<button class="btn" data-act="close">${t('btn.done')}</button></div>`
+      : `<div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
+      <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
     $('#sheet').dataset.item = id; updateSale(i);
   }
   /* A sale takes a percentage off the selling price: a switch, quick percentages, and the sale price worked out for you. */
@@ -792,6 +796,7 @@
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       <div class="btns"><button class="btn primary" data-act="share-img" data-id="${v.no}">${t('invUI.share')}</button>
+      <button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.sharePdf')}</button>
       <button class="btn" data-act="save-img" data-id="${v.no}">${t('invUI.save')}</button>
       <button class="btn" data-act="print">${t('invUI.print')}</button>
       <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
@@ -799,7 +804,7 @@
   }
 
   // Draws the same invoice onto a canvas (800 x N, 2x) so it can be shared or saved as a PNG for WhatsApp etc.
-  function invoiceCanvas(v) {
+  function invoiceCanvas(v, type) {
     return new Promise((ok, fail) => {
       const img = new Image(); img.onerror = () => fail(new Error(ti('doc.loadErr')));
       img.onload = () => {
@@ -847,10 +852,24 @@
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
         x.fillStyle = D.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
-        c.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), 'image/png');
+        c.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', 0.92);
       };
       img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';
     });
+  }
+  // Share the invoice as a PDF file straight from the phone (the share sheet gets the file; nothing has to be downloaded first).
+  function shareInvoicePdf(no) {
+    const v = state.invoices.find((x) => x.no === no); if (!v) return;
+    toast(t('doc.preparing'));
+    invoiceCanvas(v, 'image/jpeg').then(async (blob) => {
+      const bmp = await createImageBitmap(blob), pdf = Pdf.jpegToPdf(new Uint8Array(await blob.arrayBuffer()), bmp.width, bmp.height);
+      const file = new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+      }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      toast(t('doc.noSharePdf'));
+    }).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
   function shareInvoiceImage(no, saveOnly) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
@@ -1015,12 +1034,12 @@
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
-      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
-      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
+      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
+      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
       case 'sale-other': { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
-      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); }
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); }
       case 'unselect': selected.delete(id); return render();
-      case 'select-close': { const it = state.items.find((x) => x.id === id); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
+      case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
       case 'pick-client': invForm.client = id; return render();
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
@@ -1028,9 +1047,12 @@
         selected = new Set(); invForm = { client: '', paying: '' }; setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
       case 'customer': closeSheet(); return sheetCustomer(id);
       case 'view-inv': closeSheet(); return sheetInvoice(id);
+      case 'return-inv': { const n = state.items.filter((x) => x.invoice === id).length; if (confirm(t('item.returnAsk', { no: id, n }))) { closeSheet(); run(() => L.deleteInvoice(state, id), t('item.returned')); } return; }
+      case 'return-item': if (confirm(t('item.returnItemAsk', { id }))) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } return;
       case 'del-inv': if (confirm(t('confirm.delInv', { id }))) run(() => L.deleteInvoice(state, id), t('inv.deleted', { id })); return;
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
+      case 'share-pdf': return shareInvoicePdf(id);
       case 'save-img': return shareInvoiceImage(id, true);
       case 'inv-full': case 'inv-design-view': {
         const real = state.invoices.find((x) => x.no === id), d = new Date();
@@ -1079,7 +1101,7 @@
       el.closest('.item').classList.toggle('sel', el.checked); render(); return;
     }
     if (el.dataset.f && $('#sheet').dataset.item) {
-      const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
+      const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f; if (L.isSold(i)) return;
       if (f === 'discount') { i.discount = parsePct(el.value); el.value = i.discount ? i.discount + '%' : ''; save(); return refreshSaleBlock(i); }   // "50" becomes "50%"
       i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0) : el.value;
       save(); updateSale(i);

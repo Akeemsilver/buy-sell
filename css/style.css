@@ -133,16 +133,17 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .inv-tot .due{background:var(--ih,#cea8bd);margin-top:4px}.inv-tot .due span,.inv-tot .due b{color:#fff;font-weight:700}
 .inv-terms{margin:0 0 8px;font-size:13px}.inv-terms b{display:block}.inv-terms span{color:#767676}
 .inv-foot{height:18px;background:var(--ib,#e6d2db)}.inv-t tbody tr:nth-child(even) td{background:var(--it,transparent)}
-@page{size:A4 portrait;margin:15mm}
+@page{size:A4 portrait;margin:0}
 @media print{
-  html,body{background:#fff!important;overflow:visible!important;height:auto!important}
+  html,body{background:#fff!important;overflow:visible!important;height:auto!important;max-width:none!important;width:100%!important;margin:0!important;padding:0!important}
   body>*:not(#sheet){display:none!important}
-  #sheet{position:static;display:block!important;max-height:none;overflow:visible;padding:0;margin:0;max-width:none;background:#fff;border-radius:0;animation:none;transform:none!important}
+  #sheet{position:static;display:block!important;max-height:none;overflow:visible;padding:0!important;margin:0!important;width:100%!important;max-width:none!important;background:#fff!important;border-radius:0;box-shadow:none!important;animation:none;transform:none!important}
   #sheet>*:not(.printable){display:none!important}
-  /* a receipt-sized invoice at the top of the page, not stretched to fill it */
-  .printable{width:120mm;max-width:100%;margin:0 auto}
-  .printable .inv{min-height:169.7mm!important}
-  .inv{border:0;border-radius:0;break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* the invoice is the whole page: blank white paper, no card, border, shadow or rounded corners */
+  .printable{width:100%;max-width:none;margin:0;padding:0;background:#fff}
+  .printable .inv{min-height:calc(100vh - 1mm)!important;border:0;border-radius:0;box-shadow:none!important;background-color:#fff}
+  .printable *{box-shadow:none!important}
+  .inv{break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 
 /* keyboard open: sheet spans from the top of the screen to the keyboard; bottom bars get out of the way */
@@ -426,3 +427,8 @@ h2.sec{margin:18px 0 6px}
 .invfs-top .vx{color:var(--ink)}
 .invfs-prev{position:relative;display:block}.invfs-prev img{position:absolute;inset:8px;margin:auto;max-width:calc(100% - 16px);max-height:calc(100% - 16px)}
 .wheelbox{width:min(180px,44vw)}.invfs-ctl{max-height:44vh}
+
+/* sold items are locked */
+.lockset{border:0;padding:0;margin:0;min-width:0}.lockset:disabled{opacity:.62}
+.lockbar{display:flex;gap:10px;align-items:flex-start;background:var(--tint);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px;font-size:18px}
+.lockbar b{display:block;font-size:14px}.lockbar small{display:block;color:var(--mute);font-size:12.5px;font-weight:400}

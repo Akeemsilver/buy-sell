@@ -582,7 +582,7 @@
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
-      <label>${t('item.price')}</label><div class="grid2 ${L.saleActive(i) ? 'fade' : ''}" id="pricerow"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00" ${L.saleActive(i) ? 'readonly' : ''}><button class="btn" type="button" data-act="use-rec" data-id="${i.id}" ${L.saleActive(i) ? 'disabled' : ''}>${t('item.useRec')}</button></div>
+      <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <div id="saleblock">${saleHTML(i)}</div>
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
@@ -608,10 +608,17 @@
   }
   // Keeps everything that depends on the prices in step (profit lines, sale summary, the locked selling price).
   function updateSale(i) {
-    calcBox(i);
+    calcBox(i); refreshTag(i);
+    const sold = $('#sheet [data-f=sold]'); if (sold) { const v = L.salePrice(i) || Number(i.price) || 0; sold.placeholder = v ? L.r2(v).toFixed(2) : ''; }   // what Add to invoice would use
     const sum = $('#salesum'); if (sum) sum.innerHTML = saleSum(i);
-    const lock = L.saleActive(i), row = $('#pricerow'); if (row) { row.classList.toggle('fade', lock); const inp = row.querySelector('input'); if (inp) inp.readOnly = lock; const b = row.querySelector('button'); if (b) b.disabled = lock; }
   }
+  // The price tag as it will appear on the shared picture (the item page shows it over the photo).
+  function tagHTML(i) {
+    const sale = L.salePrice(i), price = Number(i.price) || 0;
+    if (sale > 0) return `<b>${invMoney(sale)}</b><s>${invMoney(price)}</s><em>${t('photo.off', { pct: Number(i.discount) }, invoiceLang())}</em>`;
+    return price > 0 ? `<b>${invMoney(price)}</b>` : '';
+  }
+  function refreshTag(i) { const el = $('#ptag'); if (el) { el.innerHTML = tagHTML(i); el.hidden = !el.innerHTML; } }
   function refreshSaleBlock(i) { const el = $('#saleblock'); if (el) el.innerHTML = saleHTML(i); updateSale(i); }
   const parsePct = (v) => Math.min(99, Math.max(0, Math.round((parseFloat(String(v).replace('%', '').replace(',', '.')) || 0) * 100) / 100));
 
@@ -918,7 +925,7 @@
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
       case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
       case 'sale-other': { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
-      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.saleActive(it)) return toast(t('sale.locked')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return; }
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); }
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
@@ -986,7 +993,17 @@
       $('#rate-hint').innerHTML = t('batch.rateHint', { rate: r.toFixed(4), amount: money(c * r) });
     }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.f === 'discount') { e.preventDefault(); e.target.blur(); return; }
+  // Enter in a field closes the keyboard and leaves the cursor and the scroll where they were (it never jumps to the next field).
+  const plainField = (el) => el && el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file)$/.test(el.type) && !el.form;
+  document.addEventListener('focusin', (e) => { if (plainField(e.target) && !e.target.hasAttribute('enterkeyhint')) e.target.setAttribute('enterkeyhint', 'done'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && plainField(e.target)) {
+      e.preventDefault(); const sh = $('#sheet'), inSheet = !sh.hidden && sh.contains(e.target), pos = inSheet ? sh.scrollTop : window.scrollY;
+      e.target.blur();
+      const restore = () => { if (inSheet) sh.scrollTop = pos; else window.scrollTo(0, pos); };
+      [0, 80, 200, 400].forEach((ms) => setTimeout(restore, ms));   // the keyboard takes a moment to close and the screen resizes
+      return;
+    }
     if (e.key === 'Escape') { if (PUI.isOpen()) PUI.back(); else closeSheet(); } });
 
   /* ---------- files ---------- */
@@ -1126,7 +1143,7 @@
 
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const tidyPhotos = debounce(() => PUI.cleanup(), 2500);
-  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang });
+  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,
     askConflict,

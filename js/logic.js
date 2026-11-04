@@ -175,8 +175,8 @@
   };
 
   // When an item is added to an invoice its "Sold for" starts as your selling price (if you set one and none is filled in).
-  // Not while a sale is on: then Sold for is left for you to type.
-  L.prefillSold = (it) => { if (num(it.sold) <= 0 && num(it.price) > 0 && !L.saleActive(it)) it.sold = r2(num(it.price)); return it; };
+  // Added to an invoice with no Sold for: it becomes the sale price while a sale is on, otherwise the selling price (if there is one).
+  L.prefillSold = (it) => { if (num(it.sold) <= 0) { const v = L.salePrice(it) || num(it.price); if (v > 0) it.sold = r2(v); } return it; };
 
   L.batchStats = (s, b) => {
     const items = s.items.filter((i) => i.batchId === b.id);

@@ -396,3 +396,16 @@ h2.sec{margin:18px 0 6px}
 .dsg .pg i{position:absolute;left:8%;right:8%;display:block;border-radius:2px}
 .dsg .th{top:46%;height:7%;background:var(--ih)}.dsg .r1{top:56%;height:3%;background:var(--it)}.dsg .r2{top:62%;height:3%;background:#eee}.dsg .r3{top:68%;height:3%;background:var(--it)}
 .dsg .bd{top:80%;left:50%;height:6%;background:var(--ih)}
+
+/* full screen view of an invoice or a design */
+.printable{position:relative}
+.fsbtn,.dzoom{position:absolute;z-index:3;top:8px;right:8px;width:34px;height:34px;min-height:0;padding:0;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:#222;font-size:18px;line-height:34px;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+.dwrap{position:relative}.dzoom{top:auto;bottom:14px;right:14px;width:30px;height:30px;line-height:30px;font-size:16px;box-shadow:0 0 0 1px var(--line),0 1px 4px rgba(0,0,0,.2)}
+@media print{.fsbtn,.dzoom{display:none!important}}
+
+.invset{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px;box-shadow:var(--sh1)}
+.invset h3{margin:0 0 8px;font-size:15px}.invset label{display:block;margin-top:10px;font-weight:600;font-size:13px}
+.invset input[type=range]{width:100%;accent-color:var(--brand)}
+.invset .swatches{align-items:center}.invset .swatch{width:38px;height:38px}.invset .chip{flex:none}
+.swatch.own{display:grid;place-items:center;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative;overflow:hidden}
+.swatch.own span{color:#fff;font-weight:900;text-shadow:0 0 3px #000;pointer-events:none}.swatch.own input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}

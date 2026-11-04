@@ -482,3 +482,6 @@ h2.sec{margin:18px 0 6px}
 .sumbox h5{margin:12px 0 2px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:800}
 .sumbox h5:first-child{margin-top:2px}
 .sumbox .t.big{margin-top:10px;padding-top:10px;border-top:2px solid var(--line);font-size:17px}
+/* invoice number on a customer's card looks tappable: theme colour, underlined, with an arrow */
+.cp-top .num b{color:var(--brand);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.cp-top .num b::after{content:" ›";text-decoration:none;display:inline-block}

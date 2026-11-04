@@ -7,6 +7,7 @@
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const moneyText = (n) => 'TT$ ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const moneyBare = (n) => `<span class="amt">${'$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;   // short form with just $ (no TT): for tight spots (the customer strip)
   const money = (n) => `<span class="amt">${moneyText(n)}</span>`;   // wrapped so the eye button can blur amounts
   const plain = (html) => String(html).replace(/<[^>]+>/g, '');
   const day = (d) => (d ? new Date(d).toLocaleDateString(I.locale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '');
@@ -1019,12 +1020,12 @@
         ${due ? `<div class="cp-owe"><div class="bar"><i style="width:${pct}%"></i></div><span>${t('cust.paidOf', { paid: money(v.total - v.balance), total: money(v.total) })}</span><b>${t('cust.stillOwes', { amt: money(v.balance) })}</b></div>` : ''}
         ${its.length ? `<div class="cp-mini">${its.map((x) => `<button class="m" data-act="edit-item" data-back="cust" data-from="${esc(name)}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><i>${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}${offStrip(x)}</i><span>${esc(x.desc || x.id)}</span></button>`).join('')}</div>` : ''}</div>`;
     };
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
+    openSheet(`<div class="cpage"><div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
       <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><small>${invs.length ? lastCap : since}</small><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button></div><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div>
-      <div class="cp-tiles"><div class="tile ${owing ? 'bad' : ''}"><small>${t('cust.owingLabel')}</small><b>${money(c.owing)}</b></div><div class="tile"><small>${t('cust.totalSales')}</small><b>${money(c.sales)}</b></div>
-        <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile"><small>${t('cust.profit')}</small><b>${money(c.profit)}</b></div></div>
+      <div class="cp-tiles"><div class="tile ${owing ? 'bad' : ''}"><small>${t('cust.owingLabel')}</small><b>${moneyBare(c.owing)}</b></div><div class="tile"><small>${t('cust.totalSales')}</small><b>${moneyBare(c.sales)}</b></div>
+        <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile"><small>${t('cust.profit')}</small><b>${moneyBare(c.profit)}</b></div></div>
       <h2>${t('cust.invoices')} <span class="muted" style="float:right;text-transform:none;letter-spacing:0">${invs.length}</span></h2>${invs.map(card).join('') || `<div class="muted">${t('cust.none')}</div>`}
-      <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p>`, null, true);
+      <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p></div>`, null, true);
   }
 
   /* ---------- top-bar tools ---------- */

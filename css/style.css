@@ -490,3 +490,21 @@ h2.sec{margin:18px 0 6px}
 .fullbar .fb-edit{margin-left:auto;background:rgba(255,255,255,.18);border:0;color:#fff;border-radius:99px;padding:7px 18px;font-size:15px;font-weight:700;width:auto;height:auto;min-height:0;line-height:1.2}
 .cp-hero .cp-loc{display:block;background:none;border:0;padding:2px 0 0;font-size:14px;color:var(--ink);text-align:left;box-shadow:none;min-height:0;width:auto;font-weight:600}
 .cp-hero .cp-loc.none{color:var(--mute);font-weight:400}
+
+/* customer page, modern look (gradient card, one stats strip) */
+.cpage .fullbar{background:transparent;color:var(--ink);box-shadow:none}.cpage .fullbar>button,.cpage .fullbar b{color:var(--ink)}.cpage .fullbar small{display:block;color:var(--mute);opacity:1}
+.cpage .fullbar .fb-edit{background:var(--tint);color:var(--brand)}
+.cpage .cp-hero{background:var(--brand);background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--brand) 55%,#000));color:#fff;border-radius:26px;padding:20px 18px;box-shadow:0 14px 30px -12px var(--brand);margin:0 0 14px;border:0}
+.cpage .cp-hero .av{background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.55);width:64px;height:64px}
+.cpage .cp-hero .nm{color:#fff;font-size:24px}.cpage .cp-hero small,.cpage .cp-hero .cp-loc{color:rgba(255,255,255,.88)}
+.cpage .cp-hero .pill{background:rgba(255,255,255,.22);color:#fff;backdrop-filter:blur(4px)}
+.cpage .cp-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--card);border-radius:20px;box-shadow:var(--sh1);padding:12px 4px;margin-bottom:6px}
+.cpage .cp-tiles .tile{box-shadow:none;background:none;text-align:center;padding:2px 4px;border-right:1px solid var(--line);border-radius:0}.cpage .cp-tiles .tile:last-child{border:0}
+.cpage .cp-tiles .tile b{font-size:16px;display:block;white-space:nowrap}.cpage .cp-tiles .tile small{font-size:10.5px}
+.cpage h2{font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink);margin:18px 2px 8px}
+.cpage .cp-inv{border-radius:22px;box-shadow:0 8px 24px -14px rgba(0,0,0,.35)}
+
+.cpage .fullbar{background:var(--bg);border-bottom:1px solid var(--line)}
+/* every header bar is the same height: the main bar on the tabs and the bar on full-screen pages */
+.appbar{box-sizing:border-box;height:calc(60px + var(--sat));min-height:0}
+.fullbar{box-sizing:border-box;height:calc(60px + var(--sat));padding-top:var(--sat);padding-bottom:0;overflow:hidden}

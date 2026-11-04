@@ -713,7 +713,7 @@
       img.onload = () => {
         const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0);
         const bannerH = Math.round(W * img.naturalHeight / img.naturalWidth), rowH = 36;
-        const H = bannerH + 508 + lines.length * rowH + 62;   // ends 36px under the terms baseline: pink band sits right under the notes, as in the sheet
+        const H = Math.max(bannerH + 508 + lines.length * rowH + 62, Math.round(W * 1.4142));   // A4 portrait (1 : 1.414) like a paper invoice; longer invoices grow taller. Pink band sits right under the notes
         const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
         const x = c.getContext('2d'); x.scale(S, S);
         const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
@@ -750,7 +750,7 @@
           x.save(); x.globalCompositeOperation = 'multiply';
           x.drawImage(stampCanvasFor(v), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
-        y += 78 + 100;   // Terms stay at the bottom, as in the sheet; the gap above them is where the stamp sits
+        y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
         x.fillStyle = INV.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);

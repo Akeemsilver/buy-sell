@@ -419,6 +419,7 @@
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
         ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}</div>
       <h2>${t('set.sec.data')}</h2><div class="list grp">
+        ${trow('🖼️', t('set.keepRow'), t('keep.' + photoKeep()), 'data-act="pick-keep"')}
         ${trow('💾', t('set.backupRow'), t('set.backupSub'), nav('set-backup'))}
         ${trow('📥', t('more.import'), t('more.importSub'), 'data-act="import-xlsx"')}
         ${trow('📊', t('set.storageRow'), t('set.storageSub'), nav('set-about'))}</div>
@@ -467,7 +468,7 @@
       <p class="muted small">${t('about.rulesNote')}</p>
       <h2>${t('about.storage')}</h2><div class="sumbox" style="margin-top:0"><div><span>${t('about.cloud')}</span><b>${cloud.signedIn ? fmtBytes(u.bytes) + ' ' + t('about.of') + ' 1 GB' : t('about.signedOut')}</b></div>${meter('m-cloud', u.bytes / CLOUD_LIMIT * 100)}<p class="muted small" style="margin:4px 0 0">${t('about.cloudNote')}</p></div>
       <div class="sumbox"><div><span>${t('about.phone')}</span><b id="ab-phone">${t('about.measuring')}</b></div>${meter('m-phone', 0)}<p class="muted small" id="ab-phone-note" style="margin:4px 0 0"></p></div>
-      <h2>${t('about.counts')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.cBatches'), c.b)}${line(t('about.cItems'), c.i)}${line(t('about.cInvoices'), c.v)}${line(t('about.cPhotos'), '<span id="ab-photos">…</span>')}</div>
+      <h2>${t('about.counts')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.cBatches'), c.b)}${line(t('about.cItems'), c.i)}${line(t('about.cInvoices'), c.v)}${line(t('about.cPhotos'), '<span id="ab-photos">…</span>')}${line(t('about.origs'), '<span id="ab-orig">…</span>')}</div>
       <h2>${t('about.usage')}</h2><div class="sumbox" style="margin-top:0">${line(t('about.reads'), u.reads.toLocaleString() + ' / 50,000')}${meter('m-r', u.reads / 500)}${line(t('about.writes'), u.writes.toLocaleString() + ' / 20,000')}${meter('m-w', u.writes / 200)}<p class="muted small" style="margin:4px 0 0">${t('about.usageNote')}</p></div>`;
   }
   // The parts that need the phone to measure something (build id, browser storage, photos, offline tools).
@@ -478,6 +479,7 @@
     const tools = window.caches ? caches.open('vendor-v1').then((c) => c.keys().then((rs) => Promise.all(rs.map((r) => c.match(r).then((x) => (x ? x.clone().blob().then((b) => b.size) : 0)))))).then((a) => a.reduce((x, y) => x + y, 0)).catch(() => 0) : Promise.resolve(0);
     Promise.all([PhotoStore.stats().catch(() => ({ count: 0, bytes: 0 })), tools, navigator.storage && navigator.storage.estimate ? navigator.storage.estimate().catch(() => null) : null]).then(([ph, tl, est]) => {
       put('ab-photos', ph.count);
+      put('ab-orig', ph.origCount ? t('about.origLine', { n: ph.origCount, mb: fmtBytes(ph.origBytes) }) + ` <button class="chip" data-act="free-space" data-n="${ph.origCount}" data-mb="${fmtBytes(ph.origBytes)}">${t('about.free')}</button>` : t('about.origNone'));
       const total = est && est.usage ? est.usage : rec + ph.bytes + tl;
       put('ab-phone', fmtBytes(total) + (est && est.quota ? ' ' + t('about.of') + ' ' + fmtBytes(est.quota) : ''));
       const m = document.getElementById('m-phone'); if (m && est && est.quota) m.style.width = Math.min(100, Math.max(1, total / est.quota * 100)) + '%';
@@ -787,6 +789,9 @@
   function sheetInvoice(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
+    // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
+    const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
+    const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="inv-photo" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${d != null ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
     openSheet(`<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
@@ -798,10 +803,8 @@
           <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div></div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
-      <div class="btns"><button class="btn primary" data-act="share-img" data-id="${v.no}">${t('invUI.share')}</button>
-      <button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.sharePdf')}</button>
-      <button class="btn" data-act="save-img" data-id="${v.no}">${t('invUI.save')}</button>
-      <button class="btn" data-act="print">${t('invUI.print')}</button>
+      ${thumbs}
+      <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
       <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
   }
@@ -885,18 +888,18 @@
     return o;
   }
   // Share the invoice as a PDF file straight from the phone (the share sheet gets the file; nothing has to be downloaded first).
-  function shareInvoicePdf(no) {
+  function shareInvoicePdf(no, download) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
     toast(t('doc.preparing'));
     invoiceCanvas(v, 'image/png', false, 2.6).then(async (blob) => {   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
       const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
       const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
       const file = new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (!download && navigator.canShare && navigator.canShare({ files: [file] })) {
         return navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
       }
       const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-      toast(t('doc.noSharePdf'));
+      toast(download ? t('doc.saved') : t('doc.noSharePdf'));
     }).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
   function shareInvoiceImage(no, saveOnly) {
@@ -1040,6 +1043,9 @@
       case 'pick-appearance': return sheetChoice(t('set.appearance'), 'set-theme', theme, [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]]);
       case 'share-lang': { const f = window.__shareLang; if (f) f(id); closeSheet(); return; }     // answer first: closing the pop-up counts as 'cancel'
       case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
+      case 'pick-keep': return sheetChoice(t('set.keepRow'), 'set-keep', photoKeep(), ['1', '2', '7', 'sold'].map((k) => [k, t('keep.' + k)]), t('keep.note'));
+      case 'set-keep': state.settings.photoKeep = id; save(); closeSheet(); PUI.sweep(photoKeep()); return render();
+      case 'free-space': { const n = Number(t_.dataset.n) || 0; if (!confirm(t('about.freeAsk', { n, mb: t_.dataset.mb }))) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }
       case 'set-custlang': setPref('custLang', id); closeSheet(); return render();
       case 'check-update': return checkUpdate();
       case 'check-rules': return checkRules();
@@ -1080,7 +1086,9 @@
       case 'del-inv': if (confirm(t('confirm.delInv', { id }))) run(() => L.deleteInvoice(state, id), t('inv.deleted', { id })); return;
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
-      case 'share-pdf': return shareInvoicePdf(id);
+      case 'share-pdf': return shareInvoicePdf(id, false);
+      case 'download-pdf': return shareInvoicePdf(id, true);
+      case 'inv-photo': return PUI.act('photo-view', id);
       case 'save-img': return shareInvoiceImage(id, true);
       case 'inv-full': case 'inv-design-view': {
         const real = state.invoices.find((x) => x.no === id), d = new Date();
@@ -1305,7 +1313,8 @@
   })();
 
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
-  const tidyPhotos = debounce(() => PUI.cleanup(), 2500);
+  const photoKeep = () => ['1', '2', '7', 'sold'].includes(state.settings.photoKeep) ? state.settings.photoKeep : '2';   // how long an original screenshot stays after the photo is saved
+  const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,
@@ -1319,4 +1328,5 @@
   applyTheme();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   render();
+  setTimeout(() => PUI.sweep(photoKeep()), 3000);   // timers on screenshots and on sold items' photos run when the app opens
 })();

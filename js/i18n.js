@@ -406,6 +406,7 @@
     'sale.locked': 'Turn the sale off to change the selling price.',
     'photo.off': '{pct}% OFF',
     'photo.was': 'was',
+    'ed.logoBox': 'Logo',
   };
 
   const ES = {
@@ -786,6 +787,7 @@
     'sale.locked': 'Apaga la oferta para cambiar el precio de venta.',
     'photo.off': '{pct}% DESC.',
     'photo.was': 'antes',
+    'ed.logoBox': 'Logo',
   };
 
   const LANGS = { en: EN, es: ES };

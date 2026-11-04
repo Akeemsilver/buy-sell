@@ -11,17 +11,18 @@
   // ink: colour of the text on the top picture. themed: follows the app colour instead of a fixed one.
   const DESIGNS = [
     { id: 'classic', image: true, head: '#cea8bd', tint: null, band: '#e6d2db', ink: '#000' },
-    { id: 'wave', themed: true, head: '#7cbf4e', tint: '#d5e8c8', band: '#7cbf4e', ink: '#7cbf4e', noLogo: true },
+    { id: 'wave', themed: true, layout: 'wave', grid: true, head: '#7cbf4e', tint: '#d5e8c8', band: '#7cbf4e', ink: '#7cbf4e' },
     { id: 'marble', head: '#000000', tint: '#e8e8e8', band: '#000000', ink: '#000' },
     { id: 'halftone', head: '#4a76cf', tint: '#dbe3f4', band: '#4a76cf', ink: '#fff' },
     { id: 'rust', head: '#9b5a57', tint: '#f0e3e1', band: '#9b5a57', ink: '#fff' },
     { id: 'ember', head: '#000000', tint: '#ececec', band: '#000000', ink: '#fff' },
     { id: 'hex', head: '#000000', tint: '#ececec', band: '#000000', ink: '#fff' },
-    { id: 'swoosh', head: '#000000', tint: '#ececec', band: '#000000', ink: '#fff' },
+    { id: 'swoosh', grid: true, notch: true, headH: 232, head: '#000000', tint: '#e6e6e6', band: '#000000', ink: '#fff' },
     { id: 'chevron', head: '#1f3a7a', tint: '#e6e9f4', band: '#1f3a7a', ink: '#000' },
     { id: 'navy', head: '#232d57', tint: '#eceef5', band: '#232d57', ink: '#fff' },
     { id: 'indigo', head: '#1d1650', tint: '#e8e7f6', band: '#5b5bd6', ink: '#fff' },
   ];
+  const headH = (id) => { const d = DESIGNS.find((x) => x.id === id); return (d && d.headH) || HEAD_H; };
   const find = (id) => DESIGNS.find((d) => d.id === id) || DESIGNS[0];
 
   // The real colours of a design: the themed one takes the app colour.
@@ -37,14 +38,7 @@
   function art(x, id, W, H, c) {
     const R = rng(7);
     x.save(); x.beginPath(); x.rect(0, 0, W, H); x.clip();
-    if (id === 'wave') {
-      x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-      [[c.head, 0.16, 0], [c.head, 0.1, 60], ['#f3d98a', 0.18, 110]].forEach(([col, a, dx]) => {
-        x.fillStyle = col; x.globalAlpha = a; x.beginPath(); x.moveTo(0, 0); x.lineTo(120 + dx, 0);
-        x.bezierCurveTo(40 + dx, 60, 190 + dx, 120, 70 + dx, H); x.lineTo(0, H); x.fill();
-      });
-      x.globalAlpha = 0.5; x.fillStyle = '#e2f0fb'; x.beginPath(); x.moveTo(130, 0); x.bezierCurveTo(60, 70, 200, 110, 150, H); x.lineTo(210, H); x.bezierCurveTo(250, 100, 110, 60, 190, 0); x.fill();
-    } else if (id === 'marble') {
+    if (id === 'marble') {
       const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#d8f0ee'); g.addColorStop(0.5, '#a9dcd8'); g.addColorStop(1, '#e9f6f4'); x.fillStyle = g; x.fillRect(0, 0, W, H);
       for (let i = 0; i < 9; i++) {
         const cx = R() * W, cy = R() * H, r = 60 + R() * 140, k = x.createRadialGradient(cx, cy, 0, cx, cy, r);
@@ -73,11 +67,15 @@
         const cx = col * s * 1.74 + (row % 2 ? s * 0.87 : 0), cy = row * s * 1.5; x.beginPath();
         for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; x.lineTo(cx + s * Math.cos(a), cy + s * Math.sin(a)); } x.closePath(); x.stroke();
       }
-    } else if (id === 'swoosh') {
-      x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
-      const wv = (col, a, y0, amp) => { x.fillStyle = col; x.globalAlpha = a; x.beginPath(); x.moveTo(0, H); x.lineTo(0, y0); x.bezierCurveTo(W * 0.3, y0 - amp, W * 0.6, y0 + amp, W, y0 - amp / 2); x.lineTo(W, H); x.fill(); x.globalAlpha = 1; };
-      wv('#8a8a8a', 0.85, H - 34, 26); wv('#ffffff', 0.9, H - 14, 18); wv('#000', 1, H - 4, 10);
-      x.fillStyle = '#cfcfcf'; x.globalAlpha = 0.8; x.beginPath(); x.moveTo(W - 320, 0); x.bezierCurveTo(W - 180, 40, W - 100, 10, W, 40); x.lineTo(W, 0); x.fill(); x.globalAlpha = 1;
+    } else if (id === 'swoosh') {   // black top whose lower edge is a wave, with grey and white swooshes; the page is white below it
+      const lo = (k) => H * k;
+      x.fillStyle = '#000'; x.beginPath(); x.moveTo(0, 0); x.lineTo(W, 0); x.lineTo(W, lo(0.74)); x.bezierCurveTo(W * 0.78, lo(0.8), W * 0.62, lo(0.97), W * 0.38, lo(0.93)); x.bezierCurveTo(W * 0.18, lo(0.9), W * 0.08, lo(0.8), 0, lo(0.74)); x.closePath(); x.fill();
+      const swoosh = (col, a, y0, y1, y2, y3) => { x.fillStyle = col; x.globalAlpha = a; x.beginPath(); x.moveTo(0, y0); x.bezierCurveTo(W * 0.18, y1, W * 0.4, y2, W * 0.62, y2 - 4); x.bezierCurveTo(W * 0.8, y2 - 10, W * 0.92, y3, W, y3 - 14); x.lineTo(W, y3 + 14); x.bezierCurveTo(W * 0.9, y3 + 30, W * 0.7, y2 + 40, W * 0.45, y2 + 30); x.bezierCurveTo(W * 0.2, y1 + 40, W * 0.08, y0 + 40, 0, y0 + 36); x.closePath(); x.fill(); x.globalAlpha = 1; };
+      swoosh('#6f6f6f', 0.95, lo(0.62), lo(0.8), lo(0.96), lo(0.78));
+      swoosh('#d9d9d9', 0.95, lo(0.7), lo(0.86), lo(0.96), lo(0.84));
+      swoosh('#101010', 1, lo(0.74), lo(0.8), lo(0.9), lo(0.8));
+      x.fillStyle = '#7a7a7a'; x.beginPath(); x.moveTo(W * 0.6, 0); x.bezierCurveTo(W * 0.78, 22, W * 0.9, 28, W, 36); x.lineTo(W, 0); x.closePath(); x.fill();
+      x.fillStyle = '#cfcfcf'; x.beginPath(); x.moveTo(W * 0.68, 0); x.bezierCurveTo(W * 0.8, 16, W * 0.92, 20, W, 28); x.lineTo(W, 22); x.bezierCurveTo(W * 0.92, 14, W * 0.82, 10, W * 0.74, 0); x.closePath(); x.fill();
     } else if (id === 'chevron') {
       x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
       x.fillStyle = '#e8ecfa'; x.beginPath(); x.moveTo(W - 120, 0); x.lineTo(W, 0); x.lineTo(W, H - 60); x.lineTo(W - 60, 14); x.closePath(); x.fill();
@@ -97,29 +95,40 @@
     x.restore();
   }
 
+  // The wave design: soft waves down the left side of the whole page (W x H units).
+  function pageArt(x, id, W, H, brand) {
+    if (id !== 'wave') return;
+    const c = colours(id, brand), sx = W / 800, sy = H / 1131;
+    x.save(); x.scale(sx, sy);
+    const shape = (col, a, d) => { x.fillStyle = col; x.globalAlpha = a; x.beginPath(); d(); x.closePath(); x.fill(); };
+    shape(c.head, 0.2, () => { x.moveTo(0, 0); x.lineTo(150, 0); x.bezierCurveTo(60, 230, 180, 470, 112, 720); x.bezierCurveTo(70, 900, 190, 1040, 330, 1131); x.lineTo(0, 1131); });
+    shape('#f7e6b0', 0.5, () => { x.moveTo(70, 0); x.lineTo(150, 0); x.bezierCurveTo(70, 230, 190, 470, 140, 730); x.bezierCurveTo(110, 900, 200, 1040, 300, 1131); x.lineTo(150, 1131); x.bezierCurveTo(60, 980, 20, 840, 56, 640); x.bezierCurveTo(90, 440, 20, 200, 70, 0); });
+    shape('#dcf0fb', 0.6, () => { x.moveTo(120, 0); x.lineTo(150, 0); x.bezierCurveTo(100, 230, 170, 480, 140, 700); x.bezierCurveTo(125, 860, 150, 1000, 150, 1131); x.lineTo(110, 1131); x.bezierCurveTo(100, 960, 100, 860, 110, 700); x.bezierCurveTo(130, 460, 70, 230, 120, 0); });
+    x.restore(); x.globalAlpha = 1;
+  }
+
   /* Draws the top picture onto a canvas context that is already scaled to W x HEAD_H units.
      info: { name, lines: [..], title, logo: Image|null } */
   function drawHeader(x, id, W, info, brand) {
-    const c = colours(id, brand), H = HEAD_H;
+    const c = colours(id, brand), H = headH(id);
+    if (c.layout === 'wave') return;   // the wave design has no picture at the top: its whole page is the picture (see pageArt)
     art(x, id, W, H, c);
     x.textBaseline = 'alphabetic';
     const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
+    const HB = id === 'swoosh' ? H * 0.62 : H;
     let tx = 40;
-    if (!c.noLogo && info.logo) {
-      x.fillStyle = '#fff'; x.fillRect(36, (H - 110) / 2, 110, 110);
-      const l = info.logo, k = Math.min(94 / l.width, 94 / l.height); x.drawImage(l, 36 + (110 - l.width * k) / 2, (H - 110) / 2 + (110 - l.height * k) / 2, l.width * k, l.height * k);
+    if (info.logo) {
+      x.fillStyle = '#fff'; x.fillRect(36, (HB - 110) / 2, 110, 110);
+      const l = info.logo, k = Math.min(94 / l.width, 94 / l.height); x.drawImage(l, 36 + (110 - l.width * k) / 2, (HB - 110) / 2 + (110 - l.height * k) / 2, l.width * k, l.height * k);
       tx = 172;
     }
-    const lines = info.lines || [], total = 26 + lines.length * 22, y0 = (H - total) / 2 + 20;
-    if (c.noLogo) {   // this design has no logo: the title sits left, the details on the right
-      F('900', 52); x.fillStyle = c.ink; x.textAlign = 'left'; x.fillText(info.title, 140, H / 2 + 18);
-      x.textAlign = 'right'; x.fillStyle = '#222'; F('700', 19); x.fillText(info.name, W - 36, y0 + 4); F('400', 15); lines.forEach((l, i) => x.fillText(l, W - 36, y0 + 30 + i * 22));
-    } else {
+    const lines = info.lines || [], total = 26 + lines.length * 22, y0 = (HB - total) / 2 + 20;
+    {
       x.textAlign = 'left'; x.fillStyle = c.ink === '#fff' ? '#fff' : '#111'; F('700', 24); x.fillText(info.name, tx, y0); F('400', 16); lines.forEach((l, i) => x.fillText(l, tx, y0 + 28 + i * 22));
-      F('900', 48); x.fillStyle = c.ink === '#fff' ? '#fff' : '#000'; x.textAlign = 'right'; x.fillText(info.title, id === 'chevron' ? W - 130 : W - 36, H / 2 + 17);
+      F('900', 48); x.fillStyle = c.ink === '#fff' ? '#fff' : '#000'; x.textAlign = 'right'; x.fillText(info.title, id === 'chevron' ? W - 130 : W - 36, HB / 2 + 17);
     }
   }
 
-  const api = { DESIGNS, HEAD_H, find, colours, mix, drawHeader };
+  const api = { DESIGNS, HEAD_H, headH, find, colours, mix, drawHeader, pageArt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.InvDesign = api;
 })(typeof self !== 'undefined' ? self : this);

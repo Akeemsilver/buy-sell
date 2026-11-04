@@ -397,24 +397,6 @@ h2.sec{margin:18px 0 6px}
 .dsg .th{top:46%;height:7%;background:var(--ih)}.dsg .r1{top:56%;height:3%;background:var(--it)}.dsg .r2{top:62%;height:3%;background:#eee}.dsg .r3{top:68%;height:3%;background:var(--it)}
 .dsg .bd{top:80%;left:50%;height:6%;background:var(--ih)}
 
-/* invoice designs with a grid table (Wave, Swoosh) */
-.inv.grid .inv-body{padding-left:var(--ipad,6%);padding-right:var(--ipad,6%)}
-.inv.grid .inv-t{table-layout:fixed}.inv.grid .inv-t th,.inv.grid .inv-t td{border:1px solid #bdbdbd}
-.inv.grid .inv-t th:nth-child(1){width:49.9%}.inv.grid .inv-t th:nth-child(2){width:9.2%}.inv.grid .inv-t th:nth-child(3){width:20.4%}
-.inv.grid .inv-t th:nth-child(2),.inv.grid .inv-t td:nth-child(2){text-align:center}
-.inv.grid .inv-top .lbl,.inv.wavep .inv-meta .lbl{color:#222;font-size:12px}
-.inv.grid .inv-tot{width:min(350px,64%)}.inv.grid .inv-tot div{border-bottom:1px solid #dcdcdc;padding:6px 8px}.inv.grid .inv-tot div.due{border-bottom:0;padding:9px 8px}
-.inv.grid .inv-tot span{flex:1;text-align:left;color:#222;font-weight:700}.inv.grid .inv-tot .due span{color:#fff}
-.inv.wavep{background-repeat:no-repeat;background-size:100% 100%;background-color:#fff}
-.wv-top{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0 14px;border-bottom:1px solid #d9d9d9;margin-bottom:12px}
-.wv-title{font-size:34px;font-weight:700;color:var(--ik);line-height:1.1;margin-top:4px}
-.wv-from{display:flex;gap:10px;margin-bottom:14px;font-size:12px;line-height:1.5}.wv-from>div{flex:1}.wv-from b{display:block;font-size:14px;margin-bottom:2px}.wv-from .nm{font-weight:700}
-.inv.notch .inv-foot{position:relative;overflow:hidden;height:16px}
-.inv.notch .inv-foot::before,.inv.notch .inv-foot::after{content:"";position:absolute;top:0;height:100%;background:#fff;transform:skewX(-30deg)}
-.inv.notch .inv-foot::before{left:23%;width:5px}.inv.notch .inv-foot::after{left:calc(23% + 12px);width:10px}
-.inv.grid .inv-t{font-size:11px}.inv.grid .inv-t th,.inv.grid .inv-t td{padding:7px 4px}.inv.grid .inv-t .r{white-space:nowrap}
-.inv.grid .inv-tot{width:min(350px,74%);font-size:12px}.inv.grid .inv-tot span,.inv.grid .inv-tot b{white-space:nowrap}.inv.grid .inv-tot div{gap:6px;padding:6px 6px}
-
 /* full screen view of an invoice or a design */
 .printable{position:relative}
 .fsbtn,.dzoom{position:absolute;z-index:3;top:8px;right:8px;width:34px;height:34px;min-height:0;padding:0;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:#222;font-size:18px;line-height:34px;box-shadow:0 1px 5px rgba(0,0,0,.35)}

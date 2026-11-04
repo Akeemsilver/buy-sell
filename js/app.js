@@ -660,7 +660,7 @@
   const bannerSrc = () => (invoiceLang() === 'es' ? 'icons/invoice-banner-es.jpg' : 'icons/invoice-banner.jpg');
   // Invoice design (Settings): the picture at the top and the colours of the table. 'classic' is the flower picture; the others are drawn here.
   let designOverride = null;   // used to preview a design full screen without choosing it
-  const invDesignId = () => designOverride || state.settings.invoiceDesign || 'classic';
+  const invDesignId = () => designOverride || InvDesign.find(state.settings.invoiceDesign).id;
   const invDesign = () => InvDesign.colours(invDesignId(), Theme.brand());
   const invBiz = () => {
     const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail);
@@ -669,13 +669,8 @@
   const invLogo = new Image(); invLogo.src = 'icons/logo.png';
   const headCache = {};
   function headerCanvas(id, S) {
-    const b = invBiz(), W = 800, c = document.createElement('canvas'); c.width = W * S; c.height = InvDesign.headH(id) * S;
+    const b = invBiz(), W = 800, c = document.createElement('canvas'); c.width = W * S; c.height = InvDesign.HEAD_H * S;
     const x = c.getContext('2d'); x.scale(S, S); InvDesign.drawHeader(x, id, W, { name: b.name, lines: b.lines, title: ti('doc.invoiceWord'), logo: b.logo && b.logo.complete && b.logo.naturalWidth ? b.logo : null }, Theme.brand()); return c;
-  }
-  const pageCache = {};
-  function pageArtURL(id) {
-    const k = id + Theme.brand(); if (pageCache[k]) return pageCache[k];
-    const c = document.createElement('canvas'); c.width = 800; c.height = 1131; InvDesign.pageArt(c.getContext('2d'), id, 800, 1131, Theme.brand()); return (pageCache[k] = c.toDataURL('image/png'));
   }
   function headerURL(id) {
     const b = invBiz(), k = [id, invoiceLang(), b.name, b.lines.join('|'), Theme.brand(), b.logo && b.logo.complete ? 1 : 0].join('~');
@@ -723,19 +718,17 @@
 
   function sheetInvoice(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
-    const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang(), D = invDesign(), biz = invBiz();
-    const metaHTML = `<div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div>`;
+    const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     openSheet(`<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
-      <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv ${D.grid ? 'grid' : ''} ${D.layout === 'wave' ? 'wavep' : ''} ${D.notch ? 'notch' : ''}" style="--ih:${D.head};--it:${D.tint || 'transparent'};--ib:${D.band};--ik:${D.ink};${D.layout === 'wave' ? `background-image:url(${pageArtURL(invDesignId())})` : ''}">${D.layout === 'wave' ? '' : `<img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">`}
+      <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
-        ${D.layout === 'wave' ? `<div class="wv-top"><div class="wv-title">${ti('doc.invoiceWord')}</div>${metaHTML}</div>
-        <div class="wv-from"><div><b>${ti('doc.from')}</b><div class="nm">${esc(biz.name)}</div>${biz.lines.map((l) => `<div>${esc(l)}</div>`).join('')}</div><div><b>${ti('doc.billTo2')}</b><div class="nm">${esc(v.client)}</div></div></div>`
-          : `<div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>${metaHTML}</div>`}
+        <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
+          <div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div></div>
         <table class="inv-t"><thead><tr><th>${ti('doc.desc')}</th><th class="r">${ti('doc.qty')}</th><th class="r">${ti('doc.price')}</th><th class="r">${ti('doc.amount')}</th></tr></thead><tbody>
           ${lines.map((l) => `<tr><td>${esc(l.desc)}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
-        <div class="inv-sum">${isPaidInFull(v) ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot">${D.grid ? `<div><span>${ti('doc.totalQty')}</span><b>${lines.reduce((n, l) => n + l.qty, 0)}</b></div>` : ''}<div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti(D.grid ? 'doc.shipping' : 'doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
+        <div class="inv-sum">${isPaidInFull(v) ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
           <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div></div>
-        <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div>${D.layout === 'wave' ? '' : '<div class="inv-foot"></div>'}</div></div>
+        <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       <div class="btns"><button class="btn primary" data-act="share-img" data-id="${v.no}">${t('invUI.share')}</button>
       <button class="btn" data-act="save-img" data-id="${v.no}">${t('invUI.save')}</button>
@@ -749,86 +742,50 @@
     return new Promise((ok, fail) => {
       const img = new Image(); img.onerror = () => fail(new Error(ti('doc.loadErr')));
       img.onload = () => {
-        const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), D = invDesign(), id = invDesignId(), classic = id === 'classic', grid = !!D.grid, wave = D.layout === 'wave', biz = invBiz();
-        const bannerH = wave ? 0 : classic ? Math.round(W * img.naturalHeight / img.naturalWidth) : InvDesign.headH(id), rowH = grid ? 49 : 36;
-        const H = Math.max(grid ? (wave ? 328 : bannerH + 118) + 45 + lines.length * rowH + 20 + 6 * 37 + 43 + 190 + 110 : bannerH + 508 + lines.length * rowH + 62, Math.round(W * 1.4142));   // A4 portrait (1 : 1.414) like a paper invoice; longer invoices grow taller
+        const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), D = invDesign(), classic = invDesignId() === 'classic';
+        const bannerH = classic ? Math.round(W * img.naturalHeight / img.naturalWidth) : InvDesign.HEAD_H, rowH = 36;
+        const H = Math.max(bannerH + 508 + lines.length * rowH + 62, Math.round(W * 1.4142));   // A4 portrait (1 : 1.414) like a paper invoice; longer invoices grow taller. Pink band sits right under the notes
         const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
         const x = c.getContext('2d'); x.scale(S, S);
         const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
         x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-        if (wave) { const pc = document.createElement('canvas'); pc.width = W; pc.height = H; InvDesign.pageArt(pc.getContext('2d'), id, W, H, Theme.brand()); x.drawImage(pc, 0, 0); }
-        else if (classic) x.drawImage(img, 0, 0, W, bannerH); else x.drawImage(headerCanvas(id, S), 0, 0, W, bannerH);
+        if (classic) x.drawImage(img, 0, 0, W, bannerH); else x.drawImage(headerCanvas(invDesignId(), S), 0, 0, W, bannerH);
+        const L0 = 36, R0 = W - 36; let y = bannerH + 44;
         x.textBaseline = 'alphabetic';
-        const L0 = grid ? 49 : 36, R0 = grid ? 751 : W - 36, TL = grid ? 49 : L0 - 8, TR = grid ? 751 : W - L0 + 8;
-        let y;
-        if (wave) {
-          F('700', 56); x.fillStyle = D.ink; x.textAlign = 'left'; x.fillText(ti('doc.invoiceWord'), 40, 117);
-          [[ti('doc.invoiceNo'), v.no], [ti('doc.date'), invDate(v.date)], [ti('doc.due'), invDate(v.due)]].forEach(([k, val], i) => {
-            F('700', 15); x.fillStyle = '#222'; x.textAlign = 'left'; x.fillText(k, 402, 77 + i * 23); F('400', 14); x.fillStyle = '#222'; x.textAlign = 'right'; x.fillText(val, 745, 77 + i * 23 + (i ? 1 : 0));
-          });
-          x.fillStyle = '#d9d9d9'; x.fillRect(49, 174, 702, 1);
-          F('700', 17); x.fillStyle = '#222'; x.textAlign = 'left'; x.fillText(ti('doc.from'), 49, 208); x.fillText(ti('doc.billTo2'), 402, 208);
-          F('700', 16); x.fillText(biz.name, 49, 236); x.fillText(v.client, 402, 236); F('400', 14); biz.lines.forEach((l, i) => x.fillText(l, 49, 260 + i * 22));
-          y = 328;
-        } else {
-          y = bannerH + (grid ? 50 : 44);
-          F('700', grid ? 15 : 14); x.fillStyle = grid ? '#222' : INV.grey; x.textAlign = 'left'; x.fillText(ti('doc.billTo'), L0, y);
-          F('400', grid ? 18 : 22); x.fillStyle = grid ? '#222' : '#000'; x.fillText(v.client, L0, y + (grid ? 24 : 32));
-          [[ti('doc.invoiceNo'), v.no], [ti('doc.date'), invDate(v.date)], [ti('doc.due'), invDate(v.due)]].forEach(([k, val], i) => {
-            if (grid) { F('700', 15); x.fillStyle = '#222'; x.textAlign = 'left'; x.fillText(k, 402, y + i * 24); F('400', 14); x.textAlign = 'right'; x.fillText(val, 745, y + i * 24 + (i ? 1 : 0)); }
-            else { F('700', 13); x.fillStyle = INV.grey; x.textAlign = 'right'; x.fillText(k, R0 - 150, y + i * 26); F('400', 16); x.fillStyle = '#000'; x.fillText(val, R0, y + i * 26); }
-          });
-          y += grid ? 78 : 74;
-        }
-        // table
-        const th = grid ? 45 : 38, cx = grid ? [0, 0.499, 0.591, 0.795, 1].map((k) => TL + (TR - TL) * k) : null;
-        x.fillStyle = D.head; x.fillRect(TL, y, TR - TL, th);
-        F('700', grid ? 15 : 14); x.fillStyle = '#fff';
-        if (grid) {
-          x.textAlign = 'left'; x.fillText(ti('doc.desc'), cx[0] + 8, y + 29); x.textAlign = 'center'; x.fillText(ti('doc.qty'), (cx[1] + cx[2]) / 2, y + 29);
-          x.textAlign = 'right'; x.fillText(ti('doc.price'), cx[3] - 6, y + 29); x.fillText(ti('doc.amount'), cx[4] - 6, y + 29);
-        } else { x.textAlign = 'left'; x.fillText(ti('doc.desc'), L0, y + 25); x.textAlign = 'right'; x.fillText(ti('doc.qty'), R0 - 250, y + 25); x.fillText(ti('doc.price'), R0 - 130, y + 25); x.fillText(ti('doc.amount'), R0, y + 25); }
-        y += th;
+        F('700', 14); x.fillStyle = INV.grey; x.textAlign = 'left'; x.fillText(ti('doc.billTo'), L0, y);
+        F('400', 22); x.fillStyle = '#000'; x.fillText(v.client, L0, y + 32);
+        [[ti('doc.invoiceNo'), v.no], [ti('doc.date'), invDate(v.date)], [ti('doc.due'), invDate(v.due)]].forEach(([k, val], i) => {
+          F('700', 13); x.fillStyle = INV.grey; x.textAlign = 'right'; x.fillText(k, R0 - 150, y + i * 26);
+          F('400', 16); x.fillStyle = '#000'; x.fillText(val, R0, y + i * 26);
+        });
+        y += 74;
+        x.fillStyle = D.head; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), 38);
+        F('700', 14); x.fillStyle = '#fff'; x.textAlign = 'left'; x.fillText(ti('doc.desc'), L0, y + 25);
+        x.textAlign = 'right'; x.fillText(ti('doc.qty'), R0 - 250, y + 25); x.fillText(ti('doc.price'), R0 - 130, y + 25); x.fillText(ti('doc.amount'), R0, y + 25);
+        y += 38;
         lines.forEach((l, li) => {
-          if (D.tint && li % 2) { x.fillStyle = D.tint; x.fillRect(TL, y, TR - TL, rowH); }
-          F('400', grid ? 15 : 16); x.fillStyle = '#000'; x.textAlign = 'left';
+          if (D.tint && li % 2) { x.fillStyle = D.tint; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), rowH); }
+          F('400', 16); x.fillStyle = '#000'; x.textAlign = 'left';
           let d = String(l.desc); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(l.desc)) d = d.trim() + '…';
-          const ty = y + (grid ? 30 : 24);
-          if (grid) {
-            x.fillText(d, cx[0] + 8, ty); x.textAlign = 'center'; x.fillText(String(l.qty), (cx[1] + cx[2]) / 2, ty); x.textAlign = 'right'; x.fillText(invMoney(l.price), cx[3] - 6, ty); x.fillText(invMoney(l.qty * l.price), cx[4] - 6, ty);
-            x.strokeStyle = '#bdbdbd'; x.lineWidth = 1; x.strokeRect(TL + 0.5, y + 0.5, TR - TL - 1, rowH - 1); x.beginPath(); cx.slice(1, 4).forEach((px) => { x.moveTo(px + 0.5, y); x.lineTo(px + 0.5, y + rowH); }); x.stroke();
-          } else { x.fillText(d, L0, ty); x.textAlign = 'right'; x.fillText(String(l.qty), R0 - 250, ty); x.fillText(invMoney(l.price), R0 - 130, ty); x.fillText(invMoney(l.qty * l.price), R0, ty); }
+          x.fillText(d, L0, y + 24);
+          x.textAlign = 'right'; x.fillText(String(l.qty), R0 - 250, y + 24); x.fillText(invMoney(l.price), R0 - 130, y + 24); x.fillText(invMoney(l.qty * l.price), R0, y + 24);
           y += rowH;
         });
-        let boxX, endY;
-        if (grid) {
-          y += 20; boxX = wave ? 401 : 438;
-          [[ti('doc.totalQty'), null, lines.reduce((n, l) => n + l.qty, 0)], [ti('doc.subtotal'), sub], [ti('doc.shipping'), v.delivery], [ti('doc.total'), v.total], [ti('doc.paid'), v.amountPaid], [ti('doc.prevPaid'), v.previouslyPaid]].forEach(([k, val, raw]) => {
-            F('700', 15); x.fillStyle = '#222'; x.textAlign = 'left'; x.fillText(k, boxX + 10, y + 24); F('400', 15); x.textAlign = 'right'; x.fillText(raw != null ? String(raw) : invMoney(val), R0 - 6, y + 24);
-            x.fillStyle = '#dcdcdc'; x.fillRect(boxX, y + 36, TR - boxX, 1); y += 37;
-          });
-          y += 3; x.fillStyle = D.head; x.fillRect(boxX, y, TR - boxX, 43);
-          F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'left'; x.fillText(ti('doc.balance'), boxX + 10, y + 28); x.textAlign = 'right'; x.fillText(invMoney(v.balance), R0 - 6, y + 28);
-          endY = y + 43;
-        } else {
-          x.strokeStyle = '#bdbdbd'; x.lineWidth = 1; x.beginPath(); x.moveTo(TL, y + 0.5); x.lineTo(TR, y + 0.5); x.stroke();
-          y += 34;
-          [[ti('doc.subtotal'), sub], [ti('doc.delivery'), v.delivery], [ti('doc.total'), v.total], [ti('doc.paid'), v.amountPaid], [ti('doc.prevPaid'), v.previouslyPaid]].forEach(([k, val]) => {
-            F('400', 16); x.fillStyle = INV.mid; x.textAlign = 'right'; x.fillText(k, R0 - 130, y); x.fillStyle = '#000'; x.fillText(invMoney(val), R0, y); y += 28;
-          });
-          x.fillStyle = D.head; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
-          F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ti('doc.balance'), R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
-          endY = y + 22;
+        x.strokeStyle = '#bdbdbd'; x.lineWidth = 1; x.beginPath(); x.moveTo(L0 - 8, y + 0.5); x.lineTo(W - L0 + 8, y + 0.5); x.stroke();
+        y += 34;
+        [[ti('doc.subtotal'), sub], [ti('doc.delivery'), v.delivery], [ti('doc.total'), v.total], [ti('doc.paid'), v.amountPaid], [ti('doc.prevPaid'), v.previouslyPaid]].forEach(([k, val]) => {
+          F('400', 16); x.fillStyle = INV.mid; x.textAlign = 'right'; x.fillText(k, R0 - 130, y); x.fillStyle = '#000'; x.fillText(invMoney(val), R0, y); y += 28;
+        });
+        x.fillStyle = D.head; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
+        F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ti('doc.balance'), R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
+        if (isPaidInFull(v)) {
+          x.save(); x.globalCompositeOperation = 'multiply';
+          x.drawImage(stampCanvasFor(v), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
-        if (isPaidInFull(v)) { x.save(); x.globalCompositeOperation = 'multiply'; x.drawImage(stampCanvasFor(v), W - 49 - 350, endY + 12, 340, 152); x.restore(); }
-        y = grid ? H - 80 : H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
+        y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
-        if (!wave) {
-          x.fillStyle = D.band;
-          if (D.notch) { x.fillRect(0, H - 20, W, 20); x.fillStyle = '#fff'; [[186, 6], [200, 12]].forEach(([nx, nw]) => { x.beginPath(); x.moveTo(nx + 8, H - 20); x.lineTo(nx + 8 + nw, H - 20); x.lineTo(nx + nw, H); x.lineTo(nx, H); x.closePath(); x.fill(); }); }
-          else x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
-        }
+        x.fillStyle = D.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
         c.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), 'image/png');
       };
       img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';

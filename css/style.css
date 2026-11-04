@@ -492,7 +492,7 @@ h2.sec{margin:18px 0 6px}
 .cp-hero .cp-loc.none{color:var(--mute);font-weight:400}
 
 /* customer page, modern look (gradient card, one stats strip) */
-.cpage .fullbar{background:transparent;color:var(--ink);box-shadow:none}.cpage .fullbar>button,.cpage .fullbar b{color:var(--ink)}.cpage .fullbar small{display:none}
+.cpage .fullbar{background:transparent;color:var(--ink);box-shadow:none}.cpage .fullbar>button,.cpage .fullbar b{color:var(--ink)}.cpage .fullbar small{display:block;color:var(--mute);opacity:1}
 .cpage .fullbar .fb-edit{background:var(--tint);color:var(--brand)}
 .cpage .cp-hero{background:var(--brand);background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--brand) 55%,#000));color:#fff;border-radius:26px;padding:20px 18px;box-shadow:0 14px 30px -12px var(--brand);margin:0 0 14px;border:0}
 .cpage .cp-hero .av{background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.55);width:64px;height:64px}

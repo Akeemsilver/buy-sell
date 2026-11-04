@@ -870,7 +870,7 @@
         y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
-        x.fillStyle = D.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
+        x.fillStyle = D.band; x.fillRect(0, H - 26, W, 26);   // the footer bar runs edge to edge of the sheet
         const out = frame && invFrame() !== 'none' ? framedCanvas(c, invFrame(), S, Theme.brand()) : c;
         out.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', quality || 0.92);
       };

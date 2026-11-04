@@ -254,4 +254,13 @@ console.log('all tests passed');
   const c = L.recordPayment(s, b.no, 60, new Date()); assert.strictEqual(c.balance, 0); assert.ok(s.items.every((x) => x.status === 'Paid'), 'paid in full when nothing is left');
   L.setPlace(s, 'Ren', ' Chaguanas '); assert.strictEqual(L.place(s, 'Ren'), 'Chaguanas'); L.setPlace(s, 'Ren', ''); assert.strictEqual(L.place(s, 'Ren'), '');
 }
+{ // profit so far
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'TTD', totalCost: 200, margin: 50 });
+  s.items.forEach((x) => { x.desc = 'T'; x.cost = 100; x.price = 150; x.sold = 150; x.status = 'Available'; });
+  const c0 = L.itemCalc(s.batches[0], s.items[0]); assert.strictEqual(c0.landed, 100); assert.strictEqual(c0.recommended, 150);
+  L.createInvoice(s, { itemIds: [s.items[0].id], client: 'A', isNew: true, paying: 110, date: new Date() });
+  const c1 = L.itemCalc(s.batches[0], s.items[0]); assert.strictEqual(c1.paid, 110); assert.strictEqual(c1.profitSoFar, 10, 'paid 110 on a landed cost of 100 = profit so far 10'); assert.strictEqual(c1.profit, 50, 'profit at sold for stays 50');
+  L.createInvoice(s, { itemIds: [s.items[1].id], client: 'B', isNew: true, paying: 60, date: new Date() });
+  assert.strictEqual(L.itemCalc(s.batches[0], s.items[1]).profitSoFar, -40, 'paid less than the landed cost: still 40 to recover');
+}
 console.log('sale price tests passed');

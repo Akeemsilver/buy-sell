@@ -626,7 +626,7 @@
   /* ---------- sheets ---------- */
 
   function openSheet(html, onClose, full) {
-    sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full);
+    sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full); document.body.classList.toggle('page-open', !!full);   // full-screen pages keep the bottom tab bar
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
     syncKeyboard();
@@ -636,7 +636,7 @@
   function closeSheet() {
     if ($('#sheet').hidden) return;
     pageStack = [];
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); invLangSession = null; document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -1104,7 +1104,7 @@
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     const t_ = e.target.closest('[data-tab],[data-act]'); if (!t_) return;
-    if (t_.dataset.tab) { themeDraft = null; go({ tab: t_.dataset.tab, moreView: null }); window.scrollTo(0, 0); return render(); }
+    if (t_.dataset.tab) { themeDraft = null; if (!$('#sheet').hidden) closeSheet(); go({ tab: t_.dataset.tab, moreView: null }); window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
     if (/^(photo|ed|viewer)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
     switch (t_.dataset.act) {

@@ -734,7 +734,7 @@
     const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail);
     return { name: s.businessName || 'B.RUIZ', lines: (own ? [s.bizCity, s.bizPhone, s.bizEmail] : ['Chaguanas', '18683658857', 'berilexy.ruiz93@gmail.com']).filter(Boolean), logo: s.businessName ? null : invLogo };
   };
-  const invLogo = new Image(); invLogo.src = 'icons/logo.png';
+  const invLogo = new Image(); invLogo.src = 'icons/icon-512.png';
   const headCache = {};
   function headerCanvas(id, S) {
     const b = invBiz(), W = 800, c = document.createElement('canvas'); c.width = W * S; c.height = InvDesign.HEAD_H * S;
@@ -820,11 +820,11 @@
     g.save(); path(); g.clip(); g.drawImage(card, M, M); g.restore();
     return o;
   }
-  function invoiceCanvas(v, type, frame) {
+  function invoiceCanvas(v, type, frame, scale, quality) {
     return new Promise((ok, fail) => {
       const img = new Image(); img.onerror = () => fail(new Error(ti('doc.loadErr')));
       img.onload = () => {
-        const W = 800, S = 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), D = invDesign(), classic = invDesignId() === 'classic';
+        const W = 800, S = scale || 2, lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), D = invDesign(), classic = invDesignId() === 'classic';
         const bannerH = classic ? Math.round(W * img.naturalHeight / img.naturalWidth) : InvDesign.HEAD_H, rowH = 36;
         const H = Math.max(bannerH + 508 + lines.length * rowH + 62, Math.round(W * 1.4142));   // A4 portrait (1 : 1.414) like a paper invoice; longer invoices grow taller. Pink band sits right under the notes
         const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
@@ -869,7 +869,7 @@
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
         x.fillStyle = D.band; x.fillRect(L0 - 8, H - 26, W - 2 * (L0 - 8), 26);
         const out = frame && invFrame() !== 'none' ? framedCanvas(c, invFrame(), S, Theme.brand()) : c;
-        out.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', 0.92);
+        out.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', quality || 0.92);
       };
       img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';
     });
@@ -878,7 +878,7 @@
   function shareInvoicePdf(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
     toast(t('doc.preparing'));
-    invoiceCanvas(v, 'image/jpeg').then(async (blob) => {
+    invoiceCanvas(v, 'image/jpeg', false, 3, 0.95).then(async (blob) => {   // 3x = about 290 dots per inch on A4: sharp when zoomed and when printed
       const bmp = await createImageBitmap(blob), pdf = Pdf.jpegToPdf(new Uint8Array(await blob.arrayBuffer()), bmp.width, bmp.height);
       const file = new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {

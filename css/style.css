@@ -485,3 +485,8 @@ h2.sec{margin:18px 0 6px}
 /* invoice number on a customer's card looks tappable: theme colour, underlined, with an arrow */
 .cp-top .num b{color:var(--brand);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
 .cp-top .num b::after{content:" ›";text-decoration:none;display:inline-block}
+
+/* customer page: Edit in the top bar, location inside the top card */
+.fullbar .fb-edit{margin-left:auto;background:rgba(255,255,255,.18);border:0;color:#fff;border-radius:99px;padding:7px 18px;font-size:15px;font-weight:700;width:auto;height:auto;min-height:0;line-height:1.2}
+.cp-hero .cp-loc{display:block;background:none;border:0;padding:2px 0 0;font-size:14px;color:var(--ink);text-align:left;box-shadow:none;min-height:0;width:auto;font-weight:600}
+.cp-hero .cp-loc.none{color:var(--mute);font-weight:400}

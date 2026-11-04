@@ -340,6 +340,21 @@
     if (num(amount) > inv.balance + 0.005) throw fail('payTooMuch');
     return L.createInvoice(s, { itemIds: s.items.filter((i) => i.invoice === no).map((i) => i.id), client: inv.client, paying: amount, date });
   };
+  // Change a customer's name everywhere (customers list, items, invoices, location). Typing a name that already exists merges the two.
+  // Returns the final name. Changing only the capital letters of the same name is allowed.
+  L.renameCustomer = (s, from, to) => {
+    const cleaned = L.cleanName(to); if (!cleaned) throw fail('noName');
+    const final = cleaned.toLowerCase() === from.toLowerCase() ? cleaned : L.canonicalName(s, cleaned);
+    if (final === from) return from;
+    s.items.forEach((i) => { if (i.customer === from) i.customer = final; });
+    s.invoices.forEach((v) => { if (v.client === from) v.client = final; });
+    s.customers = [...new Set(s.customers.map((n) => (n === from ? final : n)))]; if (!s.customers.includes(final)) s.customers.push(final);
+    const pl = s.settings.places || {};
+    if (pl[from]) { const loc = pl[from]; s.settings.places = Object.assign({}, pl); delete s.settings.places[from]; if (!s.settings.places[final]) s.settings.places[final] = loc; }
+    return final;
+  };
+  // Does another customer already use this name (ignoring capitals and extra spaces)?
+  L.otherCustomerNamed = (s, from, to) => { const n = L.cleanName(to).toLowerCase(); return !!n && n !== from.toLowerCase() && L.customerStats(s).some((c) => c.name.toLowerCase() === n); };
   // Where a customer is from (a general area, so you can recognise someone when you forget the name). Kept in settings so it syncs.
   L.place = (s, name) => ((s.settings.places || {})[name] || '').trim();
   L.setPlace = (s, name, value) => { s.settings.places = Object.assign({}, s.settings.places); const v = String(value || '').trim(); if (v) s.settings.places[name] = v; else delete s.settings.places[name]; };

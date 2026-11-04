@@ -6,7 +6,7 @@
 (function (root) {
   const L = {};
   const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-  const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+  const num = (v) => { const n = parseFloat(typeof v === 'string' ? v.replace(',', '.') : v); return isNaN(n) ? 0 : n; };   // a decimal comma counts as a point
   // Errors carry a code; the app translates it (i18n key 'err.<code>') so messages exist in English and Spanish.
   const fail = (code) => { const e = new Error(code); e.code = code; return e; };
   L.r2 = r2;

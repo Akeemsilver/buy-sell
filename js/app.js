@@ -608,10 +608,18 @@
   }
   // Keeps everything that depends on the prices in step (profit lines, sale summary, the locked selling price).
   function updateSale(i) {
-    calcBox(i);
+    calcBox(i); refreshTag(i);
+    const sold = $('#sheet [data-f=sold]'); if (sold) { const v = L.salePrice(i) || Number(i.price) || 0; sold.placeholder = v ? L.r2(v).toFixed(2) : ''; }   // what Add to invoice would use
     const sum = $('#salesum'); if (sum) sum.innerHTML = saleSum(i);
     const lock = L.saleActive(i), row = $('#pricerow'); if (row) { row.classList.toggle('fade', lock); const inp = row.querySelector('input'); if (inp) inp.readOnly = lock; const b = row.querySelector('button'); if (b) b.disabled = lock; }
   }
+  // The price tag as it will appear on the shared picture (the item page shows it over the photo).
+  function tagHTML(i) {
+    const sale = L.salePrice(i), price = Number(i.price) || 0;
+    if (sale > 0) return `<b>${invMoney(sale)}</b><s>${invMoney(price)}</s><em>${t('photo.off', { pct: Number(i.discount) }, invoiceLang())}</em>`;
+    return price > 0 ? `<b>${invMoney(price)}</b>` : '';
+  }
+  function refreshTag(i) { const el = $('#ptag'); if (el) { el.innerHTML = tagHTML(i); el.hidden = !el.innerHTML; } }
   function refreshSaleBlock(i) { const el = $('#saleblock'); if (el) el.innerHTML = saleHTML(i); updateSale(i); }
   const parsePct = (v) => Math.min(99, Math.max(0, Math.round((parseFloat(String(v).replace('%', '').replace(',', '.')) || 0) * 100) / 100));
 
@@ -986,7 +994,17 @@
       $('#rate-hint').innerHTML = t('batch.rateHint', { rate: r.toFixed(4), amount: money(c * r) });
     }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.f === 'discount') { e.preventDefault(); e.target.blur(); return; }
+  // Enter in a field closes the keyboard and leaves the cursor and the scroll where they were (it never jumps to the next field).
+  const plainField = (el) => el && el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file)$/.test(el.type) && !el.form;
+  document.addEventListener('focusin', (e) => { if (plainField(e.target) && !e.target.hasAttribute('enterkeyhint')) e.target.setAttribute('enterkeyhint', 'done'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && plainField(e.target)) {
+      e.preventDefault(); const sh = $('#sheet'), inSheet = !sh.hidden && sh.contains(e.target), pos = inSheet ? sh.scrollTop : window.scrollY;
+      e.target.blur();
+      const restore = () => { if (inSheet) sh.scrollTop = pos; else window.scrollTo(0, pos); };
+      [0, 80, 200, 400].forEach((ms) => setTimeout(restore, ms));   // the keyboard takes a moment to close and the screen resizes
+      return;
+    }
     if (e.key === 'Escape') { if (PUI.isOpen()) PUI.back(); else closeSheet(); } });
 
   /* ---------- files ---------- */
@@ -1126,7 +1144,7 @@
 
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const tidyPhotos = debounce(() => PUI.cleanup(), 2500);
-  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang });
+  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,
     askConflict,

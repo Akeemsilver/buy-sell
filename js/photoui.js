@@ -39,7 +39,7 @@
   // Item page: the photo as before (tap it for the full-screen view), Share under it, then Edit / Replace / Remove side by side.
   function photoBox(it) {
     const st = L.shareStatus(it);
-    const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><img data-ph="${it.photo.id}" data-kind="full" alt="">${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
+    const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><div class="pin"><img data-ph="${it.photo.id}" data-kind="full" alt=""><div class="ptag" id="ptag" ${A.tagHTML(it) ? '' : 'hidden'}>${A.tagHTML(it)}</div></div>${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
     return `${pic}<button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
       ${it.photo ? `<div class="photo-actions3"><button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.editShort') : t('photo.checkShort')}</button>
         <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replaceShort')}</button>
@@ -113,6 +113,14 @@
   /* ---------- sharing ---------- */
 
   const safeName = (s) => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'item';
+  // The picture exactly as it is shared: the checked photo with the price tag (or the sale tag) drawn on it.
+  async function taggedCanvas(it, lg) {
+    const rec = await S.get(it.photo.id); if (!rec || !rec.full) throw new Error('missing');
+    const c = await P.loadCanvas(rec.full, 2000), pub = L.publicView(it), price = num(pub.price), sale = num(pub.salePrice);
+    if (sale > 0) P.priceTag(c, A.invMoney(sale), { was: A.invMoney(price), badge: t('photo.off', { pct: pub.discount }, lg) });   // on sale: new price, old price crossed out, % OFF
+    else if (price > 0) P.priceTag(c, A.invMoney(price));
+    return { c, pub, price, sale };
+  }
   async function share(itemId) {
     const it = item(itemId); if (!it) return;
     const st = L.shareStatus(it);
@@ -125,10 +133,7 @@
     const lg = await A.shareLang(); if (!lg) return;             // which language the caption is in (asks, unless told not to)
     A.toast(t('photo.prep'));
     try {
-      const rec = await S.get(it.photo.id); if (!rec || !rec.full) return A.toast(t('photo.missing'));
-      const c = await P.loadCanvas(rec.full, 2000), pub = L.publicView(it), price = num(pub.price), sale = num(pub.salePrice);
-      if (sale > 0) P.priceTag(c, A.invMoney(sale), { was: A.invMoney(price), badge: t('photo.off', { pct: pub.discount }, lg) });   // on sale: new price, old price crossed out, % OFF
-      else if (price > 0) P.priceTag(c, A.invMoney(price));
+      const { c, pub, price, sale } = await taggedCanvas(it, lg);
       const blob = await new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('encode'))), 'image/jpeg', 0.9));
       const file = new File([blob], safeName(pub.name || pub.id) + '.jpg', { type: 'image/jpeg' });
       const text = (pub.name ? pub.name + '\n' : '') + (sale > 0 ? `${A.invMoney(sale)} (${t('photo.was', null, lg)} ${A.invMoney(price)}) · ${t('photo.off', { pct: pub.discount }, lg)}` : price > 0 ? A.invMoney(price) : t('photo.available', null, lg));
@@ -137,7 +142,7 @@
       }
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
       A.toast(t('photo.noShare'));
-    } catch (e) { A.toast('⚠️ ' + t('photo.shareFail')); }
+    } catch (e) { A.toast(e && e.message === 'missing' ? t('photo.missing') : '⚠️ ' + t('photo.shareFail')); }
   }
 
   /* ---------- long-press menu ---------- */
@@ -399,7 +404,7 @@
       case 'photo-check-all': return startCheck(A.state().items.filter((i) => i.batchId === id && i.photo && !i.photo.checked).sort((x, y) => x.id.localeCompare(y.id)).map((i) => i.id));
       case 'photo-replace': return replaceOne(id);
       case 'photo-remove': return removeOne(id);
-      case 'photo-view': { const it = item(id); if (!it || !it.photo) return; return urlFor(it.photo.id, 'full').then((u) => u && openViewer(u)); }
+      case 'photo-view': { const it = item(id); if (!it || !it.photo) return; return taggedCanvas(it, A.invoiceLang()).then((r) => openViewer(r.c.toDataURL('image/jpeg', 0.92))).catch(() => A.toast(t('photo.missing'))); }   // the same picture that gets shared, tag included
       case 'viewer-close': return closeViewer();
       case 'ed-close': return closeEditor();
       case 'ed-ratio': return setRatio(parseFloat(id));

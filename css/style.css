@@ -382,5 +382,5 @@ h2.sec{margin:18px 0 6px}
 .ptag s{color:#8a8a8a;font-size:12px;font-weight:600}
 .ptag em{font-style:normal;background:#c62828;color:#fff;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:800}
 
-.ph .ph-sale{position:absolute;top:3px;right:3px;padding:1px 6px;font-size:10px;box-shadow:0 0 0 1.5px #fff,0 1px 4px rgba(0,0,0,.4)}
+.ph .ph-sale{position:absolute;left:0;right:0;bottom:0;border-radius:0;text-align:center;padding:2px 0;font-size:11px;box-shadow:none}
 .item .main small.saleoff{color:#fff;margin:0}

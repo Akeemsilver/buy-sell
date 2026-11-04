@@ -488,14 +488,31 @@
     const act = (a, label, sub, bad) => `<button class="row tap" data-act="${a}"><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
     return `<div class="list">${act('export-json', t('more.backup'), t('more.backupSub'))}${act('import-json', t('more.restore'), t('more.restoreSub'))}${act('reset', t('more.erase'), t('more.eraseSub'), true)}</div><p class="note">${t('photo.backupNote')}</p>`;
   }
-  function InvDesignPage() {
-    const cur = invDesignId(), D0 = InvDesign.DESIGNS;
-    const cards = D0.map((d) => {
-      const c = InvDesign.colours(d.id, Theme.brand()), top = d.id === 'classic' ? bannerSrc() : headerURL(d.id), on = cur === d.id;
+  const invCards = () => {
+    const cur = invDesignId();
+    return InvDesign.DESIGNS.map((d) => {
+      const c = invDesign(d.id), top = d.id === 'classic' ? bannerSrc() : headerURL(d.id), on = cur === d.id;
       return `<div class="dwrap"><button class="dzoom" data-act="inv-design-view" data-id="${d.id}" aria-label="${t('invd.full')}">⤢</button><button class="dsg ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-act="inv-design" data-id="${d.id}" style="--ih:${c.head};--it:${c.tint || '#f6edf2'}">
         <span class="pg"><img src="${top}" alt=""><i class="th"></i><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="bd"></i></span><b>${t('invd.' + d.id)}</b>${d.themed ? `<small>${t('invd.themed')}</small>` : ''}</button></div>`;
     }).join('');
-    return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p><div class="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${cards}</div>`;
+  };
+  // Colour settings of the chosen design: own colour (or the theme's), lighter/darker, and how far the second colour goes.
+  function invColourPanel() {
+    const id = invDesignId(), st = invStyle(id), d = InvDesign.find(id);
+    if (!d.themed) return `<div class="invset"><h3>${t('invd.colours')} · ${t('invd.' + id)}</h3><p class="muted small" style="margin:0">${t('invd.fixed')}</p></div>`;
+    const own = (st.color || '').toLowerCase(), blend = st.blend != null && st.blend !== '' ? st.blend : (InvDesign.BLEND[id] || 0), hasBlend = id in InvDesign.BLEND;
+    return `<div class="invset"><h3>${t('invd.colours')} · ${t('invd.' + id)}</h3>
+      <div class="swatches"><button type="button" class="chip ${own ? '' : 'on'}" data-act="inv-color" data-id="">${t('invd.theme')}</button>${Theme.PALETTES.map((p) => `<button type="button" class="swatch ${own === p.brand ? 'on' : ''}" style="background:${p.brand}" data-act="inv-color" data-id="${p.brand}" aria-label="${t('pal.' + p.id)}"></button>`).join('')}
+        <label class="swatch own" aria-label="${t('invd.custom')}"><input type="color" data-inv="color" value="${own || Theme.brand()}"><span>＋</span></label></div>
+      <label for="inv-light">${t('invd.light')}</label><input id="inv-light" type="range" min="-20" max="20" step="1" value="${Number(st.light) || 0}" data-inv="light">
+      ${hasBlend ? `<label for="inv-blend">${t('invd.blend')}</label><input id="inv-blend" type="range" min="-90" max="90" step="1" value="${blend}" data-inv="blend">` : ''}
+      <button type="button" class="btn" data-act="inv-reset" style="margin-top:10px">${t('invd.reset')}</button></div>`;
+  }
+  function InvDesignPage() {
+    return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p><div id="invpanel">${invColourPanel()}</div><div class="dsgrid" id="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${invCards()}</div>`;
+  }
+  function setInvStyle(patch) {
+    const id = invDesignId(); state.settings.invoiceStyle = Object.assign({}, state.settings.invoiceStyle); state.settings.invoiceStyle[id] = Object.assign({}, state.settings.invoiceStyle[id], patch); save();
   }
   function SettingsPage() {
     const s = state.settings, cur = I.getLang();
@@ -661,7 +678,8 @@
   // Invoice design (Settings): the picture at the top and the colours of the table. 'classic' is the flower picture; the others are drawn here.
   let designOverride = null;   // used to preview a design full screen without choosing it
   const invDesignId = () => designOverride || InvDesign.find(state.settings.invoiceDesign).id;
-  const invDesign = () => InvDesign.colours(invDesignId(), Theme.brand());
+  const invStyle = (id) => ((state.settings.invoiceStyle || {})[id || invDesignId()]) || {};   // the owner's colour changes for a design
+  const invDesign = (id) => InvDesign.colours(id || invDesignId(), Theme.brand(), invStyle(id));
   const invBiz = () => {
     const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail);
     return { name: s.businessName || 'B.RUIZ', lines: (own ? [s.bizCity, s.bizPhone, s.bizEmail] : ['Chaguanas', '18683658857', 'berilexy.ruiz93@gmail.com']).filter(Boolean), logo: s.businessName ? null : invLogo };
@@ -670,10 +688,10 @@
   const headCache = {};
   function headerCanvas(id, S) {
     const b = invBiz(), W = 800, c = document.createElement('canvas'); c.width = W * S; c.height = InvDesign.HEAD_H * S;
-    const x = c.getContext('2d'); x.scale(S, S); InvDesign.drawHeader(x, id, W, { name: b.name, lines: b.lines, title: ti('doc.invoiceWord'), logo: b.logo && b.logo.complete && b.logo.naturalWidth ? b.logo : null }, Theme.brand()); return c;
+    const x = c.getContext('2d'); x.scale(S, S); InvDesign.drawHeader(x, id, W, { name: b.name, lines: b.lines, title: ti('doc.invoiceWord'), logo: b.logo && b.logo.complete && b.logo.naturalWidth ? b.logo : null }, Theme.brand(), invStyle(id)); return c;
   }
   function headerURL(id) {
-    const b = invBiz(), k = [id, invoiceLang(), b.name, b.lines.join('|'), Theme.brand(), b.logo && b.logo.complete ? 1 : 0].join('~');
+    const b = invBiz(), k = [id, invoiceLang(), b.name, b.lines.join('|'), Theme.brand(), JSON.stringify(invStyle(id)), b.logo && b.logo.complete ? 1 : 0].join('~');
     return headCache[k] || (headCache[k] = headerCanvas(id, 2).toDataURL('image/png'));
   }
   const invMoney = (n) => 'TT$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -978,6 +996,8 @@
         designOverride = t_.dataset.act === 'inv-design-view' ? id : null; toast(t('doc.preparing'));
         return invoiceCanvas(inv).then((blob) => PUI.openViewer(URL.createObjectURL(blob))).catch((e) => toast('⚠️ ' + errMsg(e))).finally(() => { designOverride = null; });
       }
+      case 'inv-color': setInvStyle({ color: id || null }); return render();
+      case 'inv-reset': { const m = Object.assign({}, state.settings.invoiceStyle); delete m[invDesignId()]; state.settings.invoiceStyle = m; save(); return render(); }
       case 'inv-design': state.settings.invoiceDesign = id; save(); toast(t('invd.saved')); return render();
       case 'more': if (id === 'settings') settingsFrom = { tab, moreView }; moreView = id; window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
@@ -1021,6 +1041,7 @@
 
   document.addEventListener('input', (e) => {
     const el = e.target;
+    if (el.dataset.inv) { setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); }
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {

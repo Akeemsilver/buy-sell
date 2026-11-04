@@ -30,10 +30,13 @@
   const shift = (hex, dh, dl) => { const c = hslOf(hex); return hexOf(c.h + dh, c.s, Math.max(0.12, Math.min(0.9, c.l + (dl || 0)))); };
 
   // The real colours of a design: the table, bar and footer follow the app colour.
-  function colours(id, brand) {
-    const d = find(id);
-    if (!d.themed || !brand) return d;
-    return { id: d.id, themed: true, head: brand, tint: mix(brand, '#ffffff', 0.86), band: mix(brand, '#ffffff', 0.78), ink: id === 'fade' ? '#222' : '#fff' };
+  // opts (the owner's changes, all optional): color = own colour instead of the theme's, light = -20..20 darker/lighter, blend = how far the second colour is (degrees of hue)
+  const BLEND = { dusk: 45, sunrise: -40 };
+  function colours(id, brand, opts) {
+    const d = find(id); opts = opts || {};
+    if (!d.themed || !(opts.color || brand)) return d;
+    const base = shift(opts.color || brand, 0, (Number(opts.light) || 0) / 100);
+    return { id: d.id, themed: true, head: base, tint: mix(base, '#ffffff', 0.86), band: mix(base, '#ffffff', 0.78), ink: id === 'fade' ? '#222' : '#fff', blend: opts.blend != null && opts.blend !== '' ? Number(opts.blend) : BLEND[id] || 0 };
   }
 
   function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let x = a; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
@@ -43,16 +46,16 @@
     const B = c.head, lg = (stops, ang) => { const r = (ang || 0) * Math.PI / 180, g = x.createLinearGradient(W / 2 - Math.cos(r) * W / 2, H / 2 - Math.sin(r) * H / 2 - (ang ? 0 : 0), W / 2 + Math.cos(r) * W / 2, H / 2 + Math.sin(r) * H / 2); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; };
     if (id === 'fade') x.fillStyle = lg([[0, '#ffffff'], [0.42, mix(B, '#ffffff', 0.8)], [1, B]], 8);
     else if (id === 'deep') x.fillStyle = lg([[0, shift(B, 0, -0.14)], [1, shift(B, 0, 0.1)]], 12);
-    else if (id === 'dusk') x.fillStyle = lg([[0, B], [1, shift(B, 45, 0.04)]], 10);
-    else if (id === 'sunrise') x.fillStyle = lg([[0, shift(B, -40, 0.02)], [1, B]], 10);
+    else if (id === 'dusk') x.fillStyle = lg([[0, B], [1, shift(B, c.blend, 0.04)]], 10);
+    else if (id === 'sunrise') x.fillStyle = lg([[0, shift(B, c.blend, 0.02)], [1, B]], 10);
     else { const g = x.createRadialGradient(W * 0.3, H * 0.4, 10, W * 0.3, H * 0.4, W * 0.75); g.addColorStop(0, shift(B, 0, 0.16)); g.addColorStop(1, shift(B, 0, -0.08)); x.fillStyle = g; }
     x.fillRect(0, 0, W, H);
   }
 
   /* Draws the top picture onto a canvas context that is already scaled to W x HEAD_H units.
      info: { name, lines: [..], title, logo: Image|null } */
-  function drawHeader(x, id, W, info, brand) {
-    const c = colours(id, brand), H = HEAD_H;
+  function drawHeader(x, id, W, info, brand, opts) {
+    const c = colours(id, brand, opts), H = HEAD_H;
     art(x, id, W, H, c);
     x.textBaseline = 'alphabetic';
     const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
@@ -68,6 +71,6 @@
     F('900', 48); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(info.title, W - 36, H / 2 + 17); x.restore();
   }
 
-  const api = { DESIGNS, HEAD_H, find, colours, mix, drawHeader };
+  const api = { DESIGNS, HEAD_H, BLEND, find, colours, mix, drawHeader };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.InvDesign = api;
 })(typeof self !== 'undefined' ? self : this);

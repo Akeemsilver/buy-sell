@@ -207,4 +207,11 @@ console.log('all tests passed');
   const c1 = L2.itemCalc(b, it), c2 = L2.itemCalc(b, { ...it, saleOn: false });
   assert(c1.profit < c2.profit, 'projected profit uses the sale price when a sale is on');
 }
+{ const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'USD', totalCost: 20, margin: 100 }); s.items.forEach((x) => { x.desc = 'Thing'; x.cost = 10; x.price = 50; x.sold = 50; x.status = 'Available'; });
+  assert.strictEqual(L.isSold(s.items[0]), false);
+  const inv = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Ari', isNew: true, paying: 50, date: new Date() });
+  assert.strictEqual(L.isSold(s.items[0]), true, 'an invoiced item is sold (locked)');
+  assert.strictEqual(L.assignPhotos(s, s.batches[0].id, ['a', 'b']).assigned.length, 1, 'photos are never given to a sold item');
+  L.deleteInvoice(s, inv.no); assert.strictEqual(L.isSold(s.items[0]), false, 'returning the invoice unlocks its items');
+  s.items[1].status = 'Paid'; s.items[1].customer = 'Z'; L.returnItem(s, s.items[1].id); assert.strictEqual(s.items[1].status, 'Available'); assert.strictEqual(s.items[1].sold, 0); }
 console.log('sale price tests passed');

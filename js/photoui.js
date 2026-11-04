@@ -41,7 +41,7 @@
     const st = L.shareStatus(it);
     const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><div class="pin"><img data-ph="${it.photo.id}" data-kind="full" alt=""><div class="ptag" id="ptag" ${A.tagHTML(it) ? '' : 'hidden'}>${A.tagHTML(it)}</div></div>${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
     return `${pic}<button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
-      ${it.photo ? `<div class="photo-actions3"><button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.editShort') : t('photo.checkShort')}</button>
+      ${L.isSold(it) ? '' : it.photo ? `<div class="photo-actions3"><button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.editShort') : t('photo.checkShort')}</button>
         <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replaceShort')}</button>
         <button class="btn danger" data-act="photo-remove" data-id="${it.id}">${t('photo.removeShort')}</button></div>` : `<button class="btn" style="margin-top:8px" data-act="photo-replace" data-id="${it.id}">${t('photo.addOne')}</button>`}`;
   }
@@ -71,7 +71,7 @@
   }
   async function addFiles2(batchId, files) {
     const st = A.state(), b = st.batches.find((x) => x.id === batchId); if (!b) return;
-    const free = st.items.filter((i) => i.batchId === batchId && !i.photo).length;
+    const free = st.items.filter((i) => i.batchId === batchId && !i.photo && !L.isSold(i)).length;
     if (files.length > free) {
       const extra = files.length - free;
       if (!A.confirm(tn('photo.extraAsk', extra, { id: A.bl(batchId) }))) files = files.slice(0, free);
@@ -395,13 +395,14 @@
   /* ---------- events from the app ---------- */
 
   function act(a, id, el) {
+    if (['photo-check', 'photo-check-now', 'photo-replace', 'photo-remove'].includes(a) && item(id) && L.isSold(item(id))) return A.toast(t('item.lockedToast'));   // sold items are locked
     switch (a) {
       case 'photo-add': return addSheet(id);
       case 'photo-gallery': A.closeSheet(); return pickFiles(true, false).then((f) => addFiles(id, f));
       case 'photo-camera': A.closeSheet(); return pickFiles(false, true).then((f) => addFiles(id, f));
       case 'photo-share': return share(id);
       case 'photo-check': case 'photo-check-now': return startCheck([id]);
-      case 'photo-check-all': return startCheck(A.state().items.filter((i) => i.batchId === id && i.photo && !i.photo.checked).sort((x, y) => x.id.localeCompare(y.id)).map((i) => i.id));
+      case 'photo-check-all': return startCheck(A.state().items.filter((i) => i.batchId === id && i.photo && !i.photo.checked && !L.isSold(i)).sort((x, y) => x.id.localeCompare(y.id)).map((i) => i.id));
       case 'photo-replace': return replaceOne(id);
       case 'photo-remove': return removeOne(id);
       case 'photo-view': { const it = item(id); if (!it || !it.photo) return; return taggedCanvas(it, A.invoiceLang()).then((r) => openViewer(r.c.toDataURL('image/jpeg', 0.92))).catch(() => A.toast(t('photo.missing'))); }   // the same picture that gets shared, tag included

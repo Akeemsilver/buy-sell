@@ -157,8 +157,10 @@
   };
 
   // New photos go to the next items of the batch that have none, in item order. Returns what was assigned and how many photos did not fit.
+  // A sold item (on an invoice, paid or owing) is locked until it is returned.
+  L.isSold = (i) => i.status === 'Paid' || i.status === 'Owing';
   L.assignPhotos = (s, batchId, photoIds) => {
-    const free = s.items.filter((i) => i.batchId === batchId && !i.photo).sort((a, b) => a.id.localeCompare(b.id));
+    const free = s.items.filter((i) => i.batchId === batchId && !i.photo && !L.isSold(i)).sort((a, b) => a.id.localeCompare(b.id));
     const assigned = [];
     photoIds.slice(0, free.length).forEach((id, n) => { free[n].photo = { id, checked: false }; assigned.push({ itemId: free[n].id, photoId: id }); });
     return { assigned, extra: Math.max(0, photoIds.length - free.length) };
@@ -299,6 +301,9 @@
     if (!s.customers.includes(client)) s.customers.push(client);
     return inv;
   };
+
+  // An item that is sold but has no invoice (imported): put it back in stock.
+  L.returnItem = (s, id) => { const i = s.items.find((x) => x.id === id); if (!i) return; i.status = 'Available'; i.customer = ''; i.invoice = ''; i.sold = 0; i.owing = 0; };
 
   L.deleteInvoice = (s, no) => {
     const inv = s.invoices.find((v) => v.no === no);

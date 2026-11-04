@@ -515,3 +515,6 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .tabbar{box-shadow:0 -1px 0 rgba(255,255,255,.6) inset,0 2px 6px rgba(0,0,0,.10),0 14px 34px -6px rgba(0,0,0,.42)}
 .appbar{box-shadow:0 4px 18px rgba(0,0,0,.36)}
 .fullbar{box-shadow:0 5px 16px -6px rgba(0,0,0,.30)}
+
+/* paid items: the thumbnail is faded a little (the sale strip stays); owing and available items stay at full strength. The item page shows the photo normally. */
+.item.paid .ph{opacity:.6;filter:grayscale(.5)}

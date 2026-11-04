@@ -327,7 +327,7 @@
   function listMarks() {
     const el = $('#ed-marks'); if (!el) return;
     let man = 0;
-    el.innerHTML = ed.marks.map((m, n) => `<span class="ed-chip ${m.ticked ? 'on' : ''} ${ed.sel === n ? 'sel' : ''}"><button data-act="ed-toggle" data-id="${n}" aria-pressed="${m.ticked}">${m.ticked ? '✓ ' : ''}${t('ed.mine', { n: ++man })}</button><button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button></span>`).join('') || '';
+    el.innerHTML = ed.marks.map((m, n) => `<span class="ed-chip ${m.ticked ? 'on' : ''} ${ed.sel === n ? 'sel' : ''}"><button data-act="ed-toggle" data-id="${n}" aria-pressed="${m.ticked}">${m.ticked ? '✓ ' : ''}${m.mode === 'logo' ? t('ed.logoBox') : t('ed.mine', { n: ++man })}</button><button class="x" data-act="ed-del" data-id="${n}" aria-label="${t('aria.remove')}">✕</button></span>`).join('') || '';
     const k = ed.marks.filter((m) => m.ticked).length;
     const inf = $('#ed-info'); if (inf) inf.textContent = ed.marks.length ? '' : t('ed.draw');
     $('#ed-note').textContent = (k ? tn('ed.hiding', k) : t('ed.nothing')) + ' · ' + (ed.tool === 'draw' ? t('ed.hintDraw') : t('ed.hintMove'));
@@ -412,7 +412,7 @@
       case 'ed-reset': return resetCrop();
       case 'ed-next': return showMarks();
       case 'ed-back': return showCrop();
-      case 'ed-mode': ed.mode = id; if (ed.sel != null && ed.marks[ed.sel]) ed.marks[ed.sel].mode = id; syncMode(); if (id === 'logo' && !logoImg) loadLogo(); return preview();
+      case 'ed-mode': ed.mode = id; if (ed.sel != null && ed.marks[ed.sel]) ed.marks[ed.sel].mode = id; listMarks(); syncMode(); if (id === 'logo' && !logoImg) loadLogo(); return preview();
       case 'ed-del': ed.marks.splice(+id, 1); ed.sel = null; listMarks(); syncMode(); return preview();
       case 'ed-toggle': ed.marks[+id].ticked = true; ed.sel = +id; listMarks(); syncMode(); return preview();   // selects (and switches on a guess); the X removes a box
       case 'ed-tool': ed.tool = id; document.querySelectorAll('.ed-tools > .chip').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); $('#ed-cv').style.touchAction = id === 'draw' ? 'none' : 'pan-y'; return listMarks();

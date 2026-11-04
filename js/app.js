@@ -331,7 +331,7 @@
       <datalist id="custs">${custs.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
       ${custs.length ? `<div class="suggest">${custs.slice(0, 8).map((c) => `<button class="chip" data-act="pick-client" data-id="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
       <label for="paying">${t('sell.paying')}</label>
-      <div class="grid2"><input id="paying" name="paying" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(invForm.paying)}" placeholder="0.00"><button class="btn" data-act="pay-full">${t('sell.payFull')}</button></div>
+      <div class="grid2"><input id="paying" name="paying" type="text" inputmode="decimal" step="0.01" min="0" value="${esc(invForm.paying)}" placeholder="0.00"><button class="btn" data-act="pay-full">${t('sell.payFull')}</button></div>
       <div id="prev">${previewBox()}</div>`;
   }
 
@@ -498,10 +498,10 @@
         <h2>${t('set.preview')}</h2>${themePreview(sel, bizName())}
         <div class="btns"><button class="btn primary" data-act="apply-palette" ${changed ? '' : 'disabled'}>${t('set.apply')}</button></div>`;
     }
-    return `<form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off"><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="number" inputmode="numeric" value="${s.year}"></div>
-      <div><label>${t('set.margin')}</label><input name="defaultMargin" type="number" inputmode="decimal" value="${s.defaultMargin}"></div></div>
-      <label>${t('set.markup')}</label><input name="markup" type="number" inputmode="decimal" step="0.001" value="${s.markup}">
-      ${['USD', 'EUR', 'GBP'].map((c) => `<label>${t('set.rate', { c })}</label><input name="${c}" type="number" inputmode="decimal" step="0.0001" value="${s.rates[c]}">`).join('')}
+    return `<form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off"><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="text" inputmode="numeric" value="${s.year}"></div>
+      <div><label>${t('set.margin')}</label><input name="defaultMargin" type="text" inputmode="decimal" value="${s.defaultMargin}"></div></div>
+      <label>${t('set.markup')}</label><input name="markup" type="text" inputmode="decimal" step="0.001" value="${s.markup}">
+      ${['USD', 'EUR', 'GBP'].map((c) => `<label>${t('set.rate', { c })}</label><input name="${c}" type="text" inputmode="decimal" step="0.0001" value="${s.rates[c]}">`).join('')}
       <p class="muted small">${t('set.rateNote')}</p>
       <div class="btns"><button class="btn primary">${t('set.save')}</button></div></form>`;
   }
@@ -532,10 +532,10 @@
   function sheetNewBatch() {
     openSheet(`<h3>${t('batch.new')}</h3><p class="muted small">${t('batch.newNote')}</p>
       <form id="f-batch"><label>${t('batch.store')}</label><input name="store" value="SHEIN" required>
-      <div class="grid2"><div><label>${t('batch.count')}</label><input name="count" type="number" inputmode="numeric" min="1" required></div>
+      <div class="grid2"><div><label>${t('batch.count')}</label><input name="count" type="text" inputmode="numeric" min="1" required></div>
       <div><label>${t('batch.currency')}</label><select name="currency">${currencyOpts()}</select></div></div>
-      <div class="grid2"><div><label>${t('batch.totalCost')}</label><input name="totalCost" type="number" inputmode="decimal" step="0.01" min="0" required></div>
-      <div><label>${t('batch.marginPct')}</label><input name="margin" type="number" inputmode="decimal" value="${state.settings.defaultMargin}"></div></div>
+      <div class="grid2"><div><label>${t('batch.totalCost')}</label><input name="totalCost" type="text" inputmode="decimal" step="0.01" min="0" required></div>
+      <div><label>${t('batch.marginPct')}</label><input name="margin" type="text" inputmode="decimal" value="${state.settings.defaultMargin}"></div></div>
       <p class="muted small" id="rate-hint"></p>
       <div class="btns"><button class="btn primary">${t('batch.create')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
@@ -552,7 +552,7 @@
       <div><span>${b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase')}</span><span>${transitText(b)}</span></div>
       ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
       <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
-      <div class="grid2"><input name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>
+      <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>
       <div class="btns"><button class="btn" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')} · ${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</button>
       <button class="btn" data-act="open-stock" data-id="${b.id}">${t('batch.viewItems')}</button>
       ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
@@ -564,7 +564,7 @@
   function sheetPayClearing() {
     if (!state.batches.length) return toast(t('clear.noBatch'));
     openSheet(`<h3>${t('clear.title')}</h3><form id="f-clear"><label>${t('clear.batch')}</label><select name="batch">${batchOpts(state.batches.filter((b) => bStatus(b) !== 'Closed').reverse())}</select>
-      <label>${t('clear.amount')}</label><input name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
+      <label>${t('clear.amount')}</label><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
       <div class="btns"><button class="btn primary">${t('batch.recordPayment')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
 
@@ -581,12 +581,12 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
       ${PUI.photoBox(i)}
       <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
-      <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="number" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
-      <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="number" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
+      <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
+      <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <div id="saleblock">${saleHTML(i)}</div>
       <p class="muted small">${t('item.shownNote')}</p>
-      <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="number" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
-      <div><label>${t('item.delivery')}</label><input data-f="delivery" type="number" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
+      <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="text" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
+      <div><label>${t('item.delivery')}</label><input data-f="delivery" type="text" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
       <div class="sumbox" id="calc"></div>
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       <div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
@@ -974,7 +974,7 @@
     if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
       if (f === 'discount') { i.discount = parsePct(el.value); el.value = i.discount ? i.discount + '%' : ''; save(); return refreshSaleBlock(i); }   // "50" becomes "50%"
-      i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(el.value) || 0) : el.value;
+      i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0) : el.value;
       save(); updateSale(i);
     }
   });
@@ -986,10 +986,10 @@
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
       if (f === 'discount') { i.discount = parsePct(el.value); updateSale(i); }
-      else if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(el.value) || 0); updateSale(i); } else { i[f] = el.value; }
+      else if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0); updateSale(i); } else { i[f] = el.value; }
       save();
     } else if (el.form && el.form.id === 'f-batch') {
-      const f = el.form, r = L.effectiveRate(state, f.currency.value), c = parseFloat(f.totalCost.value) || 0;
+      const f = el.form, r = L.effectiveRate(state, f.currency.value), c = parseFloat(String(f.totalCost.value).replace(',', '.')) || 0;
       $('#rate-hint').innerHTML = t('batch.rateHint', { rate: r.toFixed(4), amount: money(c * r) });
     }
   });

@@ -40,6 +40,36 @@
   const PUI = window.PhotoUI;
   let state = load();
   let tab = 'home', moreView = null;
+  /* ---------- Back works like on an Android phone: it returns to the place you came from, and never loops ----------
+     places: the screens you moved through (tabs, More and Settings screens). pageStack: full-screen pages opened one from another
+     (customer -> invoice -> item ...). Going to a place or page that is already in its stack cuts the stack back to it, so Back never
+     bounces between two screens. */
+  let places = [{ tab: 'home', moreView: null }], pageStack = [], reopening = false;
+  const placeKey = (p) => p.tab + '|' + (p.moreView || '');
+  function go(next) {
+    const i = places.findIndex((p) => placeKey(p) === placeKey(next));
+    if (i >= 0) places.length = i + 1; else places.push({ tab: next.tab, moreView: next.moreView || null });
+    tab = next.tab; moreView = next.moreView || null;
+  }
+  function placeBack() {
+    if (places.length < 2) return false;
+    places.pop(); const p = places[places.length - 1]; tab = p.tab; moreView = p.moreView; return true;
+  }
+  function enterPage(kind, arg, open) {   // every full-screen page calls this when it opens
+    if (reopening) return;
+    const key = kind + '|' + arg, i = pageStack.findIndex((p) => p.key === key);
+    if (i >= 0) pageStack.length = i;
+    pageStack.push({ key, open });
+  }
+  function pageBack() {   // one step back from a full-screen page: the page it was opened from, or close
+    if (pageStack.length > 1) { pageStack.pop(); const prev = pageStack[pageStack.length - 1]; reopening = true; try { prev.open(); } finally { reopening = false; } render(); }
+    else closeSheet();
+  }
+  function dropPages(key) {   // forget pages that no longer exist (e.g. a deleted invoice), then show the one now on top
+    pageStack = pageStack.filter((p) => p.key !== key);
+    if (!pageStack.length) return closeSheet();
+    reopening = true; try { pageStack[pageStack.length - 1].open(); } finally { reopening = false; } render();
+  }
   let stockBatch = null, stockFilter = 'All';
   let selected = new Set();
   let invForm = { client: '', paying: '' };
@@ -402,7 +432,7 @@
 
   /* Settings is a list; each row opens its own page (moreView 'set-...'). The gear opens it, and closes it again. */
   const isSettings = () => tab === 'more' && moreView && (moreView === 'settings' || moreView.startsWith('set-'));
-  let settingsFrom = null, themeDraft = null;
+  let themeDraft = null;
   const isDark = () => theme === 'dark' || (theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
   const curPal = () => Theme.find(state.settings.palette || Theme.saved()).id;
   // A small copy of the Home screen wearing a scheme (the app itself is not touched).
@@ -604,6 +634,7 @@
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
+    pageStack = [];
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
@@ -661,8 +692,9 @@
       <div class="btns"><button class="btn primary">${t('recv.mark')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
 
-  function sheetItem(id, back) {   // back: where to return to when this page is closed (e.g. the invoice it was opened from)
+  function sheetItem(id) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
+    enterPage('item', id, () => sheetItem(id));
     const b = batchOf(i), sold = L.isSold(i);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
@@ -680,7 +712,7 @@
       </fieldset>
       ${sold ? `<div class="btns">${i.invoice ? `<button class="btn" data-act="view-inv" data-id="${i.invoice}">${t('item.viewInv')}</button><button class="btn danger" data-act="return-inv" data-id="${i.invoice}">${t('item.returnInv')}</button>` : `<button class="btn danger" data-act="return-item" data-id="${i.id}">${t('item.returnItem')}</button>`}<button class="btn" data-act="close">${t('btn.done')}</button></div>`
       : `<div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
-      <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, back ? () => { render(); back(); } : render, true);
+      <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
     $('#sheet').dataset.item = id; updateSale(i);
   }
   /* A sale takes a percentage off the selling price: a switch, quick percentages, and the sale price worked out for you. */
@@ -808,6 +840,7 @@
 
   function sheetInvoice(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
+    enterPage('invoice', no, () => sheetInvoice(no));
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
@@ -825,7 +858,7 @@
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.balance > 0 && !v.updatedBy ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${thumbs}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
-      <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, () => { const f = invFrom; invFrom = null; if (f) sheetCustomer(f); }, true);
+      <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
   }
 
@@ -936,7 +969,7 @@
   }
 
   /* ---------- recording a later payment ---------- */
-  let payInv = null, payBack = null, payFromCust = null;
+  let payInv = null;
   const parseAmt = (v) => Math.max(0, parseFloat(String(v || '').replace(',', '.')) || 0);
   function payUpdate() {
     const v = payInv, el = $('#pay-amt'); if (!v || !el) return;
@@ -945,9 +978,10 @@
     box.innerHTML = amt <= 0 ? `<span>${t('pay.after')}</span><span>—</span>` : amt > v.balance + 0.005 ? `<span>${t('pay.tooMuch')}</span><span></span>` : `<span>${t('pay.after')}</span><span>${left <= 0.004 ? '✓ ' + t('pay.afterPaid') : t('pay.afterOwes', { amt: money(left) })}</span>`;
     save.disabled = amt <= 0 || amt > v.balance + 0.005;
   }
-  function sheetPay(no, back) {
+  function sheetPay(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v || v.updatedBy || v.balance <= 0) return;
-    payInv = v; payBack = back || null;
+    enterPage('pay', no, () => sheetPay(no));
+    payInv = v;
     const d = new Date(), iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pay.title')}</b><small>${v.no} · ${esc(v.client)}</small></div></div>
       <div class="pm-sum"><div><span>${t('pay.total')}</span><b>${money(v.total)}</b></div><div><span>${t('pay.so')}</span><b>${money(v.amountPaid + v.previouslyPaid)}</b></div><div class="o"><span>${t('pay.owes')}</span><b>${money(v.balance)}</b></div></div>
@@ -956,14 +990,14 @@
       <div class="pm-after mid" id="pay-after"></div>
       <div class="pm-note">${t('pay.note', { no: L.nextInvoiceNo(state), old: v.no })}</div>
       <div class="btns"><button class="btn primary" id="pay-save" data-act="pay-save" data-id="${v.no}" disabled>${t('pay.save')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`,
-      () => { const b = payBack; payBack = null; payInv = null; if (b) b(); }, true);
+      () => { payInv = null; }, true);
     payUpdate();
   }
 
   // A customer's page: who they are to the business (not an account). Summary, then every invoice with its items; tap an invoice to see it, tap a picture to see the item.
-  let invFrom = null;   // the customer whose page we came from, so Back returns there
   function sheetCustomer(name) {
     const c = L.customerStats(state).find((x) => x.name === name); if (!c) return;
+    enterPage('customer', name, () => sheetCustomer(name));
     const invs = state.invoices.filter((v) => v.client === name).slice().sort((x, y) => new Date(y.date) - new Date(x.date));
     const mon = (d) => new Date(d).toLocaleDateString(I.locale(I.getLang()), { month: 'short', year: 'numeric' }), day = (d) => new Date(d).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short' });
     const lastCap = invs.length ? t('cust.lastBought', { d: day(invs[0].date) }).replace(/^./, (ch) => ch.toUpperCase()) : '';
@@ -1060,11 +1094,11 @@
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     const t_ = e.target.closest('[data-tab],[data-act]'); if (!t_) return;
-    if (t_.dataset.tab) { tab = t_.dataset.tab; themeDraft = null; if (tab === 'more') moreView = null; window.scrollTo(0, 0); return render(); }
+    if (t_.dataset.tab) { themeDraft = null; go({ tab: t_.dataset.tab, moreView: null }); window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
     if (/^(photo|ed|viewer)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
     switch (t_.dataset.act) {
-      case 'close': return closeSheet();
+      case 'close': return pageBack();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); closeSheet(); return render();
       case 'set-lang': I.setLang(id, true); applyStaticText(); closeSheet(); return render();
@@ -1094,8 +1128,8 @@
       case 'filter': return sheetFilter();
       case 'settings':
         closeSheet();
-        if (isSettings()) { const f = settingsFrom || { tab: 'home', moreView: null }; settingsFrom = null; themeDraft = null; tab = f.tab; moreView = f.moreView; }   // the gear closes Settings again
-        else { settingsFrom = { tab, moreView }; tab = 'more'; moreView = 'settings'; }
+        if (isSettings()) { themeDraft = null; while (places.length > 1 && isSettings()) placeBack(); if (isSettings()) go({ tab: 'home', moreView: null }); }   // the gear closes Settings again: back to where you were
+        else go({ tab: 'more', moreView: 'settings' });
         window.scrollTo(0, 0); return render();
       case 'pick-lang': return sheetChoice(t('set.language'), 'set-lang', I.getLang(), Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]));
       case 'pick-appearance': return sheetChoice(t('set.appearance'), 'set-theme', theme, [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]]);
@@ -1103,16 +1137,11 @@
       case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
       case 'pick-keep': return sheetChoice(t('set.keepRow'), 'set-keep', photoKeep(), ['1', '2', '7', 'sold'].map((k) => [k, t('keep.' + k)]), t('keep.note'));
       case 'set-keep': state.settings.photoKeep = id; save(); closeSheet(); PUI.sweep(photoKeep()); return render();
-      case 'pay-inv': {
-        const kind = t_.dataset.back, name = t_.dataset.from, item = t_.dataset.item, keep = invFrom;
-        payFromCust = kind === 'cust' ? name : kind === 'inv' ? keep : null;   // so Back from the new invoice returns to that customer
-        const back = kind === 'cust' ? () => sheetCustomer(name) : kind === 'item' ? () => sheetItem(item) : () => { invFrom = keep; sheetInvoice(id); };
-        invFrom = null; closeSheet(); return sheetPay(id, back);
-      }
+      case 'pay-inv': return sheetPay(id);
       case 'pay-full-amt': { if (payInv) { $('#pay-amt').value = String(payInv.balance); payUpdate(); } return; }
       case 'pay-save': {
         const amt = parseAmt($('#pay-amt').value), dv = $('#pay-date').value, date = dv ? new Date(dv + 'T12:00:00') : new Date();
-        try { const inv = L.recordPayment(state, id, amt, date); save(); tidyPhotos(); payBack = null; toast(t('pay.saved', { no: inv.no })); closeSheet(); render(); invFrom = payFromCust; return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
+        try { const inv = L.recordPayment(state, id, amt, date); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
       }
       case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; if (!confirm(t('about.thumbsAsk', { n, mb: t_.dataset.mb }))) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }
       case 'free-space': { const n = Number(t_.dataset.n) || 0; if (!confirm(t('about.freeAsk', { n, mb: t_.dataset.mb }))) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }
@@ -1132,17 +1161,12 @@
       case 'do-receive': return run(() => L.makeAvailable(state, id), (n) => t('recv.done', { id: bl(id), n }));
       case 'close-batch': if (confirm(t('confirm.close', { id: bl(id) }))) run(() => L.closeBatch(state, id), t('batch.closed', { id: bl(id) })); return;
       case 'del-batch': if (confirm(t('confirm.delBatch', { id: bl(id) }))) run(() => L.deleteBatch(state, id), t('batch.deleted', { id: bl(id) })); return;
-      case 'open-stock': stockBatch = id; stockFilter = 'All'; tab = 'stock'; closeSheet(); return render();
-      case 'goto-stock': tab = 'stock'; return render();
-      case 'goto-sell': tab = 'sell'; window.scrollTo(0, 0); return render();
+      case 'open-stock': stockBatch = id; stockFilter = 'All'; closeSheet(); go({ tab: 'stock', moreView: null }); return render();
+      case 'goto-stock': go({ tab: 'stock', moreView: null }); return render();
+      case 'goto-sell': go({ tab: 'sell', moreView: null }); window.scrollTo(0, 0); return render();
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
-      case 'edit-item': {
-        const k = t_.dataset.back;
-        if (k === 'inv') { const keep = invFrom, no = t_.dataset.inv; invFrom = null; closeSheet(); return sheetItem(id, () => { invFrom = keep; sheetInvoice(no); }); }
-        if (k === 'cust') { const name = t_.dataset.from; closeSheet(); return sheetItem(id, () => sheetCustomer(name)); }
-        return sheetItem(id);
-      }
+      case 'edit-item': return sheetItem(id);
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
       case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
       case 'sale-other': { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
@@ -1154,11 +1178,11 @@
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
       case 'make-invoice': return run(() => L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying }), (inv) => {
         selected = new Set(); invForm = { client: '', paying: '' }; setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
-      case 'customer': closeSheet(); return sheetCustomer(id);
-      case 'view-inv': invFrom = t_.dataset.from || null; closeSheet(); return sheetInvoice(id);
+      case 'customer': return sheetCustomer(id);
+      case 'view-inv': return sheetInvoice(id);
       case 'return-inv': { const n = state.items.filter((x) => x.invoice === id).length; if (confirm(t('item.returnAsk', { no: id, n }))) { closeSheet(); run(() => L.deleteInvoice(state, id), t('item.returned')); } return; }
       case 'return-item': if (confirm(t('item.returnItemAsk', { id }))) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } return;
-      case 'del-inv': if (confirm(t('confirm.delInv', { id }))) run(() => L.deleteInvoice(state, id), t('inv.deleted', { id })); return;
+      case 'del-inv': if (confirm(t('confirm.delInv', { id }))) { try { L.deleteInvoice(state, id); save(); tidyPhotos(); toast(t('inv.deleted', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); } return;
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
       case 'share-pdf': return shareInvoicePdf(id, false);
@@ -1179,15 +1203,14 @@
       case 'inv-color': setInvStyle({ color: id || null }); return render();
       case 'inv-reset': { const m = Object.assign({}, state.settings.invoiceStyle); delete m[invDesignId()]; state.settings.invoiceStyle = m; save(); if (invFsOn) { invFsControls(); invFsPreview(); } return render(); }
       case 'inv-design': state.settings.invoiceDesign = id; save(); toast(t('invd.saved')); return render();
-      case 'more': if (id === 'settings') settingsFrom = { tab, moreView }; moreView = id; window.scrollTo(0, 0); return render();
+      case 'more': go({ tab: 'more', moreView: id }); window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
       case 'export-json': return download('buy-sell-backup.json', JSON.stringify(state, null, 2));
       case 'reset': if (confirm(t('confirm.reset1')) && confirm(t('confirm.reset2'))) { state = L.defaultState(); selected = new Set(); run(() => 0, t('toast.cleared')); } return;
     }
   });
-  const moreParent = () => (moreView && moreView.startsWith('set-') ? 'settings' : null);
-  $('#back').addEventListener('click', () => { themeDraft = null; moreView = moreParent(); render(); });
+  $('#back').addEventListener('click', () => { themeDraft = null; if (!placeBack()) go({ tab: 'home', moreView: null }); render(); });
 
   document.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1271,7 +1294,7 @@
       ['Batch Log', 'Hidden Master Log', 'Invoice Log'].forEach((n) => { if (wb.Sheets[n]) sheets[n] = X.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }); });
       if (!sheets['Hidden Master Log'] || !sheets['Batch Log']) throw coded('notWorkbook');
       const imp = L.importWorkbook(sheets); imp.settings.year = state.settings.year; imp.settings.rates = state.settings.rates;
-      state = imp; selected = new Set(); stockBatch = null; tab = 'home'; moreView = null; save();
+      state = imp; selected = new Set(); stockBatch = null; tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; save();
       toast(t('toast.imported', { b: state.batches.length, i: state.items.length, v: state.invoices.length })); render();
     })).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
@@ -1288,7 +1311,7 @@
   // Every layer you can back out of (non-home tab, a More sub-screen, an open sheet) is one history entry,
   // so the system Back button / gesture closes the top layer first. At Home, Back asks to press again to exit.
   let hist = 0, skipPops = 0, exitArmed = false, exitTimer, reconTimer;
-  const depth = () => (tab !== 'home' ? 1 : 0) + (tab === 'more' && moreView ? 1 : 0) + (tab === 'more' && moreView && moreView.startsWith('set-') ? 1 : 0) + ($('#sheet').hidden ? 0 : 1) + PUI.layers();
+  const depth = () => (places.length - 1) + ($('#sheet').hidden ? 0 : Math.max(1, pageStack.length)) + PUI.layers();
   function reconcile() {
     reconTimer = null;
     if (skipPops > 0) return;                        // a back traversal is still in flight
@@ -1309,9 +1332,8 @@
     if (n >= hist) return;                           // stale entry from before a reload: nothing to undo
     hist = n;
     if (PUI.isOpen()) PUI.back();
-    else if (!$('#sheet').hidden) closeSheet();
-    else if (tab === 'more' && moreView) { themeDraft = null; moreView = moreParent(); }
-    else if (tab !== 'home') tab = 'home';
+    else if (!$('#sheet').hidden) pageBack();
+    else if (places.length > 1) { themeDraft = null; placeBack(); }
     render();
   });
   history.replaceState({ out: true }, '');

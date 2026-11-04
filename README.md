@@ -111,3 +111,5 @@ npm start                # serve on http://localhost:8080
 
 `js/logic.js` holds all rules (pure functions, unit-tested); `js/app.js` is the UI.
 Set `WORKBOOK_JSON=/path/to/dump.json` when running the tests to also check the importer against a real workbook dump.
+
+**Back button:** Back (the phone's button, the swipe, and the ‹ arrows in the app) always returns to the place you came from and never loops. The main tabs and the More/Settings screens form one trail (`places` in `js/app.js`); full-screen pages opened one from another (customer → invoice → item → payment) form a second trail (`pageStack`). Going to a screen that is already on its trail cuts the trail back to it, so Back never bounces between two screens. Every new full-screen page must call `enterPage(kind, key, reopen)` when it opens; every in-app back arrow uses `data-act="close"`. At Home, the first Back shows "Press back again to exit".

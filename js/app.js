@@ -492,8 +492,8 @@
     const cur = invDesignId(), D0 = InvDesign.DESIGNS;
     const cards = D0.map((d) => {
       const c = InvDesign.colours(d.id, Theme.brand()), top = d.id === 'classic' ? bannerSrc() : headerURL(d.id), on = cur === d.id;
-      return `<button class="dsg ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-act="inv-design" data-id="${d.id}" style="--ih:${c.head};--it:${c.tint || '#f6edf2'}">
-        <span class="pg"><img src="${top}" alt=""><i class="th"></i><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="bd"></i></span><b>${t('invd.' + d.id)}</b>${d.themed ? `<small>${t('invd.themed')}</small>` : ''}</button>`;
+      return `<div class="dwrap"><button class="dzoom" data-act="inv-design-view" data-id="${d.id}" aria-label="${t('invd.full')}">⤢</button><button class="dsg ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-act="inv-design" data-id="${d.id}" style="--ih:${c.head};--it:${c.tint || '#f6edf2'}">
+        <span class="pg"><img src="${top}" alt=""><i class="th"></i><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="bd"></i></span><b>${t('invd.' + d.id)}</b>${d.themed ? `<small>${t('invd.themed')}</small>` : ''}</button></div>`;
     }).join('');
     return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p><div class="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${cards}</div>`;
   }
@@ -659,7 +659,8 @@
   const ti = (key, vars) => t(key, vars, invoiceLang());
   const bannerSrc = () => (invoiceLang() === 'es' ? 'icons/invoice-banner-es.jpg' : 'icons/invoice-banner.jpg');
   // Invoice design (Settings): the picture at the top and the colours of the table. 'classic' is the flower picture; the others are drawn here.
-  const invDesignId = () => state.settings.invoiceDesign || 'classic';
+  let designOverride = null;   // used to preview a design full screen without choosing it
+  const invDesignId = () => designOverride || state.settings.invoiceDesign || 'classic';
   const invDesign = () => InvDesign.colours(invDesignId(), Theme.brand());
   const invBiz = () => {
     const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail);
@@ -725,7 +726,7 @@
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang(), D = invDesign(), biz = invBiz();
     const metaHTML = `<div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div>`;
     openSheet(`<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
-      <div class="printable"><div class="inv ${D.grid ? 'grid' : ''} ${D.layout === 'wave' ? 'wavep' : ''} ${D.notch ? 'notch' : ''}" style="--ih:${D.head};--it:${D.tint || 'transparent'};--ib:${D.band};--ik:${D.ink};${D.layout === 'wave' ? `background-image:url(${pageArtURL(invDesignId())})` : ''}">${D.layout === 'wave' ? '' : `<img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">`}
+      <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv ${D.grid ? 'grid' : ''} ${D.layout === 'wave' ? 'wavep' : ''} ${D.notch ? 'notch' : ''}" style="--ih:${D.head};--it:${D.tint || 'transparent'};--ib:${D.band};--ik:${D.ink};${D.layout === 'wave' ? `background-image:url(${pageArtURL(invDesignId())})` : ''}">${D.layout === 'wave' ? '' : `<img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">`}
       <div class="inv-body">
         ${D.layout === 'wave' ? `<div class="wv-top"><div class="wv-title">${ti('doc.invoiceWord')}</div>${metaHTML}</div>
         <div class="wv-from"><div><b>${ti('doc.from')}</b><div class="nm">${esc(biz.name)}</div>${biz.lines.map((l) => `<div>${esc(l)}</div>`).join('')}</div><div><b>${ti('doc.billTo2')}</b><div class="nm">${esc(v.client)}</div></div></div>`
@@ -1013,6 +1014,13 @@
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
       case 'save-img': return shareInvoiceImage(id, true);
+      case 'inv-full': case 'inv-design-view': {
+        const real = state.invoices.find((x) => x.no === id), d = new Date();
+        const sample = { no: 'INV00001', client: ti('doc.sampleClient'), date: d.toISOString(), due: new Date(d.getTime() + 6048e5).toISOString(), lines: [{ desc: ti('doc.sampleItem'), qty: 1, price: 250 }], delivery: 0, total: 250, amountPaid: 250, previouslyPaid: 0, balance: 0 };
+        const inv = real || state.invoices[state.invoices.length - 1] || sample;
+        designOverride = t_.dataset.act === 'inv-design-view' ? id : null; toast(t('doc.preparing'));
+        return invoiceCanvas(inv).then((blob) => PUI.openViewer(URL.createObjectURL(blob))).catch((e) => toast('⚠️ ' + errMsg(e))).finally(() => { designOverride = null; });
+      }
       case 'inv-design': state.settings.invoiceDesign = id; save(); toast(t('invd.saved')); return render();
       case 'more': if (id === 'settings') settingsFrom = { tab, moreView }; moreView = id; window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);

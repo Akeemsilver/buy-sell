@@ -414,3 +414,9 @@ h2.sec{margin:18px 0 6px}
 .inv.notch .inv-foot::before{left:23%;width:5px}.inv.notch .inv-foot::after{left:calc(23% + 12px);width:10px}
 .inv.grid .inv-t{font-size:11px}.inv.grid .inv-t th,.inv.grid .inv-t td{padding:7px 4px}.inv.grid .inv-t .r{white-space:nowrap}
 .inv.grid .inv-tot{width:min(350px,74%);font-size:12px}.inv.grid .inv-tot span,.inv.grid .inv-tot b{white-space:nowrap}.inv.grid .inv-tot div{gap:6px;padding:6px 6px}
+
+/* full screen view of an invoice or a design */
+.printable{position:relative}
+.fsbtn,.dzoom{position:absolute;z-index:3;top:8px;right:8px;width:34px;height:34px;min-height:0;padding:0;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:#222;font-size:18px;line-height:34px;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+.dwrap{position:relative}.dzoom{top:14px;right:14px;width:30px;height:30px;line-height:30px;font-size:16px}
+@media print{.fsbtn,.dzoom{display:none!important}}

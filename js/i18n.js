@@ -296,7 +296,7 @@
     'gate.bizNeed': 'Type your business name.',
     'gate.continue': 'Continue',
     'gate.pickColor': 'Pick your colors',
-    'set.bizName': 'Business name', 'set.bizCity': 'Town or address (on invoices)', 'set.bizPhone': 'Phone', 'set.bizEmail': 'Email', 'doc.invoiceWord': 'INVOICE', 'doc.shipping': 'Shipping', 'doc.totalQty': 'Total Quantity', 'doc.from': 'FROM', 'doc.billTo2': 'Bill To',
+    'set.bizName': 'Business name', 'set.bizCity': 'Town or address (on invoices)', 'set.bizPhone': 'Phone', 'set.bizEmail': 'Email', 'doc.invoiceWord': 'INVOICE', 'invd.full': 'View full screen', 'doc.sampleClient': 'Customer name', 'doc.sampleItem': 'Sample item', 'doc.shipping': 'Shipping', 'doc.totalQty': 'Total Quantity', 'doc.from': 'FROM', 'doc.billTo2': 'Bill To',
     'set.invDesign': 'Invoice design', 'invd.note': 'The look of the invoices you share and print. Your business name and details are filled in for you.', 'invd.saved': 'Invoice design saved', 'invd.themed': 'follows your theme colour',
     'invd.classic': 'Classic', 'invd.wave': 'Wave', 'invd.marble': 'Marble', 'invd.halftone': 'Halftone', 'invd.rust': 'Rust', 'invd.ember': 'Ember', 'invd.hex': 'Honeycomb', 'invd.swoosh': 'Swoosh', 'invd.chevron': 'Chevron', 'invd.navy': 'Navy', 'invd.indigo': 'Indigo',
     /* settings list + more colors */
@@ -679,7 +679,7 @@
     'gate.bizNeed': 'Escribe el nombre de tu negocio.',
     'gate.continue': 'Continuar',
     'gate.pickColor': 'Elige tus colores',
-    'set.bizName': 'Nombre del negocio', 'set.bizCity': 'Ciudad o dirección (en las facturas)', 'set.bizPhone': 'Teléfono', 'set.bizEmail': 'Correo', 'doc.invoiceWord': 'FACTURA', 'doc.shipping': 'Envío', 'doc.totalQty': 'Cantidad total', 'doc.from': 'DE', 'doc.billTo2': 'Facturar a',
+    'set.bizName': 'Nombre del negocio', 'set.bizCity': 'Ciudad o dirección (en las facturas)', 'set.bizPhone': 'Teléfono', 'set.bizEmail': 'Correo', 'doc.invoiceWord': 'FACTURA', 'invd.full': 'Ver en pantalla completa', 'doc.sampleClient': 'Nombre del cliente', 'doc.sampleItem': 'Artículo de ejemplo', 'doc.shipping': 'Envío', 'doc.totalQty': 'Cantidad total', 'doc.from': 'DE', 'doc.billTo2': 'Facturar a',
     'set.invDesign': 'Diseño de factura', 'invd.note': 'El aspecto de las facturas que compartes e imprimes. El nombre y los datos de tu negocio se rellenan solos.', 'invd.saved': 'Diseño de factura guardado', 'invd.themed': 'sigue el color de tu tema',
     'invd.classic': 'Clásico', 'invd.wave': 'Ola', 'invd.marble': 'Mármol', 'invd.halftone': 'Semitono', 'invd.rust': 'Óxido', 'invd.ember': 'Brasa', 'invd.hex': 'Panal', 'invd.swoosh': 'Curvas', 'invd.chevron': 'Cheurón', 'invd.navy': 'Marino', 'invd.indigo': 'Índigo',
     /* settings list + more colors */

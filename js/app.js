@@ -654,7 +654,7 @@
       <div class="btns"><button class="btn primary">${t('recv.mark')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
 
-  function sheetItem(id) {
+  function sheetItem(id, back) {   // back: where to return to when this page is closed (e.g. the invoice it was opened from)
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const b = batchOf(i), sold = L.isSold(i);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
@@ -673,7 +673,7 @@
       </fieldset>
       ${sold ? `<div class="btns">${i.invoice ? `<button class="btn" data-act="view-inv" data-id="${i.invoice}">${t('item.viewInv')}</button><button class="btn danger" data-act="return-inv" data-id="${i.invoice}">${t('item.returnInv')}</button>` : `<button class="btn danger" data-act="return-item" data-id="${i.id}">${t('item.returnItem')}</button>`}<button class="btn" data-act="close">${t('btn.done')}</button></div>`
       : `<div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
-      <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
+      <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, back ? () => { render(); back(); } : render, true);
     $('#sheet').dataset.item = id; updateSale(i);
   }
   /* A sale takes a percentage off the selling price: a switch, quick percentages, and the sale price worked out for you. */
@@ -793,7 +793,7 @@
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
-    const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="inv-photo" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
+    const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div><div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
@@ -955,7 +955,7 @@
       const from = `data-id="${v.no}" data-from="${esc(name)}"`;
       return `<div class="cp-inv ${due ? 'due' : ''}"><div class="cp-top"><div class="cp-l"><div class="numrow"><button class="num" data-act="view-inv" ${from}><b>${v.no}</b></button>${due && !v.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-from="${esc(name)}" data-back="cust">${t('pay.btn')}</button>` : ''}</div><button class="sub" data-act="view-inv" ${from}><small>${day(v.date)} · ${tn('cust.itemsN', its.length || v.qty || 1)}</small></button></div><button class="cp-r" data-act="view-inv" ${from}><b>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></button></div>
         ${due ? `<div class="cp-owe"><div class="bar"><i style="width:${pct}%"></i></div><span>${t('cust.paidOf', { paid: money(v.total - v.balance), total: money(v.total) })}</span><b>${t('cust.stillOwes', { amt: money(v.balance) })}</b></div>` : ''}
-        ${its.length ? `<div class="cp-mini">${its.map((x) => `<button class="m" data-act="edit-item" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><i>${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}</i><span>${esc(x.desc || x.id)}</span></button>`).join('')}</div>` : ''}</div>`;
+        ${its.length ? `<div class="cp-mini">${its.map((x) => `<button class="m" data-act="edit-item" data-back="cust" data-from="${esc(name)}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><i>${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}</i><span>${esc(x.desc || x.id)}</span></button>`).join('')}</div>` : ''}</div>`;
     };
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div></div>
       <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><small>${invs.length ? lastCap : since}</small></div><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div>
@@ -1119,7 +1119,12 @@
       case 'goto-sell': tab = 'sell'; window.scrollTo(0, 0); return render();
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
-      case 'edit-item': return sheetItem(id);
+      case 'edit-item': {
+        const k = t_.dataset.back;
+        if (k === 'inv') { const keep = invFrom, no = t_.dataset.inv; invFrom = null; closeSheet(); return sheetItem(id, () => { invFrom = keep; sheetInvoice(no); }); }
+        if (k === 'cust') { const name = t_.dataset.from; closeSheet(); return sheetItem(id, () => sheetCustomer(name)); }
+        return sheetItem(id);
+      }
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
       case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
       case 'sale-other': { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
@@ -1140,7 +1145,6 @@
       case 'share-img': return shareInvoiceImage(id, false);
       case 'share-pdf': return shareInvoicePdf(id, false);
       case 'download-pdf': return shareInvoicePdf(id, true);
-      case 'inv-photo': return PUI.act('photo-view', id);
       case 'save-img': return shareInvoiceImage(id, true);
       case 'inv-full': case 'inv-design-view': {
         const real = state.invoices.find((x) => x.no === id), d = new Date();

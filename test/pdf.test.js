@@ -10,4 +10,6 @@ const offs = [...txt.slice(xr).matchAll(/(\d{10}) 00000 n /g)].map((m) => Number
 assert.strictEqual(offs.length, 5); offs.forEach((o, i) => assert.ok(txt.slice(o).startsWith(`${i + 1} 0 obj`), 'object ' + (i + 1) + ' at ' + o));
 assert.ok(Buffer.from(pdf).includes(Buffer.from(jpeg)), 'the jpeg bytes are embedded unchanged');
 assert.ok(/\/Length 9 /.test(txt));
+const lt = Buffer.from(jpegToPdf(jpeg, 2550, 3300, { w: 612, h: 792 })).toString('latin1');
+assert.ok(/MediaBox \[0 0 612 792\]/.test(lt), 'US Letter page');
 console.log('pdf tests passed');

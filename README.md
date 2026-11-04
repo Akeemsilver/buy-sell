@@ -34,6 +34,8 @@ a Spanish banner (`icons/invoice-banner-es.jpg`, "FACTURA"). Batch ids show as `
 
 **Invoice design** (Settings → Invoice design): eleven looks for the invoices you share and print — the flower picture (Classic) and ten drawn in code (`js/invdesign.js`): Wave (follows the theme colour), Marble, Halftone, Rust, Ember, Honeycomb, Swoosh, Chevron, Navy, Indigo. The business name, town, phone and email (Settings → Business details) are printed in the picture at the top. Invoices are an A4 page shape.
 
+**Photo storage:** the original screenshot is kept for a set time after you save a photo (Settings → Keep screenshots: 1, 2, 7 days or until sold; default 2) so you can edit again, and is dropped at once when the item is sold. A sold item's saved photo stays 7 days (the return window), then only the small thumbnail remains, shown in the stock list and on the invoice (one stored copy). Settings → Storage used has a Free up space button for existing originals. The invoice screen has Share invoice / Download (always a US Letter PDF), Delete, Close.
+
 **Rule for everything we add from now on:** every visible text goes through `t('key')` (or `tn('key', n)` for singular/plural) and the key
 is written in both languages in `js/i18n.js`. `npm test` checks that both dictionaries have the same keys and `{placeholders}`, that
 every key the code uses exists, that every logic error has a translation and that key styles are still present; the deploy workflow runs

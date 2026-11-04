@@ -148,7 +148,30 @@
   L.publicView = (it) => ({ id: it.id, name: String(it.desc || '').trim(), price: num(it.price) > 0 ? r2(num(it.price)) : 0, salePrice: L.salePrice(it), discount: L.saleActive(it) ? Math.round(num(it.discount) * 100) / 100 : 0 });
 
   // A photo may be shared only after it has been cropped and checked.
-  L.shareStatus = (it) => (!it.photo ? 'noPhoto' : it.photo.checked ? 'ok' : 'notChecked');
+  L.shareStatus = (it) => (!it.photo ? 'noPhoto' : it.photo.noFull ? 'gone' : it.photo.checked ? 'ok' : 'notChecked');
+
+  /* ---------- photo storage plan ----------
+     Original screenshot: kept for `keep` days after the photo is saved ('sold' = until the item is sold), and dropped the moment the item is sold.
+     Saved (cropped) photo: kept PHOTO_HOLD_DAYS after the sale (the return window). The small thumbnail stays for good. */
+  L.PHOTO_HOLD_DAYS = 7;
+  const DAY = 864e5;
+  L.soldAt = (s, it) => { const v = it.invoice && s.invoices.find((x) => x.no === it.invoice); const d = v && v.date ? new Date(v.date).getTime() : NaN; return isNaN(d) ? null : d; };
+  // Days left to open the full photo of a sold item (null when not sold, or no clock to read).
+  L.photoDaysLeft = (s, it, now) => { if (!it.photo || it.photo.noFull || !L.isSold(it)) return null; const at = L.soldAt(s, it); return at == null ? null : Math.max(0, Math.ceil((at + L.PHOTO_HOLD_DAYS * DAY - now) / DAY)); };
+  // What to delete now. stamp = checked photos that have no saved time yet (they start their timer today).
+  L.photoSweepPlan = (s, now, keep) => {
+    const plan = { dropOrig: [], dropFull: [], stamp: [] };
+    s.items.forEach((it) => {
+      const p = it.photo; if (!p) return;
+      if (L.isSold(it)) {
+        if (!p.noOrig) plan.dropOrig.push(it.id);
+        const at = L.soldAt(s, it); if (!p.noFull && at != null && now >= at + L.PHOTO_HOLD_DAYS * DAY) plan.dropFull.push(it.id);
+      } else if (p.checked && !p.noOrig && keep !== 'sold') {
+        if (!p.savedAt) plan.stamp.push(it.id); else if (now >= p.savedAt + Number(keep || 2) * DAY) plan.dropOrig.push(it.id);
+      }
+    });
+    return plan;
+  };
 
   L.photoStats = (s, batchId) => {
     const items = s.items.filter((i) => !batchId || i.batchId === batchId);

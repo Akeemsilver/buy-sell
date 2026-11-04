@@ -39,9 +39,9 @@
   // Item page: the photo as before (tap it for the full-screen view), Share under it, then Edit / Replace / Remove side by side.
   function photoBox(it) {
     const st = L.shareStatus(it);
-    const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><div class="pin"><img data-ph="${it.photo.id}" data-kind="full" alt=""><div class="ptag" id="ptag" ${A.tagHTML(it) ? '' : 'hidden'}>${A.tagHTML(it)}</div></div>${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
-    return `${pic}<button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' ? 'disabled' : ''}>${t('photo.share')}</button>
-      ${L.isSold(it) ? '' : it.photo ? `<div class="photo-actions3"><button class="btn" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.editShort') : t('photo.checkShort')}</button>
+    const pic = it.photo ? `<div class="photo-big" data-act="photo-view" data-id="${it.id}"><div class="pin"><img data-ph="${it.photo.id}" data-kind="${it.photo.noFull ? 'thumb' : 'full'}" alt=""><div class="ptag" id="ptag" ${A.tagHTML(it) ? '' : 'hidden'}>${A.tagHTML(it)}</div></div>${st === 'notChecked' ? `<em class="warn-badge">${t('photo.check')}</em>` : ''}</div>` : `<div class="photo-big none"><i>${t('photo.noPhoto')}</i></div>`;
+    return `${pic}<button class="btn primary" data-act="photo-share" data-id="${it.id}" ${st === 'noPhoto' || st === 'gone' ? 'disabled' : ''}>${t('photo.share')}</button>
+      ${L.isSold(it) ? '' : it.photo ? `<div class="photo-actions3"><button class="btn ${it.photo.noOrig && it.photo.checked ? 'faded' : ''}" data-act="photo-check" data-id="${it.id}">${st === 'ok' ? t('photo.editShort') : t('photo.checkShort')}</button>
         <button class="btn" data-act="photo-replace" data-id="${it.id}">${t('photo.replaceShort')}</button>
         <button class="btn danger" data-act="photo-remove" data-id="${it.id}">${t('photo.removeShort')}</button></div>` : `<button class="btn" style="margin-top:8px" data-act="photo-replace" data-id="${it.id}">${t('photo.addOne')}</button>`}`;
   }
@@ -217,6 +217,7 @@
     edEl().innerHTML = `<div class="ed-head"><b>${t('ed.title', { i: ed.idx + 1, n: ed.total })}</b></div><div class="ed-wait">${t('ed.loading')}</div>`;
     try {
       const rec = await S.get(it.photo.id); if (!rec) throw new Error('missing');
+      if (!rec.orig) { A.toast(t('photo.editExpired')); return next(); }
       ed.itemId = id; ed.photoId = it.photo.id;
       ed.src = await P.loadCanvas(rec.orig, 3000); const sv = it.photo.checked && rec.edit;
       if (sv) {                                    // already checked once: open it as it was left, at the hide-marks step
@@ -387,15 +388,36 @@
       rec.thumb = thumbB; rec.full = fullB;
       rec.edit = { rot: ed.rot || 0, frame: ed.frame, ratio: ed.ratio || 0, mode: ed.mode, marks: ed.marks.map((m) => ({ text: m.text, ticked: m.ticked, box: m.box, auto: m.auto, mode: m.mode })) };   // so Check or edit photo reopens exactly this
       await S.put(rec);
-      const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) it.photo.checked = true;
+      const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) { it.photo.checked = true; it.photo.savedAt = Date.now(); }
       forget(ed.photoId); A.save(); next();
     } catch (e) { A.toast('⚠️ ' + t('photo.saveFail')); if (btn) { btn.disabled = false; btn.textContent = t('ed.save'); } }
+  }
+
+  /* ---------- storage plan: timers on originals and on the saved photo of sold items ---------- */
+
+  const photoOf = (st, ids) => ids.map((id) => st.items.find((i) => i.id === id)).filter((i) => i && i.photo);
+  // Applies L.photoSweepPlan: stamps new timers, drops originals and (a week after the sale) the saved photo, keeps thumbnails.
+  async function sweep(keep) {
+    const st = A.state(), now = Date.now(), plan = L.photoSweepPlan(st, now, keep); let changed = false;
+    photoOf(st, plan.stamp).forEach((i) => { i.photo.savedAt = now; changed = true; });
+    for (const i of photoOf(st, plan.dropOrig)) { i.photo.noOrig = true; changed = true; try { await S.trim(i.photo.id, ['orig', 'edit']); } catch (e) { /* retried next time */ } }
+    for (const i of photoOf(st, plan.dropFull)) { i.photo.noFull = true; changed = true; try { await S.trim(i.photo.id, ['full']); forget(i.photo.id); } catch (e) { /* retried next time */ } }
+    if (changed) { A.save(); A.render(); }
+    return changed;
+  }
+  // "Free up space": drop every original screenshot now. Returns how many and how many bytes.
+  async function freeOriginals() {
+    const st = A.state(); let n = 0, bytes = 0;
+    for (const i of st.items) { if (!i.photo) continue; try { const f = await S.trim(i.photo.id, ['orig', 'edit']); if (f) { n++; bytes += f; } } catch (e) { /* skip */ } i.photo.noOrig = true; }
+    A.save(); A.render(); return { n, bytes };
   }
 
   /* ---------- events from the app ---------- */
 
   function act(a, id, el) {
     if (['photo-check', 'photo-check-now', 'photo-replace', 'photo-remove'].includes(a) && item(id) && L.isSold(item(id))) return A.toast(t('item.lockedToast'));   // sold items are locked
+    if ((a === 'photo-check' || a === 'photo-check-now') && item(id) && item(id).photo && item(id).photo.noOrig && item(id).photo.checked) return A.toast(t('photo.editExpired'));   // the original screenshot is gone
+    if (a === 'photo-view' && item(id) && item(id).photo && item(id).photo.noFull) return A.toast(t('photo.gone'));
     switch (a) {
       case 'photo-add': return addSheet(id);
       case 'photo-gallery': A.closeSheet(); return pickFiles(true, false).then((f) => addFiles(id, f));
@@ -424,7 +446,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer,
+    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer, sweep, freeOriginals,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

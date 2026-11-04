@@ -5,8 +5,9 @@
   const num = (n) => (Math.round(n * 100) / 100).toString();
 
   // jpeg: Uint8Array of a baseline JPEG, w x h pixels. The page is 210 mm wide and as tall as the picture (A4 when the picture is A4-shaped).
-  function jpegToPdf(jpeg, w, h) {
-    const PW = 595.28, PH = PW * h / w, parts = [], offs = [];
+  // page (optional): { w, h } in points, e.g. US Letter 612 x 792, when the picture is already laid out for that page.
+  function jpegToPdf(jpeg, w, h, page) {
+    const PW = page ? page.w : 595.28, PH = page ? page.h : PW * h / w, parts = [], offs = [];
     let len = 0;
     const put = (x) => { const b = typeof x === 'string' ? enc(x) : x; parts.push(b); len += b.length; };
     const obj = (n, body, stream) => { offs[n] = len; put(`${n} 0 obj\n${body}\n`); if (stream) { put('stream\n'); put(stream); put('\nendstream\n'); } put('endobj\n'); };

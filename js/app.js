@@ -359,17 +359,26 @@
 
   /* ---------- Sell ---------- */
 
+  // The customer drop-down: a search box and the customers in alphabetical order; typing a new name offers to add it.
+  let comboOpen = false;
+  function comboRows(q) {
+    const stats = L.customerStats(state).slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' })), f = L.cleanName(q).toLowerCase();
+    const shown = f ? stats.filter((c) => c.name.toLowerCase().includes(f)) : stats, exact = stats.some((c) => c.name.toLowerCase() === f);
+    return (f && !exact ? `<button type="button" class="co new" data-act="combo-new"><i>＋</i><span>${t('sell.addNew', { name: esc(L.cleanName(q)) })}</span></button>` : '')
+      + shown.map((c) => `<button type="button" class="co ${c.name === invForm.client ? 'on' : ''}" data-act="pick-client" data-id="${esc(c.name)}"><i>${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</i><span>${esc(c.name)}</span>${c.owing > 0 ? `<small class="bad">${t('cust.stillOwes', { amt: money(c.owing) })}</small>` : ''}</button>`).join('')
+      || (f ? '' : `<div class="muted small" style="padding:10px 12px">${t('sell.noCustomers')}</div>`);
+  }
   function Sell() {
     if (!selected.size) return `<div class="empty"><b>${t('sell.empty')}</b>${t('sell.emptyText')}</div>
       <button class="btn primary" data-act="goto-stock">${t('sell.choose')}</button>`;
     const items = [...selected].map((id) => state.items.find((i) => i.id === id));
     const custs = L.customerStats(state).map((c) => c.name);
     return `<h2>${t('sell.items', { n: items.length })}</h2><div class="list">${items.map((i) => `<div class="row"><div class="grow"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></div>
-        <div class="end"><b>${i.sold ? money(i.sold) : `<span class="bad">${t('sell.noPrice')}</span>`}</b></div>
+        <div class="end"><b>${L.effectivePrice(i) > 0 ? money(L.effectivePrice(i)) : `<span class="bad">${t('sell.noPrice')}</span>`}</b></div>
         <button class="chip" data-act="edit-item" data-id="${i.id}">${t('sell.edit')}</button><button class="chip" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button></div>`).join('')}</div>
-      <label for="client">${t('sell.customer')}</label><input id="client" name="client" list="custs" value="${esc(invForm.client)}" placeholder="${t('sell.customerPh')}" autocomplete="off">
-      <datalist id="custs">${custs.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
-      ${custs.length ? `<div class="suggest">${custs.slice(0, 8).map((c) => `<button class="chip" data-act="pick-client" data-id="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
+      <label>${t('sell.customer')}</label>
+      <div class="combo" id="combo"><button type="button" class="combo-btn ${invForm.client ? '' : 'none'}" data-act="combo-toggle"><span>${invForm.client ? esc(invForm.client) : t('sell.customerPick')}</span><i>${comboOpen ? '▴' : '▾'}</i></button>
+        <div class="combo-pop" id="combopop" ${comboOpen ? '' : 'hidden'}><div class="combo-s"><span>🔍</span><input id="client" name="client" value="${esc(invForm.client)}" placeholder="${t('sell.customerPh')}" autocomplete="off" enterkeyhint="done"></div><div id="combolist">${comboRows(invForm.client)}</div></div></div>
       <label for="paying">${t('sell.paying')}</label>
       <div class="grid2"><input id="paying" name="paying" type="text" inputmode="decimal" step="0.01" min="0" value="${esc(invForm.paying)}" placeholder="0.00"><button class="btn" data-act="pay-full">${t('sell.payFull')}</button></div>
       <div id="prev">${previewBox()}</div>`;
@@ -1113,6 +1122,7 @@
 
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
+    if (comboOpen && !e.target.closest('#combo')) { comboOpen = false; const pop = $('#combopop'); if (pop) pop.hidden = true; const ar = document.querySelector('.combo-btn i'); if (ar) ar.textContent = '▾'; }
     const t_ = e.target.closest('[data-tab],[data-act]'); if (!t_) return;
     if (t_.dataset.tab) { themeDraft = null; if (!$('#sheet').hidden) closeSheet(); go({ tab: t_.dataset.tab, moreView: null }); window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
@@ -1195,7 +1205,9 @@
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
-      case 'pick-client': invForm.client = id; return render();
+      case 'pick-client': invForm.client = id; comboOpen = false; return render();
+      case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
+      case 'combo-new': comboOpen = false; return render();
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
       case 'make-invoice': return run(() => L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying }), (inv) => {
         selected = new Set(); invForm = { client: '', paying: '' }; setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
@@ -1278,7 +1290,7 @@
     if (el.id === 'pay-amt') { payUpdate(); return; }
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
-    if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); }
+    if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = comboRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;

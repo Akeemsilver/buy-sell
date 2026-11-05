@@ -572,3 +572,16 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .cv2 .c2-r>span{display:block;font-size:12px;font-weight:700;white-space:nowrap}.cv2 .c2-r .owes{color:var(--warn)}.cv2 .c2-r .ok{color:var(--ok)}
 .cv2 .c2-bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--line)}.cv2 .c2-bar i{display:block;height:100%;background:#1d6b3a}
 .cp-inv.cv2.due{padding-bottom:15px}
+
+/* Sell: customer drop-down with search, alphabetical */
+.combo{position:relative}
+.combo-btn{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:14px;background:#fff;text-align:left;font-size:16px;color:var(--ink);box-shadow:var(--sh1)}
+.combo-btn.none{color:var(--mute)}.combo-btn i{font-style:normal;color:var(--mute);font-size:13px}
+.combo-pop{margin-top:6px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 24px -10px rgba(20,20,30,.35);overflow:hidden}
+.combo-pop[hidden]{display:none}
+.combo-s{display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line)}.combo-s input{border:0;box-shadow:none;background:none;min-height:46px;padding:0;font-size:16px}
+#combolist{max-height:248px;overflow-y:auto}
+.co{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;background:none;border:0;border-top:1px solid var(--line);border-radius:0;text-align:left;box-shadow:none;color:var(--ink);min-height:0}
+.co:first-child{border-top:0}.co i{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--tint);color:var(--brand);font-style:normal;font-weight:800;flex:none}
+.co span{flex:1;font-weight:600}.co small{font-size:12px;font-weight:700}.co.on{background:var(--tint)}.co.new i{background:#fff;border:2px dashed var(--brand);font-size:18px}.co.new span{color:var(--brand)}
+.combo-s input,.combo-s input:focus{border:0!important;outline:0!important;box-shadow:none!important;background:none!important;border-radius:0}

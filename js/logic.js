@@ -340,6 +340,15 @@
     if (num(amount) > inv.balance + 0.005) throw fail('payTooMuch');
     return L.createInvoice(s, { itemIds: s.items.filter((i) => i.invoice === no).map((i) => i.id), client: inv.client, paying: amount, date });
   };
+  // The payments on one purchase, oldest first: an invoice, the invoice that updated it, and so on (each later one points back with `ref`).
+  L.invoiceChain = (s, no) => {
+    const out = []; let v = s.invoices.find((x) => x.no === no);
+    while (v && !out.includes(v)) { out.unshift(v); v = v.ref ? s.invoices.find((x) => x.no === v.ref) : null; }
+    return out;
+  };
+  // What a customer's page lists: only the newest invoice of each purchase (older ones are reached through its payment history).
+  L.latestInvoices = (s, name) => s.invoices.filter((v) => v.client === name && !v.updatedBy);
+
   // Change a customer's name everywhere (customers list, items, invoices, location). Typing a name that already exists merges the two.
   // Returns the final name. Changing only the capital letters of the same name is allowed.
   L.renameCustomer = (s, from, to) => {

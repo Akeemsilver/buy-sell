@@ -280,4 +280,15 @@ console.log('all tests passed');
   assert.strictEqual(L.customerStats(s).filter((c) => c.name === 'Zed')[0].bought, 2, 'merged customers share their items');
   assert.strictEqual(L.renameCustomer(s, 'Zed', 'ZED'), 'ZED', 'capitals can be changed');
 }
+{ // one purchase paid in several goes: a chain of invoices, only the newest is listed
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'TTD', totalCost: 100, margin: 100 });
+  s.items.forEach((x, n) => { x.desc = 'T' + n; x.cost = 50; x.price = 150; x.sold = 150; x.status = 'Available'; });
+  const a = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Jo', isNew: true, paying: 75, date: new Date('2026-11-01T12:00:00') });
+  const b = L.recordPayment(s, a.no, 20, new Date('2026-11-03T12:00:00')), c = L.recordPayment(s, b.no, 30, new Date('2026-11-05T12:00:00'));
+  L.createInvoice(s, { itemIds: [s.items[1].id], client: 'Jo', isNew: true, paying: 150, date: new Date('2026-11-04T12:00:00') });
+  assert.deepStrictEqual(L.invoiceChain(s, c.no).map((v) => v.no), [a.no, b.no, c.no], 'the chain runs oldest to newest');
+  assert.deepStrictEqual(L.invoiceChain(s, a.no).map((v) => v.no), [a.no]);
+  assert.deepStrictEqual(L.latestInvoices(s, 'Jo').map((v) => v.no).sort(), [c.no, 'INV00004'].sort(), 'one invoice per purchase: the newest of the chain, plus the other purchase');
+  assert.deepStrictEqual(L.invoiceChain(s, c.no).map((v) => v.amountPaid), [75, 20, 30], 'each step shows what was paid then');
+}
 console.log('sale price tests passed');

@@ -12,4 +12,5 @@ T.PALETTES.forEach((p) => {
 assert.strictEqual(T.find('nope').id, 'magenta', 'unknown scheme falls back to the original');
 assert.strictEqual(T.vars('magenta').light.brand, '#741b47', 'the original color is unchanged');
 const iv = T.inline('green', false); assert(iv.includes('--brand:#1c7243') && iv.includes('--card:#fff')); assert(T.inline('green', true).includes('--bg:'));
+T.PALETTES.forEach((p) => { assert.strictEqual(T.vars(p.id).light.bg, '#fafafb', p.id + ': the light page colour is the same for every theme colour'); assert.strictEqual(T.vars(p.id).light.line, '#dcdce1'); });
 console.log('theme tests passed');

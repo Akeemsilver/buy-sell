@@ -1,5 +1,5 @@
 :root{
-  --bg:#fcf9fa;--card:#fff;--ink:#2b2230;--mute:#7a6c80;--line:#dcd8dd;--brand:#741b47;--brand2:#c27ba0;--tint:#f6e8ef;
+  --bg:#fafafb;--card:#fff;--ink:#2b2230;--mute:#7a6c80;--line:#dcdce1;--brand:#741b47;--brand2:#c27ba0;--tint:#f6e8ef;
   --ok:#1b5e20;--okbg:#c8e6c9;--warn:#8a4b00;--warnbg:#ffe0b2;--info:#0d47a1;--infobg:#bbdefb;--bad:#c62828;
   --bar:#741b47;--tabh:62px;--tabspace:calc(var(--tabh) + var(--sab) + 22px);--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)
 }

@@ -537,3 +537,5 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--sh1-old:inset 0 1px 0 rgba(255,255,255,.07),0 1px 2px rgba(0,0,0,.5),0 5px 16px rgba(0,0,0,.45);--sh1:inset 0 1px 0 rgba(255,255,255,.08),0 1px 3px rgba(0,0,0,.55),0 6px 18px rgba(0,0,0,.52)}}
 :root[data-theme=dark]{--sh1-old:inset 0 1px 0 rgba(255,255,255,.07),0 1px 2px rgba(0,0,0,.5),0 5px 16px rgba(0,0,0,.45);--sh1:inset 0 1px 0 rgba(255,255,255,.08),0 1px 3px rgba(0,0,0,.55),0 6px 18px rgba(0,0,0,.52)}
 .item.paid{box-shadow:var(--sh1-old)}
+/* Home: the big profit tile gets a gradient finish and a coloured glow (like the customer card) */
+.stat.hero{background:var(--brand);background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 92%,#fff) 0%,var(--brand) 30%,color-mix(in srgb,var(--brand) 47%,#000) 100%);box-shadow:0 15px 31px -12px var(--brand)}

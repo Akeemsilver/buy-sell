@@ -65,6 +65,7 @@
     pageStack.push({ key, open });
   }
   function pageBack() {   // one step back from a full-screen page: the page it was opened from, or close
+    if ($('#sheet').classList.contains('small')) return closeSheet();   // a pop-up on top: just dismiss it
     if (pageStack.length > 1) { pageStack.pop(); const prev = pageStack[pageStack.length - 1]; reopening = true; try { prev.open(); } finally { reopening = false; } render(); }
     else closeSheet();
   }
@@ -150,7 +151,14 @@
       <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="current-password" minlength="6">
       <div id="acct-err" class="err" hidden></div>
       <div class="btns"><button class="btn primary" name="mode" value="in">${t('acct.signIn')}</button><button class="btn" name="mode" value="up">${t('acct.create')}</button>
-      <button type="button" class="btn" data-act="acct-forgot">${t('acct.forgot')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
+      <button type="button" class="btn" data-act="acct-forgot">${t('acct.forgot')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
+  }
+  // Items become Available only after you say the final clearing is paid (a batch stops asking for clearing payments from then on).
+  function askReceived(id) {
+    const b = state.batches.find((x) => x.id === id); if (!b) return;
+    const st = L.batchStats(state, b);
+    openSmall(`<h3>${t('recv.checkTitle')}</h3><p>${t('recv.checkText')}</p><div class="pd"><span>${t('recv.paidSoFar')}</span><b>${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%)</b></div>
+      <div class="btns"><button class="btn primary" data-act="recv-yes" data-id="${id}">${t('recv.yes')}</button><button class="btn" data-act="close">${t('recv.notYet')}</button></div>`, 'card');
   }
   const acctShow = (msg) => { const el = $('#acct-err'); if (el) { el.textContent = msg; el.hidden = !msg; } };
   const acctDone = (p) => { acctShow(''); return p.then(() => { closeSheet(); toast(t('acct.signedIn')); }).catch((e) => acctShow(acctErr(e))); };
@@ -158,8 +166,8 @@
     return new Promise((ok) => {
       let done = false; const finish = (v) => { if (!done) { done = true; ok(v); } };
       window.__conflict = finish;
-      openSheet(`<h3>${t('acct.conflict.title')}</h3><p>${t('acct.conflict.text')}</p>
-        <div class="btns"><button class="btn primary" data-act="conflict" data-id="cloud">${t('acct.conflict.cloud')}</button><button class="btn" data-act="conflict" data-id="phone">${t('acct.conflict.phone')}</button></div>`, () => finish('cancel'));
+      openSmall(`<h3>${t('acct.conflict.title')}</h3><p>${t('acct.conflict.text')}</p>
+        <div class="btns"><button class="btn primary" data-act="conflict" data-id="cloud">${t('acct.conflict.cloud')}</button><button class="btn" data-act="conflict" data-id="phone">${t('acct.conflict.phone')}</button></div>`, 'card', () => finish('cancel'));
     });
   }
 
@@ -494,21 +502,20 @@
   }
   // A small pop-up with the choices for one setting; tapping a choice applies it.
   function sheetChoice(title, act, cur, opts, note) {
-    openSheet(`<h3>${title}</h3><div class="list" style="margin-top:12px">${opts.map(([k, l]) => `<button class="row tap" data-act="${act}" data-id="${k}"><div class="grow"><b>${l}</b></div><span style="font-weight:900;color:var(--brand)">${cur === k ? '✓' : ''}</span></button>`).join('')}</div>${note ? `<p class="note">${note}</p>` : ''}
-      <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+    openSmall(`<h3>${title}</h3><div class="list" style="margin-top:12px">${opts.map(([k, l]) => `<button class="row tap" data-act="${act}" data-id="${k}"><div class="grow"><b>${l}</b></div><span style="font-weight:900;color:var(--brand)">${cur === k ? '✓' : ''}</span></button>`).join('')}</div>${note ? `<p class="note">${note}</p>` : ''}
+      <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
   }
   // Before a photo is shared: which language for the caption? Resolves 'en' | 'es', or null when closed without choosing.
   function shareLang() {
     if (custMode() !== 'ask') return Promise.resolve(custLang());
-    const sh = $('#sheet'), was = !sh.hidden && sh.classList.contains('full') && sh.dataset.item ? sh.dataset.item : null;   // the item page it was started from
     return new Promise((ok) => {
-      let done = false; const finish = (v) => { if (!done) { done = true; ok(v); if (was) setTimeout(() => sheetItem(was), 0); } };
+      let done = false; const finish = (v) => { if (!done) { done = true; ok(v); } };
       window.__shareLang = (lang) => { const ck = $('#sl-never'); if (ck && ck.checked) { setPref('custLang', lang); } finish(lang); };      // 'don't ask again' = from now on always this language
-      openSheet(`<h3>${t('share.langTitle')}</h3><p class="muted small">${t('share.langSub')}</p>
+      openSmall(`<h3>${t('share.langTitle')}</h3><p class="muted small">${t('share.langSub')}</p>
         <div class="btns" style="margin-top:12px">${Object.keys(I.LANGS).map((l) => `<button class="btn primary" data-act="share-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
         <label class="chkrow"><input type="checkbox" id="sl-never"><span>${t('share.dontAsk')}</span></label>
         <p class="note">${t('share.note')}</p>
-        <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, () => finish(null));
+        <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet', () => finish(null));
     });
   }
   function checkUpdate() {
@@ -658,8 +665,31 @@
     const title = m ? m[1] : '', rest = m ? html.slice(m[0].length) : html;
     return `<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${title}</b></div></div><div class="ap">${rest}</div>`;
   }
+  // Small decisions are pop-ups, not pages: 'card' (a question in the middle, two buttons) or 'sheet' (a list of choices from the bottom).
+  // They open over whatever is showing; closing them puts that page back (answering first, so the page shows the new state).
+  let smallPrev = null;
+  function openSmall(html, kind, onClose) {
+    const sh = $('#sheet');
+    if (!sh.hidden && !sh.classList.contains('small') && pageStack.length) smallPrev = { stack: pageStack.slice(), open: pageStack[pageStack.length - 1].open };
+    openSheet(html, () => {
+      const p = smallPrev; smallPrev = null; if (onClose) onClose();
+      if (p) { reopening = true; try { p.open(); } finally { reopening = false; } pageStack = p.stack; }
+    }, kind);
+  }
+  // A question with Yes / Cancel in the same card style (replaces the phone's plain confirm box). Resolves true or false.
+  function askCard(text, opts) {
+    opts = opts || {};
+    return new Promise((ok) => {
+      let done = false; const finish = (v) => { if (!done) { done = true; ok(v); } };
+      window.__ask = finish;
+      openSmall(`<h3>${opts.title || t('confirm.title')}</h3><p>${esc(text)}</p>
+        <div class="btns"><button class="btn ${opts.danger ? 'dsolid' : 'primary'}" data-act="ask-yes">${opts.ok || t('btn.yes')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card', () => finish(false));
+    });
+  }
   function openSheet(html, onClose, full) {
-    if (!full) { html = asPage(html); full = true; }
+    const kind = full === 'card' || full === 'sheet' ? full : null;
+    if (kind) full = false; else if (!full) { html = asPage(html); full = true; }
+    $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind);
     sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full); document.body.classList.toggle('page-open', !!full);   // full-screen pages keep the bottom tab bar
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
@@ -670,7 +700,7 @@
   function closeSheet() {
     if ($('#sheet').hidden) return;
     pageStack = [];
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -692,11 +722,12 @@
       <div class="btns"><button class="btn primary">${t('batch.create')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
 
+  const clearOpen = new Set();   // received batches whose clearing payment was opened again (to fix a mistake)
   function sheetBatch(id) {
     const b = state.batches.find((x) => x.id === id); if (!b) return;
     enterPage('batch', id, () => sheetBatch(id));
-    const st = L.batchStats(state, b);
-    openSheet(`<h3>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></h3>
+    const st = L.batchStats(state, b), inTransit = bStatus(b) === 'In Transit', showClear = inTransit || clearOpen.has(b.id);
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b></div>${inTransit ? '' : `<button class="dots" data-act="batch-more" data-id="${b.id}" aria-label="${t('batch.more')}">⋮</button>`}</div><div class="ap">
       <div class="sumbox"><div><span>${t('batch.store')}</span><span>${esc(b.store)}</span></div><div><span>${t('batch.ordered')}</span><span>${day(b.datePurchased)}</span></div>
       <div><span>${t('batch.cost')}</span><span>${b.totalCost.toFixed(2)} ${b.currency} @ ${b.rate.toFixed(4)}</span></div>
       <div><span>${t('batch.clearingPaid')}</span><span>${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%)</span></div>
@@ -704,8 +735,8 @@
       <div><span>${t('batch.profit')}</span><span>${money(st.profit)}</span></div>
       <div><span>${b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase')}</span><span>${transitText(b)}</span></div>
       ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
-      <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
-      <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>
+      ${showClear ? `${bStatus(b) === 'In Transit' ? '' : `<div class="note2">${t('clear.reopened')}</div>`}      <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
+      <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>` : ''}
       <div class="btns bbtns"><h5 class="gh">${t('batch.groupItems')}</h5>
       <button class="btn primary" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.btn')}</button>
       <div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
@@ -714,19 +745,19 @@
       ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
       <div class="brow">${bStatus(b) !== 'Closed' ? `<button class="btn danger tw" data-act="close-batch" data-id="${b.id}"><span>${t('batch.close')}</span></button>` : ''}
       ${st.sold === 0 ? `<button class="btn danger tw" data-act="del-batch" data-id="${b.id}"><span>${t('batch.deleteShort')}</span><small>${t('batch.deleteSmall')}</small></button>` : ''}</div></div>
-      ${bStatus(b) !== 'Closed' ? `<p class="muted small">${t('batch.closeNote')}</p>` : ''}`);
+      ${bStatus(b) !== 'Closed' ? `<p class="muted small">${t('batch.closeNote')}</p>` : ''}</div>`, null, true);
   }
 
   function sheetPayClearing() {
-    if (!state.batches.length) return toast(t('clear.noBatch'));
-    openSheet(`<h3>${t('clear.title')}</h3><form id="f-clear"><label>${t('clear.batch')}</label><select name="batch">${batchOpts(state.batches.filter((b) => bStatus(b) !== 'Closed').reverse())}</select>
+    const open = state.batches.filter((b) => bStatus(b) === 'In Transit').reverse(); if (!open.length) return toast(t(state.batches.length ? 'clear.noTransit' : 'clear.noBatch'));
+    openSmall(`<h3>${t('clear.title')}</h3><form id="f-clear"><label>${t('clear.batch')}</label><select name="batch">${batchOpts(open)}</select>
       <label>${t('clear.amount')}</label><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
-      <div class="btns"><button class="btn primary">${t('batch.recordPayment')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
+      <div class="btns"><button class="btn primary">${t('batch.recordPayment')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
 
   function sheetReceive() {
     const list = state.batches.filter((b) => bStatus(b) === 'In Transit'); if (!list.length) return toast(t('recv.none'));
-    openSheet(`<h3>${t('recv.title')}</h3><p class="muted small">${t('recv.note')}</p>
+    openSmall(`<h3>${t('recv.title')}</h3><p class="muted small">${t('recv.note')}</p>
       <form id="f-receive"><label>${t('clear.batch')}</label><select name="batch">${batchOpts(list)}</select>
       <div class="btns"><button class="btn primary">${t('recv.mark')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
@@ -1176,10 +1207,10 @@
     const y = new Date().getFullYear();
     const periods = ['all', 'thisMonth', 'lastMonth', 'thisYear', String(y - 1)];
     const chip = (act, id, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="${act}" data-id="${esc(id)}">${esc(label)}</button>`;
-    openSheet(`<h3>${t('flt.title')}</h3><p class="muted small">${t('flt.note')}</p>
+    openSmall(`<h3>${t('flt.title')}</h3><p class="muted small">${t('flt.note')}</p>
       <h2>${t('flt.period')}</h2><div class="suggest">${periods.map((k) => chip('set-period', k, periodLabel(k), flt.period === k)).join('')}</div>
       <h2>${t('flt.batch')}</h2><div class="suggest">${chip('set-fbatch', 'all', t('flt.allBatches'), flt.batch === 'all')}${state.batches.slice().sort((a, b) => b.num - a.num).map((b) => chip('set-fbatch', b.id, bl(b.id), flt.batch === b.id)).join('')}</div>
-      <div class="btns"><button class="btn" data-act="clear-filter">${t('flt.clear')}</button><button class="btn primary" data-act="close">${t('btn.done')}</button></div>`);
+      <div class="btns"><button class="btn" data-act="clear-filter">${t('flt.clear')}</button><button class="btn primary" data-act="close">${t('btn.done')}</button></div>`, 'sheet');
   }
 
   // Illustrated Add-to-Home-Screen walkthrough (drawn to match Safari's UI; mock colours stay light in dark mode)
@@ -1211,14 +1242,14 @@
 
   function sheetDownload() {
     const row = (icon, title, sub, attrs) => `<button class="row tap" ${attrs}><span style="font-size:22px">${icon}</span><div class="grow"><b>${title}</b><small>${sub}</small></div></button>`;
-    openSheet(`<h3>${t('dl.title')}</h3><p class="muted small">${t('dl.note')}</p>
+    openSmall(`<h3>${t('dl.title')}</h3><p class="muted small">${t('dl.note')}</p>
       <div class="list" style="margin-top:12px">
         ${row('💾', t('dl.full'), t('dl.fullSub'), 'data-act="export-json"')}
         ${row('🧾', t('dl.invoices'), t('dl.rows', { n: state.invoices.length }), 'data-act="csv" data-id="invoices"')}
         ${row('📋', t('dl.items'), t('dl.rows', { n: state.items.length }), 'data-act="csv" data-id="items"')}
         ${row('👥', t('dl.customers'), t('dl.rows', { n: L.customerStats(state).length }), 'data-act="csv" data-id="customers"')}</div>
       <p class="note">${t('photo.backupNote')}</p>
-      <div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
+      <div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`, 'sheet');
   }
 
   function csvOf(kind) {
@@ -1294,8 +1325,8 @@
         const amt = parseAmt($('#pay-amt').value), dv = $('#pay-date').value, date = dv ? new Date(dv + 'T12:00:00') : new Date();
         try { const inv = L.recordPayment(state, id, amt, date); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
       }
-      case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; if (!confirm(t('about.thumbsAsk', { n, mb: t_.dataset.mb }))) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }
-      case 'free-space': { const n = Number(t_.dataset.n) || 0; if (!confirm(t('about.freeAsk', { n, mb: t_.dataset.mb }))) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }
+      case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.thumbsAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
+      case 'free-space': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.freeAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
       case 'set-custlang': setPref('custLang', id); closeSheet(); return render();
       case 'check-update': return checkUpdate();
       case 'check-rules': return checkRules();
@@ -1309,9 +1340,13 @@
       case 'pay-clearing': return sheetPayClearing();
       case 'receive': return sheetReceive();
       case 'batch': return sheetBatch(id);
-      case 'do-receive': return run(() => L.makeAvailable(state, id), (n) => t('recv.done', { id: bl(id), n }));
-      case 'close-batch': if (confirm(t('confirm.close', { id: bl(id) }))) run(() => L.closeBatch(state, id), t('batch.closed', { id: bl(id) })); return;
-      case 'del-batch': if (confirm(t('confirm.delBatch', { id: bl(id) }))) run(() => L.deleteBatch(state, id), t('batch.deleted', { id: bl(id) })); return;
+      case 'do-receive': return askReceived(id);
+      case 'recv-yes': return run(() => L.makeAvailable(state, id), (n) => t('recv.done', { id: bl(id), n }));
+      case 'ask-yes': { const f = window.__ask; if (f) f(true); return closeSheet(); }       // answer first: closing the card counts as 'no'
+      case 'batch-more': return openSmall(`<h3>${t('batch.more')}</h3><div class="list" style="margin-top:12px"><button class="row tap" data-act="open-clearing" data-id="${id}"><span style="font-size:22px">💳</span><div class="grow"><b>${t('batch.openClearing')}</b><small>${t('batch.openClearingSub')}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
+      case 'open-clearing': clearOpen.add(id); return closeSheet();
+      case 'close-batch': return askCard(t('confirm.close', { id: bl(id) }), { danger: true, ok: t('batch.close') }).then((y) => { if (y) run(() => L.closeBatch(state, id), t('batch.closed', { id: bl(id) })); });
+      case 'del-batch': return askCard(t('confirm.delBatch', { id: bl(id) }), { danger: true, ok: t('batch.deleteShort') }).then((y) => { if (y) run(() => L.deleteBatch(state, id), t('batch.deleted', { id: bl(id) })); });
       case 'item-go': if (id) { sheetItem(id, true); $('#sheet').scrollTop = 0; } return;
       case 'qe-open': { const ids = batchIds(id, true); if (!ids.length) return toast(t('qe.none')); return sheetQuick(id, ids[0]); }
       case 'qe-go': if (id) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;
@@ -1348,7 +1383,7 @@
       case 'ord-filter': ordFilter = id; return sheetOrders();
       case 'order-open': return sheetOrder(id);
       case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
-      case 'order-decline': if (confirm(t('ord.declineAsk'))) Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); return;
+      case 'order-decline': return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
       case 'order-done': Store.setStatus(id, 'done').then(() => { toast(t('ord.done')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); return;
       case 'pick-client': invForm.client = id; comboOpen = false; return render();
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
@@ -1360,16 +1395,17 @@
       case 'cust-edit': return sheetCustEdit(id);
       case 'cust-save': {
         const to = $('#ce-name').value, loc = $('#ce-loc').value;
-        try {
-          if (L.cleanName(to).toLowerCase() !== id.toLowerCase() && L.otherCustomerNamed(state, id, to) && !confirm(t('cust.mergeAsk', { name: L.canonicalName(state, to), old: id }))) return;
+        const save2 = () => { try {
           const final = L.renameCustomer(state, id, to); L.setPlace(state, final, loc); save(); tidyPhotos();
           pageStack = pageStack.filter((p) => p.key !== 'custedit|' + id && p.key !== 'customer|' + id); toast(t('cust.saved')); render(); return sheetCustomer(final);
-        } catch (e) { return toast('⚠️ ' + errMsg(e)); }
+        } catch (e) { return toast('⚠️ ' + errMsg(e)); } };
+        if (L.cleanName(to).toLowerCase() !== id.toLowerCase() && L.otherCustomerNamed(state, id, to)) return askCard(t('cust.mergeAsk', { name: L.canonicalName(state, to), old: id }), { ok: t('cust.mergeOk') }).then((y) => { if (y) save2(); });
+        return save2();
       }
       case 'view-inv': return sheetInvoice(id);
-      case 'return-inv': { const n = state.items.filter((x) => x.invoice === id).length; if (confirm(t('item.returnAsk', { no: id, n }))) { closeSheet(); run(() => L.deleteInvoice(state, id), t('item.returned')); } return; }
-      case 'return-item': if (confirm(t('item.returnItemAsk', { id }))) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } return;
-      case 'del-inv': if (confirm(t('confirm.delInv', { id }))) { try { L.deleteInvoice(state, id); save(); tidyPhotos(); toast(t('inv.deleted', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); } return;
+      case 'return-inv': { const n = state.items.filter((x) => x.invoice === id).length; return askCard(t('item.returnAsk', { no: id, n }), { danger: true, ok: t('item.returnInv') }).then((y) => { if (y) { closeSheet(); run(() => L.deleteInvoice(state, id), t('item.returned')); } }); }
+      case 'return-item': return askCard(t('item.returnItemAsk', { id }), { danger: true, ok: t('item.returnItem') }).then((y) => { if (y) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } });
+      case 'del-inv': return askCard(t('confirm.delInv', { id }), { danger: true, ok: t('btn.delete') }).then((y) => { if (!y) return; try { L.deleteInvoice(state, id); save(); tidyPhotos(); toast(t('inv.deleted', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); });
       case 'print': return window.print();
       case 'share-img': return shareInvoiceImage(id, false);
       case 'share-pdf': return shareInvoicePdf(id, false);
@@ -1394,7 +1430,7 @@
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
       case 'export-json': return download('buy-sell-backup.json', JSON.stringify(state, null, 2));
-      case 'reset': if (confirm(t('confirm.reset1')) && confirm(t('confirm.reset2'))) { state = L.defaultState(); selected = new Set(); run(() => 0, t('toast.cleared')); } return;
+      case 'reset': return askCard(t('confirm.reset1'), { danger: true, ok: t('btn.continue') }).then((y) => y && askCard(t('confirm.reset2'), { danger: true, ok: t('more.erase') })).then((y) => { if (y) { state = L.defaultState(); selected = new Set(); run(() => 0, t('toast.cleared')); } });
     }
   });
   $('#back').addEventListener('click', () => { themeDraft = null; if (!placeBack()) go({ tab: 'home', moreView: null }); render(); });
@@ -1406,8 +1442,8 @@
     if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
     if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; } }
-    if (f.id === 'f-clear') run(() => L.payClearing(state, d.batch, d.amount), t('clear.recorded', { id: bl(d.batch) }));
-    if (f.id === 'f-receive') run(() => L.makeAvailable(state, d.batch), (n) => t('recv.done', { id: bl(d.batch), n }));
+    if (f.id === 'f-clear') { clearOpen.delete(d.batch); run(() => L.payClearing(state, d.batch, d.amount), t('clear.recorded', { id: bl(d.batch) })); }
+    if (f.id === 'f-receive') return askReceived(d.batch);
     if (f.id === 'f-settings') run(() => {
       Object.assign(state.settings, { businessName: /^b-?ruiz$/i.test((d.businessName || '').trim()) ? '' : (d.businessName || '').trim(), bizCity: (d.bizCity || '').trim(), bizPhone: (d.bizPhone || '').trim(), bizEmail: (d.bizEmail || '').trim(), year: +d.year || state.settings.year, markup: +d.markup || 1, defaultMargin: d.defaultMargin === '' ? 100 : +d.defaultMargin });
       ['USD', 'EUR', 'GBP'].forEach((c) => { state.settings.rates[c] = +d[c] || state.settings.rates[c]; });
@@ -1475,7 +1511,10 @@
     file.text().then((t) => { const s = JSON.parse(t); if (!s.batches || !s.items) throw coded('notBackup'); state = L.migrate(s); selected = new Set(); save(); toast(t('toast.restored')); render(); }).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
   function importXlsx(file) {
-    if (state.batches.length && !confirm(t('confirm.import'))) return;
+    if (state.batches.length) return askCard(t('confirm.import'), { danger: true, ok: t('btn.continue') }).then((y) => { if (y) importXlsx2(file); });
+    importXlsx2(file);
+  }
+  function importXlsx2(file) {
     toast(t('toast.reading'));
     loadSheetJS().then((X) => file.arrayBuffer().then((buf) => {
       const wb = X.read(buf, { type: 'array', cellDates: true }), sheets = {};
@@ -1572,6 +1611,7 @@
       y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; dragging = false;
       // only the header (the pinned handle bar and the pop-up's title) can be pulled down; content just scrolls
       const title = sh.querySelector('h3');
+      if (sh.classList.contains('card')) { y0 = null; canDrag = false; return; }
       onHandle = !!e.target.closest('.grab') || !!(title && title.contains(e.target)); canDrag = onHandle;
     }, { passive: true });
     sh.addEventListener('touchmove', (e) => {
@@ -1603,7 +1643,7 @@
   const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
   Store.init({ state: () => state, bizName, refresh: () => { const top = pageStack[pageStack.length - 1]; if (top && top.key === 'store' && !$('#sheet').hidden) { const sc = $('#sheet').scrollTop; reopening = true; try { top.open(); } finally { reopening = false; } $('#sheet').scrollTop = sc; } },
     onOrders: () => { const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && (top.key === 'orders' || top.key.startsWith('order|'))) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && tab === 'sell') render(); } });
-  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
+  PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, openSmall, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,
     askConflict,

@@ -218,6 +218,10 @@
   }
   const gateErr = (m) => { const e = $('#g-err'); if (e) { e.textContent = m; e.hidden = !m; } };
   document.addEventListener('focusin', (e) => { if (e.target.closest && e.target.closest('#gate') && /INPUT/.test(e.target.tagName)) setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); });
+  document.addEventListener('keydown', (e) => {   // Edit batch: the keyboard's Next/Enter goes description → price → cost → Save & next
+    if (e.key !== 'Enter' || !e.target.dataset || !e.target.closest || !e.target.closest('.qe')) return; const order = ['desc', 'price', 'cost'], k = order.indexOf(e.target.dataset.f); if (k < 0) return; e.preventDefault();
+    if (k < order.length - 1) { const nx = $('.qe [data-f=' + order[k + 1] + ']'); if (nx) nx.focus(); } else { const b = $('.qe .qgo .pr'); if (b) b.click(); }
+  });
   document.addEventListener('input', (e) => { if (e.target.name === 'biz' && e.target.form && e.target.form.id === 'f-setup') { gateDraft.name = e.target.value; const n = $('#pv-name'); if (n) n.textContent = e.target.value || t('gate.bizPh'); } });
 
   const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
@@ -690,6 +694,7 @@
 
   function sheetBatch(id) {
     const b = state.batches.find((x) => x.id === id); if (!b) return;
+    enterPage('batch', id, () => sheetBatch(id));
     const st = L.batchStats(state, b);
     openSheet(`<h3>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></h3>
       <div class="sumbox"><div><span>${t('batch.store')}</span><span>${esc(b.store)}</span></div><div><span>${t('batch.ordered')}</span><span>${day(b.datePurchased)}</span></div>
@@ -701,7 +706,7 @@
       ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
       <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
       <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>
-      <div class="btns bbtns"><div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
+      <div class="btns bbtns"><button class="btn primary" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.btn')}</button><div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
       <button class="btn tw" data-act="open-stock" data-id="${b.id}"><span>${t('batch.viewItems')}</span></button></div>
       ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
       <div class="brow">${bStatus(b) !== 'Closed' ? `<button class="btn danger" data-act="close-batch" data-id="${b.id}">${t('batch.close')}</button>` : ''}
@@ -723,11 +728,14 @@
       <div class="btns"><button class="btn primary">${t('recv.mark')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
 
-  function sheetItem(id) {
+  // Previous / next arrows (with "4 of 8") for the top bar, to flip through the items of one batch without going back.
+  const navArrows = (ids, id, act) => { const n = ids.indexOf(id); if (n < 0 || ids.length < 2) return ''; return `<div class="nx"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span><button data-act="${act}" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><button data-act="${act}" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button></div>`; };
+  const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isSold(x))).map((x) => x.id).sort();
+  function sheetItem(id, swap) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
-    enterPage('item', id, () => sheetItem(id));
+    enterPage('item', id, () => sheetItem(id), swap);
     const b = batchOf(i), sold = L.isSold(i);
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}</div>
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
       <fieldset class="lockset" ${sold ? 'disabled' : ''}>
@@ -745,6 +753,31 @@
       : `<div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
     $('#sheet').dataset.item = id; updateSale(i);
+  }
+  /* Edit batch: one unsold item at a time with its picture, description, price, cost and sale; Save & next moves on. */
+  function sheetQuick(batchId, id, swap) {
+    const ids = batchIds(batchId, true), i = state.items.find((x) => x.id === id); if (!i || !ids.length) return;
+    enterPage('quick', batchId, () => sheetQuick(batchId, id), swap);
+    const b = batchOf(i), n = ids.indexOf(id);
+    const strip = ids.map((x, k) => { const it = state.items.find((y) => y.id === x); return `<button class="qt ${x === id ? 'on' : ''} ${String(it.desc || '').trim() ? 'done' : ''}" data-act="qe-go" data-id="${x}" data-b="${batchId}" aria-label="${x}">${it.photo ? `<img data-ph="${it.photo.id}" data-kind="thumb" alt="">` : `<em>${k + 1}</em>`}</button>`; }).join('');
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${navArrows(ids, id, 'qe-go')}</div>
+      <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
+      <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
+      <div class="qf"><label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">
+      <div class="grid2"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="next"></div><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div></div>
+      <button class="btn" type="button" data-act="use-rec" data-id="${i.id}" style="width:100%;margin-top:10px">${t('item.useRec')}</button>
+      <div id="saleblock" style="margin-top:6px">${saleHTML(i)}</div>
+      <div class="sumbox" id="calc"></div></div>
+      <div class="qgo"><button class="sk" data-act="qe-next" data-id="${i.id}" data-skip="1">${t('qe.skip')}</button><button class="pr" data-act="qe-next" data-id="${i.id}">${n < ids.length - 1 ? t('qe.saveNext') : t('qe.saveDone')}</button></div></div>`, render, true);
+    $('#sheet').dataset.item = id; updateSale(i);
+    const cur = $('#qstrip .qt.on'); if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  function quickNext(id, skip) {
+    const i = state.items.find((x) => x.id === id); if (!i) return;
+    if (!skip && document.activeElement && document.activeElement.blur) document.activeElement.blur();   // saves the box being typed in
+    const ids = batchIds(i.batchId, true), n = ids.indexOf(id);
+    if (n >= 0 && n < ids.length - 1) { sheetQuick(i.batchId, ids[n + 1], true); window.scrollTo(0, 0); $('#sheet').scrollTop = 0; return; }
+    toast(t('qe.allDone')); pageStack = []; closeSheet(); sheetBatch(i.batchId);
   }
   /* A sale takes a percentage off the selling price: a switch, quick percentages, and the sale price worked out for you. */
   function saleSum(i) {
@@ -1276,6 +1309,10 @@
       case 'do-receive': return run(() => L.makeAvailable(state, id), (n) => t('recv.done', { id: bl(id), n }));
       case 'close-batch': if (confirm(t('confirm.close', { id: bl(id) }))) run(() => L.closeBatch(state, id), t('batch.closed', { id: bl(id) })); return;
       case 'del-batch': if (confirm(t('confirm.delBatch', { id: bl(id) }))) run(() => L.deleteBatch(state, id), t('batch.deleted', { id: bl(id) })); return;
+      case 'item-go': if (id) { sheetItem(id, true); $('#sheet').scrollTop = 0; } return;
+      case 'qe-open': { const ids = batchIds(id, true); if (!ids.length) return toast(t('qe.none')); return sheetQuick(id, ids[0]); }
+      case 'qe-go': if (id) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;
+      case 'qe-next': return quickNext(id, !!t_.dataset.skip);
       case 'open-stock': stockBatch = id; stockFilter = 'All'; closeSheet(); go({ tab: 'stock', moreView: null }); return render();
       case 'goto-stock': go({ tab: 'stock', moreView: null }); return render();
       case 'goto-sell': go({ tab: 'sell', moreView: null }); window.scrollTo(0, 0); return render();

@@ -640,3 +640,12 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .sx .empty2 .ic{width:84px;height:84px;border-radius:26px;background:var(--tint);display:grid;place-items:center;font-size:38px;margin-bottom:16px}
 .sx .empty2 h3{margin:0 0 6px;font-size:20px}.sx .empty2 p{margin:0 0 18px;color:var(--mute);max-width:260px;line-height:1.4}
 .sx .steps{display:flex;gap:8px;margin:12px 0 4px}.sx .steps span{flex:1;text-align:center;padding:7px 4px;border-radius:12px;background:#f1f1f4;color:var(--mute);font-size:11.5px;font-weight:700}.sx .steps span.on{background:var(--tint);color:var(--brand)}
+/* Edit batch (Quick edit) and previous/next arrows in the top bar */
+.fullbar .nx{display:flex;gap:6px;margin-left:auto;align-items:center}.fullbar .nx .c{font-size:12px;font-weight:700;opacity:.9;margin-right:2px;white-space:nowrap}
+.fullbar .nx button{width:38px;height:38px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:22px;line-height:1;display:grid;place-items:center;padding:0;min-height:0;box-shadow:none}.fullbar .nx button:disabled{opacity:.35}
+.qe .qstrip{display:flex;gap:8px;padding:10px 4px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none}.qe .qstrip::-webkit-scrollbar{display:none}
+.qe .qt{flex:none;width:48px;height:48px;border-radius:12px;overflow:hidden;background:var(--line);position:relative;border:2px solid transparent;padding:0;min-height:0;box-shadow:none;scroll-snap-align:center}.qe .qt img{width:100%;height:100%;object-fit:cover;display:block}.qe .qt em{font-style:normal;font-weight:800;color:var(--mute);font-size:14px}
+.qe .qt.on{border-color:var(--brand)}.qe .qt.done:after{content:"✓";position:absolute;right:0;bottom:0;background:#1d6b3a;color:#fff;font-size:10px;width:16px;height:16px;border-radius:8px 0 0 0;display:grid;place-items:center}
+.qe .qbig{border-radius:20px;overflow:hidden;background:#000;aspect-ratio:4/3.2;display:grid;place-items:center;margin:2px 0 6px}.qe .qbig img{width:100%;height:100%;object-fit:contain;display:block}.qe .qnone{color:#fff;opacity:.7}
+.qe .qf{padding-bottom:12px}.qe .qgo{position:sticky;bottom:calc(84px + var(--sab,0px));display:flex;gap:10px;padding:10px 0;background:linear-gradient(to top,var(--bg,#fafafb) 70%,transparent)}
+.qe .qgo button{height:52px;border-radius:16px;font-weight:800;font-size:16px;border:1px solid var(--line);background:#fff;min-height:0}.qe .qgo .pr{flex:2;background:var(--brand);color:#fff;border:0}.qe .qgo .sk{flex:1;color:var(--mute)}

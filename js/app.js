@@ -637,7 +637,15 @@
 
   /* ---------- sheets ---------- */
 
+  // Every screen is full-screen: a pop-up (title + content) is turned into a page with the same back bar as the others.
+  function asPage(html) {
+    const m = /^\s*<h3>([\s\S]*?)<\/h3>/.exec(html), cls = /^\s*<div class="(fullbar|cpage)/.test(html);
+    if (cls) return html;
+    const title = m ? m[1] : '', rest = m ? html.slice(m[0].length) : html;
+    return `<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${title}</b></div></div><div class="ap">${rest}</div>`;
+  }
   function openSheet(html, onClose, full) {
+    if (!full) { html = asPage(html); full = true; }
     sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full); document.body.classList.toggle('page-open', !!full);   // full-screen pages keep the bottom tab bar
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';

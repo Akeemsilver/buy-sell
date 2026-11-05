@@ -687,6 +687,7 @@
     });
   }
   function openSheet(html, onClose, full) {
+    voiceStop();
     const kind = full === 'card' || full === 'sheet' ? full : null;
     if (kind) full = false; else if (!full) { html = asPage(html); full = true; }
     $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind);
@@ -699,6 +700,7 @@
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
+    voiceStop();
     pageStack = [];
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
@@ -762,6 +764,39 @@
       <div class="btns"><button class="btn primary">${t('recv.mark')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
 
+  /* Voice: a microphone button next to the description. Uses the phone browser's speech recognition (Chrome on Android; Safari on iPhone);
+     where it is not available the button is simply not shown. Words are added after what is already typed. */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = () => (SR ? `<button type="button" class="mic" data-act="mic" aria-label="${t('mic.tap')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg></button>` : '');
+  let rec = null, recBox = null, heardTimer = 0;
+  function voiceUi(on, text) {
+    document.querySelectorAll('.mic').forEach((b) => b.classList.toggle('on', !!on));
+    document.querySelectorAll('.listen, .heard').forEach((e) => e.remove());
+    const row = document.querySelector('.dscrow'); if (!row) return;
+    const inp = row.querySelector('input'); if (inp) inp.placeholder = on ? t('mic.listeningBox') : t('item.descPh');
+    if (on) row.insertAdjacentHTML('afterend', `<div class="listen"><i></i><span>${t('mic.listening')}</span></div>`);
+    else if (text) { row.insertAdjacentHTML('afterend', `<div class="heard">🎤 ${t('mic.heard', { text: esc(text) })}</div>`); clearTimeout(heardTimer); heardTimer = setTimeout(() => { const h = document.querySelector('.heard'); if (h) h.remove(); }, 6000); }
+  }
+  function voiceStop() { const r = rec; rec = null; recBox = null; if (r) { try { r.abort(); } catch (e) { /* already stopped */ } } }
+  function voiceToggle() {
+    if (rec) { try { rec.stop(); } catch (e) { /* ignore */ } return; }
+    const box = document.querySelector('.dscrow input'); if (!box || !SR) return;
+    const r = new SR(); r.lang = I.getLang() === 'es' ? 'es-419' : 'en-US'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+    let heard = '', failed = false; rec = r; recBox = box;
+    r.onstart = () => voiceUi(true);
+    r.onresult = (e) => { heard = Array.from(e.results).map((x) => x[0].transcript).join(' ').trim(); const l = document.querySelector('.listen span'); if (l && heard) l.textContent = '… ' + heard; };
+    r.onerror = (e) => { failed = true; const c = e && e.error; if (c === 'aborted') return; toast(t(c === 'not-allowed' || c === 'service-not-allowed' ? 'mic.denied' : c === 'no-speech' ? 'mic.noSpeech' : c === 'network' ? 'mic.network' : 'mic.noSpeech')); };
+    r.onend = () => {
+      const mine = rec === r; rec = null; recBox = null;
+      if (!mine || !document.body.contains(box)) return voiceUi(false);
+      voiceUi(false, failed ? '' : heard);
+      if (!heard || failed) return;
+      const cur = box.value.trim(), clean = heard.replace(/[.。]+$/, '');
+      box.value = cur ? cur + ' ' + clean : clean.charAt(0).toUpperCase() + clean.slice(1);
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    try { r.start(); } catch (e) { rec = null; recBox = null; toast(t('mic.noSpeech')); }
+  }
   // Previous / next arrows (with "4 of 8") for the top bar, to flip through the items of one batch without going back.
   const navArrows = (ids, id, act) => { const n = ids.indexOf(id); if (n < 0 || ids.length < 2) return ''; return `<div class="nx"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span><button data-act="${act}" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><button data-act="${act}" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button></div>`; };
   const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isSold(x))).map((x) => x.id).sort();
@@ -773,7 +808,7 @@
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
       <fieldset class="lockset" ${sold ? 'disabled' : ''}>
-      <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
+      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}</div>
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <div id="saleblock">${saleHTML(i)}</div>
@@ -797,7 +832,7 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${navArrows(ids, id, 'qe-go')}</div>
       <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
       <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
-      <div class="qf"><label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">
+      <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}</div>
       <div class="grid2"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="next"></div><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div></div>
       <button class="btn" type="button" data-act="use-rec" data-id="${i.id}" style="width:100%;margin-top:10px">${t('item.useRec')}</button>
       <div id="saleblock" style="margin-top:6px">${saleHTML(i)}</div>
@@ -1347,6 +1382,7 @@
       case 'open-clearing': clearOpen.add(id); return closeSheet();
       case 'close-batch': return askCard(t('confirm.close', { id: bl(id) }), { danger: true, ok: t('batch.close') }).then((y) => { if (y) run(() => L.closeBatch(state, id), t('batch.closed', { id: bl(id) })); });
       case 'del-batch': return askCard(t('confirm.delBatch', { id: bl(id) }), { danger: true, ok: t('batch.deleteShort') }).then((y) => { if (y) run(() => L.deleteBatch(state, id), t('batch.deleted', { id: bl(id) })); });
+      case 'mic': return voiceToggle();
       case 'item-go': if (id) { sheetItem(id, true); $('#sheet').scrollTop = 0; } return;
       case 'qe-open': { const ids = batchIds(id, true); if (!ids.length) return toast(t('qe.none')); return sheetQuick(id, ids[0]); }
       case 'qe-go': if (id) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;

@@ -113,3 +113,11 @@ npm start                # serve on http://localhost:8080
 Set `WORKBOOK_JSON=/path/to/dump.json` when running the tests to also check the importer against a real workbook dump.
 
 **Back button:** Back (the phone's button, the swipe, and the ‹ arrows in the app) always returns to the place you came from and never loops. The main tabs and the More/Settings screens form one trail (`places` in `js/app.js`); full-screen pages opened one from another (customer → invoice → item → payment) form a second trail (`pageStack`). Going to a screen that is already on its trail cuts the trail back to it, so Back never bounces between two screens. Every new full-screen page must call `enterPage(kind, key, reopen)` when it opens; every in-app back arrow uses `data-act="close"`. At Home, the first Back shows "Press back again to exit".
+
+## Before the app goes live (do these when the owner says "I'm ready for the app to go live")
+1. **Firebase plan:** upgrade the `b-ruiz` project to Blaze (card on file). Then set a budget alert of about US$1 in the Google Cloud console (alerts email; they do not stop charges).
+2. **Cloud Storage:** Firebase console → Build → Storage → Get started, pick a US location.
+3. **Storage rules:** paste `storage.rules` ("B Ruiz Storage rules 1.00") into Storage → Rules and publish. Approve the permission it asks for to read the workspace list.
+4. **Build cloud photos** (not built yet): upload only the 900 px photo and the 200 px thumbnail, delete the full photo in the cloud 7 days after the sale, keep thumbnails, optional Wi-Fi-only switch (off by default).
+5. **Workspace sharing** (not built yet): invite code (7 days), Owner/Seller roles, per-person "can see costs and profit", who made each sale, duplicate invoice-number protection, Firestore rules 1.01.
+6. Re-check the free limits on the Firebase pricing page before relying on them.

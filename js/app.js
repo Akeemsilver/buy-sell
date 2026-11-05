@@ -1084,6 +1084,7 @@
       ${c.id ? stat : ''}
       ${c.id ? `<div class="card"><div class="rw"><div class="t"><b>${t('store.open')}</b><small>${t('store.openSub')}</small></div>${swt('store-toggle', 'open', c.open)}</div></div>
       <h4><span>${t('store.batches')}</span></h4><div class="card">${state.batches.map((b) => { const n = cnt(b), on = c.batches.includes(b.id); return `<button class="rw sbat" data-act="store-batch" data-id="${b.id}"><span class="ck ${on ? 'on' : ''}">${on ? '✓' : ''}</span><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a: n.a, t: n.t })}</small></div></button>`; }).join('') || `<div class="rw muted">${t('store.noBatches')}</div>`}</div>
+      ${(() => { const n = SCore.shown(state, c).length; return n ? `<p class="muted small" style="margin:-2px 2px 10px">${t('store.willShow', { n })}</p>` : `<div class="err" style="margin:-2px 0 10px">${t('store.noneShown')}</div>`; })()}
       <div class="card"><div class="rw"><div class="t"><b>${t('store.transit')}</b><small>${t('store.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div></div>
       <h4><span>${t('store.locations')}</span></h4><div class="card">${c.locations.map((l) => `<button class="rw sloc" data-act="store-loc" data-id="${l.id}"><div class="t"><b>${esc(l.name)}</b><small>${[l.pickup ? t('store.pickup') + ' · ' + t('store.free') : '', l.delivery ? t('store.delivery') + ' ' + money(l.price) : ''].filter(Boolean).join(' · ')}</small></div><span class="chev">›</span></button>`).join('')}<button class="rw sloc add" data-act="store-loc" data-id="new">＋ ${t('store.addLoc')}</button></div>
       <div class="card"><div class="rw"><div class="t"><b>${t('store.name')}</b></div><input class="sfield" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"></div><div class="rw"><div class="t"><b>${t('store.whatsapp')}</b><small>${t('store.whatsappSub')}</small></div><input class="sfield" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="868 555 0100" autocomplete="off" enterkeyhint="done"></div></div>
@@ -1293,7 +1294,7 @@
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return sheetStore(); }
       case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return sheetStore(); }
-      case 'store-publish': Store.publish(true); return toast(t('store.publishing'));
+      case 'store-publish': toast(t('store.publishing')); Store.publish(true).then(() => { const inf = Store.info(); toast(inf.error === 'permission-denied' ? t('store.needRules') : inf.error ? t('store.pubError') : t('store.donePub', { n: inf.count })); }); return;
       case 'store-loc': return sheetLocation(id);
       case 'sl-flag': { const on = !t_.classList.contains('on'); t_.classList.toggle('on', on); t_.setAttribute('aria-checked', on); return; }
       case 'store-loc-save': {

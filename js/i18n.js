@@ -60,6 +60,8 @@
     /* sell */
     'sell.empty': 'Nothing to sell yet', 'sell.emptyText': 'Tick the circle on items in Stock, then come back here to invoice them.', 'sell.choose': 'Choose items',
     'sell.items': 'Items ({n})', 'sell.noDesc': 'No description', 'sell.noPrice': 'no price', 'sell.edit': 'Edit', 'sell.onInv': ' · on {no}',
+    'store.willShow': 'Customers will see {n} items right now.', 'store.noneShown': 'Customers will see nothing yet. Tick a batch above. Its items must be Available, with a name and a selling price.',
+    'store.donePub': '✓ Published: {n} items are live in your store', 
     'sell.addShort': 'Add “{name}”', 'sell.s1': 'Items', 'sell.s2': 'Customer', 'sell.s3': 'Payment', 'sell.tapEdit': 'tap to edit', 'sell.subtotal': 'Subtotal', 'sell.paidNow': 'Paid now {amt}', 'sell.owesAfter': 'Owes {amt} after', 'sell.profitPrivate': 'Your profit (private)',
     'sell.customer': 'Customer', 'sell.customerPh': 'Existing or new name', 'sell.paying': 'Amount paying now (TTD)', 'sell.payFull': 'Pay in full',
     'prev.total': 'Total (incl. delivery {amount})', 'prev.prev': 'Previously paid', 'prev.prevRef': 'Previously paid ({ref})', 'prev.payingNow': 'Paying now',
@@ -459,6 +461,8 @@
     'bar.sell.one': 'Vender {n} artículo →', 'bar.sell.other': 'Vender {n} artículos →', 'bar.create': 'Crear factura · {amount}',
     'sell.empty': 'Aún no hay nada que vender', 'sell.emptyText': 'Marca el círculo de los artículos en Inventario y vuelve aquí para facturarlos.', 'sell.choose': 'Elegir artículos',
     'sell.items': 'Artículos ({n})', 'sell.noDesc': 'Sin descripción', 'sell.noPrice': 'sin precio', 'sell.edit': 'Editar', 'sell.onInv': ' · en {no}',
+    'store.willShow': 'Ahora mismo los clientes verán {n} artículos.', 'store.noneShown': 'Los clientes aún no verán nada. Marca un lote arriba. Sus artículos deben estar Disponibles, con nombre y precio de venta.',
+    'store.donePub': '✓ Publicado: {n} artículos en tu tienda', 
     'sell.addShort': 'Añadir “{name}”', 'sell.s1': 'Artículos', 'sell.s2': 'Cliente', 'sell.s3': 'Pago', 'sell.tapEdit': 'toca para editar', 'sell.subtotal': 'Subtotal', 'sell.paidNow': 'Paga ahora {amt}', 'sell.owesAfter': 'Debe {amt} después', 'sell.profitPrivate': 'Tu ganancia (privada)',
     'sell.customer': 'Cliente', 'sell.customerPh': 'Nombre existente o nuevo', 'sell.paying': 'Monto que paga ahora (TTD)', 'sell.payFull': 'Pagar todo',
     'prev.total': 'Total (con entrega {amount})', 'prev.prev': 'Pagado anteriormente', 'prev.prevRef': 'Pagado anteriormente ({ref})', 'prev.payingNow': 'Paga ahora',

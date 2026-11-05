@@ -14,7 +14,7 @@
   const bizName = () => state.settings.businessName || 'B-RUIZ';
   const initials = (n) => String(n).trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toUpperCase() || '·';
   // Versions shown in Settings > About. APP_VERSION goes up by 0.01 with each release; RULES_VERSION must match the header of firestore.rules (a test checks).
-  const APP_VERSION = '1.00', RULES_VERSION = '1.00', CLOUD_LIMIT = 1073741824;
+  const APP_VERSION = '1.00', RULES_VERSION = '1.01', CLOUD_LIMIT = 1073741824;
   const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
@@ -226,7 +226,7 @@
     try { const raw = localStorage.getItem(KEY); if (raw) return L.migrate(JSON.parse(raw)); } catch (e) { /* use default */ }
     return L.defaultState();
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(t('err.save')); } if (window.Cloud) Cloud.changed(); }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(t('err.save')); } if (window.Cloud) Cloud.changed(); if (window.Store) Store.schedule(); }
   function toast(msg, ms) {
     const el = $('#toast'); el.textContent = plain(msg); el.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms || 3200);
@@ -368,12 +368,13 @@
       + shown.map((c) => `<button type="button" class="co ${c.name === invForm.client ? 'on' : ''}" data-act="pick-client" data-id="${esc(c.name)}"><i>${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</i><span>${esc(c.name)}</span>${c.owing > 0 ? `<small class="bad">${t('cust.stillOwes', { amt: money(c.owing) })}</small>` : ''}</button>`).join('')
       || (f ? '' : `<div class="muted small" style="padding:10px 12px">${t('sell.noCustomers')}</div>`);
   }
+  const storeStrip = () => { const n = window.Store ? Store.newCount() : 0; return `<div class="strip"><button data-act="store-link">🔗 ${t('store.copyLink')}</button><button data-act="orders-open">📥 ${t('store.orders')}${n ? `<b>${n}</b>` : ''}</button><button class="sq" data-act="store-open" aria-label="${t('store.settings')}">⚙︎</button></div>`; };
   function Sell() {
-    if (!selected.size) return `<div class="empty"><b>${t('sell.empty')}</b>${t('sell.emptyText')}</div>
+    if (!selected.size) return storeStrip() + `<div class="empty"><b>${t('sell.empty')}</b>${t('sell.emptyText')}</div>
       <button class="btn primary" data-act="goto-stock">${t('sell.choose')}</button>`;
     const items = [...selected].map((id) => state.items.find((i) => i.id === id));
     const custs = L.customerStats(state).map((c) => c.name);
-    return `<h2>${t('sell.items', { n: items.length })}</h2><div class="list">${items.map((i) => `<div class="row"><div class="grow"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></div>
+    return `${storeStrip()}<h2>${t('sell.items', { n: items.length })}</h2><div class="list">${items.map((i) => `<div class="row"><div class="grow"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></div>
         <div class="end"><b>${L.effectivePrice(i) > 0 ? money(L.effectivePrice(i)) : `<span class="bad">${t('sell.noPrice')}</span>`}</b></div>
         <button class="chip" data-act="edit-item" data-id="${i.id}">${t('sell.edit')}</button><button class="chip" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button></div>`).join('')}</div>
       <label>${t('sell.customer')}</label>
@@ -1047,6 +1048,70 @@
       <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p></div>`, null, true);
   }
 
+  /* ---------- online store: settings, orders ---------- */
+  const SCore = window.StoreCore;
+  const storeCfg = () => SCore.norm(state.settings.store);
+  function storeSet(patch) { const c = Object.assign(storeCfg(), patch); if (!c.id) c.id = SCore.newId(20); state.settings.store = c; save(); }
+  const ago = (d) => { if (!d) return ''; const m = Math.floor((Date.now() - d.getTime()) / 60000); return m < 1 ? t('ago.now') : m < 60 ? t('ago.min', { n: m }) : m < 1440 ? t('ago.hour', { n: Math.floor(m / 60) }) : d.toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short' }); };
+  function copyText(txt) { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(txt).then(() => true, () => false); const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* none */ } ta.remove(); return Promise.resolve(ok); }
+  const swt = (act, id, on) => `<button class="tog ${on ? 'on' : ''}" role="switch" aria-checked="${on}" data-act="${act}" data-id="${id}"></button>`;
+  function sheetStore() {
+    enterPage('store', '', () => sheetStore());
+    const c = storeCfg(), inf = Store.info(), link = Store.link(c), signed = cloud.signedIn;
+    const cnt = (b) => ({ a: state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, t: state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length });
+    const stat = !signed ? '' : inf.error === 'permission-denied' ? `<div class="err">${t('store.needRules')}</div>` : inf.error ? `<div class="err">${t('store.pubError')}</div>` : inf.busy ? `<p class="muted small">${t('store.publishing')}</p>` : inf.at ? `<p class="muted small">${t('store.published', { n: inf.count, when: ago(new Date(inf.at)) })}</p>` : '';
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.title')}</b><small>${t('store.sub')}</small></div></div>
+      <div class="ap">${signed ? '' : `<div class="card"><div class="rw"><div class="t"><b>${t('store.needAccount')}</b><small>${t('store.needAccountSub')}</small></div><button class="pbtn" data-act="acct-open">${t('acct.signIn')}</button></div></div>`}
+      ${c.id ? `<div class="link"><span>${esc(link)}</span><button data-act="store-link">${t('store.copy')}</button></div>` : `<button class="btn primary" style="width:100%" data-act="store-create" ${signed ? '' : 'disabled'}>${t('store.create')}</button>`}
+      ${c.id ? stat : ''}
+      ${c.id ? `<div class="card"><div class="rw"><div class="t"><b>${t('store.open')}</b><small>${t('store.openSub')}</small></div>${swt('store-toggle', 'open', c.open)}</div></div>
+      <h4><span>${t('store.batches')}</span></h4><div class="card">${state.batches.map((b) => { const n = cnt(b), on = c.batches.includes(b.id); return `<button class="rw sbat" data-act="store-batch" data-id="${b.id}"><span class="ck ${on ? 'on' : ''}">${on ? '✓' : ''}</span><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a: n.a, t: n.t })}</small></div></button>`; }).join('') || `<div class="rw muted">${t('store.noBatches')}</div>`}</div>
+      <div class="card"><div class="rw"><div class="t"><b>${t('store.transit')}</b><small>${t('store.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div></div>
+      <h4><span>${t('store.locations')}</span></h4><div class="card">${c.locations.map((l) => `<button class="rw sloc" data-act="store-loc" data-id="${l.id}"><div class="t"><b>${esc(l.name)}</b><small>${[l.pickup ? t('store.pickup') + ' · ' + t('store.free') : '', l.delivery ? t('store.delivery') + ' ' + money(l.price) : ''].filter(Boolean).join(' · ')}</small></div><span class="chev">›</span></button>`).join('')}<button class="rw sloc add" data-act="store-loc" data-id="new">＋ ${t('store.addLoc')}</button></div>
+      <div class="card"><div class="rw"><div class="t"><b>${t('store.name')}</b></div><input class="sfield" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"></div><div class="rw"><div class="t"><b>${t('store.whatsapp')}</b><small>${t('store.whatsappSub')}</small></div><input class="sfield" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="868 555 0100" autocomplete="off" enterkeyhint="done"></div></div>
+      <button class="btn" style="width:100%;margin-top:6px" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="muted small" style="margin:10px 2px">${t('store.note')}</p>` : ''}</div>`, null, true);
+  }
+  function sheetLocation(id) {
+    const c = storeCfg(), l = c.locations.find((x) => x.id === id) || { id: '', name: '', pickup: true, delivery: true, price: 25 };
+    enterPage('storeloc', id, () => sheetLocation(id));
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t(id === 'new' ? 'store.addLoc' : 'store.editLoc')}</b><small>${esc(l.name)}</small></div></div>
+      <div class="ap"><label for="sl-name">${t('store.locName')}</label><input id="sl-name" value="${esc(l.name)}" placeholder="${t('store.locPh')}" autocomplete="off" enterkeyhint="done">
+      <div class="card" style="margin-top:12px"><div class="rw"><div class="t"><b>${t('store.pickup')}</b><small>${t('store.pickupSub')}</small></div>${swt('sl-flag', 'pickup', l.pickup)}</div><div class="rw"><div class="t"><b>${t('store.delivery')}</b><small>${t('store.deliverySub')}</small></div>${swt('sl-flag', 'delivery', l.delivery)}</div></div>
+      <label for="sl-price">${t('store.deliveryPrice')}</label><input id="sl-price" type="text" inputmode="decimal" value="${l.price || ''}" placeholder="0.00" autocomplete="off" enterkeyhint="done">
+      <div class="btns"><button class="btn primary" data-act="store-loc-save" data-id="${id}">${t('btn.save')}</button>${id === 'new' ? '' : `<button class="btn danger" data-act="store-loc-del" data-id="${id}">${t('btn.delete')}</button>`}</div></div>`, null, true);
+  }
+  let ordFilter = 'new';
+  const ordWhen = (o) => ago(Store.when(o));
+  const optText = (o) => `${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${esc(o.location)}`;
+  const stBadge = (o) => `<span class="obadge ${o.status}">${t('ord.' + o.status)}</span>`;
+  function sheetOrders() {
+    enterPage('orders', '', () => sheetOrders());
+    const all = Store.orders(), shown = all.filter((o) => (ordFilter === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === ordFilter));
+    const cnt = (f) => all.filter((o) => (f === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === f)).length;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.orders')}</b><small>${t('ord.count', { n: all.length })}</small></div></div>
+      <div class="ap"><div class="chiprow ordchips">${['new', 'confirmed', 'done'].map((f) => `<button class="chip ${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt(f)}</button>`).join('')}</div>
+      ${shown.map((o) => `<button class="card ocard" data-act="order-open" data-id="${o.id}"><div class="rw" style="align-items:flex-start"><div class="t"><b>${esc(o.code || SCore.orderCode(o.id))} ${stBadge(o)}</b><small>${esc(o.name)} · ${esc(o.phone)} · ${ordWhen(o)}</small><small style="display:block;margin-top:3px">${optText(o)}</small></div><b>${money(o.total)}</b></div><div class="rw"><div class="t"><small>${tn('cust.itemsN', (o.items || []).length)}</small></div><span class="rev">${t('ord.review')} ›</span></div></button>`).join('') || `<div class="empty" style="padding:30px 0"><b>${t('ord.none')}</b>${t('ord.noneText')}</div>`}</div>`, null, true);
+  }
+  function sheetOrder(id) {
+    const o = Store.orders().find((x) => x.id === id); if (!o) return;
+    enterPage('order', id, () => sheetOrder(id));
+    const rows = (o.items || []).map((i) => { const it = state.items.find((x) => x.id === i.id), gone = !it || L.isSold(it), tr = it && it.status === 'In Transit'; return `<div class="rw"><div class="t"><b>${esc(i.name)}</b><small class="${gone ? 'bad' : ''}">${gone ? t('ord.gone') : tr ? '⏳ ' + t('ord.transit') : t('ord.available')}</small></div><b>${money(i.price)}</b></div>`; }).join('');
+    const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) });
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${ordWhen(o)}</small></div></div>
+      <div class="ap"><div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small></div><a class="pbtn wa" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener">💬 WhatsApp</a><a class="gbtn wa" href="tel:${esc(SCore.digits(o.phone))}">📞</a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stBadge(o)}</div></div>
+      <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
+      ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('ord.confirm')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.confirmNote')}</p>`
+        : o.status === 'confirmed' ? `<div class="btnrow"><button class="pbtn" data-act="order-done" data-id="${o.id}">${t('ord.markDone')}</button><button class="gbtn" data-act="order-confirm" data-id="${o.id}">${t('ord.openSell')}</button></div>` : ''}</div>`, null, true);
+  }
+  function confirmOrder(o) {
+    const its = (o.items || []).map((i) => state.items.find((x) => x.id === i.id)).filter((it) => it && !L.isSold(it)), missing = (o.items || []).length - its.length;
+    if (!its.length) return toast(t('ord.noneLeft'));
+    its.forEach((it) => selected.add(it.id)); invForm.client = o.name; invForm.paying = '';
+    if (o.option === 'delivery' && o.deliveryPrice > 0) its[0].delivery = o.deliveryPrice;
+    save(); if (o.status === 'new') Store.setStatus(o.id, 'confirmed').catch(() => toast(t('store.pubError')));
+    closeSheet(); go({ tab: 'sell', moreView: null }); window.scrollTo(0, 0); render(); toast(missing ? t('ord.someGone', { n: missing }) : t('ord.opened'));
+  }
+
   /* ---------- top-bar tools ---------- */
 
   const periodLabel = (p) => ({ all: t('flt.allTime'), thisMonth: t('flt.thisMonth'), lastMonth: t('flt.lastMonth'), thisYear: t('flt.thisYear') }[p] || p);
@@ -1205,6 +1270,27 @@
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
+      case 'store-link': { const c = storeCfg(); if (!c.id) return sheetStore(); return copyText(Store.link(c)).then((ok) => toast(ok ? t('store.copied') : Store.link(c))); }
+      case 'store-open': return sheetStore();
+      case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
+      case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return sheetStore(); }
+      case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return sheetStore(); }
+      case 'store-publish': Store.publish(true); return toast(t('store.publishing'));
+      case 'store-loc': return sheetLocation(id);
+      case 'sl-flag': { const on = !t_.classList.contains('on'); t_.classList.toggle('on', on); t_.setAttribute('aria-checked', on); return; }
+      case 'store-loc-save': {
+        const name = L.cleanName($('#sl-name').value), pickup = $('[data-act=sl-flag][data-id=pickup]').classList.contains('on'), delivery = $('[data-act=sl-flag][data-id=delivery]').classList.contains('on'), price = Math.max(0, parseFloat(String($('#sl-price').value).replace(',', '.')) || 0);
+        if (!name) return toast(t('store.needLocName')); if (!pickup && !delivery) return toast(t('store.needOption'));
+        const c = storeCfg(), loc = { id: id === 'new' ? SCore.newId(8) : id, name, pickup, delivery, price };
+        storeSet({ locations: id === 'new' ? c.locations.concat(loc) : c.locations.map((l) => (l.id === id ? loc : l)) }); pageStack = pageStack.filter((p) => p.key !== 'storeloc|' + id); return dropPages('storeloc|' + id);
+      }
+      case 'store-loc-del': { const c = storeCfg(); storeSet({ locations: c.locations.filter((l) => l.id !== id) }); return dropPages('storeloc|' + id); }
+      case 'orders-open': { const c = storeCfg(); if (!c.id) return sheetStore(); return sheetOrders(); }
+      case 'ord-filter': ordFilter = id; return sheetOrders();
+      case 'order-open': return sheetOrder(id);
+      case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
+      case 'order-decline': if (confirm(t('ord.declineAsk'))) Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); return;
+      case 'order-done': Store.setStatus(id, 'done').then(() => { toast(t('ord.done')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); return;
       case 'pick-client': invForm.client = id; comboOpen = false; return render();
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
       case 'combo-new': comboOpen = false; return render();
@@ -1287,6 +1373,7 @@
   document.addEventListener('input', (e) => {
     const el = e.target;
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
+    if (el.dataset.store) { storeSet({ [el.dataset.store]: el.value }); return; }
     if (el.id === 'pay-amt') { payUpdate(); return; }
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
@@ -1455,11 +1542,13 @@
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const photoKeep = () => ['1', '2', '7', 'sold'].includes(state.settings.photoKeep) ? state.settings.photoKeep : '2';   // how long an original screenshot stays after the photo is saved
   const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
+  Store.init({ state: () => state, bizName, refresh: () => { const top = pageStack[pageStack.length - 1]; if (top && top.key === 'store' && !$('#sheet').hidden) { const sc = $('#sheet').scrollTop; reopening = true; try { top.open(); } finally { reopening = false; } $('#sheet').scrollTop = sc; } },
+    onOrders: () => { const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && (top.key === 'orders' || top.key.startsWith('order|'))) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && tab === 'sell') render(); } });
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,
     askConflict,
-    onStatus: (i) => { const was = cloud.signedIn; cloud = i; updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
+    onStatus: (i) => { const was = cloud.signedIn; cloud = i; if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
     onRemote: () => { L.migrate(state); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });
   save();   // write back anything repaired while loading (e.g. names with stray spaces)

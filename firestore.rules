@@ -1,7 +1,8 @@
 rules_version = '2';
-// B Ruiz Firestore rules 1.00
+// B Ruiz Firestore rules 1.01
 // Paste this into Firebase console > Firestore Database > Rules > Publish.
 // Only signed-in people can touch data, only their own user record, and only workspaces they are a member of.
+// 1.01 adds the online store: anyone with the store's link can read the published catalogue and send an order; only the owner can read orders or change the store.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -10,6 +11,33 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+    // ---- online store (rules 1.01) ----
+    function storeOwner(sid) { return signedIn() && get(/databases/$(database)/documents/stores/$(sid)).data.ownerUid == request.auth.uid; }
+    function validOrder(sid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['code', 'items', 'location', 'option', 'deliveryPrice', 'name', 'phone', 'total', 'status', 'createdAt'])
+        && d.status == 'new' && d.createdAt == request.time
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 60
+        && d.phone is string && d.phone.size() >= 7 && d.phone.size() <= 25
+        && d.location is string && d.location.size() >= 1 && d.location.size() <= 60
+        && (d.option == 'pickup' || d.option == 'delivery')
+        && d.items is list && d.items.size() >= 1 && d.items.size() <= 30
+        && d.total is number && d.total >= 0 && d.deliveryPrice is number && d.deliveryPrice >= 0
+        && get(/databases/$(database)/documents/stores/$(sid)).data.open == true;
+    }
+    match /stores/{sid} {
+      allow get: if true;
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid && isOwner(request.resource.data.workspace);
+      allow update, delete: if signedIn() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid;
+      match /catalog/{c} {
+        allow get: if true;
+        allow write: if storeOwner(sid);
+      }
+      match /orders/{o} {
+        allow create: if validOrder(sid);
+        allow read, update, delete: if storeOwner(sid);
+      }
     }
     match /workspaces/{w} {
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.members[request.auth.uid] == 'owner';

@@ -30,6 +30,9 @@
     });
     return out.sort((a, b) => a.id.localeCompare(b.id));
   };
+  // Store pictures kept in cloud storage: which item pictures can be deleted now. Same rule as the saved photo: the item is gone, or it was
+  // sold and the hold time (L.PHOTO_HOLD_DAYS) has passed since the sale. Pictures of unsold items stay.
+  const stalePics = (s, ids, now) => ids.filter((id) => { const it = (s.items || []).find((x) => x.id === id); if (!it) return true; if (!L.isSold(it)) return false; const at = L.soldAt(s, it); return at != null && now >= at + L.PHOTO_HOLD_DAYS * 86400000; });
   const payPrice = (p) => (p.sale > 0 ? p.sale : p.price);
 
   const chunk = (list, n) => { const out = []; for (let i = 0; i < list.length; i += n || PER_DOC) out.push(list.slice(i, i + (n || PER_DOC))); return out; };
@@ -49,6 +52,6 @@
   // wa.me link: a 7-digit local number is taken as a Trinidad and Tobago number (+1 868).
   const waLink = (phone, text) => { let d = digits(phone); if (d.length === 7) d = '1868' + d; else if (d.length === 10 && d.startsWith('868')) d = '1' + d; return 'https://wa.me/' + d + (text ? '?text=' + encodeURIComponent(text) : ''); };
 
-  const api = { PER_DOC, newId, norm, shown, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { PER_DOC, newId, norm, shown, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -338,7 +338,7 @@
       <div class="row" style="margin-bottom:10px"><div class="grow"><b>${t('stock.invested', { status: stLabel(bStatus(b)), amount: money(st.investment) })}</b><small>${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</small></div>
         <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div></div>
       <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>
-        ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button></div>
+        ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button><button class="chip" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.short')}</button></div>
       <div class="chips">${chips(['All', ...STATUSES, ...(ps.needCheck ? ['NeedCheck'] : [])], stockFilter, 'pick-filter', (x) => (x === 'All' ? t('filter.all') : x === 'NeedCheck' ? t('filter.needCheck') + ' (' + ps.needCheck + ')' : stLabel(x)))}</div>
       <div class="list">${items.map((i) => itemCard(b, i)).join('') || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
   }
@@ -706,11 +706,12 @@
       ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
       <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
       <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>
-      <div class="btns bbtns"><button class="btn primary" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.btn')}</button><div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
+      <div class="btns bbtns"><div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
       <button class="btn tw" data-act="open-stock" data-id="${b.id}"><span>${t('batch.viewItems')}</span></button></div>
       ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
-      <div class="brow">${bStatus(b) !== 'Closed' ? `<button class="btn danger" data-act="close-batch" data-id="${b.id}">${t('batch.close')}</button>` : ''}
-      ${st.sold === 0 ? `<button class="btn danger" data-act="del-batch" data-id="${b.id}">${t('batch.delete')}</button>` : ''}</div></div>
+      <div class="brow"><button class="btn tw" data-act="qe-open" data-id="${b.id}"><span>✏️ ${t('qe.btn')}</span></button>
+      ${bStatus(b) !== 'Closed' ? `<button class="btn danger tw" data-act="close-batch" data-id="${b.id}"><span>${t('batch.close')}</span></button>` : ''}</div>
+      ${st.sold === 0 ? `<button class="btn danger" data-act="del-batch" data-id="${b.id}">${t('batch.delete')}</button>` : ''}</div>
       ${bStatus(b) !== 'Closed' ? `<p class="muted small">${t('batch.closeNote')}</p>` : ''}`);
   }
 

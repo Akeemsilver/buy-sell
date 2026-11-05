@@ -120,6 +120,8 @@
   const need = () => Promise.race([sdkReady, new Promise((r) => setTimeout(r, 10000))]).then(() => { if (!auth) throw Object.assign(new Error('unavailable'), { code: 'app/unavailable' }); return auth; });
   const api = {
     init, changed, info, push, usage, checkRules,
+    // handles the online store uses (the same signed-in Firestore connection)
+    db: () => db, uid: () => (user ? user.uid : null), workspace: () => wid, stamp: () => root.firebase.firestore.FieldValue.serverTimestamp(), ready: () => !!(db && user && wid),
     signInGoogle: () => need().then((a) => a.signInWithPopup(new root.firebase.auth.GoogleAuthProvider())),
     signIn: (email, pw) => need().then((a) => a.signInWithEmailAndPassword(email, pw)),
     signUp: (email, pw) => need().then((a) => a.createUserWithEmailAndPassword(email, pw)),

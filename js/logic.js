@@ -206,6 +206,8 @@
 
   // When an item is added to an invoice its "Sold for" starts as your selling price (if you set one and none is filled in).
   // Added to an invoice with no Sold for: it becomes the sale price while a sale is on, otherwise the selling price (if there is one).
+  // The price an item sells at: what it was sold for, otherwise the sale price, otherwise its selling price (0 = none set).
+  L.effectivePrice = (it) => (num(it.sold) > 0 ? num(it.sold) : L.salePrice(it) || num(it.price) || 0);
   L.prefillSold = (it) => { if (num(it.sold) <= 0) { const v = L.salePrice(it) || num(it.price); if (v > 0) it.sold = r2(v); } return it; };
 
   L.batchStats = (s, b) => {
@@ -278,11 +280,11 @@
     if (!items.length) errors.push('noItems');
     if (!client) errors.push('noClient');
     if (items.some((i) => !i.desc.trim())) errors.push('noDesc');
-    if (items.some((i) => num(i.sold) <= 0)) errors.push('noPrice');
+    if (items.some((i) => L.effectivePrice(i) <= 0)) errors.push('noPrice');
     if (items.length && paying <= 0) errors.push('noPaying');
 
     const landed = items.reduce((t, i) => t + L.itemCalc(s.batches.find((b) => b.id === i.batchId), i).landed, 0);
-    const totalSold = items.reduce((t, i) => t + num(i.sold), 0);
+    const totalSold = items.reduce((t, i) => t + L.effectivePrice(i), 0);
     const delivery = items.reduce((m, i) => Math.max(m, num(i.delivery)), 0);
     const ref = (items.find((i) => i.invoice) || {}).invoice || '';
     const refInv = ref ? s.invoices.find((v) => v.no === ref) : null;
@@ -303,8 +305,8 @@
 
     const groups = {};
     items.forEach((i) => {
-      const key = i.desc + '|' + i.sold;
-      (groups[key] = groups[key] || { desc: i.desc.trim(), price: num(i.sold), qty: 0 }).qty++;
+      const key = i.desc + '|' + L.effectivePrice(i);
+      (groups[key] = groups[key] || { desc: i.desc.trim(), price: L.effectivePrice(i), qty: 0 }).qty++;
     });
     return { errors, items, lines: Object.values(groups), totalSold, delivery, total, paying, prev, balance, tip,
       profit: r2(profit), loss: r2(loss), landed, ref, status: paying + prev >= total ? 'Paid' : 'Owing' };
@@ -324,7 +326,7 @@
     };
     if (p.ref) { const old = s.invoices.find((v) => v.no === p.ref); if (old) old.updatedBy = inv.no; }
     s.invoices.push(inv);
-    p.items.forEach((i) => { i.invoice = inv.no; i.customer = client; });
+    p.items.forEach((i) => { if (num(i.sold) <= 0) i.sold = r2(L.effectivePrice(i)); i.invoice = inv.no; i.customer = client; });
     L.applyWaterfall(s, inv.no);
     if (!s.customers.includes(client)) s.customers.push(client);
     return inv;

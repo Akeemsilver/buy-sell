@@ -291,4 +291,17 @@ console.log('all tests passed');
   assert.deepStrictEqual(L.latestInvoices(s, 'Jo').map((v) => v.no).sort(), [c.no, 'INV00004'].sort(), 'one invoice per purchase: the newest of the chain, plus the other purchase');
   assert.deepStrictEqual(L.invoiceChain(s, c.no).map((v) => v.amountPaid), [75, 20, 30], 'each step shows what was paid then');
 }
+{ // an item with a selling price but no 'sold for' can be invoiced at that price
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'TTD', totalCost: 100, margin: 100 });
+  s.items.forEach((x) => { x.desc = 'T'; x.cost = 50; x.status = 'Available'; });
+  s.items[0].price = 198.98; s.items[1].price = 200; s.items[1].saleOn = true; s.items[1].discount = 25;
+  assert.strictEqual(L.effectivePrice(s.items[0]), 198.98); assert.strictEqual(L.effectivePrice(s.items[1]), 150, 'a sale price wins over the selling price');
+  s.items[0].sold = 180; assert.strictEqual(L.effectivePrice(s.items[0]), 180, 'sold-for wins');
+  s.items[0].sold = 0;
+  const p = L.previewInvoice(s, { itemIds: s.items.map((x) => x.id), client: 'A', paying: 100 }); assert.ok(!p.errors.includes('noPrice')); assert.strictEqual(p.totalSold, 348.98);
+  const v = L.createInvoice(s, { itemIds: s.items.map((x) => x.id), client: 'A', isNew: true, paying: 100, date: new Date() });
+  assert.strictEqual(v.total, 348.98); assert.deepStrictEqual(s.items.map((x) => x.sold), [198.98, 150], 'the sold-for prices are written when the invoice is made');
+  const s2 = L.defaultState(); L.createBatch(s2, { store: 'X', count: 1, currency: 'TTD', totalCost: 50, margin: 100 }); s2.items[0].desc = 'T'; s2.items[0].cost = 50;
+  assert.ok(L.previewInvoice(s2, { itemIds: [s2.items[0].id], client: 'A', paying: 10 }).errors.includes('noPrice'), 'no price at all is still an error');
+}
 console.log('sale price tests passed');

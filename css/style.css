@@ -650,3 +650,11 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .qe .qf{padding-bottom:12px}.qe{padding-bottom:84px}.qe .qgo{position:fixed;left:0;right:0;bottom:calc(var(--tabh) + var(--sab) + 18px);z-index:69;margin:0 auto;max-width:620px;display:flex;gap:10px;padding:10px 14px 0;background:linear-gradient(transparent,var(--bg) 35%)}body.kb .qe .qgo{bottom:0}
 .qe .qgo button{height:52px;border-radius:16px;font-weight:800;font-size:16px;border:1px solid var(--line);background:#fff;min-height:0}.qe .qgo .pr{flex:2;background:var(--brand);color:#fff;border:0}.qe .qgo .sk{flex:1;color:var(--mute)}
 .bbtns .gh{margin:8px 2px -4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:800}
+
+/* Pop-ups for small decisions: a centred card (a question) and the bottom sheet (a list of choices) */
+.sheet.card{top:0;bottom:0;left:18px;right:18px;margin:auto;height:fit-content;max-height:82dvh;max-width:360px;border-radius:22px;padding:22px 18px 18px;animation:cardin .16s ease-out;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.sheet.card .grab{display:none}@keyframes cardin{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+.sheet.card h3{margin:0 0 8px;font-size:21px}.sheet.card p{margin:0 0 12px;color:var(--mute);line-height:1.4;font-size:14.5px}.sheet.card .pd{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:var(--tint);font-size:14px;margin-bottom:14px}
+.sheet.card .btns .btn{height:52px}.btn.dsolid{background:#c62828;color:#fff;border:0;font-weight:700}
+.fullbar .dots{margin-left:auto;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:26px;line-height:1;display:grid;place-items:center;padding:0;min-height:0;box-shadow:none}
+.note2{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#fff7e6;border:1px solid #f0d9a8;font-size:13px;color:#7a5a12}

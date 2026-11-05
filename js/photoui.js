@@ -105,9 +105,9 @@
   function addSheet(batchId) {
     const row = (icon, title, sub, act) => `<button class="row tap" data-act="${act}" data-id="${batchId}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${title}</b><small>${sub}</small></div></button>`;
     const stt = L.photoStats(A.state(), batchId);
-    A.openSheet(`<h3>${t('photo.add')}</h3><p class="muted small">${t('photo.addNote', { id: A.bl(batchId), free: stt.noPhoto })}</p>
+    A.openSmall(`<h3>${t('photo.add')}</h3><p class="muted small">${t('photo.addNote', { id: A.bl(batchId), free: stt.noPhoto })}</p>
       <div class="list" style="margin-top:12px">${row('🖼️', t('photo.gallery'), t('photo.gallerySub'), 'photo-gallery')}${row('📷', t('photo.camera'), t('photo.cameraSub'), 'photo-camera')}</div>
-      <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+      <div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
   }
 
   /* ---------- sharing ---------- */
@@ -127,8 +127,8 @@
     if (st === 'noPhoto') return A.toast(t('photo.needPhoto'));
     if (st === 'notChecked') {
       A.closeSheet();
-      return A.openSheet(`<h3>${t('photo.gate.title')}</h3><p>${t('photo.gate.text')}</p>
-        <div class="btns"><button class="btn primary" data-act="photo-check-now" data-id="${it.id}">${t('photo.checkNow')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`);
+      return A.openSmall(`<h3>${t('photo.gate.title')}</h3><p>${t('photo.gate.text')}</p>
+        <div class="btns"><button class="btn primary" data-act="photo-check-now" data-id="${it.id}">${t('photo.checkNow')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card');
     }
     const lg = await A.shareLang(); if (!lg) return;             // which language the caption is in (asks, unless told not to)
     A.toast(t('photo.prep'));

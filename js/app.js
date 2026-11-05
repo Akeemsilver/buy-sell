@@ -369,31 +369,41 @@
       || (f ? '' : `<div class="muted small" style="padding:10px 12px">${t('sell.noCustomers')}</div>`);
   }
   const storeStrip = () => { const n = window.Store ? Store.newCount() : 0; return `<div class="strip"><button data-act="store-link">🔗 ${t('store.copyLink')}</button><button data-act="orders-open">📥 ${t('store.orders')}${n ? `<b>${n}</b>` : ''}</button><button class="sq" data-act="store-open" aria-label="${t('store.settings')}">⚙︎</button></div>`; };
+  // Customer picker: a search box with round customer chips under it (alphabetical); typing filters and offers to add the typed name.
+  function chipRows(q) {
+    const stats = L.customerStats(state).slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' })), f = L.cleanName(q).toLowerCase();
+    const exact = stats.some((c) => c.name.toLowerCase() === f), shown = f && !exact ? stats.filter((c) => c.name.toLowerCase().includes(f)) : stats;   // a chosen name shows everyone again
+    const ini = (n) => esc(n.trim().charAt(0).toUpperCase() || '?');
+    return (f && !exact ? `<button type="button" class="pp new" data-act="combo-new"><i>＋</i>${t('sell.addShort', { name: esc(L.cleanName(q)) })}</button>` : '')
+      + shown.map((c) => `<button type="button" class="pp ${c.name === invForm.client ? 'on' : ''}" data-act="pick-client" data-id="${esc(c.name)}"><i>${ini(c.name)}${c.owing > 0 ? '<u></u>' : ''}</i>${esc(c.name)}</button>`).join('')
+      || (f ? '' : `<div class="muted small" style="padding:10px 4px">${t('sell.noCustomers')}</div>`);
+  }
   function Sell() {
-    if (!selected.size) return storeStrip() + `<div class="empty"><b>${t('sell.empty')}</b>${t('sell.emptyText')}</div>
-      <button class="btn primary" data-act="goto-stock">${t('sell.choose')}</button>`;
-    const items = [...selected].map((id) => state.items.find((i) => i.id === id));
-    const custs = L.customerStats(state).map((c) => c.name);
-    return `${storeStrip()}<h2>${t('sell.items', { n: items.length })}</h2><div class="list">${items.map((i) => `<div class="row"><div class="grow"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></div>
-        <div class="end"><b>${L.effectivePrice(i) > 0 ? money(L.effectivePrice(i)) : `<span class="bad">${t('sell.noPrice')}</span>`}</b></div>
-        <button class="chip" data-act="edit-item" data-id="${i.id}">${t('sell.edit')}</button><button class="chip" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button></div>`).join('')}</div>
-      <label>${t('sell.customer')}</label>
-      <div class="combo" id="combo"><button type="button" class="combo-btn ${invForm.client ? '' : 'none'}" data-act="combo-toggle"><span>${invForm.client ? esc(invForm.client) : t('sell.customerPick')}</span><i>${comboOpen ? '▴' : '▾'}</i></button>
-        <div class="combo-pop" id="combopop" ${comboOpen ? '' : 'hidden'}><div class="combo-s"><span>🔍</span><input id="client" name="client" value="${esc(invForm.client)}" placeholder="${t('sell.customerPh')}" autocomplete="off" enterkeyhint="done"></div><div id="combolist">${comboRows(invForm.client)}</div></div></div>
-      <label for="paying">${t('sell.paying')}</label>
-      <div class="grid2"><input id="paying" name="paying" type="text" inputmode="decimal" step="0.01" min="0" value="${esc(invForm.paying)}" placeholder="0.00"><button class="btn" data-act="pay-full">${t('sell.payFull')}</button></div>
-      <div id="prev">${previewBox()}</div>`;
+    if (!selected.size) return storeStrip() + `<div class="sx"><div class="empty2"><div class="ic">🧾</div><h3>${t('sell.empty')}</h3><p>${t('sell.emptyText')}</p><button class="btn primary" data-act="goto-stock" style="width:100%">${t('sell.choose')}</button></div></div>`;
+    const items = [...selected].map((id) => state.items.find((i) => i.id === id)).filter(Boolean);
+    const sub = items.reduce((n, i) => n + L.effectivePrice(i), 0), client = L.cleanName(invForm.client);
+    const row = (i) => { const eff = L.effectivePrice(i), sale = L.salePrice(i) > 0 && !L.isSold(i), was = Number(i.price) || 0;
+      return `<div class="it"><button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/^<span class="ph/, '<span class="pic ph').replace(/<\/span>$/, (sale ? `<span class="s">−${Number(i.discount)}%</span>` : '') + '</span>')}<span class="t"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></span><span class="p">${eff > 0 ? money(eff) : `<span class="bad">${t('sell.noPrice')}</span>`}${sale && was > eff ? `<small><s>${money(was)}</s></small>` : ''}</span></button>
+        <button class="x" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button></div>`; };
+    return `${storeStrip()}<div class="sx"><div class="steps"><span class="on">① ${t('sell.s1')}</span><span class="${client ? 'on' : ''}">② ${t('sell.s2')}</span><span class="${client ? 'on' : ''}">③ ${t('sell.s3')}</span></div>
+      <h4><span>${t('sell.items', { n: items.length })}</span><span class="tapedit">${t('sell.tapEdit')}</span></h4>
+      <div class="card">${items.map(row).join('')}<div class="sub"><span>${t('sell.subtotal')}</span><b>${money(sub)}</b></div></div>
+      <h4><span>${t('sell.customer')}</span></h4>
+      <div class="card"><div class="srch"><span>🔍</span><input id="client" name="client" value="${esc(invForm.client)}" placeholder="${t('sell.customerPh')}" autocomplete="off" enterkeyhint="done"></div><div class="people" id="combolist">${chipRows(invForm.client)}</div></div>
+      <h4><span>${t('sell.s3')}</span></h4>
+      <div class="card"><div class="pay"><label for="paying">${t('sell.paying')}</label><div class="payrow"><div class="in"><span>TT$</span><input id="paying" name="paying" type="text" inputmode="decimal" value="${esc(invForm.paying)}" placeholder="0.00"></div><button class="full" data-act="pay-full">${t('sell.payFull')}</button></div><div id="prev">${previewBox()}</div></div></div></div>`;
   }
 
   function previewBox() {
-    const p = preview();
-    return `<div class="sumbox"><div><span>${t('prev.total', { amount: money(p.delivery) })}</span><span>${money(p.total)}</span></div>
+    const p = preview(), due = p.total + p.prev, pct = due > 0 ? Math.max(0, Math.min(100, Math.round(p.paying / due * 100))) : 0;
+    return `<div class="meter"><div class="bar"><i style="width:${pct}%"></i></div><div class="l"><span class="a">${t('sell.paidNow', { amt: money(p.paying) })}</span><span class="b">${t('sell.owesAfter', { amt: money(p.balance) })}</span></div></div>
+      <div class="sumbox"><div><span>${t('prev.total', { amount: money(p.delivery) })}</span><span>${money(p.total)}</span></div>
       <div><span>${p.ref ? t('prev.prevRef', { ref: p.ref }) : t('prev.prev')}</span><span>${money(p.prev)}</span></div>
       <div><span>${t('prev.payingNow')}</span><span>${money(p.paying)}</span></div>
       <div class="t"><span>${t('prev.owingAfter')}</span><span>${money(p.balance)}</span></div>
       ${p.tip ? `<div class="good"><span>${t('prev.tip')}</span><span>${money(p.tip)}</span></div>` : ''}
-      <div><span>${t('prev.profit')}</span><span>${money(p.profit)}</span></div>
       ${p.loss ? `<div class="bad"><span>${t('prev.loss')}</span><span>${money(p.loss)}</span></div>` : ''}</div>
+      <div class="profit"><span>🔒 ${t('sell.profitPrivate')}</span><b>${money(p.profit)}</b></div>
       ${p.errors.length ? `<div class="err">${esc(t('err.' + p.errors[0]))}</div>` : `<div class="muted small" style="margin-top:8px">${t('prev.ready')}</div>`}`;
   }
 
@@ -1067,7 +1077,7 @@
     enterPage('store', '', () => sheetStore());
     const c = storeCfg(), inf = Store.info(), link = Store.link(c), signed = cloud.signedIn;
     const cnt = (b) => ({ a: state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, t: state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length });
-    const stat = !signed ? '' : inf.error === 'permission-denied' ? `<div class="err">${t('store.needRules')}</div>` : inf.error ? `<div class="err">${t('store.pubError')}</div>` : inf.busy ? `<p class="muted small">${t('store.publishing')}</p>` : inf.at ? `<p class="muted small">${t('store.published', { n: inf.count, when: ago(new Date(inf.at)) })}</p>` : '';
+    const stat = !signed ? '' : inf.error === 'permission-denied' ? `<div class="err">${t('store.needRules')}</div>` : inf.error ? `<div class="err">${t('store.pubError')}</div>` : inf.busy ? `<p class="muted small">${t('store.publishing')}</p>` : inf.at ? `<p class="muted small">${t('store.published', { n: inf.count, when: ago(new Date(inf.at)) })} · ${t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall')}</p>` : '';
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.title')}</b><small>${t('store.sub')}</small></div></div>
       <div class="ap">${signed ? '' : `<div class="card"><div class="rw"><div class="t"><b>${t('store.needAccount')}</b><small>${t('store.needAccountSub')}</small></div><button class="pbtn" data-act="acct-open">${t('acct.signIn')}</button></div></div>`}
       ${c.id ? `<div class="link"><span>${esc(link)}</span><button data-act="store-link">${t('store.copy')}</button></div>` : `<button class="btn primary" style="width:100%" data-act="store-create" ${signed ? '' : 'disabled'}>${t('store.create')}</button>`}
@@ -1385,7 +1395,7 @@
     if (el.id === 'pay-amt') { payUpdate(); return; }
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
-    if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = comboRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
+    if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;

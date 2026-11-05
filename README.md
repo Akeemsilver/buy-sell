@@ -117,7 +117,7 @@ Set `WORKBOOK_JSON=/path/to/dump.json` when running the tests to also check the 
 ## Before the app goes live (do these when the owner says "I'm ready for the app to go live")
 1. **Firebase plan:** upgrade the `b-ruiz` project to Blaze (card on file). Then set a budget alert of about US$1 in the Google Cloud console (alerts email; they do not stop charges).
 2. **Cloud Storage:** Firebase console → Build → Storage → Get started, pick a US location.
-3. **Storage rules:** paste `storage.rules` ("B Ruiz Storage rules 1.00") into Storage → Rules and publish. Approve the permission it asks for to read the workspace list.
+3. **Storage rules:** paste `storage.rules` ("B Ruiz Storage rules 1.01") into Storage → Rules and publish. Approve the permission it asks for to read the workspace list. 1.01 also lets the store keep its sharp pictures (stores/{id}/) — the store uses them automatically once Storage is on, and deletes each one a week after the item sells (same rule as the saved photo).
 4. **Build cloud photos** (not built yet): upload only the 900 px photo and the 200 px thumbnail, delete the full photo in the cloud 7 days after the sale, keep thumbnails, optional Wi-Fi-only switch (off by default).
 5. **Workspace sharing** (not built yet): invite code (7 days), Owner/Seller roles, per-person "can see costs and profit", who made each sale, duplicate invoice-number protection, Firestore rules 1.01.
 6. Re-check the free limits on the Firebase pricing page before relying on them.

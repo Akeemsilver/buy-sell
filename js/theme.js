@@ -25,7 +25,7 @@
   function vars(id) {
     const p = find(id), c = toHsl(p.brand), h = c.h, s = Math.min(c.s, 70), mute = c.s < 25;   // charcoal stays quiet
     const sat = (v) => (mute ? Math.min(v, 14) : v);
-    const light = { brand: p.brand, bar: p.brand, brand2: hsl(h, sat(Math.max(35, s * 0.62)), 62), tint: hsl(h, sat(48), 94), bg: hsl(h, sat(34), 97.5), line: hsl(h, sat(26), 90), ink: hsl(h, sat(22), 15), mute: hsl(h, sat(10), 44) };
+    const light = { brand: p.brand, bar: p.brand, brand2: hsl(h, sat(Math.max(35, s * 0.62)), 62), tint: hsl(h, sat(48), 94), bg: hsl(h, sat(30), 98.6), line: hsl(h, sat(12), 84), ink: hsl(h, sat(22), 15), mute: hsl(h, sat(10), 44) };
     const dark = { brand: hsl(h, sat(58), 58), bar: hsl(h, sat(55), 17), brand2: hsl(h, sat(40), 40), tint: hsl(h, sat(28), 16), bg: hsl(h, sat(22), 7.5), card: hsl(h, sat(16), 12.5), line: hsl(h, sat(16), 22), ink: hsl(h, sat(25), 94), mute: hsl(h, sat(12), 68) };
     return { light, dark };
   }

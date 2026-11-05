@@ -121,3 +121,9 @@ Set `WORKBOOK_JSON=/path/to/dump.json` when running the tests to also check the 
 4. **Build cloud photos** (not built yet): upload only the 900 px photo and the 200 px thumbnail, delete the full photo in the cloud 7 days after the sale, keep thumbnails, optional Wi-Fi-only switch (off by default).
 5. **Workspace sharing** (not built yet): invite code (7 days), Owner/Seller roles, per-person "can see costs and profit", who made each sale, duplicate invoice-number protection, Firestore rules 1.01.
 6. Re-check the free limits on the Firebase pricing page before relying on them.
+
+## Not built yet (the owner wants to come back to these later)
+- **Workspace sharing:** the owner and a second person each sign in with their own account in one shared business. Invite code valid 7 days; roles Owner and Seller; the owner chooses per person whether they can see costs and profit; record who made each sale; protect against duplicate invoice numbers; new Firestore rules 1.01 (the owner publishes them).
+- **Branding settings:** make the invoice banner, colours, logo and currency settings, so the app is not specific to B-RUIZ.
+- **Parked ideas:** payment reminders for people who owe, warnings for items with missing costs, an expenses section.
+- **Cloud photos:** needs the Firebase steps in "Before the app goes live" above.

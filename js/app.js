@@ -56,9 +56,11 @@
     if (places.length < 2) return false;
     places.pop(); const p = places[places.length - 1]; tab = p.tab; moreView = p.moreView; return true;
   }
-  function enterPage(kind, arg, open) {   // every full-screen page calls this when it opens
+  function enterPage(kind, arg, open, swap) {   // every full-screen page calls this when it opens. swap: replace the page on top (no new step on the Back trail)
     if (reopening) return;
-    const key = kind + '|' + arg, i = pageStack.findIndex((p) => p.key === key);
+    const key = kind + '|' + arg;
+    if (swap && pageStack.length) { pageStack[pageStack.length - 1] = { key, open }; return; }
+    const i = pageStack.findIndex((p) => p.key === key);
     if (i >= 0) pageStack.length = i;
     pageStack.push({ key, open });
   }
@@ -839,16 +841,18 @@
   const stampCanvasFor = (v) => stampCanvas(v.no, stampDate(v), ti('doc.stamp'));
   function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang(); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
 
-  function sheetInvoice(no) {
+  function sheetInvoice(no, swap) {   // swap: show this invoice in place of the one on screen (the payment history rows do this)
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
-    enterPage('invoice', no, () => sheetInvoice(no));
+    enterPage('invoice', no, () => sheetInvoice(no), swap);
+    let latest = v; while (latest.updatedBy) { const n = state.invoices.find((x) => x.no === latest.updatedBy); if (!n || n === latest) break; latest = n; }
+    const isLatest = latest === v;
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
     const chain = L.invoiceChain(state, v.no), dShort = (d) => new Date(d).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short', year: 'numeric' });
-    const hist = chain.length > 1 ? `<div class="hist"><h4>${t('inv.history')}</h4>${chain.slice().reverse().map((h) => `<button class="hrow ${h.no === v.no ? 'now' : ''}" data-act="view-inv" data-id="${h.no}"><span class="hl"><b>${h.no}</b><small>${dShort(h.date)}${h.no === v.no ? ' · ' + t('inv.histNow') : ''}</small></span><span class="hr"><b>${t('inv.histPaid', { amt: money(h.amountPaid) })}</b><small class="${h.balance > 0 ? 'bad' : 'good'}">${h.balance > 0 ? t('inv.histOwes', { amt: money(h.balance) }) : t('inv.histFull')}</small></span></button>`).join('')}</div>` : '';
+    const hist = chain.length > 1 ? `<div class="hist"><h4>${t('inv.history')}</h4>${chain.slice().reverse().map((h) => `<button class="hrow ${h.no === v.no ? 'now' : ''}" data-act="inv-swap" data-id="${h.no}"><span class="hl"><b>${h.no}</b><small>${dShort(h.date)}${h.no === v.no ? ' · ' + t('inv.histNow') : ''}</small></span><span class="hr"><b>${t('inv.histPaid', { amt: money(h.amountPaid) })}</b><small class="${h.balance > 0 ? 'bad' : 'good'}">${h.balance > 0 ? t('inv.histOwes', { amt: money(h.balance) }) : t('inv.histFull')}</small></span></button>`).join('')}</div>` : '';
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
     const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${offStrip(x)}${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div><div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
         <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
@@ -861,7 +865,7 @@
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.balance > 0 && !v.updatedBy ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${hist}${thumbs}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
-      <button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, true);
+      ${isLatest ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button>` : ''}<button class="btn ${isLatest ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
   }
 
@@ -1018,7 +1022,7 @@
     const owing = c.owing > 0, card = (v) => {
       const its = state.items.filter((x) => x.invoice === v.no), st = L.invoiceStatus(v), due = v.balance > 0, pct = v.total > 0 ? Math.max(0, Math.min(100, (v.total - v.balance) / v.total * 100)) : 100;
       const from = `data-id="${v.no}" data-from="${esc(name)}"`;
-      return `<div class="cp-inv ${due ? 'due' : ''}"><div class="cp-top"><div class="cp-l"><div class="numrow"><button class="num" data-act="view-inv" ${from}><b>${v.no}</b></button>${due && !v.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-from="${esc(name)}" data-back="cust">${t('pay.btn')}</button>` : ''}</div><button class="sub" data-act="view-inv" ${from}><small>${day(v.date)} · ${tn('cust.itemsN', its.length || v.qty || 1)}${L.invoiceChain(state, v.no).length > 1 ? ' · ' + tn('cust.paymentsN', L.invoiceChain(state, v.no).length) : ''}</small></button></div><button class="cp-r" data-act="view-inv" ${from}><b>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></button></div>
+      return `<div class="cp-inv ${due ? 'due' : ''}" data-act="view-inv" data-id="${v.no}"><div class="cp-top"><div class="cp-l"><div class="numrow"><button class="num" data-act="view-inv" ${from}><b>${v.no}</b></button>${due && !v.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-from="${esc(name)}" data-back="cust">${t('pay.btn')}</button>` : ''}</div><button class="sub" data-act="view-inv" ${from}><small>${day(v.date)} · ${tn('cust.itemsN', its.length || v.qty || 1)}${L.invoiceChain(state, v.no).length > 1 ? ' · ' + tn('cust.paymentsN', L.invoiceChain(state, v.no).length) : ''}</small></button></div><button class="cp-r" data-act="view-inv" ${from}><b>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></button></div>
         ${due ? `<div class="cp-owe"><div class="bar"><i style="width:${pct}%"></i></div><span>${t('cust.paidOf', { paid: money(v.total - v.balance), total: money(v.total) })}</span><b>${t('cust.stillOwes', { amt: money(v.balance) })}</b></div>` : ''}
         ${its.length ? `<div class="cp-mini">${its.map((x) => `<button class="m" data-act="edit-item" data-back="cust" data-from="${esc(name)}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><i>${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}${offStrip(x)}</i><span>${esc(x.desc || x.id)}</span></button>`).join('')}</div>` : ''}</div>`;
     };
@@ -1114,6 +1118,7 @@
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); closeSheet(); return render();
       case 'set-lang': I.setLang(id, true); applyStaticText(); closeSheet(); return render();
+      case 'inv-swap': return sheetInvoice(id, true);
       case 'inv-lang': invLangSession = id; return sheetInvoice(t_.dataset.no);
       case 'install':
         if (installEvt) { const ev = installEvt; installEvt = null; render(); ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); }).catch(() => {}); }

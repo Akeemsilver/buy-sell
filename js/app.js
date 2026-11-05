@@ -1294,7 +1294,7 @@
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return sheetStore(); }
       case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return sheetStore(); }
-      case 'store-publish': Store.publish(true); return toast(t('store.publishing'));
+      case 'store-publish': toast(t('store.publishing')); Store.publish(true).then(() => { const inf = Store.info(); toast(inf.error === 'permission-denied' ? t('store.needRules') : inf.error ? t('store.pubError') : t('store.donePub', { n: inf.count })); }); return;
       case 'store-loc': return sheetLocation(id);
       case 'sl-flag': { const on = !t_.classList.contains('on'); t_.classList.toggle('on', on); t_.setAttribute('aria-checked', on); return; }
       case 'store-loc-save': {

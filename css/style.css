@@ -606,3 +606,5 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .pbtn{background:var(--brand);color:#fff;box-shadow:var(--shbtn)}.gbtn{border:1px solid var(--line);background:#fff;color:#a32121}
 .ap .rw .pbtn.wa{height:38px;font-size:13px}.ap .rw .gbtn.wa{height:38px;width:42px;padding:0;color:var(--ink)}
 .ordchips{margin:0 0 10px}
+.bbtns .brow{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:10px}.bbtns .brow:empty{display:none}
+.bbtns .tw{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.2}.bbtns .tw small{font-size:11.5px;font-weight:500;opacity:.75}

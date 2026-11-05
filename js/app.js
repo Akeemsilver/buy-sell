@@ -683,11 +683,11 @@
       ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
       <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
       <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>
-      <div class="btns"><button class="btn" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')} · ${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</button>
-      <button class="btn" data-act="open-stock" data-id="${b.id}">${t('batch.viewItems')}</button>
+      <div class="btns bbtns"><div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
+      <button class="btn tw" data-act="open-stock" data-id="${b.id}"><span>${t('batch.viewItems')}</span></button></div>
       ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
-      ${bStatus(b) !== 'Closed' ? `<button class="btn danger" data-act="close-batch" data-id="${b.id}">${t('batch.close')}</button>` : ''}
-      ${st.sold === 0 ? `<button class="btn danger" data-act="del-batch" data-id="${b.id}">${t('batch.delete')}</button>` : ''}</div>
+      <div class="brow">${bStatus(b) !== 'Closed' ? `<button class="btn danger" data-act="close-batch" data-id="${b.id}">${t('batch.close')}</button>` : ''}
+      ${st.sold === 0 ? `<button class="btn danger" data-act="del-batch" data-id="${b.id}">${t('batch.delete')}</button>` : ''}</div></div>
       ${bStatus(b) !== 'Closed' ? `<p class="muted small">${t('batch.closeNote')}</p>` : ''}`);
   }
 

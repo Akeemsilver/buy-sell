@@ -1138,6 +1138,9 @@
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <div class="mrow" id="pricerow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
       <div id="saleblock">${saleHTML(i)}</div>
+      <label>${t('item.details')}</label><textarea class="dta" data-f="details" rows="3" maxlength="600" placeholder="${t('item.detailsPh')}">${esc(i.details || '')}</textarea>
+      <label>${t('item.detailsEs')}</label><textarea class="dta" data-f="detailsEs" rows="3" maxlength="600" placeholder="${t('item.detailsEsPh')}">${esc(i.detailsEs || '')}</textarea>
+      <p class="muted small">${t('item.detailsNote')}</p>
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="text" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="text" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>

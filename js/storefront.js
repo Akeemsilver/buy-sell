@@ -57,7 +57,7 @@
         let img = '';
         if (p.photo && sharpOk) { try { img = await sharpUrl(p, c.id, map, storage); if (img) sharpN++; } catch (e) { picErr++; if (picErr >= 2 || (e && /unauthorized|unauthenticated|no-default-bucket|project-not-found|quota/.test(e.code || ''))) sharpOk = false; } }
         if (p.photo && !img) img = await smallPicture(p.photo);
-        items.push({ id: p.id, name: p.name, nameEs: p.nameEs, sizes: p.sizes, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img });
+        items.push(Object.assign({ id: p.id, name: p.name, nameEs: p.nameEs, sizes: p.sizes, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img }, p.details ? { details: p.details } : {}, p.detailsEs ? { detailsEs: p.detailsEs } : {}));
       }
       writeMap(c.id, map); info.sharp = sharpN > 0; try { localStorage.setItem('buy-sell-store-mode', sharpN > 0 || !list.some((p) => p.photo) ? 'sharp' : 'small'); } catch (e) { /* ignore */ }
       const db = Cloud.db(), sref = db.collection('stores').doc(c.id), chunks = SC.chunk(items), b = db.batch();

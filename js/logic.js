@@ -202,7 +202,7 @@
 
   /* ---------- groups: one design, several pieces (each piece is its own item with its own size) ---------- */
   const byId = (a, b) => a.id.localeCompare(b.id);
-  L.GROUP_FIELDS = ['desc', 'cost', 'price', 'saleOn', 'discount', 'nameEs', 'esSet', 'esFor'];
+  L.GROUP_FIELDS = ['desc', 'cost', 'price', 'saleOn', 'discount', 'nameEs', 'esSet', 'esFor', 'details', 'detailsEs'];
   L.newGroupId = (() => { let n = 0; return () => 'G' + Date.now().toString(36) + (++n).toString(36) + Math.floor(Math.random() * 1296).toString(36); })();
   L.groupOf = (s, it) => (it.grp ? s.items.filter((x) => x.grp === it.grp && !L.isSold(x)).sort(byId) : [it]);
   // An empty spot in a batch: nothing typed, no picture, not sold, not part of a group.
@@ -222,7 +222,7 @@
   L.dropCopies = (s, srcId, n) => {
     const src = s.items.find((x) => x.id === srcId); if (!src || !src.grp) return [];
     const gone = L.groupOf(s, src).filter((x) => x !== src).sort((a, b) => b.id.localeCompare(a.id)).slice(0, n);
-    gone.forEach((x) => { ['desc', 'cost', 'price', 'size', 'grp'].forEach((f) => { x[f] = f === 'desc' || f === 'size' || f === 'grp' ? '' : 0; }); ['saleOn', 'discount', 'nameEs', 'esSet', 'esFor'].forEach((f) => { delete x[f]; }); x.photo = null; });
+    gone.forEach((x) => { ['desc', 'cost', 'price', 'size', 'grp'].forEach((f) => { x[f] = f === 'desc' || f === 'size' || f === 'grp' ? '' : 0; }); ['saleOn', 'discount', 'nameEs', 'esSet', 'esFor', 'details', 'detailsEs'].forEach((f) => { delete x[f]; }); x.photo = null; });
     if (L.groupOf(s, src).length < 2) src.grp = '';
     return gone;
   };

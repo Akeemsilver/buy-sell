@@ -9,7 +9,7 @@ const b1 = s.batches[0].id, b2 = s.batches[1].id;
 let list = SC.shown(s, { batches: [b1] });
 assert.deepStrictEqual(list.map((x) => x.id), [s.items[0].id, s.items[1].id], 'only Available items with a name, from the chosen batch (sold, unnamed ones are left out)');
 assert.strictEqual(list[1].sale, 200); assert.strictEqual(list[1].pct, 20); assert.strictEqual(SC.payPrice(list[1]), 200);
-assert.deepStrictEqual(Object.keys(list[0]).sort(), ['id', 'name', 'nameEs', 'pct', 'photo', 'price', 'sale', 'sizes', 'transit'], 'only public fields: never cost, landed cost or profit');
+assert.deepStrictEqual(Object.keys(list[0]).sort(), ['details', 'detailsEs', 'id', 'name', 'nameEs', 'pct', 'photo', 'price', 'sale', 'sizes', 'transit'], 'only public fields: never cost, landed cost or profit');
 assert.ok(!JSON.stringify(list).includes('cost'));
 { const s2 = JSON.parse(JSON.stringify(s)); s2.settings.words = require('../js/words.js').seed([]); s2.items[0].desc = 'Top and pants'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, 'Blusa y pantalones', 'the Spanish name is published when it is in order'); s2.items[0].desc = 'Red Zara dress'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, '', 'and left out while a word is missing'); }
 assert.strictEqual(SC.shown(s, { batches: [b1, b2] }).length, 2, 'in-transit items stay hidden unless switched on (the other batch has no priced available item)');
@@ -50,3 +50,11 @@ assert.strictEqual(SC.checkOrder({ ...ok, name: ' ' }), 'name'); assert.strictEq
 assert.strictEqual(SC.orderCode('ab3dk9xyz'), 'ORD-AB3DK'); assert.strictEqual(SC.newId(20).length, 20);
 assert.strictEqual(SC.waLink('555 0142', 'Hi there'), 'https://wa.me/18685550142?text=Hi%20there'); assert.strictEqual(SC.waLink('868-555-0142'), 'https://wa.me/18685550142'); assert.strictEqual(SC.waLink('+44 20 7946 0958'), 'https://wa.me/442079460958');
 console.log('store core tests passed');
+// details (optional text shown on the item page): taken from the first piece that has some, trimmed and capped
+{
+  const s2 = L.defaultState(); L.createBatch(s2, { store: 'SHEIN', count: 3, currency: 'USD', totalCost: 30, margin: 100 });
+  s2.items.forEach((x) => { Object.assign(x, { desc: 'Top', price: 50, status: 'Available' }); }); s2.items[1].details = '  Soft cotton  '; s2.items[1].detailsEs = 'Algodón suave'; s2.items[2].details = 'x'.repeat(900);
+  const c = SC.shown(s2, { batches: [s2.batches[0].id] }); assert.strictEqual(c.length, 1); assert.strictEqual(c[0].details, 'Soft cotton'); assert.strictEqual(c[0].detailsEs, 'Algodón suave');
+  assert.ok(!('cost' in c[0]), 'still no cost');
+}
+console.log('details tests passed');

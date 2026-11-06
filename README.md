@@ -114,13 +114,6 @@ Set `WORKBOOK_JSON=/path/to/dump.json` when running the tests to also check the 
 
 **Back button:** Back (the phone's button, the swipe, and the ‹ arrows in the app) always returns to the place you came from and never loops. The main tabs and the More/Settings screens form one trail (`places` in `js/app.js`); full-screen pages opened one from another (customer → invoice → item → payment) form a second trail (`pageStack`). Going to a screen that is already on its trail cuts the trail back to it, so Back never bounces between two screens. Every new full-screen page must call `enterPage(kind, key, reopen)` when it opens; every in-app back arrow uses `data-act="close"`. At Home, the first Back shows "Press back again to exit".
 
-## Protecting the Firebase allowance (App Check)
-The code for App Check is built (`js/appcheck.js`) and does nothing until a key is pasted in. To switch it on:
-1. Firebase console > App Check > Apps > the web app > **reCAPTCHA v3** > register your site (add your site's address, e.g. `akeemsilver.github.io` or your own domain) and copy the **site key**.
-2. Paste the key into `SITE_KEY` in `js/appcheck.js` and deploy.
-3. Open the app and a store page once, then in App Check > APIs > **Cloud Firestore** (and Storage) look at the request graph: when requests show as "verified", press **Enforce**.
-Enforcing before step 3 would block real customers. Turn Enforce off again if anything stops working.
-
 ## Before the app goes live (do these when the owner says "I'm ready for the app to go live")
 1. **Firebase plan:** upgrade the `b-ruiz` project to Blaze (card on file). Then set a budget alert of about US$1 in the Google Cloud console (alerts email; they do not stop charges).
 2. **Cloud Storage:** Firebase console → Build → Storage → Get started, pick a US location.

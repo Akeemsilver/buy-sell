@@ -9,7 +9,7 @@ const b1 = s.batches[0].id, b2 = s.batches[1].id;
 let list = SC.shown(s, { batches: [b1] });
 assert.deepStrictEqual(list.map((x) => x.id), [s.items[0].id, s.items[1].id], 'only Available items with a name, from the chosen batch (sold, unnamed ones are left out)');
 assert.strictEqual(list[1].sale, 200); assert.strictEqual(list[1].pct, 20); assert.strictEqual(SC.payPrice(list[1]), 200);
-assert.deepStrictEqual(Object.keys(list[0]).sort(), ['id', 'name', 'nameEs', 'pct', 'photo', 'price', 'sale', 'transit'], 'only public fields: never cost, landed cost or profit');
+assert.deepStrictEqual(Object.keys(list[0]).sort(), ['id', 'name', 'nameEs', 'pct', 'photo', 'price', 'sale', 'sizes', 'transit'], 'only public fields: never cost, landed cost or profit');
 assert.ok(!JSON.stringify(list).includes('cost'));
 { const s2 = JSON.parse(JSON.stringify(s)); s2.settings.words = require('../js/words.js').seed([]); s2.items[0].desc = 'Top and pants'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, 'Blusa y pantalones', 'the Spanish name is published when it is in order'); s2.items[0].desc = 'Red Zara dress'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, '', 'and left out while a word is missing'); }
 assert.strictEqual(SC.shown(s, { batches: [b1, b2] }).length, 2, 'in-transit items stay hidden unless switched on (the other batch has no priced available item)');
@@ -20,6 +20,19 @@ assert.strictEqual(SC.shown(s, { batches: [] }).length, 0, 'no batch chosen = no
   const [a, b2_, c] = st.items; a.status = 'Available'; b2_.status = 'Paid'; b2_.invoice = 'INV1'; c.status = 'Paid'; c.invoice = 'INV2';
   const now = Date.now(); st.invoices.push({ no: 'INV1', date: new Date(now - 3 * 86400000).toISOString() }, { no: 'INV2', date: new Date(now - 9 * 86400000).toISOString() });
   assert.deepStrictEqual(SC.stalePics(st, [a.id, b2_.id, c.id, 'ghost'], now).sort(), [c.id, 'ghost'].sort(), 'available and recently sold pictures stay; old sales and removed items go'); }
+// identical items are one card, with the sizes that are still available
+{ const g = L.defaultState(); L.createBatch(g, { store: 'X', count: 7, currency: 'USD', totalCost: 70, margin: 100 });
+  const sz = ['S', 'M', 'M', 'L', '', 'M', ''];
+  g.items.forEach((x, n) => { x.desc = n < 4 ? 'Blue dress' : n === 4 ? 'blue  DRESS' : 'Red top'; x.price = n < 5 ? 198 : 120; x.size = sz[n]; x.status = 'Available'; });
+  g.items[5].desc = 'Red top'; g.items[6].desc = 'Red top'; g.items[6].price = 120; g.items[4].price = 250;
+  const bb = g.batches[0].id, cards = SC.shown(g, { batches: [bb] });
+  assert.strictEqual(cards.length, 3, 'blue dress 198 (4 items), blue dress 250 (a different price), red top 120');
+  const blue = cards.find((c) => c.price === 198); assert.deepStrictEqual(blue.sizes.map((x) => x.s + ':' + x.ids.length), ['S:1', 'M:2', 'L:1'], 'sizes in order with the items behind each');
+  const red = cards.find((c) => c.name === 'Red top'); assert.deepStrictEqual(red.sizes.map((x) => x.s + ':' + x.ids.length), ['M:1', ':1'], 'an item with no size is listed last');
+  g.items[1].status = 'Paid'; g.items[2].status = 'Paid';
+  assert.deepStrictEqual(SC.shown(g, { batches: [bb] }).find((c) => c.price === 198).sizes.map((x) => x.s), ['S', 'L'], 'when both mediums are sold the store shows only S and L');
+  g.items[0].status = 'Paid'; g.items[3].status = 'Paid'; assert.ok(!SC.shown(g, { batches: [bb] }).some((c) => c.price === 198), 'when all are sold the card is gone');
+  assert.deepStrictEqual(['XL', '38', 'S', 'One size', 'M', '10', 'XXL', ''].sort(SC.cmpSize), ['S', 'M', 'XL', 'XXL', '10', '38', 'One size', ''], 'size order'); }
 // chunks and hash
 assert.deepStrictEqual(SC.chunk([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]); assert.strictEqual(SC.hash({ a: 1 }), SC.hash({ a: 1 })); assert.notStrictEqual(SC.hash({ a: 1 }), SC.hash({ a: 2 }));
 // locations and totals

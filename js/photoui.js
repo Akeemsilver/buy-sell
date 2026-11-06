@@ -88,19 +88,23 @@
     A.toast(tn('photo.added', ids.length) + (failed ? ' · ' + tn('photo.failed', failed) : ''));
     if (ids.length) startCheck(r.assigned.map((a) => a.itemId));
   }
+  // Pieces of one design share a picture: a change reaches every unsold piece, and a picture is only deleted when no item uses it any more.
+  const mates = (it) => L.groupOf(A.state(), it);
+  const stillUsed = (id) => A.state().items.some((x) => x.photo && x.photo.id === id);
+  const dropBlob = (id) => { if (id && !stillUsed(id)) { forget(id); S.del(id).catch(() => {}); } };
   async function replaceOne(itemId) {
     const files = await pickFiles(false, false); if (!files.length) return;
     const it = item(itemId); if (!it) return; busy++;
     A.toast(t('photo.adding', { done: 1, total: 1 }));
     try {
       const id = await createPhoto(files[0]), old = it.photo && it.photo.id;
-      it.photo = { id, checked: false }; A.save(); if (old) { forget(old); S.del(old).catch(() => {}); }
+      mates(it).forEach((x) => { x.photo = { id, checked: false }; }); A.save(); dropBlob(old);
       A.closeSheet(); A.render(); startCheck([itemId]);
     } catch (e) { A.toast(t('photo.readErr')); } finally { busy--; }
   }
   function removeOne(itemId) {
     const it = item(itemId); if (!it || !it.photo || !A.confirm(t('photo.removeAsk'))) return;
-    const old = it.photo.id; it.photo = null; A.save(); forget(old); S.del(old).catch(() => {}); A.closeSheet(); A.render();
+    const old = it.photo.id; mates(it).forEach((x) => { if (x.photo && x.photo.id === old) x.photo = null; }); A.save(); dropBlob(old); A.closeSheet(); A.render();
   }
   function addSheet(batchId) {
     const row = (icon, title, sub, act) => `<button class="row tap" data-act="${act}" data-id="${batchId}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${title}</b><small>${sub}</small></div></button>`;
@@ -388,7 +392,7 @@
       rec.thumb = thumbB; rec.full = fullB;
       rec.edit = { rot: ed.rot || 0, frame: ed.frame, ratio: ed.ratio || 0, mode: ed.mode, marks: ed.marks.map((m) => ({ text: m.text, ticked: m.ticked, box: m.box, auto: m.auto, mode: m.mode })) };   // so Check or edit photo reopens exactly this
       await S.put(rec);
-      const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) { it.photo.checked = true; it.photo.savedAt = Date.now(); }
+      const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) { mates(it).concat(it).forEach((x) => { if (x.photo && x.photo.id === ed.photoId) { x.photo.checked = true; x.photo.savedAt = Date.now(); } }); }
       forget(ed.photoId); A.save(); next();
     } catch (e) { A.toast('⚠️ ' + t('photo.saveFail')); if (btn) { btn.disabled = false; btn.textContent = t('ed.save'); } }
   }
@@ -415,7 +419,7 @@
   // The owner's choice (Storage used): remove the thumbnails of items sold over a year ago. The record of the sale stays.
   async function removeOldThumbs() {
     const st = A.state(), list = L.oldThumbItems(st, Date.now()); let n = 0, bytes = 0;
-    for (const i of list) { try { const rec = await S.get(i.photo.id); if (rec && rec.thumb) bytes += rec.thumb.size || 0; await S.del(i.photo.id); } catch (e) { continue; } forget(i.photo.id); i.photo = null; n++; }
+    for (const i of list) { try { const rec = await S.get(i.photo.id); if (rec && rec.thumb) bytes += rec.thumb.size || 0; if (!st.items.some((x) => x !== i && x.photo && x.photo.id === i.photo.id && !list.includes(x))) await S.del(i.photo.id); } catch (e) { continue; } forget(i.photo.id); i.photo = null; n++; }
     A.save(); A.render(); return { n, bytes };
   }
 

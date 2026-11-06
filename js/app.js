@@ -226,9 +226,16 @@
   }
   const gateErr = (m) => { const e = $('#g-err'); if (e) { e.textContent = m; e.hidden = !m; } };
   document.addEventListener('focusin', (e) => { if (e.target.closest && e.target.closest('#gate') && /INPUT/.test(e.target.tagName)) setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); });
-  document.addEventListener('keydown', (e) => {   // Edit batch: the keyboard's Next/Enter goes description → price → cost → Save & next
-    if (e.key !== 'Enter' || !e.target.dataset || !e.target.closest || !e.target.closest('.qe')) return; const order = ['desc', 'price', 'cost'], k = order.indexOf(e.target.dataset.f); if (k < 0) return; e.preventDefault();
-    if (k < order.length - 1) { const nx = $('.qe [data-f=' + order[k + 1] + ']'); if (nx) nx.focus(); } else { const b = $('.qe .qgo .pr'); if (b) b.click(); }
+  /* Number boxes (prices, costs, amounts, phone numbers) show a tick on the keyboard, and the tick just closes the keyboard: the page stays
+     where it is (it does not jump to the next box and it does not submit anything). */
+  const NUMSEL = 'input[inputmode=decimal],input[inputmode=numeric],input[inputmode=tel],input[type=tel],input[type=number]';
+  const hintNums = (root) => root.querySelectorAll(NUMSEL).forEach((el) => { if (el.getAttribute('enterkeyhint') !== 'done') el.setAttribute('enterkeyhint', 'done'); });
+  new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) { if (n.matches(NUMSEL)) n.setAttribute('enterkeyhint', 'done'); hintNums(n); } }))).observe(document.body, { childList: true, subtree: true });
+  hintNums(document);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !e.target || !e.target.matches) return;
+    if (e.target.matches(NUMSEL)) { e.preventDefault(); e.target.blur(); return; }   // the tick: close the keyboard, stay on this page
+    if (e.target.dataset && e.target.dataset.f === 'desc' && e.target.closest('.qe')) { e.preventDefault(); const nx = $('.qe [data-f=cost]'); if (nx) nx.focus(); }   // Edit items: description, then cost
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'w-es') { e.preventDefault(); const b = $('[data-act=word-add]'); if (b) b.click(); } });
   document.addEventListener('input', (e) => { if (e.target.name === 'biz' && e.target.form && e.target.form.id === 'f-setup') { gateDraft.name = e.target.value; const n = $('#pv-name'); if (n) n.textContent = e.target.value || t('gate.bizPh'); } });
@@ -283,7 +290,7 @@
   function renderActionBar() {
     const bar = $('#actionbar'); let html = '';
     if (tab === 'home') html = `<button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button>`;
-    else if (tab === 'stock' && selected.size) html = `<button class="btn primary" data-act="goto-sell">${tn('bar.sell', selected.size)}</button>`;
+    else if (tab === 'stock' && selected.size) html = `<div class="dual"><button class="btn sale" data-act="sale-open">🏷 ${t('sale.btn')}</button><button class="btn primary go" data-act="goto-sell">${tn('bar.sell', selected.size)}</button></div>`;
     else if (tab === 'sell' && selected.size) {
       const p = preview();
       html = `<button class="btn primary" data-act="make-invoice" ${p.errors.length ? 'disabled' : ''}>${t('bar.create', { amount: money(p.total) })}</button>`;
@@ -349,10 +356,60 @@
       <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>
         ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button><button class="chip" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.short')}</button></div>
       <div class="chips">${chips(['All', ...STATUSES, ...(ps.needCheck ? ['NeedCheck'] : [])], stockFilter, 'pick-filter', (x) => (x === 'All' ? t('filter.all') : x === 'NeedCheck' ? t('filter.needCheck') + ' (' + ps.needCheck + ')' : stLabel(x)))}</div>
-      <div class="list">${items.map((i) => itemCard(b, i)).join('') || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
+      ${selBar(items)}<div class="list">${stockRows(b, items) || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
   }
 
   // The discount a sold item was bought with (shown as a red strip on its picture): the sale percentage, or the real percentage off the selling price if Sold for was changed by hand.
+  // Sale for everything picked in Stock: percentage chips, an example, one big button.
+  let salePct = 25;
+  function saleExample() {
+    const its = [...selected].map((id) => state.items.find((i) => i.id === id)).filter((i) => i && !L.isSold(i)); if (!its.length) return '';
+    const same = its.every((x) => SCore.sameName(x.desc) === SCore.sameName(its[0].desc) && L.r2(Number(x.price) || 0) === L.r2(Number(its[0].price) || 0)), p = Number(its[0].price) || 0;
+    const sub = same && its[0].desc ? esc(its[0].desc) + ' ×' + its.length + (p ? ' · ' + money(p) + ' ' + t('sale.each') : '') : tn('sale.items', its.length);
+    return { sub, p: same && p ? p : 0 };
+  }
+  function salePctDraw(other) {
+    const el = $('#bulksale'); if (!el) return; const ex = saleExample();
+    el.innerHTML = saleBody(ex, other);
+    if (other) { const f = $('#sale-in'); if (f) f.focus(); }
+  }
+  function saleBody(ex, other) {
+    const chips = [10, 20, 25, 50].map((c) => `<button type="button" class="${!other && salePct === c ? 'on' : ''}" data-act="sale-pick" data-v="${c}">${c}%</button>`).join('') + `<button type="button" class="${other ? 'on' : ''}" data-act="sale-other">${t('item.saleOther')}</button>`;
+    const pctNow = other ? 0 : salePct;
+    return `<div class="pc">${chips}</div>${other ? `<input id="sale-in" type="text" inputmode="decimal" placeholder="${t('item.discountPh')}" autocomplete="off">` : ''}
+      ${ex && ex.p && pctNow ? `<div class="ex"><span>${t('sale.price')}</span><span><s>${money(ex.p)}</s><b>${money(L.r2(ex.p * (1 - pctNow / 100)))}</b></span></div>` : ''}`;
+  }
+  function sheetSale() {
+    const its = [...selected].map((id) => state.items.find((i) => i.id === id)).filter((i) => i && !L.isSold(i)); if (!its.length) return;
+    const ex = saleExample(), cur = its.find((x) => x.saleOn && x.discount); salePct = cur ? Number(cur.discount) : 25;
+    const std = [10, 20, 25, 50].includes(salePct) ? false : true;
+    openSmall(`<h3>${tn('sale.title', its.length)}</h3><p>${ex.sub}</p><div id="bulksale">${saleBody(ex, std)}</div>
+      <div class="btns"><button class="btn primary" data-act="sale-apply">${tn('sale.title', its.length)}</button></div>
+      <a class="lnk2" data-act="sale-off" role="button" tabindex="0">${tn('sale.take', its.length)}</a>`, 'sheet');
+  }
+  // A design with many pieces (more than 10) is one row until opened; everything else is one row per item.
+  const GRP_BIG = 10; let grpOpen = new Set();
+  function stockRows(b, items) {
+    const counts = {}; items.forEach((i) => { if (i.grp && !L.isSold(i)) counts[i.grp] = (counts[i.grp] || 0) + 1; });
+    const done = new Set(); let out = '';
+    items.forEach((i) => {
+      const big = i.grp && !L.isSold(i) && counts[i.grp] > GRP_BIG;
+      if (!big) { out += itemCard(b, i); return; }
+      if (grpOpen.has(i.grp)) { if (!done.has(i.grp)) { done.add(i.grp); out += `<button class="row tap grpclose" data-act="grp-toggle" data-id="${i.grp}">▲ ${grpName(i)} ×${counts[i.grp]} · ${t('grp.collapse')}</button>`; } out += itemCard(b, i); return; }
+      if (done.has(i.grp)) return; done.add(i.grp);
+      const mem = items.filter((x) => x.grp === i.grp && !L.isSold(x)), all = mem.every((x) => selected.has(x.id)), cnt = L.sizeCounts(state, i), sale = L.salePrice(i);
+      out += `<div class="item grp ${all ? 'sel' : ''}" data-grp="${i.grp}"><label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-selgrp="${i.grp}" ${all ? 'checked' : ''}></label>
+        <button class="main" data-act="grp-toggle" data-id="${i.grp}">${PUI.thumb(i)}<span class="txt"><b>${grpName(i)} <em class="gxn">×${mem.length}</em></b><small>${esc(sizeSummary(cnt)) || t('size.none')}</small></span></button>
+        <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${sale ? money(sale) : i.price ? money(i.price) : ''}</b></div><span class="chev">›</span></div>`;
+    });
+    return out;
+  }
+  // Above the list once something is picked: how many, Select all, Clear.
+  function selBar(items) {
+    if (!selected.size) return '';
+    const pool = items.filter((i) => !L.isSold(i));
+    return `<div class="selbar"><span><b>${t('sel.n', { n: selected.size })}</b> ${t('sel.ofM', { m: pool.length })}</span><span><button data-act="sel-all">${t('sel.all', { m: pool.length })}</button> <button data-act="sel-clear">${t('sel.clear')}</button></span></div>`;
+  }
   const boughtOffPct = (i) => {
     const price = Number(i.price) || 0, sold = Number(i.sold) || 0;
     if (!L.isSold(i) || !i.saleOn || price <= 0 || sold <= 0 || sold >= price) return 0;
@@ -364,8 +421,8 @@
     const sale = L.salePrice(i), priceHtml = i.sold ? money(i.sold) : sale ? money(sale) : i.price ? money(i.price) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : '';
     return `<div class="item ${sel ? 'sel' : ''} ${i.status === 'Paid' ? 'paid' : ''}" data-id="${i.id}">
       <label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-sel ${sel ? 'checked' : ''}></label>
-      <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/<\/span>$/, (sale && !L.isSold(i) ? `<small class="saleoff ph-sale">−${Number(i.discount)}%</small>` : offStrip(i)) + '</span>')}<span class="txt"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}</b>
-        <small>${i.id}${i.customer ? ' · ' + esc(i.customer) : ''}${i.invoice ? ' · ' + i.invoice : ''}</small></span></button>
+      <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/<\/span>$/, (sale && !L.isSold(i) ? `<small class="saleoff ph-sale">−${Number(i.discount)}%</small>` : offStrip(i)) + '</span>')}<span class="txt"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}${String(i.desc || '').trim() && !String(i.size || '').trim() && !L.isSold(i) ? ` <i class="szwarn" title="${t('size.missingTip')}">!</i>` : ''}</b>
+        <small>${i.id}${i.size ? ' · <b class="szb">' + esc(szLabel(i.size)) + '</b>' : ''}${i.customer ? ' · ' + esc(i.customer) : ''}${i.invoice ? ' · ' + i.invoice : ''}</small></span></button>
       <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${priceHtml}</b></div>
       <button class="share-btn" data-act="photo-share" data-id="${i.id}" aria-label="${t('photo.share')}" ${noPhoto ? 'disabled' : ''}>${SHARE}</button></div>`;
   }
@@ -396,7 +453,7 @@
     const items = [...selected].map((id) => state.items.find((i) => i.id === id)).filter(Boolean);
     const sub = items.reduce((n, i) => n + L.effectivePrice(i), 0), client = L.cleanName(invForm.client);
     const row = (i) => { const eff = L.effectivePrice(i), sale = L.salePrice(i) > 0 && !L.isSold(i), was = Number(i.price) || 0;
-      return `<div class="it"><button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/^<span class="ph/, '<span class="pic ph').replace(/<\/span>$/, (sale ? `<span class="s">−${Number(i.discount)}%</span>` : '') + '</span>')}<span class="t"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></span><span class="p">${eff > 0 ? money(eff) : `<span class="bad">${t('sell.noPrice')}</span>`}${sale && was > eff ? `<small><s>${money(was)}</s></small>` : ''}</span></button>
+      return `<div class="it"><button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/^<span class="ph/, '<span class="pic ph').replace(/<\/span>$/, (sale ? `<span class="s">−${Number(i.discount)}%</span>` : '') + '</span>')}<span class="t"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></span><span class="p">${eff > 0 ? money(eff) : `<span class="bad">${t('sell.noPrice')}</span>`}${sale && was > eff ? `<small><s>${money(was)}</s></small>` : ''}</span></button>
         <button class="x" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button></div>`; };
     return `${storeStrip()}<div class="sx"><div class="steps"><span class="on">① ${t('sell.s1')}</span><span class="${client ? 'on' : ''}">② ${t('sell.s2')}</span><span class="${client ? 'on' : ''}">③ ${t('sell.s3')}</span></div>
       <h4><span>${t('sell.items', { n: items.length })}</span><span class="tapedit">${t('sell.tapEdit')}</span></h4>
@@ -490,7 +547,8 @@
         ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
         ${trow('🗣️', t('set.custLang'), { ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}</div>
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
-        ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}</div>
+        ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}
+        <div class="row srow"><span class="tile">🛍️</span><div class="grow"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div>
       <h2>${t('set.sec.data')}</h2><div class="list grp">
         ${trow('🖼️', t('set.keepRow'), t('keep.' + photoKeep()), 'data-act="pick-keep"')}
         ${trow('💾', t('set.backupRow'), t('set.backupSub'), nav('set-backup'))}
@@ -805,7 +863,7 @@
   /* Word library and the Spanish name of an item (shown to Spanish-speaking visitors of the store). */
   const Wd = window.Words;
   function wordList() {
-    if (!state.settings.wordsSeeded) { state.settings.words = Wd.seed(state.settings.words || []); state.settings.wordsSeeded = true; save(); }
+    if (state.settings.wordsSeeded !== 3) { state.settings.words = Wd.seed(state.settings.words || []); state.settings.wordsSeeded = 3; save(); }   // 3 = the big starter list that knows grammar
     return state.settings.words || [];
   }
   const esBadge = (i) => { const sp = Wd.spanish(i, wordList()); return sp.state === 'none' ? '' : `<u class="${sp.state === 'ok' ? 'ok' : ''}">${sp.state === 'ok' ? '✓' : '!'}</u>`; };
@@ -820,15 +878,16 @@
       <div class="btns"><button class="btn primary" data-act="es-done" data-id="${id}">${t('es.done')}</button></div>
       <a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
   }
+  const typeSelect = (id, cur, attrs) => `<select ${id ? `id="${id}"` : ''} ${attrs || ''} aria-label="${t('words.type')}">${['nm', 'nf', 'npm', 'npf', 'a', 'ai', 'm', 'p', 'c', 'x'].map((k) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${t('words.t.' + k)}</option>`).join('')}</select>`;
   function sheetAddWords(id) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const miss = Wd.spanish(i, wordList()).missing; if (!miss.length) return sheetSpanish(id);
     openSmall(`<h3>${t('es.addTitle')}</h3><p>${t('es.addSub')}</p>
-      ${miss.map((w) => `<div class="w"><b>${esc(w)}</b><i>→</i><input data-w="${esc(w)}" placeholder="${t('words.spanish')}" autocomplete="off"></div>`).join('')}
+      ${miss.map((w) => `<div class="wb"><div class="w"><b>${esc(w)}</b><i>→</i><input data-w="${esc(w)}" placeholder="${t('words.spanish')}" autocomplete="off"></div>${typeSelect('', 'a', 'data-wt')}</div>`).join('')}
       <div class="btns"><button class="btn primary" data-act="es-savewords" data-id="${id}">${t('es.save')}</button></div><a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
   }
   let wordQ = '', wordGroup = 'all';
-  const wordGroups = ['clothes', 'colours', 'sizes', 'more', ''];
+  const wordGroups = ['clothes', 'shoes', 'colours', 'styles', 'materials', 'more', ''];
   function wordsListHTML() {
     const q = Wd.norm(wordQ), list = wordList().filter((w) => (wordGroup === 'all' || (wordGroup === 'yours' ? !w.c : w.c === wordGroup)) && (!q || Wd.norm(w.en).includes(q) || Wd.norm(w.es).includes(q)));
     const html = wordGroups.map((g) => {
@@ -837,23 +896,195 @@
     }).join('');
     return html || `<div class="empty">${t('words.empty')}</div>`;
   }
-  const wordsChips = () => ['all', 'clothes', 'colours', 'sizes', 'yours'].map((g) => `<button class="${wordGroup === g ? 'on' : ''}" data-act="word-group" data-id="${g}">${g === 'all' ? t('words.all') : g === 'yours' ? t('words.yours') : t('words.c.' + g)}</button>`).join('');
+  const wordsChips = () => ['all', 'clothes', 'shoes', 'colours', 'styles', 'materials', 'more', 'yours'].map((g) => `<button class="${wordGroup === g ? 'on' : ''}" data-act="word-group" data-id="${g}">${g === 'all' ? t('words.all') : g === 'yours' ? t('words.yours') : t('words.c.' + g)}</button>`).join('');
   function sheetWords(swap) {
     enterPage('words', '', () => sheetWords(), swap);
     const list = wordList();
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('words.title')}</b><small id="wcount">${t('words.count', { n: list.length })}</small></div></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('words.title')}</b><small id="wcount">${t('words.count', { n: list.length })}</small></div><button class="dots" data-act="words-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="ap lib">${state.settings.wordsHideNote ? '' : `<div class="starter">📚<b>${t('words.starter', { n: Wd.STARTER.length })}</b><button data-act="word-hide">${t('words.hide')}</button></div>`}
+      <h4><span>${t('words.try')}</span></h4><div class="card try"><input id="w-try" placeholder="${t('words.tryPh')}" autocomplete="off"><div id="w-tryout" class="tryout">${t('words.tryHelp')}</div>
+        <div class="exs">${['Blue dress', 'Red top and black pants', 'Black lace long sleeve top', 'Navy dresses'].map((x) => `<button type="button" data-act="word-try" data-id="${x}">${x}</button>`).join('')}</div></div>
       <div class="srch2"><span>🔍</span><input id="w-q" value="${esc(wordQ)}" placeholder="${t('words.search')}" autocomplete="off"></div>
       <div class="tabs" id="wchips">${wordsChips()}</div>
-      <h4><span>${t('words.add')}</span></h4><div class="card"><div class="add"><input id="w-en" placeholder="${t('words.english')}" autocomplete="off"><i>→</i><input id="w-es" placeholder="${t('words.spanish')}" autocomplete="off" enterkeyhint="done"><button class="go" data-act="word-add" aria-label="${t('words.add')}">＋</button></div></div>
+      <h4><span>${t('words.add')}</span></h4><div class="card"><div class="add"><input id="w-en" placeholder="${t('words.english')}" autocomplete="off"><i>→</i><input id="w-es" placeholder="${t('words.spanish')}" autocomplete="off" enterkeyhint="done"><button class="go" data-act="word-add" aria-label="${t('words.add')}">＋</button></div><div class="addt">${typeSelect('w-t', 'a')}</div></div>
       <div id="wlist">${wordsListHTML()}</div></div>`, null, true);
   }
+  function tryName() {
+    const f = $('#w-try'), out = $('#w-tryout'); if (!f || !out) return; const v = f.value.trim();
+    if (!v) { out.textContent = t('words.tryHelp'); return; }
+    const r = Wd.translate(v, wordList()); out.innerHTML = `<b>${esc(r.es)}</b>${r.missing.length ? `<small>${t('es.missing', { words: r.missing.map((x) => '“' + esc(x) + '”').join(', ') })}</small>` : ''}`;
+  }
   const wordsRefresh = () => { const l = $('#wlist'); if (l) l.innerHTML = wordsListHTML(); const c = $('#wchips'); if (c) c.innerHTML = wordsChips(); const n = $('#wcount'); if (n) n.textContent = t('words.count', { n: wordList().length }); };
+  // How the store works (sizes, identical items as one card): both languages, tabs.
+  let shLang = null;
+  function sheetStoreHelp(swap) {
+    enterPage('storehelp', '', () => sheetStoreHelp(), swap);
+    const L2 = shLang || (I.getLang() === 'es' ? 'es' : 'en'), tt = (k, v) => t(k, v, L2), li = (k) => tt(k).split('|').map((x) => `<li>${x}</li>`).join('');
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${tt('sh.title')}</b><small>English · Español</small></div></div>
+      <div class="ap lib wh"><div class="tabs">${['en', 'es'].map((l) => `<button class="${L2 === l ? 'on' : ''}" data-act="sh-lang" data-id="${l}">${l === 'en' ? 'English' : 'Español'}</button>`).join('')}</div>
+      <p>${tt('sh.intro')}</p>
+      <h4><span>${tt('sh.s1')}</span></h4><div class="card whc"><ul>${li('sh.s1b')}</ul></div>
+      <h4><span>${tt('sh.s2')}</span></h4><div class="card whc"><ul>${li('sh.s2b')}</ul></div>
+      <h4><span>${tt('sh.ex')}</span></h4><div class="card whc"><ol>${li('sh.exb')}</ol></div>
+      <h4><span>${tt('sh.s3')}</span></h4><div class="card whc"><ul>${li('sh.s3b')}</ul></div></div>`, null, true);
+  }
+  // How the library works: written in both languages (tabs), with live examples worked out from the owner's own words.
+  let whLang = null;
+  function sheetWordsHelp(swap) {
+    enterPage('wordshelp', '', () => sheetWordsHelp(), swap);
+    const L2 = whLang || (I.getLang() === 'es' ? 'es' : 'en'), tt = (k, v) => t(k, v, L2), list = wordList();
+    const ex = ['Blue dress', 'Red top', 'Red and blue jacket', 'Red, white and blue dress', 'Long sleeve shirt', 'Long sleeve jacket', 'Short sleeve shirt', 'Short pants', 'Blue short pants', 'Black dresses', 'Blue linen set'];
+    const para = (k) => `<p>${tt(k)}</p>`, li = (k) => tt(k).split('|').map((x) => `<li>${x}</li>`).join('');
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${tt('wh.title')}</b><small>English · Español</small></div></div>
+      <div class="ap lib wh"><div class="tabs">${['en', 'es'].map((l) => `<button class="${L2 === l ? 'on' : ''}" data-act="wh-lang" data-id="${l}">${l === 'en' ? 'English' : 'Español'}</button>`).join('')}</div>
+      ${para('wh.intro')}
+      <h4><span>${tt('wh.s1')}</span></h4><div class="card whc"><ul>${li('wh.s1b')}</ul></div>
+      <h4><span>${tt('wh.s2')}</span></h4><div class="card whc"><ol>${li('wh.s2b')}</ol></div>
+      <h4><span>${tt('wh.exT')}</span></h4><div class="card whc"><div class="wex"><b>Blue short pants</b><span>→ ${esc(Wd.translate('Blue short pants', list).es)}</span></div><ol>${li('wh.exB')}</ol></div>
+      <h4><span>${tt('wh.more')}</span></h4><div class="card">${ex.map((e) => `<div class="pair"><span class="pm"><b>${e}</b><i>→</i><span class="t2">${esc(Wd.translate(e, list).es)}</span></span></div>`).join('')}</div>
+      <h4><span>${tt('wh.tipsT')}</span></h4><div class="card whc"><ul>${li('wh.tips')}</ul></div>
+      <p class="muted small">${tt('wh.limit')}</p></div>`, null, true);
+  }
   function sheetWordEdit(en) {
     const w = wordList().find((x) => Wd.norm(x.en) === Wd.norm(en)); if (!w) return;
-    openSmall(`<h3>${t('words.edit')}</h3><label>${t('words.english')}</label><input id="we-en" value="${esc(w.en)}" autocomplete="off"><label>${t('words.spanish')}</label><input id="we-es" value="${esc(w.es)}" autocomplete="off">
+    openSmall(`<h3>${t('words.edit')}</h3><label>${t('words.english')}</label><input id="we-en" value="${esc(w.en)}" autocomplete="off"><label>${t('words.spanish')}</label><input id="we-es" value="${esc(w.es)}" autocomplete="off"><label>${t('words.type')}</label>${typeSelect('we-t', Wd.typeOf(w))}
       <div class="btns"><button class="btn primary" data-act="word-save" data-id="${esc(w.en)}">${t('btn.save')}</button><button class="btn danger" data-act="word-del2" data-id="${esc(w.en)}">${t('btn.delete')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
   }
+  /* ---------- Sizes, "How many of these?" and groups (one design = several pieces, each its own item) ---------- */
+  const SZ_STD = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One size'];
+  const SZ_SHOE_CH = ['6', '7', '8', '9', '10', '11', '12'];
+  const SZ_KIDS_CH = ['6M', '12M', '2Y', '4Y', '6Y', '8Y', '10Y'];
+  const SHOE_RE = /shoe|sandal|boot|heel|sneaker|slipper|flat|loafer|slide|croc|wedge|pump|mule|clog|trainer|zapato|bota|tenis|chancla|tacon/i;
+  const KIDS_RE = /baby|kid|girl|boy|child|toddler|infant|onesie|beb[eé]|ni[nñ]|infantil/i;
+  const sizeKind = (desc) => { const d = String(desc || ''); return SHOE_RE.test(d) ? 'shoe' : KIDS_RE.test(d) ? 'kids' : 'cloth'; };
+  const range = (a, b, step) => { const o = []; for (let x = a; x <= b + 1e-9; x += step) o.push(String(Math.round(x * 10) / 10)); return o; };
+  const SZ_SETS = {
+    cloth: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', 'One size'],
+    kids: ['0-3M', '3-6M', '6-9M', '9-12M', '12-18M', '18-24M', '2Y', '3Y', '4Y', '5Y', '6Y', '7Y', '8Y', '10Y', '12Y', '14Y'],
+    shoeUS: range(5, 13, 0.5), shoeEU: range(35, 46, 1).map((x) => 'EU ' + x), shoeUK: range(3, 12, 0.5).map((x) => 'UK ' + x),
+  };
+  const szLabel = (z) => (z === 'One size' ? t('size.one') : z);
+  const grpOf = (i) => L.groupOf(state, i);
+  const grpName = (i) => esc(String(i.desc || '').trim() || t('item.untitled'));
+  const sizeSummary = (list) => list.filter((c) => c.s).map((c) => szLabel(c.s) + ' ×' + c.n).join(' · ');
+  // The items one "Edit batch" page walks through: a design with several pieces is one stop.
+  const quickIds = (batchId) => state.items.filter((x) => x.batchId === batchId && !L.isSold(x)).filter((x) => !x.grp || grpOf(x)[0] === x).map((x) => x.id).sort();
+  const idNo = (id) => String(id).split('-')[1] || id;
+  function grpNote(i) {
+    const g = grpOf(i); if (g.length < 2) return '';
+    const cnt = L.sizeCounts(state, i), sm = sizeSummary(cnt);
+    return `<div class="gnote" id="gnote">🧩<div><b>${grpName(i)} · ${tn('grp.items', g.length)}</b> (${idNo(g[0].id)}–${idNo(g[g.length - 1].id)})${sm ? '<br>' + sm : ''}<small>${t('grp.note', { n: g.length })}</small></div></div>`;
+  }
+  // The Size section. One piece: chips that slide sideways + More…; several pieces: a button that opens the Split-by-size picker.
+  let qeTried = false;
+  function szSection(i, single, req) {
+    const members = single ? [i] : grpOf(i), n = members.length, missing = members.filter((x) => !String(x.size || '').trim()).length;
+    const bad = req && qeTried && missing, head = `<label>${t('size.label')}${req && missing ? ` <span class="req">${t('size.required')}</span>` : ''}</label>`;
+    let body;
+    if (n === 1) {
+      const cur = String(i.size || '').trim(), k = sizeKind(i.desc), set = k === 'shoe' ? SZ_SHOE_CH : k === 'kids' ? SZ_KIDS_CH : SZ_STD, std = set.find((z) => z.toLowerCase() === cur.toLowerCase());
+      body = `<div class="szchips">${set.map((z) => `<button type="button" class="${std === z ? 'on' : ''}" data-act="size-set" data-id="${i.id}" data-v="${z}">${szLabel(z)}</button>`).join('')}<button type="button" class="${cur && !std ? 'on' : ''}" data-act="szp-open" data-id="${i.id}" data-single="1">${cur && !std ? esc(cur) : t('size.more')}</button></div>`;
+    } else {
+      const sm = sizeSummary(L.sizeCounts(state, i)), placed = n - missing;
+      body = `<button type="button" class="btnz ${missing ? '' : 'ok'}" data-act="szp-open" data-id="${i.id}"><span>${t('size.split')}</span><small class="${missing ? 'bad' : ''}">${missing ? t('size.placed', { n: placed, total: n }) : esc(sm)}</small></button>`;
+    }
+    return `<div class="szrow ${bad ? 'err' : ''}" id="szrow" data-kind="${sizeKind(i.desc)}" data-single="${single ? 1 : ''}" data-req="${req ? 1 : ''}">${head}${body}${bad ? `<p class="errtxt">${t('size.choose')}</p>` : ''}</div>`;
+  }
+  const scrollSize = () => { const on = document.querySelector('#szrow .szchips .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' }); };
+  function refreshSize(i) { const el = $('#szrow'); if (el) { el.outerHTML = szSection(i, !!el.dataset.single, !!el.dataset.req); scrollSize(); } const gn = $('#gnote'); if (gn) gn.outerHTML = grpNote(i); refreshStripTile(i); refreshGo(i); }
+  // After typing: refresh the notes around the Size row, and rebuild the row itself only when its chips change (a rebuild under a finger loses the tap).
+  function refreshAfterEdit(i) { const el = $('#szrow'); if (el && el.dataset.kind !== sizeKind(i.desc)) return refreshSize(i); const gn = $('#gnote'); if (gn) gn.outerHTML = grpNote(i); refreshStripTile(i); refreshGo(i); }
+  const refreshStripTile = (i) => { const q = document.querySelector(`#qstrip .qt[data-id="${i.id}"]`); if (q) q.className = 'qt ' + (q.classList.contains('on') ? 'on ' : '') + stripState(i); };
+  const stripState = (i) => (!String(i.desc || '').trim() ? '' : L.needsSize(state, i) ? 'warn' : 'done');
+  function refreshGo(i) { const b = document.querySelector('.qgo .pr'); if (b) b.classList.toggle('blocked', L.needsSize(state, i)); }
+  // Quick page: rebuild in place (keeps the scroll position).
+  function reQuick(i) { const y = $('#sheet').scrollTop; sheetQuick(i.batchId, i.id, true); $('#sheet').scrollTop = y; }
+  // "How many of these?"
+  const qtyHtml = (i) => `<div class="stp" id="qtybox"><button type="button" data-act="qty-dec" data-id="${i.id}" aria-label="−">−</button><input data-qty="${i.id}" type="text" inputmode="numeric" value="${grpOf(i).length}" aria-label="${t('qty.label')}"><button type="button" data-act="qty-inc" data-id="${i.id}" aria-label="+">+</button></div>`;
+  function slotsCard(free, need) {
+    return new Promise((ok) => {
+      let done = false; const fin = (v) => { if (!done) { done = true; ok(v); } }; window.__slots = fin;
+      openSmall(`<h3>${tn('qty.onlyLeft', free)}</h3><p>${t('qty.onlyLeftNote', { need })}</p>
+        <div class="btns"><button class="btn primary" data-act="slots-add">${tn('qty.addSpots', need - free)}</button>${free ? `<button class="btn" data-act="slots-use">${t('qty.useLeft', { n: free })}</button>` : ''}<button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card', () => fin(null));
+    });
+  }
+  async function setQty(i, want) {
+    want = Math.max(1, Math.min(300, parseInt(want, 10) || 1));
+    const cur = grpOf(i).length; if (want === cur) return reQuick(i);
+    if (want > cur) {
+      let need = want - cur; const free = L.freeSlots(state, i.batchId).filter((x) => x !== i).length;
+      if (free < need) {
+        const ch = await slotsCard(free, need);
+        if (ch === 'add') L.addItems(state, i.batchId, need - free); else if (ch === 'use' && free) need = free; else return reQuick(i);
+      }
+      try { L.makeCopies(state, i.id, need); } catch (e) { toast('⚠️ ' + errMsg(e)); return reQuick(i); }
+      save(); render(); reQuick(i); return szpOpen(i, false);
+    }
+    const ok = await askCard(tn('qty.dropAsk', cur - want, { name: String(i.desc || '').trim() || t('item.untitled') }), { danger: true, ok: t('qty.dropOk') });
+    if (ok) { L.dropCopies(state, i.id, cur - want); save(); render(); }
+    reQuick(i);
+  }
+
+  /* The Split-by-size picker: tap a size = one more, hold (or tap the number) = type how many. */
+  const SZ_TABS = ['cloth', 'shoe', 'kids', 'mine'];
+  let szp = null, holdT = null, holdFired = false;
+  const szpList = () => szp.tab === 'cloth' ? SZ_SETS.cloth : szp.tab === 'kids' ? SZ_SETS.kids : szp.tab === 'mine' ? (state.settings.mySizes || []) : szp.sys === 'EU' ? SZ_SETS.shoeEU : szp.sys === 'UK' ? SZ_SETS.shoeUK : SZ_SETS.shoeUS;
+  const szpTotal = () => Object.values(szp.d).reduce((a, b) => a + b, 0);
+  function szpOpen(i, single) {
+    const g = single ? [i] : grpOf(i), d = {};
+    g.forEach((x) => { const z = String(x.size || '').trim(); if (z) d[z] = (d[z] || 0) + 1; });
+    szp = { id: i.id, single: !!single, n: g.length, d, tab: { cloth: 'cloth', shoe: 'shoe', kids: 'kids' }[sizeKind(i.desc)], sys: 'US', pop: null, view: 'grid', last: '' };
+    openSmall(`<div id="szp">${szpHtml()}</div>`, 'sheet', () => { szp = null; });
+  }
+  const szpDraw = () => { const el = $('#szp'); if (el) el.innerHTML = szpHtml(); };
+  function szpHtml() {
+    const it = state.items.find((x) => x.id === szp.id), n = szp.n;
+    if (szp.view === 'add') return `<h3>${t('szp.addTitle')}</h3><p>${t('szp.addSub')}</p>
+      <label>${t('szp.typed')}</label><input id="szp-typed" placeholder="${t('szp.typedPh')}" autocomplete="off">
+      <label>${t('szp.range')}</label><div class="grid3"><input id="szp-from" type="text" inputmode="decimal" placeholder="${t('szp.from')}"><input id="szp-to" type="text" inputmode="decimal" placeholder="${t('szp.to')}"><input id="szp-step" type="text" inputmode="decimal" placeholder="${t('szp.step')}"></div>
+      <div class="btns"><button class="btn primary" data-act="szp-addsave">${t('btn.save')}</button><button class="btn" data-act="szp-view">${t('btn.cancel')}</button></div>`;
+    const total = szpTotal(), rest = n - total, list = szpList();
+    const tabs = SZ_TABS.map((k) => `<button type="button" class="${szp.tab === k ? 'on' : ''}" data-act="szp-tab" data-v="${k}">${t('szp.tab.' + k)}</button>`).join('');
+    const sys = szp.tab === 'shoe' ? `<div class="szsys">${['US', 'EU', 'UK'].map((s) => `<button type="button" class="${szp.sys === s ? 'on' : ''}" data-act="szp-sys" data-v="${s}">${s}</button>`).join('')}</div>` : '';
+    const tiles = list.map((z) => `<button type="button" class="szt ${szp.d[z] ? 'on' : ''}" data-v="${esc(z)}" data-act="szp-tap">${esc(szLabel(z))}${szp.d[z] && !szp.single ? `<i class="bd" data-act="szp-pop" data-v="${esc(z)}">${szp.d[z]}</i>` : ''}</button>`).join('');
+    // sizes that were typed in elsewhere (not in the grid) still show so they can be changed
+    const extra = Object.keys(szp.d).filter((z) => !list.includes(z) && !Object.values(SZ_SETS).some((s) => s.includes(z)) && !(state.settings.mySizes || []).includes(z)).map((z) => `<button type="button" class="szt on" data-v="${esc(z)}" data-act="szp-tap">${esc(z)}${szp.single ? '' : `<i class="bd" data-act="szp-pop" data-v="${esc(z)}">${szp.d[z]}</i>`}</button>`).join('');
+    const sm = Object.keys(szp.d).filter((z) => szp.d[z] > 0).sort(L.cmpSize).map((z) => szLabel(z) + ' ×' + szp.d[z]).join(' · ');
+    let pop = '';
+    if (szp.pop) { const cur = szp.d[szp.pop] || 0, max = rest + cur; pop = `<div class="szpop"><b>${t('szp.howMany', { s: esc(szLabel(szp.pop)) })}</b><input id="szp-n" type="text" inputmode="numeric" value="${cur || ''}" placeholder="0" aria-label="${t('szp.howMany', { s: szLabel(szp.pop) })}">
+      <div class="chiprow">${max > 0 ? `<button type="button" class="chip" data-act="szp-all" data-v="${max}">${t('szp.all', { n: max })}</button>` : ''}<button type="button" class="chip" data-act="szp-zero">${t('szp.none')}</button></div>
+      <div class="btns"><button class="btn" data-act="szp-popx">${t('btn.cancel')}</button><button class="btn primary" data-act="szp-popset">✓ ${t('szp.set')}</button></div></div>`; }
+    const ok = szp.single ? total === 1 : total === n;
+    return `<h3>${szp.single ? t('szp.titleOne') : t('szp.title', { name: grpName(it) })}</h3>
+      <div class="sztabs">${tabs}</div>${sys}
+      <div class="szgrid">${tiles}${extra}<button type="button" class="szt add" data-act="szp-view" data-v="add">＋ ${t('szp.add')}</button></div>
+      ${pop}
+      ${szp.single ? '' : `<p class="szsum ${ok ? 'ok' : 'bad'}">${sm || t('szp.nothing')} <b>${t('szp.ofN', { n: total, total: n })}</b></p>${rest > 0 && szp.last ? `<button type="button" class="chip" data-act="szp-rest">${t('szp.putRest', { n: rest, s: szLabel(szp.last) })}</button>` : ''}<p class="muted small">${t('szp.hint')}</p>`}
+      <div class="btns"><button class="btn primary ${ok ? '' : 'blocked'}" data-act="szp-done">${t('btn.done')}</button></div>`;
+  }
+  function szpApply() {
+    const it = state.items.find((x) => x.id === szp.id); if (!it) return false;
+    if (szp.single) { const z = Object.keys(szp.d).find((k) => szp.d[k] > 0); if (!z) return false; it.size = z; save(); return true; }
+    if (szpTotal() !== szp.n) { toast(t('szp.mustMatch', { n: szp.n })); return false; }
+    try { L.setSizes(state, it, Object.keys(szp.d).filter((z) => szp.d[z] > 0).map((z) => ({ s: z, n: szp.d[z] }))); save(); return true; } catch (e) { toast('⚠️ ' + errMsg(e)); return false; }
+  }
+  const szpTap = (z) => {
+    if (szp.single) { szp.d = { [z]: 1 }; szp.last = z; return szpDraw(); }
+    if (szpTotal() >= szp.n) return toast(t('szp.full', { n: szp.n }));
+    szp.d[z] = (szp.d[z] || 0) + 1; szp.last = z; szp.pop = null; szpDraw();
+  };
+  const szpPopOpen = (z) => { if (!szp || szp.single) return; szp.pop = z; szp.last = z; szpDraw(); const f = $('#szp-n'); if (f) { f.focus(); f.select(); } };
+  function szpSaveTyped() {
+    const raw = ($('#szp-typed').value || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean), a = parseFloat(String($('#szp-from').value).replace(',', '.')), b = parseFloat(String($('#szp-to').value).replace(',', '.')), st = parseFloat(String($('#szp-step').value).replace(',', '.')) || 1;
+    let more = raw.slice(); if (isFinite(a) && isFinite(b) && b >= a && (b - a) / st <= 60) more = more.concat(range(a, b, st));
+    if (!more.length) return toast(t('szp.addNone'));
+    const mine = (state.settings.mySizes || []).slice(); more.forEach((z) => { if (!mine.some((m) => m.toLowerCase() === z.toLowerCase())) mine.push(z); });
+    state.settings.mySizes = mine.sort(L.cmpSize); save(); szp.tab = 'mine'; szp.view = 'grid'; szpDraw();
+  }
+  // Holding a size tile (about half a second) opens the "how many" box.
+  document.addEventListener('pointerdown', (e) => { holdFired = false; const b = e.target.closest && e.target.closest('.szt[data-act=szp-tap]'); if (!b || e.target.closest('.bd')) return; clearTimeout(holdT); holdT = setTimeout(() => { holdT = null; holdFired = true; szpPopOpen(b.dataset.v); }, 450); });
+  ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach((ev) => document.addEventListener(ev, () => { clearTimeout(holdT); holdT = null; }, true));
+  document.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.szt')) e.preventDefault(); });
   // Previous / next arrows (with "4 of 8") for the top bar, to flip through the items of one batch without going back.
   const navArrows = (ids, id, act) => { const n = ids.indexOf(id); if (n < 0 || ids.length < 2) return ''; return `<div class="nx"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span><button data-act="${act}" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><button data-act="${act}" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button></div>`; };
   const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isSold(x))).map((x) => x.id).sort();
@@ -861,11 +1092,11 @@
     const i = state.items.find((x) => x.id === id); if (!i) return;
     enterPage('item', id, () => sheetItem(id), swap);
     const b = batchOf(i), sold = L.isSold(i);
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
       <fieldset class="lockset" ${sold ? 'disabled' : ''}>
-      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>
+      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${sold ? '' : szSection(i, true, false)}${sold ? '' : grpNote(i)}
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <div id="saleblock">${saleHTML(i)}</div>
@@ -878,30 +1109,36 @@
       ${sold ? `<div class="btns">${i.invoice ? `<button class="btn" data-act="view-inv" data-id="${i.invoice}">${t('item.viewInv')}</button><button class="btn danger" data-act="return-inv" data-id="${i.invoice}">${t('item.returnInv')}</button>` : `<button class="btn danger" data-act="return-item" data-id="${i.id}">${t('item.returnItem')}</button>`}<button class="btn" data-act="close">${t('btn.done')}</button></div>`
       : `<div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
-    $('#sheet').dataset.item = id; updateSale(i);
+    $('#sheet').dataset.item = id; updateSale(i); scrollSize();
   }
   /* Edit batch: one unsold item at a time with its picture, description, price, cost and sale; Save & next moves on. */
   function sheetQuick(batchId, id, swap) {
-    const ids = batchIds(batchId, true), i = state.items.find((x) => x.id === id); if (!i || !ids.length) return;
+    let i = state.items.find((x) => x.id === id); if (!i) return;
+    if (i.grp) { const f = grpOf(i)[0]; if (f) i = f; id = i.id; }
+    const ids = quickIds(batchId); if (!ids.length) return;
     enterPage('quick', batchId, () => sheetQuick(batchId, id), swap);
     const b = batchOf(i), n = ids.indexOf(id);
-    const strip = ids.map((x, k) => { const it = state.items.find((y) => y.id === x); return `<button class="qt ${x === id ? 'on' : ''} ${String(it.desc || '').trim() ? 'done' : ''}" data-act="qe-go" data-id="${x}" data-b="${batchId}" aria-label="${x}">${it.photo ? `<img data-ph="${it.photo.id}" data-kind="thumb" alt="">` : `<em>${k + 1}</em>`}</button>`; }).join('');
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${navArrows(ids, id, 'qe-go')}</div>
+    const strip = ids.map((x, k) => { const it = state.items.find((y) => y.id === x), gn = grpOf(it).length; return `<button class="qt ${x === id ? 'on' : ''} ${stripState(it)}" data-id="${x}" data-act="qe-go" data-b="${batchId}" aria-label="${x}">${it.photo ? `<img data-ph="${it.photo.id}" data-kind="thumb" alt="">` : `<em>${k + 1}</em>`}${gn > 1 ? `<u class="gx">×${gn}</u>` : ''}</button>`; }).join('');
+    const blocked = L.needsSize(state, i);
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${navArrows(ids, id, 'qe-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
       <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
       <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}${esBtn(i)}</div>
-      <div class="grid2"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="next"></div><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div></div>
-      <button class="btn" type="button" data-act="use-rec" data-id="${i.id}" style="width:100%;margin-top:10px">${t('item.useRec')}</button>
+      <div class="mrow"><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label>${t('qty.label')}</label>${qtyHtml(i)}</div></div>
+      <div class="mrow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
+      ${szSection(i, false, true)}${grpNote(i)}
       <div id="saleblock" style="margin-top:6px">${saleHTML(i)}</div>
       <div class="sumbox" id="calc"></div></div>
-      <div class="qgo"><button class="sk" data-act="qe-next" data-id="${i.id}" data-skip="1">${t('qe.skip')}</button><button class="pr" data-act="qe-next" data-id="${i.id}">${n < ids.length - 1 ? t('qe.saveNext') : t('qe.saveDone')}</button></div></div>`, render, true);
-    $('#sheet').dataset.item = id; updateSale(i);
+      <div class="qgo"><button class="sk" data-act="qe-next" data-id="${i.id}" data-skip="1">${t('qe.skip')}</button><button class="pr ${blocked ? 'blocked' : ''}" data-act="qe-next" data-id="${i.id}">${n < ids.length - 1 ? t('qe.saveNext') : t('qe.saveDone')}</button></div></div>`, render, true);
+    $('#sheet').dataset.item = id; updateSale(i); scrollSize();
     const cur = $('#qstrip .qt.on'); if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
   function quickNext(id, skip) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     if (!skip && document.activeElement && document.activeElement.blur) document.activeElement.blur();   // saves the box being typed in
-    const ids = batchIds(i.batchId, true), n = ids.indexOf(id);
+    if (!skip && L.needsSize(state, i)) { qeTried = true; reQuick(i); const r = $('#szrow'); if (r) r.scrollIntoView({ block: 'center' }); return; }
+    qeTried = false;
+    const ids = quickIds(i.batchId), n = ids.indexOf(i.grp ? grpOf(i)[0].id : id);
     if (n >= 0 && n < ids.length - 1) { sheetQuick(i.batchId, ids[n + 1], true); window.scrollTo(0, 0); $('#sheet').scrollTop = 0; return; }
     toast(t('qe.allDone')); pageStack = []; closeSheet(); sheetBatch(i.batchId);
   }
@@ -1237,7 +1474,7 @@
     const c = storeCfg(), inf = Store.info(), link = Store.link(c), signed = cloud.signedIn;
     const cnt = (b) => ({ a: state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, t: state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length });
     const stat = !signed ? '' : inf.error === 'permission-denied' ? `<div class="err">${t('store.needRules')}</div>` : inf.error ? `<div class="err">${t('store.pubError')}</div>` : inf.busy ? `<p class="muted small">${t('store.publishing')}</p>` : inf.at ? `<p class="muted small">${t('store.published', { n: inf.count, when: ago(new Date(inf.at)) })} · ${t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall')}</p>` : '';
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.title')}</b><small>${t('store.sub')}</small></div></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.title')}</b><small>${t('store.sub')}</small></div><button class="dots" data-act="store-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="ap">${signed ? '' : `<div class="card"><div class="rw"><div class="t"><b>${t('store.needAccount')}</b><small>${t('store.needAccountSub')}</small></div><button class="pbtn" data-act="acct-open">${t('acct.signIn')}</button></div></div>`}
       ${c.id ? `<div class="link"><span>${esc(link)}</span><button data-act="store-link">${t('store.copy')}</button></div>` : `<button class="btn primary" style="width:100%" data-act="store-create" ${signed ? '' : 'disabled'}>${t('store.create')}</button>`}
       ${c.id ? stat : ''}
@@ -1245,6 +1482,8 @@
       <h4><span>${t('store.batches')}</span></h4><div class="card">${state.batches.map((b) => { const n = cnt(b), on = c.batches.includes(b.id); return `<button class="rw sbat" data-act="store-batch" data-id="${b.id}"><span class="ck ${on ? 'on' : ''}">${on ? '✓' : ''}</span><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a: n.a, t: n.t })}</small></div></button>`; }).join('') || `<div class="rw muted">${t('store.noBatches')}</div>`}</div>
       ${(() => { const n = SCore.shown(state, c).length; return n ? `<p class="muted small" style="margin:-2px 2px 10px">${t('store.willShow', { n })}</p>` : `<div class="err" style="margin:-2px 0 10px">${t('store.noneShown')}</div>`; })()}
       <div class="card"><div class="rw"><div class="t"><b>${t('store.transit')}</b><small>${t('store.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div></div>
+      <div class="card"><div class="rw"><div class="t"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div></div>
+      <button class="libbtn" data-act="words-open"><span class="ic">🔤</span><span class="tx"><b>${t('words.title')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></span><span class="chev">›</span></button>
       <h4><span>${t('store.locations')}</span></h4><div class="card">${c.locations.map((l) => `<button class="rw sloc" data-act="store-loc" data-id="${l.id}"><div class="t"><b>${esc(l.name)}</b><small>${[l.pickup ? t('store.pickup') + ' · ' + t('store.free') : '', l.delivery ? t('store.delivery') + ' ' + money(l.price) : ''].filter(Boolean).join(' · ')}</small></div><span class="chev">›</span></button>`).join('')}<button class="rw sloc add" data-act="store-loc" data-id="new">＋ ${t('store.addLoc')}</button></div>
       <div class="card"><div class="rw"><div class="t"><b>${t('store.name')}</b></div><input class="sfield" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"></div><div class="rw"><div class="t"><b>${t('store.whatsapp')}</b><small>${t('store.whatsappSub')}</small></div><input class="sfield" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="868 555 0100" autocomplete="off" enterkeyhint="done"></div></div>
       <button class="btn" style="width:100%;margin-top:6px" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="muted small" style="margin:10px 2px">${t('store.note')}</p>` : ''}</div>`, null, true);
@@ -1273,7 +1512,7 @@
   function sheetOrder(id) {
     const o = Store.orders().find((x) => x.id === id); if (!o) return;
     enterPage('order', id, () => sheetOrder(id));
-    const rows = (o.items || []).map((i) => { const it = state.items.find((x) => x.id === i.id), gone = !it || L.isSold(it), tr = it && it.status === 'In Transit'; return `<div class="rw"><div class="t"><b>${esc(i.name)}</b><small class="${gone ? 'bad' : ''}">${gone ? t('ord.gone') : tr ? '⏳ ' + t('ord.transit') : t('ord.available')}</small></div><b>${money(i.price)}</b></div>`; }).join('');
+    const rows = (o.items || []).map((i) => { const it = state.items.find((x) => x.id === i.id), gone = !it || L.isSold(it), tr = it && it.status === 'In Transit'; return `<div class="rw"><div class="t"><b>${esc(i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone ? 'bad' : ''}">${gone ? t('ord.gone') : tr ? '⏳ ' + t('ord.transit') : t('ord.available')}</small></div><b>${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) });
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${ordWhen(o)}</small></div></div>
       <div class="ap"><div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small></div><a class="pbtn wa" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener">💬 WhatsApp</a><a class="gbtn wa" href="tel:${esc(SCore.digits(o.phone))}">📞</a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stBadge(o)}</div></div>
@@ -1443,30 +1682,66 @@
       case 'mic-es': return voiceToggle(true);
       case 'es-open': return sheetSpanish(id);
       case 'es-addwords': return sheetAddWords(id);
-      case 'es-savewords': { document.querySelectorAll('.sheet [data-w]').forEach((inp) => { if (inp.value.trim()) state.settings.words = Wd.put(wordList(), inp.dataset.w, inp.value); }); save(); toast(t('words.saved')); return closeSheet(); }
-      case 'es-done': { const i = state.items.find((x) => x.id === id), v = ($('#es-name').value || '').trim(); if (i) { const auto = Wd.translate(i.desc, wordList()); if (!v || (v === auto.es && !auto.missing.length)) { i.esSet = false; delete i.nameEs; delete i.esFor; } else { i.nameEs = v; i.esSet = true; i.esFor = i.desc; } save(); } return closeSheet(); }
+      case 'es-savewords': { document.querySelectorAll('.sheet .wb').forEach((row) => { const inp = row.querySelector('[data-w]'), sel = row.querySelector('[data-wt]'); if (inp.value.trim()) state.settings.words = Wd.put(wordList(), inp.dataset.w, inp.value, '', sel ? sel.value : 'a'); }); save(); toast(t('words.saved')); return closeSheet(); }
+      case 'es-done': { const i = state.items.find((x) => x.id === id), v = ($('#es-name').value || '').trim(); if (i) { const auto = Wd.translate(i.desc, wordList()); if (!v || (v === auto.es && !auto.missing.length)) { i.esSet = false; delete i.nameEs; delete i.esFor; } else { i.nameEs = v; i.esSet = true; i.esFor = i.desc; } L.applyToGroup(state, i, ['nameEs', 'esSet', 'esFor']); save(); } return closeSheet(); }
       case 'es-lib': closeSheet(); return sheetWords();
+      case 'size-set': { const i = state.items.find((x) => x.id === id); if (!i) return; if (L.isSold(i)) return toast(t('item.lockedToast')); const v = t_.dataset.v; i.size = String(i.size || '').toLowerCase() === v.toLowerCase() ? '' : v; save(); return refreshSize(i); }
+      case 'qty-inc': case 'qty-dec': { const it = state.items.find((x) => x.id === id); if (!it) return; const g = grpOf(it).length; return setQty(it, g + (t_.dataset.act === 'qty-inc' ? 1 : -1)); }
+      case 'slots-add': case 'slots-use': { const f = window.__slots; if (f) f(t_.dataset.act === 'slots-add' ? 'add' : 'use'); return closeSheet(); }
+      case 'szp-open': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return szpOpen(it, !!t_.dataset.single); }
+      case 'szp-tap': if (holdFired) { holdFired = false; return; } return szpTap(t_.dataset.v);
+      case 'szp-pop': return szpPopOpen(t_.dataset.v);
+      case 'szp-tab': szp.tab = t_.dataset.v; szp.pop = null; return szpDraw();
+      case 'szp-sys': szp.sys = t_.dataset.v; return szpDraw();
+      case 'szp-view': szp.view = t_.dataset.v === 'add' ? 'add' : 'grid'; return szpDraw();
+      case 'szp-addsave': return szpSaveTyped();
+      case 'szp-popx': szp.pop = null; return szpDraw();
+      case 'szp-popset': { const z = szp.pop, cur = szp.d[z] || 0, max = szp.n - (szpTotal() - cur); let v = Math.max(0, parseInt(($('#szp-n').value || '0').replace(/\D/g, ''), 10) || 0); v = Math.min(v, max); if (v) szp.d[z] = v; else delete szp.d[z]; szp.pop = null; return szpDraw(); }
+      case 'szp-all': { $('#szp-n').value = t_.dataset.v; return; }
+      case 'szp-zero': { $('#szp-n').value = '0'; return; }
+      case 'szp-rest': { const z = szp.last, rest = szp.n - szpTotal(); if (z && rest > 0) { szp.d[z] = (szp.d[z] || 0) + rest; szpDraw(); } return; }
+      case 'szp-done': { const ok = szp.single ? szpTotal() === 1 : szpTotal() === szp.n; if (!ok) return toast(szp.single ? t('szp.pickOne') : t('szp.mustMatch', { n: szp.n })); if (szpApply()) { qeTried = false; closeSheet(); } return; }
+      case 'size-other': { const i = state.items.find((x) => x.id === id); if (!i) return; if (L.isSold(i)) return toast(t('item.lockedToast')); return openSmall(`<h3>${t('size.label')}</h3><p>${t('size.otherSub')}</p><input id="size-in" value="${esc(i.size || '')}" placeholder="${t('size.ph')}" autocomplete="off" maxlength="20"><div class="btns"><button class="btn primary" data-act="size-save" data-id="${id}">${t('btn.save')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet'); }
+      case 'size-save': { const i = state.items.find((x) => x.id === id); if (i) { i.size = ($('#size-in').value || '').trim().slice(0, 20); save(); } return closeSheet(); }
+      case 'store-left': { const c = storeCfg(); state.settings.store = Object.assign(c, { showLeft: !c.showLeft }); save(); t_.classList.toggle('on', !!state.settings.store.showLeft); t_.setAttribute('aria-checked', String(!!state.settings.store.showLeft)); return; }
+      case 'store-more': return openSmall(`<h3>${t('batch.more')}</h3><div class="ap" style="padding:12px 0 0"><div class="card" style="margin:0"><div class="rw"><div class="t"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div></div><div class="list" style="margin-top:12px"><button class="row tap" data-act="store-help"><span style="font-size:22px">💡</span><div class="grow"><b>${t('sh.menu')}</b><small>${t('sh.menuSub')}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
+      case 'store-help': closeSheet(); return sheetStoreHelp();
+      case 'sh-lang': shLang = id; return sheetStoreHelp(true);
       case 'words-open': return sheetWords();
+      case 'page-more': { const cur = state.items.find((x) => x.id === $('#sheet').dataset.item), sp = cur && cur.grp && !L.isSold(cur) && grpOf(cur).length > 1 ? `<button class="row tap" data-act="split-group" data-id="${cur.id}"><span style="font-size:22px">🧩</span><div class="grow"><b>${t('grp.split')}</b><small>${t('grp.splitSub')}</small></div></button>` : ''; return openSmall(`<h3>${t('batch.more')}</h3><div class="list" style="margin-top:12px">${sp}<button class="row tap" data-act="words-from-menu"><span style="font-size:22px">🔤</span><div class="grow"><b>${t('words.openLib')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet'); }
+      case 'words-from-menu': closeSheet(); return sheetWords();
       case 'word-group': wordGroup = id; return wordsRefresh();
       case 'word-hide': state.settings.wordsHideNote = true; save(); { const n = document.querySelector('.starter'); if (n) n.remove(); } return;
-      case 'word-add': { const en = $('#w-en'), es = $('#w-es'); if (!en.value.trim() || !es.value.trim()) return toast(t('words.needBoth')); state.settings.words = Wd.put(wordList(), en.value, es.value, ''); save(); en.value = ''; es.value = ''; wordGroup = 'all'; wordQ = ''; $('#w-q').value = ''; wordsRefresh(); toast(t('words.saved')); return en.focus(); }
+      case 'word-add': { const en = $('#w-en'), es = $('#w-es'); if (!en.value.trim() || !es.value.trim()) return toast(t('words.needBoth')); state.settings.words = Wd.put(wordList(), en.value, es.value, '', $('#w-t').value); save(); en.value = ''; es.value = ''; wordGroup = 'all'; wordQ = ''; $('#w-q').value = ''; wordsRefresh(); toast(t('words.saved')); return en.focus(); }
+      case 'words-more': return openSmall(`<h3>${t('batch.more')}</h3><div class="list" style="margin-top:12px"><button class="row tap" data-act="words-help"><span style="font-size:22px">💡</span><div class="grow"><b>${t('wh.menu')}</b><small>${t('wh.menuSub')}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
+      case 'words-help': closeSheet(); return sheetWordsHelp();
+      case 'wh-lang': whLang = id; return sheetWordsHelp(true);
       case 'word-edit': return sheetWordEdit(id);
-      case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : ''); state.settings.words = w; save(); return closeSheet(); }
+      case 'word-try': { const f = $('#w-try'); if (f) { f.value = id; tryName(); } return; }
+      case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : '', $('#we-t').value); state.settings.words = w; save(); return closeSheet(); }
       case 'word-del': case 'word-del2': state.settings.words = Wd.drop(wordList(), id); save(); toast(t('words.removed')); if (t_.dataset.act === 'word-del2') return closeSheet(); return wordsRefresh();
       case 'item-go': if (id) { sheetItem(id, true); $('#sheet').scrollTop = 0; } return;
-      case 'qe-open': { const ids = batchIds(id, true); if (!ids.length) return toast(t('qe.none')); return sheetQuick(id, ids[0]); }
-      case 'qe-go': if (id) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;
+      case 'qe-open': { const ids = quickIds(id); if (!ids.length) return toast(t('qe.none')); qeTried = false; return sheetQuick(id, ids[0]); }
+      case 'qe-go': if (id) { qeTried = false; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;
       case 'qe-next': return quickNext(id, !!t_.dataset.skip);
       case 'open-stock': stockBatch = id; stockFilter = 'All'; closeSheet(); go({ tab: 'stock', moreView: null }); return render();
       case 'goto-stock': go({ tab: 'stock', moreView: null }); return render();
+      case 'grp-toggle': grpOpen.has(id) ? grpOpen.delete(id) : grpOpen.add(id); return render();
+      case 'sel-all': { state.items.filter((i) => i.batchId === stockBatch && !L.isSold(i)).forEach((i) => selected.add(i.id)); return render(); }
+      case 'sel-clear': selected.clear(); return render();
+      case 'sale-open': return sheetSale();
+      case 'sale-pick': salePct = Number(t_.dataset.v); salePctDraw(); return;
+      case 'sale-other': if (document.querySelector('#bulksale')) { salePct = 0; salePctDraw(true); return; } { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
+      case 'sale-apply': { const ids = [...selected], v = document.querySelector('#sale-in') ? parsePct($('#sale-in').value) : salePct; if (!(v > 0)) return toast(t('sale.pickFirst')); const n = L.bulkSale(state, ids, v); save(); closeSheet(); render(); return toast(tn('sale.done', n, { pct: v })); }
+      case 'sale-off': { const n = L.clearSale(state, [...selected]); save(); closeSheet(); render(); return toast(tn('sale.off', n)); }
+      case 'split-group': { const it = state.items.find((x) => x.id === id); if (it) { L.splitFromGroup(state, id); save(); closeSheet(); render(); toast(t('grp.splitDone')); } return; }
       case 'goto-sell': go({ tab: 'sell', moreView: null }); window.scrollTo(0, 0); return render();
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
-      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = !it.saleOn; save(); return refreshSaleBlock(it); }
-      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = true; it.discount = Number(t_.dataset.v); save(); return refreshSaleBlock(it); }
-      case 'sale-other': { const f = $('#sheet [data-f=discount]'); if (f) { f.focus(); f.select(); } return; }
-      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); }
+      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = !it.saleOn; L.applyToGroup(state, it, ['saleOn', 'discount']); save(); return refreshSaleBlock(it); }
+      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = true; it.discount = Number(t_.dataset.v); L.applyToGroup(state, it, ['saleOn', 'discount']); save(); return refreshSaleBlock(it); }
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); }
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
@@ -1558,16 +1833,19 @@
 
   document.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isSold(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
     if (el.hasAttribute('data-sel')) {
       const id = el.closest('.item').dataset.id;
       el.checked ? selected.add(id) : selected.delete(id);
       el.closest('.item').classList.toggle('sel', el.checked); render(); return;
     }
+    if (el.dataset.qty) { const it = state.items.find((x) => x.id === el.dataset.qty); if (it) setQty(it, el.value); return; }
     if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f; if (L.isSold(i)) return;
-      if (f === 'discount') { i.discount = parsePct(el.value); el.value = i.discount ? i.discount + '%' : ''; save(); return refreshSaleBlock(i); }   // "50" becomes "50%"
+      if (f === 'discount') { i.discount = parsePct(el.value); el.value = i.discount ? i.discount + '%' : ''; L.applyToGroup(state, i, ['discount']); save(); return refreshSaleBlock(i); }   // "50" becomes "50%"
       i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0) : el.value;
-      save(); updateSale(i); if (f === 'desc') refreshEs(i);
+      if (L.GROUP_FIELDS.includes(f)) L.applyToGroup(state, i, [f]);
+      save(); updateSale(i); if (f === 'desc') refreshEs(i); if (f === 'desc') refreshAfterEdit(i);
     }
   });
 
@@ -1580,10 +1858,11 @@
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
     else if (el.id === 'w-q') { wordQ = el.value; wordsRefresh(); }
+    else if (el.id === 'w-try') tryName();
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
-      if (f === 'discount') { i.discount = parsePct(el.value); updateSale(i); }
+      if (f === 'discount') { i.discount = parsePct(el.value); L.applyToGroup(state, i, ['discount']); updateSale(i); }
       else if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0); updateSale(i); } else { i[f] = el.value; }
       save();
     } else if (el.form && el.form.id === 'f-batch') {

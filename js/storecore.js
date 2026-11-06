@@ -12,24 +12,38 @@
   // The owner's store settings (kept in the workspace settings, so they sync between phones).
   const norm = (c) => {
     c = c || {};
-    return { id: String(c.id || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit,
+    return { id: String(c.id || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft,
       batches: Array.isArray(c.batches) ? c.batches.slice() : [],
       locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))) })).filter((l) => l.name && (l.pickup || l.delivery)) };
   };
 
   // Items the store shows: only the chosen batches, only items for sale (Available, or In Transit when that is switched on), and only
   // items that have a name and a price. Costs and profit are never part of this.
+  // Sizes in a sensible order: XS S M L XL XXL, then numbers, then anything else; "One size" and no size last.
+  const SIZES = ['xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', '2xl', '3xl', '4xl', '5xl'];
+  const sizeRank = (z) => { const k = String(z || '').trim().toLowerCase(); if (!k) return [9, 0, '']; if (k === 'one size' || k === 'talla única') return [8, 0, k]; const i = SIZES.indexOf(k); if (i >= 0) return [0, i, '']; const n = parseFloat(k); return isNaN(n) ? [2, 0, k] : [1, n, k]; };
+  const cmpSize = (a, b) => { const x = sizeRank(a), y = sizeRank(b); return x[0] - y[0] || x[1] - y[1] || x[2].localeCompare(y[2]); };
+  const sameName = (n) => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  // Items the store shows: only the chosen batches, only items for sale (Available, or In Transit when that is switched on), and only
+  // items that have a name and a price. Items with the same name, price and sale price are ONE card; what differs is the size, so the card
+  // lists the sizes that are still available and which items they are. Costs and profit are never part of this.
   const shown = (s, cfgIn) => {
-    const cfg = norm(cfgIn), ok = new Set(cfg.batches), out = [];
-    (s.items || []).forEach((it) => {
+    const cfg = norm(cfgIn), ok = new Set(cfg.batches), groups = new Map();
+    (s.items || []).slice().sort((a, b) => a.id.localeCompare(b.id)).forEach((it) => {
       if (!ok.has(it.batchId)) return;
       const transit = it.status === 'In Transit';
       if (it.status !== 'Available' && !(transit && cfg.inTransit)) return;
       const name = String(it.desc || '').trim(), sale = L.salePrice(it), price = num(it.price);
       if (!name || (price <= 0 && sale <= 0)) return;
-      out.push({ id: it.id, name, nameEs: W() ? W().publishable(it, (s.settings && s.settings.words) || []) : '', price: r2(price), sale: r2(sale), pct: sale > 0 ? Math.round(num(it.discount)) : 0, transit, photo: it.photo && it.photo.id ? it.photo.id : '' });
+      const key = [sameName(name), r2(price), r2(sale), transit ? 1 : 0].join('|'), photo = it.photo && it.photo.id ? it.photo.id : '', size = String(it.size || '').trim();
+      let g = groups.get(key);
+      if (!g) { g = { id: it.id, name, nameEs: W() ? W().publishable(it, (s.settings && s.settings.words) || []) : '', price: r2(price), sale: r2(sale), pct: sale > 0 ? Math.round(num(it.discount)) : 0, transit, photo: '', by: new Map() }; groups.set(key, g); }
+      if (!g.photo && photo) g.photo = photo;
+      if (!g.by.has(size)) g.by.set(size, []);
+      g.by.get(size).push(it.id);
     });
-    return out.sort((a, b) => a.id.localeCompare(b.id));
+    return [...groups.values()].map((g) => ({ id: g.id, name: g.name, nameEs: g.nameEs, price: g.price, sale: g.sale, pct: g.pct, transit: g.transit, photo: g.photo,
+      sizes: [...g.by.keys()].sort(cmpSize).map((z) => ({ s: z, ids: g.by.get(z) })) })).sort((a, b) => a.id.localeCompare(b.id));
   };
   // Store pictures kept in cloud storage: which item pictures can be deleted now. Same rule as the saved photo: the item is gone, or it was
   // sold and the hold time (L.PHOTO_HOLD_DAYS) has passed since the sale. Pictures of unsold items stay.
@@ -53,6 +67,6 @@
   // wa.me link: a 7-digit local number is taken as a Trinidad and Tobago number (+1 868).
   const waLink = (phone, text) => { let d = digits(phone); if (d.length === 7) d = '1868' + d; else if (d.length === 10 && d.startsWith('868')) d = '1' + d; return 'https://wa.me/' + d + (text ? '?text=' + encodeURIComponent(text) : ''); };
 
-  const api = { PER_DOC, newId, norm, shown, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

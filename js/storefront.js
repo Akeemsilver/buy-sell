@@ -48,7 +48,7 @@
     const c = cfg(); if (!c.id || !root.Cloud || !Cloud.ready() || running) return false;
     running = true; info.busy = true; info.error = '';
     try {
-      const list = SC.shown(A.state(), c), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
+      const list = SC.shown(A.state(), c), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
       const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null, retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
       const sig = SC.hash({ head, list, retry }), key = 'buy-sell-store-sig:' + c.id;
       if (!force && localStorage.getItem(key) === sig) { info.at = info.at || Date.now(); info.count = list.length; if (storage) cleanPictures(c.id, storage).catch(() => {}); return false; }
@@ -57,7 +57,7 @@
         let img = '';
         if (p.photo && sharpOk) { try { img = await sharpUrl(p, c.id, map, storage); if (img) sharpN++; } catch (e) { picErr++; if (picErr >= 2 || (e && /unauthorized|unauthenticated|no-default-bucket|project-not-found|quota/.test(e.code || ''))) sharpOk = false; } }
         if (p.photo && !img) img = await smallPicture(p.photo);
-        items.push({ id: p.id, name: p.name, nameEs: p.nameEs, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img });
+        items.push({ id: p.id, name: p.name, nameEs: p.nameEs, sizes: p.sizes, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img });
       }
       writeMap(c.id, map); info.sharp = sharpN > 0; try { localStorage.setItem('buy-sell-store-mode', sharpN > 0 || !list.some((p) => p.photo) ? 'sharp' : 'small'); } catch (e) { /* ignore */ }
       const db = Cloud.db(), sref = db.collection('stores').doc(c.id), chunks = SC.chunk(items), b = db.batch();

@@ -28,7 +28,7 @@ const CASES = [
   ['Top and pants', 'Blusa y pantalones'], ['Red top and pants', 'Blusa roja y pantalones'], ['Pink top and black pants', 'Blusa rosada y pantalones negros'], ['TOP & PANTS', 'Blusa y pantalones'],
   // who it is for, with and sizes
   ['Women\'s swimsuit', 'Traje de baño de mujer'], ['Kids dress', 'Vestido para niños'], ['Dress for women', 'Vestido para mujer'], ['Blue dress with lace', 'Vestido azul con encaje'],
-  ['Blue top size M', 'Blusa azul talla M'], ['Top, size M', 'Blusa, talla M'], ['Blue linen set, size M', 'Conjunto de lino azul, talla M'], ['Black dress XL', 'Vestido negro XL'], ['Sneakers', 'Tenis'], ['Floral dress, blue', 'Vestido floral azul']
+  ['Blue top size M', 'Blusa azul talla M'], ['Top, size M', 'Blusa, talla M'], ['Blue linen set, size M', 'Conjunto de lino azul, talla M'], ['Black dress XL', 'Vestido negro XL'], ['Sneakers', 'Tenis'], ['Blue short pants', 'Pantalones cortos azules'], ['Short pants', 'Pantalones cortos'], ['Red top', 'Blusa roja'], ['Long sleeve shirt', 'Camisa de manga larga'], ['Long sleeve jacket', 'Chaqueta de manga larga'], ['Short sleeve shirt', 'Camisa de manga corta'], ['Floral dress, blue', 'Vestido floral azul']
 ];
 CASES.forEach(([en, es]) => { const got = W.translate(en, words); assert.deepStrictEqual([en, got.es, got.missing], [en, es, []], en + ' → ' + got.es + ' (expected ' + es + ', missing ' + got.missing + ')'); });
 

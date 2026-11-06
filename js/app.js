@@ -842,7 +842,7 @@
   function sheetWords(swap) {
     enterPage('words', '', () => sheetWords(), swap);
     const list = wordList();
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('words.title')}</b><small id="wcount">${t('words.count', { n: list.length })}</small></div></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('words.title')}</b><small id="wcount">${t('words.count', { n: list.length })}</small></div><button class="dots" data-act="words-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="ap lib">${state.settings.wordsHideNote ? '' : `<div class="starter">📚<b>${t('words.starter', { n: Wd.STARTER.length })}</b><button data-act="word-hide">${t('words.hide')}</button></div>`}
       <h4><span>${t('words.try')}</span></h4><div class="card try"><input id="w-try" placeholder="${t('words.tryPh')}" autocomplete="off"><div id="w-tryout" class="tryout">${t('words.tryHelp')}</div>
         <div class="exs">${['Blue dress', 'Red top and black pants', 'Black lace long sleeve top', 'Navy dresses'].map((x) => `<button type="button" data-act="word-try" data-id="${x}">${x}</button>`).join('')}</div></div>
@@ -857,6 +857,23 @@
     const r = Wd.translate(v, wordList()); out.innerHTML = `<b>${esc(r.es)}</b>${r.missing.length ? `<small>${t('es.missing', { words: r.missing.map((x) => '“' + esc(x) + '”').join(', ') })}</small>` : ''}`;
   }
   const wordsRefresh = () => { const l = $('#wlist'); if (l) l.innerHTML = wordsListHTML(); const c = $('#wchips'); if (c) c.innerHTML = wordsChips(); const n = $('#wcount'); if (n) n.textContent = t('words.count', { n: wordList().length }); };
+  // How the library works: written in both languages (tabs), with live examples worked out from the owner's own words.
+  let whLang = null;
+  function sheetWordsHelp(swap) {
+    enterPage('wordshelp', '', () => sheetWordsHelp(), swap);
+    const L2 = whLang || (I.getLang() === 'es' ? 'es' : 'en'), tt = (k, v) => t(k, v, L2), list = wordList();
+    const ex = ['Blue dress', 'Red top', 'Long sleeve shirt', 'Long sleeve jacket', 'Short sleeve shirt', 'Short pants', 'Blue short pants', 'Black dresses', 'Blue linen set'];
+    const para = (k) => `<p>${tt(k)}</p>`, li = (k) => tt(k).split('|').map((x) => `<li>${x}</li>`).join('');
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${tt('wh.title')}</b><small>English · Español</small></div></div>
+      <div class="ap lib wh"><div class="tabs">${['en', 'es'].map((l) => `<button class="${L2 === l ? 'on' : ''}" data-act="wh-lang" data-id="${l}">${l === 'en' ? 'English' : 'Español'}</button>`).join('')}</div>
+      ${para('wh.intro')}
+      <h4><span>${tt('wh.s1')}</span></h4><div class="card whc"><ul>${li('wh.s1b')}</ul></div>
+      <h4><span>${tt('wh.s2')}</span></h4><div class="card whc"><ol>${li('wh.s2b')}</ol></div>
+      <h4><span>${tt('wh.exT')}</span></h4><div class="card whc"><div class="wex"><b>Blue short pants</b><span>→ ${esc(Wd.translate('Blue short pants', list).es)}</span></div><ol>${li('wh.exB')}</ol></div>
+      <h4><span>${tt('wh.more')}</span></h4><div class="card">${ex.map((e) => `<div class="pair"><span class="pm"><b>${e}</b><i>→</i><span class="t2">${esc(Wd.translate(e, list).es)}</span></span></div>`).join('')}</div>
+      <h4><span>${tt('wh.tipsT')}</span></h4><div class="card whc"><ul>${li('wh.tips')}</ul></div>
+      <p class="muted small">${tt('wh.limit')}</p></div>`, null, true);
+  }
   function sheetWordEdit(en) {
     const w = wordList().find((x) => Wd.norm(x.en) === Wd.norm(en)); if (!w) return;
     openSmall(`<h3>${t('words.edit')}</h3><label>${t('words.english')}</label><input id="we-en" value="${esc(w.en)}" autocomplete="off"><label>${t('words.spanish')}</label><input id="we-es" value="${esc(w.es)}" autocomplete="off"><label>${t('words.type')}</label>${typeSelect('we-t', Wd.typeOf(w))}
@@ -1458,6 +1475,9 @@
       case 'word-group': wordGroup = id; return wordsRefresh();
       case 'word-hide': state.settings.wordsHideNote = true; save(); { const n = document.querySelector('.starter'); if (n) n.remove(); } return;
       case 'word-add': { const en = $('#w-en'), es = $('#w-es'); if (!en.value.trim() || !es.value.trim()) return toast(t('words.needBoth')); state.settings.words = Wd.put(wordList(), en.value, es.value, '', $('#w-t').value); save(); en.value = ''; es.value = ''; wordGroup = 'all'; wordQ = ''; $('#w-q').value = ''; wordsRefresh(); toast(t('words.saved')); return en.focus(); }
+      case 'words-more': return openSmall(`<h3>${t('batch.more')}</h3><div class="list" style="margin-top:12px"><button class="row tap" data-act="words-help"><span style="font-size:22px">💡</span><div class="grow"><b>${t('wh.menu')}</b><small>${t('wh.menuSub')}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
+      case 'words-help': closeSheet(); return sheetWordsHelp();
+      case 'wh-lang': whLang = id; return sheetWordsHelp(true);
       case 'word-edit': return sheetWordEdit(id);
       case 'word-try': { const f = $('#w-try'); if (f) { f.value = id; tryName(); } return; }
       case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : '', $('#we-t').value); state.settings.words = w; save(); return closeSheet(); }

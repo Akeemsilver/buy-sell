@@ -162,7 +162,10 @@
   L.photoDaysLeft = (s, it, now) => { if (!it.photo || it.photo.noFull || !L.isSold(it)) return null; const at = L.soldAt(s, it); return at == null ? null : Math.max(0, Math.ceil((at + L.PHOTO_HOLD_DAYS * DAY - now) / DAY)); };
   // Sold items whose sale was more than `days` ago and that still have a picture: the thumbnails the owner may choose to remove.
   // Unsold stock and sales without a date are never listed.
-  L.oldThumbItems = (s, now, days) => s.items.filter((it) => { if (!it.photo || !L.isSold(it)) return false; const at = L.soldAt(s, it); return at != null && now - at >= (days || 365) * DAY; });
+  L.oldThumbItems = (s, now, days) => {
+    const old = s.items.filter((it) => { if (!it.photo || !L.isSold(it)) return false; const at = L.soldAt(s, it); return at != null && now - at >= (days || 365) * DAY; }), ids = new Set(old.map((x) => x.id));
+    return old.filter((it) => s.items.every((x) => x === it || !x.photo || x.photo.id !== it.photo.id || ids.has(x.id)));   // a picture other items still use is never listed
+  };
   // What to delete now. stamp = checked photos that have no saved time yet (they start their timer today).
   L.photoSweepPlan = (s, now, keep) => {
     const plan = { dropOrig: [], dropFull: [], stamp: [] };
@@ -175,6 +178,9 @@
         if (!p.savedAt) plan.stamp.push(it.id); else if (now >= p.savedAt + Number(keep || 2) * DAY) plan.dropOrig.push(it.id);
       }
     });
+    // Copies of one design share a picture: it is only dropped when every item that uses it is ready to drop it.
+    const shared = (list, flag) => { const set = new Set(list); return list.filter((id) => { const it = s.items.find((x) => x.id === id); return s.items.every((x) => !x.photo || x.photo.id !== it.photo.id || set.has(x.id) || x.photo[flag]); }); };
+    plan.dropOrig = shared(plan.dropOrig, 'noOrig'); plan.dropFull = shared(plan.dropFull, 'noFull');
     return plan;
   };
 
@@ -193,6 +199,51 @@
     photoIds.slice(0, free.length).forEach((id, n) => { free[n].photo = { id, checked: false }; assigned.push({ itemId: free[n].id, photoId: id }); });
     return { assigned, extra: Math.max(0, photoIds.length - free.length) };
   };
+
+  /* ---------- groups: one design, several pieces (each piece is its own item with its own size) ---------- */
+  const byId = (a, b) => a.id.localeCompare(b.id);
+  L.GROUP_FIELDS = ['desc', 'cost', 'price', 'saleOn', 'discount', 'nameEs', 'esSet', 'esFor'];
+  L.newGroupId = (() => { let n = 0; return () => 'G' + Date.now().toString(36) + (++n).toString(36) + Math.floor(Math.random() * 1296).toString(36); })();
+  L.groupOf = (s, it) => (it.grp ? s.items.filter((x) => x.grp === it.grp && !L.isSold(x)).sort(byId) : [it]);
+  // An empty spot in a batch: nothing typed, no picture, not sold, not part of a group.
+  L.isEmptySlot = (i) => !L.isSold(i) && !String(i.desc || '').trim() && !(num(i.price) > 0) && !(num(i.cost) > 0) && !i.photo && !i.grp && !String(i.size || '').trim() && !i.invoice && !i.customer;
+  L.freeSlots = (s, batchId) => s.items.filter((i) => i.batchId === batchId && L.isEmptySlot(i)).sort(byId);
+  // n more pieces of this design, in the next empty spots (the caller adds spots first when there are too few).
+  L.makeCopies = (s, srcId, n) => {
+    const src = s.items.find((x) => x.id === srcId); if (!src) throw fail('item');
+    const free = L.freeSlots(s, src.batchId).filter((x) => x !== src); if (free.length < n) throw fail('slots');
+    if (!src.grp) src.grp = L.newGroupId();
+    return free.slice(0, n).map((slot) => {
+      L.GROUP_FIELDS.forEach((f) => { if (src[f] !== undefined) slot[f] = src[f]; });
+      slot.photo = src.photo ? Object.assign({}, src.photo) : null; slot.status = src.status; slot.size = ''; slot.grp = src.grp; return slot;
+    });
+  };
+  // Takes n copies out of the group again (the highest numbers first); they go back to being empty spots.
+  L.dropCopies = (s, srcId, n) => {
+    const src = s.items.find((x) => x.id === srcId); if (!src || !src.grp) return [];
+    const gone = L.groupOf(s, src).filter((x) => x !== src).sort((a, b) => b.id.localeCompare(a.id)).slice(0, n);
+    gone.forEach((x) => { ['desc', 'cost', 'price', 'size', 'grp'].forEach((f) => { x[f] = f === 'desc' || f === 'size' || f === 'grp' ? '' : 0; }); ['saleOn', 'discount', 'nameEs', 'esSet', 'esFor'].forEach((f) => { delete x[f]; }); x.photo = null; });
+    if (L.groupOf(s, src).length < 2) src.grp = '';
+    return gone;
+  };
+  // A change to name, price, cost or sale reaches every piece of the design.
+  L.applyToGroup = (s, it, fields) => { L.groupOf(s, it).forEach((x) => { if (x !== it) (fields || L.GROUP_FIELDS).forEach((f) => { if (it[f] === undefined) delete x[f]; else x[f] = it[f]; }); }); };
+  L.splitFromGroup = (s, id) => { const it = s.items.find((x) => x.id === id); if (!it || !it.grp) return; const g = it.grp; it.grp = ''; const rest = s.items.filter((x) => x.grp === g && !L.isSold(x)); if (rest.length < 2) rest.forEach((x) => { x.grp = ''; }); };
+  // How many of each size the pieces of this design have: [{ s: 'M', n: 2 }, …] in size order, '' for pieces without a size.
+  const SIZES = ['xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', '2xl', '3xl', '4xl', '5xl'];
+  const sizeRank = (z) => { const k = String(z || '').trim().toLowerCase(); if (!k) return [9, 0, '']; if (k === 'one size' || k === 'talla única') return [8, 0, k]; const i = SIZES.indexOf(k); if (i >= 0) return [0, i, '']; const n = parseFloat(k); return isNaN(n) ? [2, 0, k] : [1, n, k]; };
+  L.cmpSize = (a, b) => { const x = sizeRank(a), y = sizeRank(b); return x[0] - y[0] || x[1] - y[1] || x[2].localeCompare(y[2]); };
+  L.sizeCounts = (s, it) => { const m = new Map(); L.groupOf(s, it).forEach((x) => { const z = String(x.size || '').trim(); m.set(z, (m.get(z) || 0) + 1); }); return [...m.entries()].sort((a, b) => L.cmpSize(a[0], b[0])).map(([z, n]) => ({ s: z, n })); };
+  // counts = [{ s, n }]: the sizes are handed out to the pieces in item order; they must add up to the number of pieces.
+  L.setSizes = (s, it, counts) => {
+    const members = L.groupOf(s, it), list = counts.slice().sort((a, b) => L.cmpSize(a.s, b.s)).flatMap((c) => Array(Math.max(0, parseInt(c.n, 10) || 0)).fill(String(c.s).trim()));
+    if (list.length !== members.length) throw fail('sizes');
+    members.forEach((x, n) => { x.size = list[n]; });
+  };
+  L.needsSize = (s, it) => L.groupOf(s, it).some((x) => !String(x.size || '').trim());
+  // Sale for many pieces at once (sold pieces are left alone). pct 0 or clearSale takes it off.
+  L.bulkSale = (s, ids, pct) => { const p = Math.min(99, Math.max(0, Math.round(num(pct) * 100) / 100)); let n = 0; s.items.forEach((x) => { if (ids.includes(x.id) && !L.isSold(x)) { x.saleOn = p > 0; x.discount = p; n++; } }); return n; };
+  L.clearSale = (s, ids) => L.bulkSale(s, ids, 0);
 
   // More photos than plain items: add more items to the batch (same numbering).
   L.addItems = (s, batchId, count) => {
@@ -305,8 +356,8 @@
 
     const groups = {};
     items.forEach((i) => {
-      const key = i.desc + '|' + L.effectivePrice(i);
-      (groups[key] = groups[key] || { desc: i.desc.trim(), price: L.effectivePrice(i), qty: 0 }).qty++;
+      const sz = String(i.size || '').trim(), key = i.desc + '|' + sz + '|' + L.effectivePrice(i);   // a size makes its own line: "Blue dress · M"
+      (groups[key] = groups[key] || { desc: i.desc.trim() + (sz ? ' · ' + sz : ''), price: L.effectivePrice(i), qty: 0 }).qty++;
     });
     return { errors, items, lines: Object.values(groups), totalSold, delivery, total, paying, prev, balance, tip,
       profit: r2(profit), loss: r2(loss), landed, ref, status: paying + prev >= total ? 'Paid' : 'Owing' };

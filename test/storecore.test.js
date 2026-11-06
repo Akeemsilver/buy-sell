@@ -11,7 +11,7 @@ assert.deepStrictEqual(list.map((x) => x.id), [s.items[0].id, s.items[1].id], 'o
 assert.strictEqual(list[1].sale, 200); assert.strictEqual(list[1].pct, 20); assert.strictEqual(SC.payPrice(list[1]), 200);
 assert.deepStrictEqual(Object.keys(list[0]).sort(), ['id', 'name', 'nameEs', 'pct', 'photo', 'price', 'sale', 'transit'], 'only public fields: never cost, landed cost or profit');
 assert.ok(!JSON.stringify(list).includes('cost'));
-{ const s2 = JSON.parse(JSON.stringify(s)); s2.settings.words = require('../js/words.js').seed([]); s2.items[0].desc = 'Top and pants'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, 'Blusa y pantalones', 'the Spanish name is published when it is in order'); s2.items[0].desc = 'Red velvet dress'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, '', 'and left out while a word is missing'); }
+{ const s2 = JSON.parse(JSON.stringify(s)); s2.settings.words = require('../js/words.js').seed([]); s2.items[0].desc = 'Top and pants'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, 'Blusa y pantalones', 'the Spanish name is published when it is in order'); s2.items[0].desc = 'Red Zara dress'; assert.strictEqual(SC.shown(s2, { batches: [b1] })[0].nameEs, '', 'and left out while a word is missing'); }
 assert.strictEqual(SC.shown(s, { batches: [b1, b2] }).length, 2, 'in-transit items stay hidden unless switched on (the other batch has no priced available item)');
 list = SC.shown(s, { batches: [b1, b2], inTransit: true }); assert.ok(list.some((x) => x.id === s.items[4].id && x.transit), 'in-transit items appear, marked');
 assert.strictEqual(SC.shown(s, { batches: [] }).length, 0, 'no batch chosen = nothing shown');

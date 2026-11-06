@@ -805,7 +805,7 @@
   /* Word library and the Spanish name of an item (shown to Spanish-speaking visitors of the store). */
   const Wd = window.Words;
   function wordList() {
-    if (!state.settings.wordsSeeded) { state.settings.words = Wd.seed(state.settings.words || []); state.settings.wordsSeeded = true; save(); }
+    if (state.settings.wordsSeeded !== 2) { state.settings.words = Wd.seed(state.settings.words || []); state.settings.wordsSeeded = 2; save(); }   // 2 = the big starter list that knows grammar
     return state.settings.words || [];
   }
   const esBadge = (i) => { const sp = Wd.spanish(i, wordList()); return sp.state === 'none' ? '' : `<u class="${sp.state === 'ok' ? 'ok' : ''}">${sp.state === 'ok' ? '✓' : '!'}</u>`; };
@@ -820,15 +820,16 @@
       <div class="btns"><button class="btn primary" data-act="es-done" data-id="${id}">${t('es.done')}</button></div>
       <a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
   }
+  const typeSelect = (id, cur, attrs) => `<select ${id ? `id="${id}"` : ''} ${attrs || ''} aria-label="${t('words.type')}">${['nm', 'nf', 'npm', 'npf', 'a', 'ai', 'm', 'p', 'c', 'x'].map((k) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${t('words.t.' + k)}</option>`).join('')}</select>`;
   function sheetAddWords(id) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const miss = Wd.spanish(i, wordList()).missing; if (!miss.length) return sheetSpanish(id);
     openSmall(`<h3>${t('es.addTitle')}</h3><p>${t('es.addSub')}</p>
-      ${miss.map((w) => `<div class="w"><b>${esc(w)}</b><i>→</i><input data-w="${esc(w)}" placeholder="${t('words.spanish')}" autocomplete="off"></div>`).join('')}
+      ${miss.map((w) => `<div class="wb"><div class="w"><b>${esc(w)}</b><i>→</i><input data-w="${esc(w)}" placeholder="${t('words.spanish')}" autocomplete="off"></div>${typeSelect('', 'a', 'data-wt')}</div>`).join('')}
       <div class="btns"><button class="btn primary" data-act="es-savewords" data-id="${id}">${t('es.save')}</button></div><a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
   }
   let wordQ = '', wordGroup = 'all';
-  const wordGroups = ['clothes', 'colours', 'sizes', 'more', ''];
+  const wordGroups = ['clothes', 'shoes', 'colours', 'styles', 'materials', 'more', ''];
   function wordsListHTML() {
     const q = Wd.norm(wordQ), list = wordList().filter((w) => (wordGroup === 'all' || (wordGroup === 'yours' ? !w.c : w.c === wordGroup)) && (!q || Wd.norm(w.en).includes(q) || Wd.norm(w.es).includes(q)));
     const html = wordGroups.map((g) => {
@@ -837,21 +838,28 @@
     }).join('');
     return html || `<div class="empty">${t('words.empty')}</div>`;
   }
-  const wordsChips = () => ['all', 'clothes', 'colours', 'sizes', 'yours'].map((g) => `<button class="${wordGroup === g ? 'on' : ''}" data-act="word-group" data-id="${g}">${g === 'all' ? t('words.all') : g === 'yours' ? t('words.yours') : t('words.c.' + g)}</button>`).join('');
+  const wordsChips = () => ['all', 'clothes', 'shoes', 'colours', 'styles', 'materials', 'more', 'yours'].map((g) => `<button class="${wordGroup === g ? 'on' : ''}" data-act="word-group" data-id="${g}">${g === 'all' ? t('words.all') : g === 'yours' ? t('words.yours') : t('words.c.' + g)}</button>`).join('');
   function sheetWords(swap) {
     enterPage('words', '', () => sheetWords(), swap);
     const list = wordList();
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('words.title')}</b><small id="wcount">${t('words.count', { n: list.length })}</small></div></div>
       <div class="ap lib">${state.settings.wordsHideNote ? '' : `<div class="starter">📚<b>${t('words.starter', { n: Wd.STARTER.length })}</b><button data-act="word-hide">${t('words.hide')}</button></div>`}
+      <h4><span>${t('words.try')}</span></h4><div class="card try"><input id="w-try" placeholder="${t('words.tryPh')}" autocomplete="off"><div id="w-tryout" class="tryout">${t('words.tryHelp')}</div>
+        <div class="exs">${['Blue dress', 'Red top and black pants', 'Black lace long sleeve top', 'Navy dresses'].map((x) => `<button type="button" data-act="word-try" data-id="${x}">${x}</button>`).join('')}</div></div>
       <div class="srch2"><span>🔍</span><input id="w-q" value="${esc(wordQ)}" placeholder="${t('words.search')}" autocomplete="off"></div>
       <div class="tabs" id="wchips">${wordsChips()}</div>
-      <h4><span>${t('words.add')}</span></h4><div class="card"><div class="add"><input id="w-en" placeholder="${t('words.english')}" autocomplete="off"><i>→</i><input id="w-es" placeholder="${t('words.spanish')}" autocomplete="off" enterkeyhint="done"><button class="go" data-act="word-add" aria-label="${t('words.add')}">＋</button></div></div>
+      <h4><span>${t('words.add')}</span></h4><div class="card"><div class="add"><input id="w-en" placeholder="${t('words.english')}" autocomplete="off"><i>→</i><input id="w-es" placeholder="${t('words.spanish')}" autocomplete="off" enterkeyhint="done"><button class="go" data-act="word-add" aria-label="${t('words.add')}">＋</button></div><div class="addt">${typeSelect('w-t', 'a')}</div></div>
       <div id="wlist">${wordsListHTML()}</div></div>`, null, true);
+  }
+  function tryName() {
+    const f = $('#w-try'), out = $('#w-tryout'); if (!f || !out) return; const v = f.value.trim();
+    if (!v) { out.textContent = t('words.tryHelp'); return; }
+    const r = Wd.translate(v, wordList()); out.innerHTML = `<b>${esc(r.es)}</b>${r.missing.length ? `<small>${t('es.missing', { words: r.missing.map((x) => '“' + esc(x) + '”').join(', ') })}</small>` : ''}`;
   }
   const wordsRefresh = () => { const l = $('#wlist'); if (l) l.innerHTML = wordsListHTML(); const c = $('#wchips'); if (c) c.innerHTML = wordsChips(); const n = $('#wcount'); if (n) n.textContent = t('words.count', { n: wordList().length }); };
   function sheetWordEdit(en) {
     const w = wordList().find((x) => Wd.norm(x.en) === Wd.norm(en)); if (!w) return;
-    openSmall(`<h3>${t('words.edit')}</h3><label>${t('words.english')}</label><input id="we-en" value="${esc(w.en)}" autocomplete="off"><label>${t('words.spanish')}</label><input id="we-es" value="${esc(w.es)}" autocomplete="off">
+    openSmall(`<h3>${t('words.edit')}</h3><label>${t('words.english')}</label><input id="we-en" value="${esc(w.en)}" autocomplete="off"><label>${t('words.spanish')}</label><input id="we-es" value="${esc(w.es)}" autocomplete="off"><label>${t('words.type')}</label>${typeSelect('we-t', Wd.typeOf(w))}
       <div class="btns"><button class="btn primary" data-act="word-save" data-id="${esc(w.en)}">${t('btn.save')}</button><button class="btn danger" data-act="word-del2" data-id="${esc(w.en)}">${t('btn.delete')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
   }
   // Previous / next arrows (with "4 of 8") for the top bar, to flip through the items of one batch without going back.
@@ -1443,15 +1451,16 @@
       case 'mic-es': return voiceToggle(true);
       case 'es-open': return sheetSpanish(id);
       case 'es-addwords': return sheetAddWords(id);
-      case 'es-savewords': { document.querySelectorAll('.sheet [data-w]').forEach((inp) => { if (inp.value.trim()) state.settings.words = Wd.put(wordList(), inp.dataset.w, inp.value); }); save(); toast(t('words.saved')); return closeSheet(); }
+      case 'es-savewords': { document.querySelectorAll('.sheet .wb').forEach((row) => { const inp = row.querySelector('[data-w]'), sel = row.querySelector('[data-wt]'); if (inp.value.trim()) state.settings.words = Wd.put(wordList(), inp.dataset.w, inp.value, '', sel ? sel.value : 'a'); }); save(); toast(t('words.saved')); return closeSheet(); }
       case 'es-done': { const i = state.items.find((x) => x.id === id), v = ($('#es-name').value || '').trim(); if (i) { const auto = Wd.translate(i.desc, wordList()); if (!v || (v === auto.es && !auto.missing.length)) { i.esSet = false; delete i.nameEs; delete i.esFor; } else { i.nameEs = v; i.esSet = true; i.esFor = i.desc; } save(); } return closeSheet(); }
       case 'es-lib': closeSheet(); return sheetWords();
       case 'words-open': return sheetWords();
       case 'word-group': wordGroup = id; return wordsRefresh();
       case 'word-hide': state.settings.wordsHideNote = true; save(); { const n = document.querySelector('.starter'); if (n) n.remove(); } return;
-      case 'word-add': { const en = $('#w-en'), es = $('#w-es'); if (!en.value.trim() || !es.value.trim()) return toast(t('words.needBoth')); state.settings.words = Wd.put(wordList(), en.value, es.value, ''); save(); en.value = ''; es.value = ''; wordGroup = 'all'; wordQ = ''; $('#w-q').value = ''; wordsRefresh(); toast(t('words.saved')); return en.focus(); }
+      case 'word-add': { const en = $('#w-en'), es = $('#w-es'); if (!en.value.trim() || !es.value.trim()) return toast(t('words.needBoth')); state.settings.words = Wd.put(wordList(), en.value, es.value, '', $('#w-t').value); save(); en.value = ''; es.value = ''; wordGroup = 'all'; wordQ = ''; $('#w-q').value = ''; wordsRefresh(); toast(t('words.saved')); return en.focus(); }
       case 'word-edit': return sheetWordEdit(id);
-      case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : ''); state.settings.words = w; save(); return closeSheet(); }
+      case 'word-try': { const f = $('#w-try'); if (f) { f.value = id; tryName(); } return; }
+      case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : '', $('#we-t').value); state.settings.words = w; save(); return closeSheet(); }
       case 'word-del': case 'word-del2': state.settings.words = Wd.drop(wordList(), id); save(); toast(t('words.removed')); if (t_.dataset.act === 'word-del2') return closeSheet(); return wordsRefresh();
       case 'item-go': if (id) { sheetItem(id, true); $('#sheet').scrollTop = 0; } return;
       case 'qe-open': { const ids = batchIds(id, true); if (!ids.length) return toast(t('qe.none')); return sheetQuick(id, ids[0]); }
@@ -1580,6 +1589,7 @@
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
     else if (el.id === 'w-q') { wordQ = el.value; wordsRefresh(); }
+    else if (el.id === 'w-try') tryName();
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;

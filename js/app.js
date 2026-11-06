@@ -970,11 +970,46 @@
   // The items one "Edit batch" page walks through: a design with several pieces is one stop.
   const quickIds = (batchId) => state.items.filter((x) => x.batchId === batchId && !L.isSold(x)).filter((x) => !x.grp || grpOf(x)[0] === x).map((x) => x.id).sort();
   const idNo = (id) => String(id).split('-')[1] || id;
-  function grpNote(i) {
+  const onQuick = () => !!document.querySelector('#sheet .qe');
+  function grpNote(i, single) {
     const g = grpOf(i); if (g.length < 2) return '';
-    const cnt = L.sizeCounts(state, i), sm = sizeSummary(cnt);
-    return `<div class="gnote" id="gnote">🧩<div><b>${grpName(i)} · ${tn('grp.items', g.length)}</b> (${idNo(g[0].id)}–${idNo(g[g.length - 1].id)})${sm ? '<br>' + sm : ''}<small>${t('grp.note', { n: g.length })}</small></div></div>`;
+    const cnt = L.sizeCounts(state, i), sm = sizeSummary(cnt), none = '—';
+    const lbl = (list, withPct) => { const m = new Map(); list.forEach((x) => { const k = (String(x.size || '').trim() || none) + (withPct ? '|' + x.discount : ''); m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()].map(([k, n]) => { const [zz, pc] = k.split('|'); return szLabel(zz) + ' ×' + n + (pc ? ' (' + pc + '%)' : ''); }).join(' · '); };
+    const on = g.filter((x) => x.saleOn && Number(x.discount) > 0), off = g.filter((x) => !on.includes(x));
+    const saleLine = !on.length ? '' : !off.length && new Set(on.map((x) => x.discount)).size === 1 ? t('grp.saleAll', { n: g.length, pct: on[0].discount }) : t('grp.saleSome', { on: lbl(on, true), off: lbl(off, false) });
+    const prices = new Map(); g.forEach((x) => { const k = L.r2(Number(x.price) || 0); prices.set(k, (prices.get(k) || []).concat(x)); });
+    const priceLine = prices.size > 1 ? t('grp.priceDiff', { list: [...prices.entries()].map(([p, l]) => lbl(l, false) + ' ' + money(p)).join(' · ') }) : '';
+    return `<div class="gnote" id="gnote" data-s="${single ? 1 : ''}">🧩<div><b>${grpName(i)} · ${tn('grp.items', g.length)}</b> (${idNo(g[0].id)}–${idNo(g[g.length - 1].id)})${sm ? '<br>' + sm : ''}${saleLine ? '<br><b>' + saleLine + '</b>' : ''}${priceLine ? '<br>' + priceLine : ''}<small>${single ? t('grp.noteOne', { n: g.length }) : t('grp.note', { n: g.length })}</small></div></div>`;
   }
+  const refreshNote = (i) => { const gn = $('#gnote'); if (gn) gn.outerHTML = grpNote(i, !!gn.dataset.s); };
+  // On one item's own page, a sale or price change on a piece of a group asks who it is for: this size, just this item, or the whole design.
+  function scopeAsk(it, kind, sub) {
+    const g = grpOf(it); if (g.length < 2) return Promise.resolve([it]);
+    const zz = String(it.size || '').trim(), same = zz ? g.filter((x) => String(x.size || '').trim().toLowerCase() === zz.toLowerCase()) : [it], sm = sizeSummary(L.sizeCounts(state, it));
+    const allSame = same.length === g.length, hasSame = same.length > 1 && !allSame;
+    const row = (v, ic, ti, no, rec) => `<button class="sc ${rec ? 'rec' : ''}" data-act="scope-pick" data-v="${v}"><i>${ic}</i><span>${ti}<small>${no}</small></span>${rec ? `<em>${t('scope.suggested')}</em>` : ''}</button>`;
+    const rows = (hasSame ? row('same', '👕', t('scope.same', { n: same.length, s: szLabel(zz) }), tn('scope.identical', same.length), true) : '')
+      + row('one', '1️⃣', t('scope.justThis'), zz && !same.length ? '' : (same.length === 1 && zz ? t('scope.onlySize', { id: it.id, s: szLabel(zz) }) : t('scope.only', { id: it.id })), !hasSame && !allSame)
+      + row('all', '🧩', t('scope.all', { n: g.length }), sm || '', allSame);
+    return new Promise((ok) => {
+      let done = false; const fin = (v) => { if (!done) { done = true; ok(v === 'same' ? same : v === 'one' ? [it] : v === 'all' ? g : null); } }; window.__scope = fin;
+      openSmall(`<h3>${t('scope.title.' + kind)}</h3><p>${esc(String(it.desc || '').trim() || t('item.untitled'))}${zz ? ' · ' + t('scope.size', { s: esc(szLabel(zz)) }) : ''} · ${sub}</p>${rows}<a class="cn" data-act="close" role="button">${t('btn.cancel')}</a>`, 'sheet', () => fin(null));
+    });
+  }
+  async function setSale(it, saleOn, pct) {
+    const who = onQuick() ? grpOf(it) : (saleOn && pct == null && !(Number(it.discount) > 0)) ? [it] : await scopeAsk(it, saleOn ? 'sale' : 'off', saleOn ? t('scope.pctOff', { pct: pct != null ? pct : Number(it.discount) || 0 }) : t('scope.saleOff'));
+    if (!who) { if (typeof discOld !== 'undefined' && discOld.id === it.id) it.discount = discOld.v; discOld = { id: '', v: 0 }; save(); return refreshSaleBlock(it); }
+    who.concat(it).forEach((x) => { x.saleOn = saleOn; if (pct != null) x.discount = pct; });
+    discOld = { id: '', v: 0 }; save(); refreshSaleBlock(it); refreshNote(it);
+  }
+  async function setPrice(it, v, oldV) {
+    const who = onQuick() ? grpOf(it) : await scopeAsk(it, 'price', t('scope.priceTo', { p: money(v) }));
+    const f = $('#sheet [data-f=price]');
+    if (!who) { it.price = oldV; if (f) f.value = oldV || ''; return updateSale(it); }
+    who.concat(it).forEach((x) => { x.price = v; }); if (f) f.value = v || '';
+    save(); updateSale(it); refreshNote(it);
+  }
+  let discOld = { id: '', v: 0 };
   // The Size section. One piece: chips that slide sideways + More…; several pieces: a button that opens the Split-by-size picker.
   let qeTried = false;
   function szSection(i, single, req) {
@@ -991,9 +1026,9 @@
     return `<div class="szrow ${bad ? 'err' : ''}" id="szrow" data-kind="${sizeKind(i.desc)}" data-single="${single ? 1 : ''}" data-req="${req ? 1 : ''}">${head}${body}${bad ? `<p class="errtxt">${t('size.choose')}</p>` : ''}</div>`;
   }
   const scrollSize = () => { const on = document.querySelector('#szrow .szchips .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' }); };
-  function refreshSize(i) { const el = $('#szrow'); if (el) { el.outerHTML = szSection(i, !!el.dataset.single, !!el.dataset.req); scrollSize(); } const gn = $('#gnote'); if (gn) gn.outerHTML = grpNote(i); refreshStripTile(i); refreshGo(i); }
+  function refreshSize(i) { const el = $('#szrow'); if (el) { el.outerHTML = szSection(i, !!el.dataset.single, !!el.dataset.req); scrollSize(); } refreshNote(i); refreshStripTile(i); refreshGo(i); }
   // After typing: refresh the notes around the Size row, and rebuild the row itself only when its chips change (a rebuild under a finger loses the tap).
-  function refreshAfterEdit(i) { const el = $('#szrow'); if (el && el.dataset.kind !== sizeKind(i.desc)) return refreshSize(i); const gn = $('#gnote'); if (gn) gn.outerHTML = grpNote(i); refreshStripTile(i); refreshGo(i); }
+  function refreshAfterEdit(i) { const el = $('#szrow'); if (el && el.dataset.kind !== sizeKind(i.desc)) return refreshSize(i); refreshNote(i); refreshStripTile(i); refreshGo(i); }
   const refreshStripTile = (i) => { const q = document.querySelector(`#qstrip .qt[data-id="${i.id}"]`); if (q) q.className = 'qt ' + (q.classList.contains('on') ? 'on ' : '') + stripState(i); };
   const stripState = (i) => (!String(i.desc || '').trim() ? '' : L.needsSize(state, i) ? 'warn' : 'done');
   function refreshGo(i) { const b = document.querySelector('.qgo .pr'); if (b) b.classList.toggle('blocked', L.needsSize(state, i)); }
@@ -1092,13 +1127,13 @@
     const i = state.items.find((x) => x.id === id); if (!i) return;
     enterPage('item', id, () => sheetItem(id), swap);
     const b = batchOf(i), sold = L.isSold(i);
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${i.id}</b><small>${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
       <fieldset class="lockset" ${sold ? 'disabled' : ''}>
-      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${sold ? '' : szSection(i, true, false)}${sold ? '' : grpNote(i)}
+      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${sold ? '' : szSection(i, true, false)}${sold ? '' : grpNote(i, true)}
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
-      <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
+      <div class="mrow" id="pricerow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
       <div id="saleblock">${saleHTML(i)}</div>
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="text" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
@@ -1687,6 +1722,7 @@
       case 'es-lib': closeSheet(); return sheetWords();
       case 'size-set': { const i = state.items.find((x) => x.id === id); if (!i) return; if (L.isSold(i)) return toast(t('item.lockedToast')); const v = t_.dataset.v; i.size = String(i.size || '').toLowerCase() === v.toLowerCase() ? '' : v; save(); return refreshSize(i); }
       case 'qty-inc': case 'qty-dec': { const it = state.items.find((x) => x.id === id); if (!it) return; const g = grpOf(it).length; return setQty(it, g + (t_.dataset.act === 'qty-inc' ? 1 : -1)); }
+      case 'scope-pick': { const f = window.__scope; if (f) f(t_.dataset.v); return closeSheet(); }
       case 'slots-add': case 'slots-use': { const f = window.__slots; if (f) f(t_.dataset.act === 'slots-add' ? 'add' : 'use'); return closeSheet(); }
       case 'szp-open': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return szpOpen(it, !!t_.dataset.single); }
       case 'szp-tap': if (holdFired) { holdFired = false; return; } return szpTap(t_.dataset.v);
@@ -1739,9 +1775,9 @@
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
-      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = !it.saleOn; L.applyToGroup(state, it, ['saleOn', 'discount']); save(); return refreshSaleBlock(it); }
-      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); it.saleOn = true; it.discount = Number(t_.dataset.v); L.applyToGroup(state, it, ['saleOn', 'discount']); save(); return refreshSaleBlock(it); }
-      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); }
+      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return setSale(it, !it.saleOn, null); }
+      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return setSale(it, true, Number(t_.dataset.v)); }
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); const old = it.price; if (onQuick()) { it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); } return setPrice(it, c.recommended, old); }
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
@@ -1842,9 +1878,10 @@
     if (el.dataset.qty) { const it = state.items.find((x) => x.id === el.dataset.qty); if (it) setQty(it, el.value); return; }
     if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f; if (L.isSold(i)) return;
-      if (f === 'discount') { i.discount = parsePct(el.value); el.value = i.discount ? i.discount + '%' : ''; L.applyToGroup(state, i, ['discount']); save(); return refreshSaleBlock(i); }   // "50" becomes "50%"
+      if (f === 'discount') { const pc = parsePct(el.value); el.value = pc ? pc + '%' : ''; if (discOld.id !== i.id) discOld = { id: i.id, v: i.discount }; i.discount = pc; return setSale(i, i.saleOn, pc); }   // "50" becomes "50%"
+      if (f === 'price' && !onQuick() && grpOf(i).length > 1) { const nv = Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0), old = i.price; if (nv === old) return; i.price = nv; return setPrice(i, nv, old); }
       i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0) : el.value;
-      if (L.GROUP_FIELDS.includes(f)) L.applyToGroup(state, i, [f]);
+      if (L.GROUP_FIELDS.includes(f) && (onQuick() || f !== 'price')) L.applyToGroup(state, i, [f]);
       save(); updateSale(i); if (f === 'desc') refreshEs(i); if (f === 'desc') refreshAfterEdit(i);
     }
   });
@@ -1862,7 +1899,7 @@
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
-      if (f === 'discount') { i.discount = parsePct(el.value); L.applyToGroup(state, i, ['discount']); updateSale(i); }
+      if (f === 'discount') { if (discOld.id !== i.id) discOld = { id: i.id, v: i.discount }; i.discount = parsePct(el.value); if (onQuick()) L.applyToGroup(state, i, ['discount']); updateSale(i); }
       else if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0); updateSale(i); } else { i[f] = el.value; }
       save();
     } else if (el.form && el.form.id === 'f-batch') {

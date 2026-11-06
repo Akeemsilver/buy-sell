@@ -734,3 +734,6 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .ex{padding:8px 12px;border-radius:12px;background:var(--tint);border:1px solid var(--line);font-size:13px;display:flex;justify-content:space-between}.ex b{color:var(--brand)}.ex s{color:var(--mute);margin-right:6px}
 .lnk2{display:block;text-align:center;margin-top:10px;color:#c62828;font-weight:600;font-size:14px;cursor:pointer}
 .szb{color:var(--brand);font-weight:700}
+/* who does this change apply to (group pop-up) */
+.sc{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:58px;padding:8px 14px;margin-top:8px;border-radius:14px;background:#fff;border:1px solid var(--line);box-shadow:var(--sh1);color:var(--ink);font-size:15px;font-weight:600}.sc small{display:block;font-weight:500;color:var(--mute);font-size:12px;margin-top:2px}.sc i{font-style:normal;font-size:20px}.sc.rec{border:2px solid var(--brand);background:var(--tint)}.sc em{margin-left:auto;font-style:normal;font-size:11px;font-weight:700;background:var(--brand);color:#fff;border-radius:99px;padding:3px 9px}
+.cn{width:100%;margin-top:10px;text-align:center;color:var(--mute);font-weight:600;font-size:14px;display:block;cursor:pointer}

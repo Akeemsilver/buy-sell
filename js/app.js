@@ -1014,7 +1014,7 @@
   let qeTried = false;
   function szSection(i, single, req) {
     const members = single ? [i] : grpOf(i), n = members.length, missing = members.filter((x) => !String(x.size || '').trim()).length;
-    const bad = req && qeTried && missing, head = `<label>${t('size.label')}${req && missing ? ` <span class="req">${t('size.required')}</span>` : ''}</label>`;
+    const bad = req && qeTried && missing, hl = !req && single && n === 1 && missing && String(i.desc || '').trim() !== '', head = `<label>${t('size.label')}${req && missing ? ` <span class="req">${t('size.required')}</span>` : ''}${hl ? ` <span class="nz">· ${t('size.pick')}</span>` : ''}</label>`;
     let body;
     if (n === 1) {
       const cur = String(i.size || '').trim(), k = sizeKind(i.desc), set = k === 'shoe' ? SZ_SHOE_CH : k === 'kids' ? SZ_KIDS_CH : SZ_STD, std = set.find((z) => z.toLowerCase() === cur.toLowerCase());
@@ -1023,7 +1023,7 @@
       const sm = sizeSummary(L.sizeCounts(state, i)), placed = n - missing;
       body = `<button type="button" class="btnz ${missing ? '' : 'ok'}" data-act="szp-open" data-id="${i.id}"><span>${t('size.split')}</span><small class="${missing ? 'bad' : ''}">${missing ? t('size.placed', { n: placed, total: n }) : esc(sm)}</small></button>`;
     }
-    return `<div class="szrow ${bad ? 'err' : ''}" id="szrow" data-kind="${sizeKind(i.desc)}" data-single="${single ? 1 : ''}" data-req="${req ? 1 : ''}">${head}${body}${bad ? `<p class="errtxt">${t('size.choose')}</p>` : ''}</div>`;
+    return `<div class="szrow ${bad ? 'err' : ''} ${hl ? 'hl' : ''}" id="szrow" data-kind="${sizeKind(i.desc)}" data-single="${single ? 1 : ''}" data-req="${req ? 1 : ''}">${head}${body}${bad ? `<p class="errtxt">${t('size.choose')}</p>` : ''}</div>`;
   }
   const scrollSize = () => { const on = document.querySelector('#szrow .szchips .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' }); };
   function refreshSize(i) { const el = $('#szrow'); if (el) { el.outerHTML = szSection(i, !!el.dataset.single, !!el.dataset.req); scrollSize(); } refreshNote(i); refreshStripTile(i); refreshGo(i); }
@@ -1145,6 +1145,7 @@
       : `<div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
     $('#sheet').dataset.item = id; updateSale(i); scrollSize();
+    const hlr = $('#szrow.hl'); if (hlr) setTimeout(() => hlr.scrollIntoView({ block: 'center' }), 60);   // an item with a name but no size: bring the Size block into view
   }
   /* Edit batch: one unsold item at a time with its picture, description, price, cost and sale; Save & next moves on. */
   function sheetQuick(batchId, id, swap) {

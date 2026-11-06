@@ -50,9 +50,66 @@
     X('more', [['size', 'talla']])
   );
 
+  // ---- more things people sell (added after the first list; older libraries get these on the next start) ----------------------------
+  const NP = (c, rows) => N(c, rows);
+  const MORE = [].concat(
+    NP('clothes', [['camisole', 'camiseta de tirantes', 'f', 0, 'camisetas de tirantes'], ['tube top', 'top tubo', 'm', 0, 'tops tubo'], ['bralette', 'bralette', 'm'], ['corset', 'corsé', 'm'], ['polo shirt', 'camisa polo', 'f'], ['polo', 'polo', 'm'],
+      ['turtleneck', 'suéter de cuello alto', 'm', 0, 'suéteres de cuello alto'], ['tunic', 'túnica', 'f'], ['kimono', 'kimono', 'm'], ['poncho', 'poncho', 'm'], ['shawl', 'chal', 'm'], ['cape', 'capa', 'f'], ['peplum top', 'blusa peplum', 'f', 0, 'blusas peplum'],
+      ['pullover', 'pulóver', 'm'], ['windbreaker', 'cortavientos', 'm', 0, 'cortavientos'], ['puffer jacket', 'chaqueta acolchada', 'f', 0, 'chaquetas acolchadas'], ['bomber jacket', 'chaqueta bomber', 'f'], ['denim jacket', 'chaqueta de jean', 'f'],
+      ['leather jacket', 'chaqueta de cuero', 'f'], ['track jacket', 'chaqueta deportiva', 'f', 0, 'chaquetas deportivas'], ['trench coat', 'gabardina', 'f'], ['raincoat', 'impermeable', 'm'], ['parka', 'parka', 'f'], ['suit', 'traje', 'm'], ['tuxedo', 'esmoquin', 'm'], ['waistcoat', 'chaleco', 'm'],
+      ['sundress', 'vestido de verano', 'm'], ['cocktail dress', 'vestido de coctel', 'm'], ['evening dress', 'vestido de noche', 'm'], ['prom dress', 'vestido de graduación', 'm'], ['wedding dress', 'vestido de novia', 'm'], ['bridesmaid dress', 'vestido de dama de honor', 'm'],
+      ['shirt dress', 'vestido camisero', 'm', 0, 'vestidos camiseros'], ['sweater dress', 'vestido de suéter', 'm'], ['slip dress', 'vestido de tirantes', 'm'], ['tube dress', 'vestido tubo', 'm'], ['pinafore', 'jumper', 'm', 0, 'jumpers'], ['kaftan', 'caftán', 'm'], ['abaya', 'abaya', 'f'], ['beach dress', 'vestido de playa', 'm'],
+      ['culottes', 'culottes', 'm', 1], ['capris', 'pescadores', 'm', 1], ['bermuda shorts', 'bermudas', 'f', 1], ['bermudas', 'bermudas', 'f', 1], ['skort', 'falda short', 'f', 0, 'faldas short'], ['pencil skirt', 'falda lápiz', 'f', 0, 'faldas lápiz'], ['tennis skirt', 'falda de tenis', 'f'],
+      ['wrap skirt', 'falda envolvente', 'f', 0, 'faldas envolventes'], ['tutu', 'tutú', 'm'], ['sarong', 'pareo', 'm'], ['jeggings', 'jeggings', 'f', 1], ['flare pants', 'pantalones acampanados', 'm', 1], ['bell bottoms', 'pantalones acampanados', 'm', 1], ['harem pants', 'pantalones harem', 'm', 1],
+      ['chinos', 'chinos', 'm', 1], ['slacks', 'pantalones de vestir', 'm', 1], ['hot pants', 'hot pants', 'm', 1], ['pajama pants', 'pantalones de pijama', 'm', 1], ['gym shorts', 'shorts deportivos', 'm', 1], ['bike shorts', 'licras cortas', 'f', 1],
+      ['matching set', 'conjunto a juego', 'm', 0, 'conjuntos a juego'], ['lounge set', 'conjunto de descanso', 'm'], ['pajama set', 'conjunto de pijama', 'm'], ['one piece swimsuit', 'traje de baño de una pieza', 'm'], ['tankini', 'tankini', 'm'], ['cover up', 'salida de playa', 'f'],
+      ['sports bra', 'sostén deportivo', 'm', 0, 'sostenes deportivos'], ['activewear', 'ropa deportiva', 'f', 0, 'ropa deportiva'], ['leotard', 'leotardo', 'm'], ['yoga set', 'conjunto de yoga', 'm'],
+      ['nightgown', 'camisón', 'm'], ['nightdress', 'camisón', 'm'], ['slip', 'enagua', 'f'], ['panties', 'pantaletas', 'f', 1], ['briefs', 'calzoncillos', 'm', 1], ['boxers', 'bóxers', 'm', 1], ['thong', 'tanga', 'f'], ['shapewear', 'faja', 'f'], ['stockings', 'medias', 'f', 1], ['undershirt', 'camiseta interior', 'f', 0, 'camisetas interiores'],
+      ['onesie', 'mameluco', 'm'], ['school uniform', 'uniforme escolar', 'm', 0, 'uniformes escolares'], ['bib', 'babero', 'm'], ['beanie', 'gorro', 'm'], ['bonnet', 'gorro', 'm'], ['bucket hat', 'sombrero de pescador', 'm'], ['sun hat', 'sombrero de sol', 'm'], ['fedora', 'fedora', 'm'], ['visor', 'visera', 'f'],
+      ['tie', 'corbata', 'f'], ['bow tie', 'pajarita', 'f'], ['suspenders', 'tirantes', 'm', 1], ['umbrella', 'paraguas', 'm', 0, 'paraguas'], ['bandana', 'bandana', 'f'], ['head wrap', 'pañuelo para la cabeza', 'm']]),
+    NP('shoes', [['loafers', 'mocasines', 'm', 1], ['pumps', 'zapatos de tacón', 'm', 1], ['wedges', 'cuñas', 'f', 1], ['platforms', 'plataformas', 'f', 1], ['stilettos', 'stilettos', 'm', 1], ['ballet flats', 'bailarinas', 'f', 1], ['espadrilles', 'alpargatas', 'f', 1], ['flip flops', 'chancletas', 'f', 1],
+      ['crocs', 'crocs', 'm', 1], ['ankle boots', 'botines', 'm', 1], ['knee high boots', 'botas altas', 'f', 1], ['rain boots', 'botas de lluvia', 'f', 1], ['work boots', 'botas de trabajo', 'f', 1], ['trainers', 'tenis', 'm', 1], ['running shoes', 'zapatos para correr', 'm', 1],
+      ['mules', 'mules', 'f', 1], ['clogs', 'zuecos', 'm', 1], ['high tops', 'tenis altos', 'm', 1], ['crossbody bag', 'bolso cruzado', 'm', 0, 'bolsos cruzados'], ['shoulder bag', 'bolso de hombro', 'm'], ['bucket bag', 'bolso tipo cubo', 'm'], ['fanny pack', 'riñonera', 'f'], ['belt bag', 'riñonera', 'f'],
+      ['duffel bag', 'bolso deportivo', 'm', 0, 'bolsos deportivos'], ['suitcase', 'maleta', 'f'], ['travel bag', 'bolso de viaje', 'm'], ['makeup bag', 'bolso de maquillaje', 'm'], ['laptop bag', 'bolso para laptop', 'm'], ['lunch bag', 'lonchera', 'f'], ['beach bag', 'bolso de playa', 'm'], ['tote', 'bolso tote', 'm'],
+      ['satchel', 'maletín', 'm'], ['diaper bag', 'bolso de pañales', 'm'], ['phone case', 'funda de teléfono', 'f'], ['card holder', 'tarjetero', 'm'], ['coin purse', 'monedero', 'm'], ['keychain', 'llavero', 'm'],
+      ['studs', 'aretes pequeños', 'm', 1], ['hoops', 'aros', 'm', 1], ['pendant', 'colgante', 'm'], ['chain', 'cadena', 'f'], ['choker', 'gargantilla', 'f'], ['brooch', 'broche', 'm'], ['cufflinks', 'gemelos', 'm', 1], ['bangle', 'brazalete', 'm'], ['toe ring', 'anillo para el pie', 'm'], ['jewelry set', 'juego de joyas', 'm', 0, 'juegos de joyas'],
+      ['hair clip', 'pinza para el cabello', 'f'], ['headband', 'cintillo', 'm'], ['hair band', 'cintillo', 'm'], ['scrunchie', 'scrunchie', 'f'], ['hair tie', 'liga para el cabello', 'f'], ['wig', 'peluca', 'f'], ['hair extensions', 'extensiones', 'f', 1], ['glasses', 'lentes', 'm', 1], ['smart watch', 'reloj inteligente', 'm', 0, 'relojes inteligentes'],
+      ['lipstick', 'labial', 'm'], ['lip gloss', 'brillo labial', 'm', 0, 'brillos labiales'], ['nail polish', 'esmalte de uñas', 'm'], ['body spray', 'rocío corporal', 'm'], ['lotion', 'loción', 'f'], ['makeup', 'maquillaje', 'm'], ['eyelashes', 'pestañas', 'f', 1],
+      ['towel', 'toalla', 'f'], ['blanket', 'manta', 'f'], ['pillow', 'almohada', 'f'], ['curtain', 'cortina', 'f'], ['bedsheet', 'sábana', 'f'], ['candle', 'vela', 'f'],
+      ['pair', 'par', 'm'], ['pack', 'paquete', 'm'], ['bundle', 'paquete', 'm'], ['lot', 'lote', 'm'], ['dozen', 'docena', 'f']]),
+    A('colours', [['light grey', 'gris claro', 'all'], ['light gray', 'gris claro', 'all'], ['dark grey', 'gris oscuro', 'all'], ['dark gray', 'gris oscuro', 'all'], ['light brown', 'marrón claro', 'all'], ['dark brown', 'marrón oscuro', 'all'], ['dark red', 'rojo oscuro', 'all'], ['light yellow', 'amarillo claro', 'all'],
+      ['neon pink', 'rosado neón', 'all'], ['neon green', 'verde neón', 'all'], ['neon orange', 'anaranjado neón', 'all'], ['pastel', 'pastel', 'all'], ['dusty pink', 'rosa palo', 'all'], ['blush', 'rosa palo', 'all'], ['baby pink', 'rosado pastel', 'all'], ['powder blue', 'azul pálido', 'all'],
+      ['cobalt', 'azul cobalto', 'all'], ['electric blue', 'azul eléctrico', 'all'], ['denim blue', 'azul jean', 'all'], ['indigo', 'índigo', 'all'], ['violet', 'violeta', 'all'], ['plum', 'ciruela', 'all'], ['mauve', 'malva', 'all'], ['raspberry', 'frambuesa', 'all'], ['cherry', 'cereza', 'all'],
+      ['scarlet', 'escarlata', 'all'], ['crimson', 'carmesí', 'all'], ['jade', 'jade', 'all'], ['mocha', 'moca', 'all'], ['chocolate', 'chocolate', 'all'], ['camel', 'camel', 'all'], ['taupe', 'topo', 'all'], ['ecru', 'crudo', 'all'], ['sand', 'arena', 'all'], ['stone', 'piedra', 'all'], ['apricot', 'albaricoque', 'all'],
+      ['tangerine', 'mandarina', 'all'], ['lemon', 'limón', 'all'], ['pearl', 'perla', 'all'], ['metallic gold', 'dorado metálico', 'all'], ['metallic silver', 'plateado metálico', 'all'], ['rose', 'rosa', 'all'], ['heather grey', 'gris jaspeado', 'all'], ['oatmeal', 'avena', 'all'], ['burnt orange', 'naranja quemado', 'all'],
+      ['bottle green', 'verde botella', 'all'], ['cyan', 'cian', 'all'], ['ice blue', 'azul hielo', 'all'], ['dusty blue', 'azul empolvado', 'all'], ['wine red', 'rojo vino', 'all']]),
+    A('styles', [['two tone', 'bicolor', 'all'], ['tie dye', 'tie dye', 'all'], ['camo', 'camuflado'], ['camouflage', 'camuflado'], ['paisley', 'paisley', 'all'], ['geometric', 'geométrico'], ['abstract', 'abstracto'], ['metallic', 'metálico'], ['shiny', 'brillante'], ['matte', 'mate', 'all'],
+      ['sheer', 'transparente'], ['see through', 'transparente', 'all'], ['lined', 'forrado'], ['padded', 'acolchado'], ['quilted', 'acolchado'], ['waterproof', 'impermeable', 'all'], ['breathable', 'transpirable'], ['push up', 'push up', 'all'], ['adjustable', 'ajustable'], ['elastic', 'elástico'],
+      ['low cut', 'escotado'], ['skinny', 'skinny', 'all'], ['straight', 'recto'], ['flared', 'acampanado'], ['bootcut', 'bootcut', 'all'], ['baggy', 'holgado'], ['relaxed', 'holgado'], ['tailored', 'entallado'], ['bodycon', 'ajustado'], ['asymmetric', 'asimétrico'], ['wrap', 'cruzado'],
+      ['ruched', 'fruncido'], ['distressed', 'rasgado'], ['ripped', 'rasgado'], ['washed', 'lavado'], ['frayed', 'deshilachado'], ['full length', 'largo'], ['petite', 'petite', 'all'], ['tall', 'alto'], ['curvy', 'curvy', 'all'], ['school', 'escolar'], ['custom', 'personalizado'], ['original', 'original'], ['authentic', 'auténtico'],
+      ['brand new', 'nuevo'], ['used', 'usado'], ['preloved', 'usado'], ['imported', 'importado'], ['embellished', 'adornado'], ['extra small', 'extra pequeño']]),
+    P('styles', [['long sleeves', 'de manga larga'], ['short sleeves', 'de manga corta'], ['round neck', 'de cuello redondo'], ['crew neck', 'de cuello redondo'], ['scoop neck', 'de cuello redondo'], ['square neck', 'de cuello cuadrado'], ['halter neck', 'de cuello halter'], ['high neck', 'de cuello alto'],
+      ['cowl neck', 'de cuello caído'], ['boat neck', 'de cuello barco'], ['collared', 'con cuello'], ['deep v', 'de escote profundo'], ['sweetheart', 'de escote corazón'], ['puff sleeve', 'de manga abullonada'], ['bell sleeve', 'de manga campana'], ['batwing', 'de manga murciélago'],
+      ['three quarter sleeve', 'de manga tres cuartos'], ['cap sleeve', 'de manga casquillo'], ['flutter sleeve', 'de manga volante'], ['half sleeve', 'de media manga'], ['strappy', 'de tirantes'], ['spaghetti strap', 'de tirantes finos'], ['thin strap', 'de tirantes finos'], ['cold shoulder', 'con hombros descubiertos'],
+      ['animal print', 'de estampado animal'], ['leopard print', 'de leopardo'], ['zebra print', 'de cebra'], ['snake print', 'de serpiente'], ['graphic', 'con estampado gráfico'], ['gingham', 'de cuadros vichy'], ['houndstooth', 'de pata de gallo'], ['checked', 'de cuadros'], ['pinstripe', 'de rayas finas'],
+      ['glitter', 'con brillo'], ['quick dry', 'de secado rápido'], ['seamless', 'sin costuras'], ['wireless', 'sin aro'], ['a line', 'en A'], ['empire', 'de corte imperio'], ['belted', 'con cinturón'], ['tiered', 'de capas'], ['layered', 'en capas'], ['smocked', 'con smock'], ['acid wash', 'de lavado ácido'],
+      ['high rise', 'de tiro alto'], ['mid rise', 'de tiro medio'], ['low rise', 'de tiro bajo'], ['high waisted', 'de tiro alto'], ['knee length', 'hasta la rodilla'], ['ankle length', 'hasta el tobillo'], ['floor length', 'hasta el piso'], ['maternity', 'de maternidad'], ['nursing', 'de lactancia'],
+      ['work', 'de trabajo'], ['party', 'de fiesta'], ['wedding', 'de boda'], ['evening', 'de noche'], ['summer', 'de verano'], ['winter', 'de invierno'], ['beach', 'de playa'], ['hand made', 'hecho a mano'], ['handmade', 'hecho a mano'], ['designer', 'de diseñador'], ['luxury', 'de lujo'],
+      ['second hand', 'de segunda mano'], ['new with tags', 'nuevo con etiqueta'], ['beaded', 'con cuentas'], ['studded', 'con tachuelas'], ['fringe', 'con flecos'], ['tassel', 'con borlas'], ['rhinestone', 'con pedrería'], ['one size fits all', 'talla única'], ['for her', 'para ella'], ['for him', 'para él']]),
+    M('materials', [['viscose', 'viscosa'], ['rayon', 'rayón'], ['acrylic', 'acrílico'], ['cashmere', 'cachemira'], ['terry', 'toalla'], ['sherpa', 'sherpa'], ['faux fur', 'pelo sintético'], ['fur', 'piel'], ['leatherette', 'cuero sintético'], ['pu leather', 'cuero sintético'], ['vegan leather', 'cuero vegano'],
+      ['jacquard', 'jacquard'], ['brocade', 'brocado'], ['organza', 'organza'], ['taffeta', 'tafetán'], ['crepe', 'crepé'], ['georgette', 'georgette'], ['poplin', 'popelín'], ['twill', 'sarga'], ['tweed', 'tweed'], ['flannel', 'franela'], ['bamboo', 'bambú'], ['hemp', 'cáñamo'], ['modal', 'modal'], ['lycra', 'licra'],
+      ['elastane', 'elastano'], ['neoprene', 'neopreno'], ['silicone', 'silicona'], ['glass', 'vidrio'], ['ceramic', 'cerámica'], ['stainless steel', 'acero inoxidable'], ['titanium', 'titanio'], ['brass', 'latón'], ['zinc alloy', 'aleación de zinc'], ['sterling silver', 'plata de ley'],
+      ['gold plated', 'baño de oro'], ['silver plated', 'baño de plata'], ['crystal', 'cristal'], ['diamond', 'diamante']]),
+    L('more', [['xxs', 'XXS'], ['2xl', '2XL'], ['4xl', '4XL'], ['5xl', '5XL']])
+  );
+  STARTER.push.apply(STARTER, MORE);
+  // nouns that carry a describing word inside need their own plural ("vestidos largos")
+  const PE = { 'maxi dress': 'vestidos largos', 'mini dress': 'vestidos cortos', 'midi dress': 'vestidos midi', 'wrap dress': 'vestidos cruzados', 'bodycon dress': 'vestidos ajustados', 'tracksuit': 'conjuntos deportivos' };
+  STARTER.forEach((w) => { if (PE[w.en]) w.pe = PE[w.en]; });
+
   // ---- the Spanish grammar bits --------------------------------------------------------------------------------------------------
-  const NUM = { two: 'dos', three: 'tres', four: 'cuatro', five: 'cinco', six: 'seis', seven: 'siete', eight: 'ocho', nine: 'nueve', ten: 'diez' };
-  const NUMV = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+  const NUM = { two: 'dos', three: 'tres', four: 'cuatro', five: 'cinco', six: 'seis', seven: 'siete', eight: 'ocho', nine: 'nueve', ten: 'diez', eleven: 'once', twelve: 'doce', thirteen: 'trece', fourteen: 'catorce', fifteen: 'quince', sixteen: 'dieciséis', seventeen: 'diecisiete', eighteen: 'dieciocho', nineteen: 'diecinueve', twenty: 'veinte' };
+  const NUMV = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20 };
   const NOACC = { á: 'a', é: 'e', í: 'i', ó: 'o', ú: 'u' };
   const pluralWord = (w) => { if (!w) return w; if (/[áéíóú]n$/.test(w)) return w.slice(0, -2) + NOACC[w.charAt(w.length - 2)] + 'nes'; if (/z$/.test(w)) return w.slice(0, -1) + 'ces'; if (/[aeiouáéíóú]$/.test(w)) return w + 's'; return w + 'es'; };
   const pluralPhrase = (p) => { const a = String(p).split(' '); a[0] = pluralWord(a[0]); return a.join(' '); };
@@ -86,7 +143,7 @@
       mm = c0.match(/^(\d+|two|three|four|five|six|seven|eight|nine|ten)$/);
       if (mm && /^(pcs?|pieces?)$/.test(c1)) { out.push({ k: 'p', w: { es: 'de ' + (NUM[mm[1]] || mm[1]) + ' piezas' }, tail: tailOf(toks[i + 1]) }); i += 2; continue; }
       // a count in front of a thing: "two long track pants", "3 red dresses", "one dress"
-      mm = c0.match(/^(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2})$/);
+      mm = c0.match(/^(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|\d{1,2})$/);
       if (mm) { out.push({ k: 'q', n: NUMV[mm[1]] || Number(mm[1]), word: mm[1], raw: clean(toks[i]), tail: tailOf(toks[i]) }); i++; continue; }
       let hit = false;
       for (let n = Math.min(max, toks.length - i); n >= 1 && !hit; n--) {
@@ -183,6 +240,7 @@
       if (i < 0) { out.push(Object.assign({}, s)); return; }
       const w = out[i];
       if (!w.t) { ['t', 'g', 'pl', 'inv', 'pe'].forEach((k) => { if (s[k] !== undefined) w[k] = s[k]; }); }
+      if (s.pe && !w.pe) w.pe = s.pe;
       if (w.c && w.c !== s.c && ['clothes', 'colours', 'sizes', 'more'].includes(w.c)) w.c = s.c;
     });
     return out;

@@ -812,7 +812,7 @@
   /* Word library and the Spanish name of an item (shown to Spanish-speaking visitors of the store). */
   const Wd = window.Words;
   function wordList() {
-    if (state.settings.wordsSeeded !== 2) { state.settings.words = Wd.seed(state.settings.words || []); state.settings.wordsSeeded = 2; save(); }   // 2 = the big starter list that knows grammar
+    if (state.settings.wordsSeeded !== 3) { state.settings.words = Wd.seed(state.settings.words || []); state.settings.wordsSeeded = 3; save(); }   // 3 = the big starter list that knows grammar
     return state.settings.words || [];
   }
   const esBadge = (i) => { const sp = Wd.spanish(i, wordList()); return sp.state === 'none' ? '' : `<u class="${sp.state === 'ok' ? 'ok' : ''}">${sp.state === 'ok' ? '✓' : '!'}</u>`; };

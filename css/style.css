@@ -621,7 +621,7 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .sx .it .p{text-align:right;font-weight:800;font-size:15px;flex:none}.sx .it .p small{display:block;color:var(--mute);font-weight:400;font-size:11px}
 .sx .x{width:28px;height:28px;border-radius:50%;border:0;background:var(--line);color:var(--mute);font-size:13px;display:grid;place-items:center;flex:none;padding:0;min-height:0;box-shadow:none}
 .sx .sub{display:flex;justify-content:space-between;padding:10px 14px;background:#f6f6f9;border-top:1px solid var(--line);font-size:13px;color:var(--mute)}.sx .sub b{color:var(--ink)}
-.sx .srch{display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line)}.sx .srch input,.sx .srch input:focus{border:0!important;outline:0!important;box-shadow:none!important;background:none!important;min-height:46px;padding:0;font-size:15px}
+.sx .srch{display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line)}.sx .srch input,.sx .srch input:focus{border:0!important;outline:0!important;box-shadow:none!important;background:none!important;min-height:46px;padding:0;font-size:16px}
 .sx .people{display:flex;gap:14px;padding:12px;overflow-x:auto;scrollbar-width:none}.sx .people::-webkit-scrollbar{display:none}
 .sx .pp{flex:none;width:62px;text-align:center;font-size:11.5px;font-weight:600;background:none;border:0;padding:0;box-shadow:none;color:var(--ink);min-height:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sx .pp i{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;margin:0 auto 4px;background:var(--tint);color:var(--brand);font-style:normal;font-weight:800;font-size:18px;position:relative}

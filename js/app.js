@@ -902,8 +902,7 @@
     const list = wordList();
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('words.title')}</b><small id="wcount">${t('words.count', { n: list.length })}</small></div><button class="dots" data-act="words-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="ap lib">${state.settings.wordsHideNote ? '' : `<div class="starter">📚<b>${t('words.starter', { n: Wd.STARTER.length })}</b><button data-act="word-hide">${t('words.hide')}</button></div>`}
-      <h4><span>${t('words.try')}</span></h4><div class="card try"><input id="w-try" placeholder="${t('words.tryPh')}" autocomplete="off"><div id="w-tryout" class="tryout">${t('words.tryHelp')}</div>
-        <div class="exs">${['Blue dress', 'Red top and black pants', 'Black lace long sleeve top', 'Navy dresses'].map((x) => `<button type="button" data-act="word-try" data-id="${x}">${x}</button>`).join('')}</div></div>
+      <h4><span>${t('words.try')}</span></h4><div class="card try"><input id="w-try" placeholder="${t('words.tryPh')}" autocomplete="off"><div id="w-tryout" class="tryout">${t('words.tryHelp')}</div></div>
       <div class="srch2"><span>🔍</span><input id="w-q" value="${esc(wordQ)}" placeholder="${t('words.search')}" autocomplete="off"></div>
       <div class="tabs" id="wchips">${wordsChips()}</div>
       <h4><span>${t('words.add')}</span></h4><div class="card"><div class="add"><input id="w-en" placeholder="${t('words.english')}" autocomplete="off"><i>→</i><input id="w-es" placeholder="${t('words.spanish')}" autocomplete="off" enterkeyhint="done"><button class="go" data-act="word-add" aria-label="${t('words.add')}">＋</button></div><div class="addt">${typeSelect('w-t', 'a')}</div></div>
@@ -1754,8 +1753,7 @@
       case 'words-help': closeSheet(); return sheetWordsHelp();
       case 'wh-lang': whLang = id; return sheetWordsHelp(true);
       case 'word-edit': return sheetWordEdit(id);
-      case 'word-try': { const f = $('#w-try'); if (f) { f.value = id; tryName(); } return; }
-      case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : '', $('#we-t').value); state.settings.words = w; save(); return closeSheet(); }
+            case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : '', $('#we-t').value); state.settings.words = w; save(); return closeSheet(); }
       case 'word-del': case 'word-del2': state.settings.words = Wd.drop(wordList(), id); save(); toast(t('words.removed')); if (t_.dataset.act === 'word-del2') return closeSheet(); return wordsRefresh();
       case 'item-go': if (id) { sheetItem(id, true); $('#sheet').scrollTop = 0; } return;
       case 'qe-open': { const ids = quickIds(id); if (!ids.length) return toast(t('qe.none')); qeTried = false; return sheetQuick(id, ids[0]); }

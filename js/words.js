@@ -75,7 +75,7 @@
 
   // English words → pieces: matched words (longest phrase first), plural things, literals, unknown words.
   const pieces = (desc, words) => {
-    const toks = String(desc || '').trim().split(/\s+/).filter(Boolean), { m, max } = index(words), out = [], missing = [];
+    const toks = String(desc || '').replace(/(\p{L})\s?\/\s?(\p{L})/gu, '$1 and $2').trim().split(/\s+/).filter(Boolean), { m, max } = index(words), out = [], missing = [];
     const tailOf = (tk) => (tk.match(/[^\p{L}\p{N}&]+$/u) || [''])[0];
     for (let i = 0; i < toks.length;) {
       const c0 = norm(clean(toks[i])), c1 = i + 1 < toks.length ? norm(clean(toks[i + 1])) : '';
@@ -114,7 +114,7 @@
       const text = x.k === 'a' ? agree(x.w, g, pl) : x.k === 'm' || x.k === 'p' ? x.w.es : x.raw;
       groups[g2].push({ text, join }); join = null;
     });
-    const seq = (list, first) => list.map((e, i) => (i === 0 ? (first || '') + e.text : (e.join ? ' ' + e.join + ' ' : ' ') + e.text)).join('');
+    const seq = (list, first) => list.map((e, i) => (i === 0 ? (first || '') + e.text : e.join === ',' ? ', ' + e.text : (e.join ? ' ' + e.join + ' ' : ' ') + e.text)).join('');
     const matStr = groups.m.length ? seq(groups.m, head ? 'de ' : '') : '';
     return [head, matStr, seq(groups.p), seq(groups.a), seq(groups.ac), seq(groups.r)].filter(Boolean).join(' ');
   };
@@ -129,6 +129,7 @@
         noun = it; tail = it.tail;
       } else if (it.k === 'a' || it.k === 'm' || it.k === 'p' || it.k === 'u' || it.k === 'l') {
         mods.push(it.k === 'u' || it.k === 'l' ? { k: 'u', raw: it.raw !== undefined ? it.raw : it.w.es } : it); tail = it.tail;
+        const nx = out[j + 1]; if (isMod(it.k) && /,/.test(it.tail || '') && nx && nx.k === it.k) { mods.push({ k: 'conn', es: ',' }); tail = ''; }
       } else if (it.k === 'c') {
         const prev = out[j - 1], next = out[j + 1];
         if (prev && next && isMod(prev.k) && prev.k === next.k && (it.w.es === 'y' || it.w.es === 'o')) mods.push({ k: 'conn', es: it.w.es });

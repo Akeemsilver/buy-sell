@@ -19,7 +19,7 @@
       ['bodysuit', 'body', 'm', 0, 'bodys'], ['sweater', 'suéter', 'm'], ['sweatshirt', 'sudadera', 'f'], ['hoodie', 'sudadera con capucha', 'f'], ['cardigan', 'cárdigan', 'm', 0, 'cárdigans'], ['jacket', 'chaqueta', 'f'], ['blazer', 'blazer', 'm', 0, 'blazers'],
       ['coat', 'abrigo', 'm'], ['vest', 'chaleco', 'm'], ['dress', 'vestido', 'm'], ['gown', 'vestido', 'm'], ['maxi dress', 'vestido largo', 'm'], ['mini dress', 'vestido corto', 'm'], ['midi dress', 'vestido midi', 'm'],
       ['wrap dress', 'vestido cruzado', 'm'], ['bodycon dress', 'vestido ajustado', 'm'], ['skirt', 'falda', 'f'], ['pants', 'pantalones', 'm', 1], ['trousers', 'pantalones', 'm', 1], ['jeans', 'jeans', 'm', 1],
-      ['leggings', 'leggings', 'f', 1], ['shorts', 'shorts', 'm', 1], ['joggers', 'pantalones deportivos', 'm', 1], ['jumpsuit', 'enterizo', 'm'], ['romper', 'mono', 'm'], ['overalls', 'overol', 'm'],
+      ['leggings', 'leggings', 'f', 1], ['shorts', 'shorts', 'm', 1], ['joggers', 'pantalones deportivos', 'm', 1], ['track pants', 'pantalones deportivos', 'm', 1], ['trackpants', 'pantalones deportivos', 'm', 1], ['sweatpants', 'pantalones deportivos', 'm', 1], ['sweat pants', 'pantalones deportivos', 'm', 1], ['jogger pants', 'pantalones deportivos', 'm', 1], ['cargo pants', 'pantalones cargo', 'm', 1], ['palazzo pants', 'pantalones palazzo', 'm', 1], ['yoga pants', 'pantalones de yoga', 'm', 1], ['dress pants', 'pantalones de vestir', 'm', 1], ['biker shorts', 'licras cortas', 'f', 1], ['track jacket', 'chaqueta deportiva', 'f'], ['jumpsuit', 'enterizo', 'm'], ['romper', 'mono', 'm'], ['overalls', 'overol', 'm'],
       ['set', 'conjunto', 'm'], ['tracksuit', 'conjunto deportivo', 'm'], ['pajamas', 'pijama', 'm'], ['robe', 'bata', 'f'], ['swimsuit', 'traje de baño', 'm'], ['bikini', 'bikini', 'm'], ['lingerie', 'lencería', 'f'],
       ['bra', 'sostén', 'm'], ['underwear', 'ropa interior', 'f'], ['socks', 'calcetines', 'm', 1], ['tights', 'medias', 'f', 1], ['scarf', 'bufanda', 'f'], ['hat', 'sombrero', 'm'], ['cap', 'gorra', 'f'], ['belt', 'cinturón', 'm'], ['gloves', 'guantes', 'm', 1]]),
     N('shoes', [['shoes', 'zapatos', 'm', 1], ['sandals', 'sandalias', 'f', 1], ['sneakers', 'tenis', 'm', 1], ['boots', 'botas', 'f', 1], ['heels', 'tacones', 'm', 1], ['flats', 'zapatos planos', 'm', 1], ['slippers', 'pantuflas', 'f', 1],
@@ -51,7 +51,8 @@
   );
 
   // ---- the Spanish grammar bits --------------------------------------------------------------------------------------------------
-  const NUM = { two: 'dos', three: 'tres', four: 'cuatro', five: 'cinco', six: 'seis' };
+  const NUM = { two: 'dos', three: 'tres', four: 'cuatro', five: 'cinco', six: 'seis', seven: 'siete', eight: 'ocho', nine: 'nueve', ten: 'diez' };
+  const NUMV = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
   const NOACC = { á: 'a', é: 'e', í: 'i', ó: 'o', ú: 'u' };
   const pluralWord = (w) => { if (!w) return w; if (/[áéíóú]n$/.test(w)) return w.slice(0, -2) + NOACC[w.charAt(w.length - 2)] + 'nes'; if (/z$/.test(w)) return w.slice(0, -1) + 'ces'; if (/[aeiouáéíóú]$/.test(w)) return w + 's'; return w + 'es'; };
   const pluralPhrase = (p) => { const a = String(p).split(' '); a[0] = pluralWord(a[0]); return a.join(' '); };
@@ -80,10 +81,13 @@
     for (let i = 0; i < toks.length;) {
       const c0 = norm(clean(toks[i])), c1 = i + 1 < toks.length ? norm(clean(toks[i + 1])) : '';
       // "2 piece", "two piece", "2pc"
-      let mm = c0.match(/^(\d+|two|three|four|five|six)\s?(pcs?|pieces?)$/);
+      let mm = c0.match(/^(\d+|two|three|four|five|six|seven|eight|nine|ten)\s?(pcs?|pieces?)$/);
       if (mm) { const n = NUM[mm[1]] || mm[1]; out.push({ k: 'p', w: { es: 'de ' + n + ' piezas' }, tail: tailOf(toks[i]) }); i++; continue; }
-      mm = c0.match(/^(\d+|two|three|four|five|six)$/);
+      mm = c0.match(/^(\d+|two|three|four|five|six|seven|eight|nine|ten)$/);
       if (mm && /^(pcs?|pieces?)$/.test(c1)) { out.push({ k: 'p', w: { es: 'de ' + (NUM[mm[1]] || mm[1]) + ' piezas' }, tail: tailOf(toks[i + 1]) }); i += 2; continue; }
+      // a count in front of a thing: "two long track pants", "3 red dresses", "one dress"
+      mm = c0.match(/^(one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2})$/);
+      if (mm) { out.push({ k: 'q', n: NUMV[mm[1]] || Number(mm[1]), word: mm[1], raw: clean(toks[i]), tail: tailOf(toks[i]) }); i++; continue; }
       let hit = false;
       for (let n = Math.min(max, toks.length - i); n >= 1 && !hit; n--) {
         const words2 = toks.slice(i, i + n).map(clean), phrase = norm(words2.join(' ')), w = phrase && m.get(phrase), tl = tailOf(toks[i + n - 1]);
@@ -105,11 +109,15 @@
 
   // The thing first, then "de <material>", phrases like "de manga larga", then what describes it (agreeing), then anything unknown.
   const renderNP = (noun, mods) => {
-    const g = noun ? noun.w.g || 'm' : 'm', pl = noun ? !!(noun.w.pl || noun.plural) : false;
-    const head = noun ? (noun.plural && !noun.w.pl ? (noun.w.pe || pluralPhrase(noun.w.es)) : noun.w.es) : '';
+    const qm = noun ? mods.find((x) => x.k === 'q') : null, many = !!(qm && qm.n !== 1);
+    const g = noun ? noun.w.g || 'm' : 'm', pl = noun ? !!(noun.w.pl || noun.plural || many) : false;
+    const head0 = noun ? ((noun.plural || many) && !noun.w.pl ? (noun.w.pe || pluralPhrase(noun.w.es)) : noun.w.es) : '';
+    const qtext = qm ? (qm.n === 1 && qm.word === 'one' ? (g === 'f' ? 'una' : 'un') : qm.n === 1 ? '1' : NUM[qm.word] || qm.raw) : '';
+    const head = [qtext, head0].filter(Boolean).join(' ');
     const groups = { m: [], p: [], a: [], ac: [], r: [] }; let join = null;
     mods.forEach((x) => {
       if (x.k === 'conn') { join = x.es; return; }
+      if (x.k === 'q') { if (noun) return; groups.r.push({ text: x.raw, join }); join = null; return; }
       const g2 = x.k === 'a' ? (x.w.c === 'colours' ? 'ac' : 'a') : x.k === 'm' || x.k === 'p' ? x.k : 'r';   // colours come last ("falda mini roja")
       const text = x.k === 'a' ? agree(x.w, g, pl) : x.k === 'm' || x.k === 'p' ? x.w.es : x.raw;
       groups[g2].push({ text, join }); join = null;
@@ -127,6 +135,8 @@
       if (it.k === 'n') {
         if (noun) mods.push({ k: 'm', x: 1, es: noun.w.es, w: { es: noun.w.es } });   // "pants set": the first thing describes the second ("conjunto de pantalones")
         noun = it; tail = it.tail;
+      } else if (it.k === 'q') {
+        mods.push(noun ? { k: 'u', raw: it.raw } : it); tail = it.tail;
       } else if (it.k === 'a' || it.k === 'm' || it.k === 'p' || it.k === 'u' || it.k === 'l') {
         mods.push(it.k === 'u' || it.k === 'l' ? { k: 'u', raw: it.raw !== undefined ? it.raw : it.w.es } : it); tail = it.tail;
         const nx = out[j + 1]; if (isMod(it.k) && /,/.test(it.tail || '') && nx && nx.k === it.k) { mods.push({ k: 'conn', es: ',' }); tail = ''; }

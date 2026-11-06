@@ -34,7 +34,7 @@
     $app.innerHTML = `${header(true)}<div class="pg"><div class="bx">${its.map((i) => `<div class="ln">${i.img ? `<img src="${i.img}" alt="">` : '<span class="ph"></span>'}<div class="t"><b>${esc(nm(i))}</b><small>${i.transit ? T.arriving : T.avail}</small></div><span class="p">${money(SC.payPrice(i))}</span><button class="rm" data-a="rm" data-k="${esc(i.id)}" aria-label="Remove">✕</button></div>`).join('')}</div>
       <h2>${T.where}</h2>
       ${free ? `<div class="fld"><input id="f-area" value="${esc(form.area)}" placeholder="${T.typeArea}" autocomplete="off"></div>` : `<div class="fld"><select id="f-loc"><option value="">${T.choose}</option>${locs.map((x) => `<option value="${esc(x.id)}" ${x.id === form.loc ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>${opts.map((o) => `<button class="opt ${form.option === o.key ? 'on' : ''}" data-a="opt" data-k="${o.key}"><i></i><span>${o.key === 'pickup' ? T.pickup : T.delivery}</span><b>${o.price > 0 ? money(o.price) : T.free}</b></button>`).join('')}`}
-      <h2>${T.details}</h2><div class="fld"><label>${T.name}</label><input id="f-name" value="${esc(form.name)}" autocomplete="name"></div><div class="fld"><label>${T.phone}</label><input id="f-phone" type="tel" inputmode="tel" value="${esc(form.phone)}" autocomplete="tel"></div>
+      <h2>${T.details}</h2><div class="fld"><label>${T.name}</label><input id="f-name" value="${esc(form.name)}" autocomplete="name"></div><div class="fld"><label>${T.phone}</label><input id="f-phone" type="tel" inputmode="tel" enterkeyhint="done" value="${esc(form.phone)}" autocomplete="tel"></div>
       <div class="tot"><span>${T.sub}</span><span>${money(free ? SC.totals(its, { pickup: true, delivery: false, price: 0 }, 'pickup').sub : t.sub)}</span></div>${free ? '' : `<div class="tot"><span>${T.deliv}</span><span>${money(t.delivery)}</span></div>`}<div class="tot big"><span>${T.total}</span><span>${money(free ? SC.totals(its, { pickup: true, delivery: false, price: 0 }, 'pickup').sub : t.total)}</span></div>
       ${err ? `<div class="err">${esc(err)}</div>` : ''}<button class="big-btn" data-a="send" ${sending ? 'disabled' : ''}>${sending ? T.sending : T.place}</button><p class="note">${T.payNote}</p></div>`;
   }
@@ -62,6 +62,7 @@
     sending = false; draw(); window.scrollTo(0, 0);
   }
 
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target && e.target.id === 'f-phone') { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a, k = b.dataset.k;
     if (a === 'filter') { filter = k; shop(); }

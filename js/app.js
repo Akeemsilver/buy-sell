@@ -226,9 +226,16 @@
   }
   const gateErr = (m) => { const e = $('#g-err'); if (e) { e.textContent = m; e.hidden = !m; } };
   document.addEventListener('focusin', (e) => { if (e.target.closest && e.target.closest('#gate') && /INPUT/.test(e.target.tagName)) setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); });
-  document.addEventListener('keydown', (e) => {   // Edit batch: the keyboard's Next/Enter goes description → price → cost → Save & next
-    if (e.key !== 'Enter' || !e.target.dataset || !e.target.closest || !e.target.closest('.qe')) return; const order = ['desc', 'price', 'cost'], k = order.indexOf(e.target.dataset.f); if (k < 0) return; e.preventDefault();
-    if (k < order.length - 1) { const nx = $('.qe [data-f=' + order[k + 1] + ']'); if (nx) nx.focus(); } else { const b = $('.qe .qgo .pr'); if (b) b.click(); }
+  /* Number boxes (prices, costs, amounts, phone numbers) show a tick on the keyboard, and the tick just closes the keyboard: the page stays
+     where it is (it does not jump to the next box and it does not submit anything). */
+  const NUMSEL = 'input[inputmode=decimal],input[inputmode=numeric],input[inputmode=tel],input[type=tel],input[type=number]';
+  const hintNums = (root) => root.querySelectorAll(NUMSEL).forEach((el) => { if (el.getAttribute('enterkeyhint') !== 'done') el.setAttribute('enterkeyhint', 'done'); });
+  new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) { if (n.matches(NUMSEL)) n.setAttribute('enterkeyhint', 'done'); hintNums(n); } }))).observe(document.body, { childList: true, subtree: true });
+  hintNums(document);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !e.target || !e.target.matches) return;
+    if (e.target.matches(NUMSEL)) { e.preventDefault(); e.target.blur(); return; }   // the tick: close the keyboard, stay on this page
+    if (e.target.dataset && e.target.dataset.f === 'desc' && e.target.closest('.qe')) { e.preventDefault(); const nx = $('.qe [data-f=price]'); if (nx) nx.focus(); }   // Edit items: description, then price
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'w-es') { e.preventDefault(); const b = $('[data-act=word-add]'); if (b) b.click(); } });
   document.addEventListener('input', (e) => { if (e.target.name === 'biz' && e.target.form && e.target.form.id === 'f-setup') { gateDraft.name = e.target.value; const n = $('#pv-name'); if (n) n.textContent = e.target.value || t('gate.bizPh'); } });
@@ -915,7 +922,7 @@
       <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
       <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
       <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}${esBtn(i)}</div>
-      <div class="grid2"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="next"></div><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div></div>
+      <div class="grid2"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div></div>
       <button class="btn" type="button" data-act="use-rec" data-id="${i.id}" style="width:100%;margin-top:10px">${t('item.useRec')}</button>
       <div id="saleblock" style="margin-top:6px">${saleHTML(i)}</div>
       <div class="sumbox" id="calc"></div></div>

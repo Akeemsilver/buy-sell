@@ -738,3 +738,4 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .cn{width:100%;margin-top:10px;text-align:center;color:var(--mute);font-weight:600;font-size:14px;display:block;cursor:pointer}
 /* an item with a name but no size: the Size block lights up in the same orange as the ! */
 .szrow.hl{background:#fff4e0;border:2px solid #e8890c;border-radius:14px;padding:8px 10px 6px;margin:8px -4px 0;animation:hlp 1.6s ease-out 1}.szrow.hl label{color:#9a5a00;font-weight:700}.szrow.hl .nz{color:#e8890c;font-weight:700;font-size:12px;margin-left:4px;text-transform:none}@keyframes hlp{0%{box-shadow:0 0 0 0 rgba(232,137,12,.55)}100%{box-shadow:0 0 0 14px rgba(232,137,12,0)}}
+.dta{width:100%;min-height:76px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;resize:vertical;background:#fff;color:var(--ink)}

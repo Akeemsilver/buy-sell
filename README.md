@@ -114,6 +114,9 @@ Set `WORKBOOK_JSON=/path/to/dump.json` when running the tests to also check the 
 
 **Back button:** Back (the phone's button, the swipe, and the ‹ arrows in the app) always returns to the place you came from and never loops. The main tabs and the More/Settings screens form one trail (`places` in `js/app.js`); full-screen pages opened one from another (customer → invoice → item → payment) form a second trail (`pageStack`). Going to a screen that is already on its trail cuts the trail back to it, so Back never bounces between two screens. Every new full-screen page must call `enterPage(kind, key, reopen)` when it opens; every in-app back arrow uses `data-act="close"`. At Home, the first Back shows "Press back again to exit".
 
+## The online store page
+`store.html` (js/store.js, css/store.css) is the public shop, phone first with a bigger layout on computers: a header with search, saved items (hearts) and the cart; a grid with filter chips and sorting; an item page (picture, price, sizes, quantity, optional **Details**, pickup and delivery from the store settings, sticky Add to cart); a cart (a drawer on computers) and the order form. Each item can have optional Details in English and Spanish (item page in the app); costs and profit are never published.
+
 ## Before the app goes live (do these when the owner says "I'm ready for the app to go live")
 1. **Firebase plan:** upgrade the `b-ruiz` project to Blaze (card on file). Then set a budget alert of about US$1 in the Google Cloud console (alerts email; they do not stop charges).
 2. **Cloud Storage:** Firebase console → Build → Storage → Get started, pick a US location.

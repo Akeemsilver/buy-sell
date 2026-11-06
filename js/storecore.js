@@ -37,12 +37,14 @@
       if (!name || (price <= 0 && sale <= 0)) return;
       const key = [sameName(name), r2(price), r2(sale), transit ? 1 : 0].join('|'), photo = it.photo && it.photo.id ? it.photo.id : '', size = String(it.size || '').trim();
       let g = groups.get(key);
-      if (!g) { g = { id: it.id, name, nameEs: W() ? W().publishable(it, (s.settings && s.settings.words) || []) : '', price: r2(price), sale: r2(sale), pct: sale > 0 ? Math.round(num(it.discount)) : 0, transit, photo: '', by: new Map() }; groups.set(key, g); }
+      if (!g) { g = { id: it.id, details: '', detailsEs: '', name, nameEs: W() ? W().publishable(it, (s.settings && s.settings.words) || []) : '', price: r2(price), sale: r2(sale), pct: sale > 0 ? Math.round(num(it.discount)) : 0, transit, photo: '', by: new Map() }; groups.set(key, g); }
       if (!g.photo && photo) g.photo = photo;
+      if (!g.details && String(it.details || '').trim()) g.details = String(it.details).trim().slice(0, 600);
+      if (!g.detailsEs && String(it.detailsEs || '').trim()) g.detailsEs = String(it.detailsEs).trim().slice(0, 600);
       if (!g.by.has(size)) g.by.set(size, []);
       g.by.get(size).push(it.id);
     });
-    return [...groups.values()].map((g) => ({ id: g.id, name: g.name, nameEs: g.nameEs, price: g.price, sale: g.sale, pct: g.pct, transit: g.transit, photo: g.photo,
+    return [...groups.values()].map((g) => ({ id: g.id, name: g.name, nameEs: g.nameEs, price: g.price, sale: g.sale, pct: g.pct, transit: g.transit, photo: g.photo, details: g.details, detailsEs: g.detailsEs,
       sizes: [...g.by.keys()].sort(cmpSize).map((z) => ({ s: z, ids: g.by.get(z) })) })).sort((a, b) => a.id.localeCompare(b.id));
   };
   // Store pictures kept in cloud storage: which item pictures can be deleted now. Same rule as the saved photo: the item is gone, or it was

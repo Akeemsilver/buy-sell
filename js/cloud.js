@@ -29,8 +29,9 @@
       const fb = root.firebase; fb.initializeApp(CONFIG); auth = fb.auth(); db = fb.firestore();
       try { auth.useDeviceLanguage(); } catch (e) { /* ignore */ }
       db.enablePersistence({ synchronizeTabs: true }).catch(() => {});      // works offline from the phone's saved copy
-      set('signedOut'); readyRes();
-      auth.onAuthStateChanged((u) => { user = u; teardown(); if (!u) return set('signedOut'); start().catch((e) => set(e && e.code === 'permission-denied' ? 'rules' : (navigator.onLine === false ? 'offline' : 'error'), e && e.message)); });
+      readyRes();   // stay 'loading' until the saved sign-in is read: saying 'signedOut' now made the Sign in banner flash for people who are signed in
+      let heard = false; setTimeout(() => { if (!heard && !lsGet('buy-sell-was-signed-in')) set('signedOut'); }, 6000);   // safety: never leave it loading for someone who never signed in
+      auth.onAuthStateChanged((u) => { heard = true; user = u; lsSet('buy-sell-was-signed-in', !!u); teardown(); if (!u) return set('signedOut'); start().catch((e) => set(e && e.code === 'permission-denied' ? 'rules' : (navigator.onLine === false ? 'offline' : 'error'), e && e.message)); });
     }).catch(() => { set('unavailable'); readyRes(); });
     if (document.readyState === 'complete') go(); else window.addEventListener('load', go);
     window.addEventListener('online', () => { if (user && !ready) start().catch(() => {}); });

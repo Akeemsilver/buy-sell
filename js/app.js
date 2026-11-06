@@ -47,14 +47,17 @@
      bounces between two screens. */
   let places = [{ tab: 'home', moreView: null }], pageStack = [], reopening = false;
   const placeKey = (p) => p.tab + '|' + (p.moreView || '');
+  try { history.scrollRestoration = 'manual'; } catch (e) { /* ignore */ }   // the browser must not jump the page to the top itself when the app goes Back
+  let restoreY = null;   // Back returns to the scroll position the page you came from had
   function go(next) {
+    if (places.length) places[places.length - 1].y = window.scrollY;
     const i = places.findIndex((p) => placeKey(p) === placeKey(next));
     if (i >= 0) places.length = i + 1; else places.push({ tab: next.tab, moreView: next.moreView || null });
     tab = next.tab; moreView = next.moreView || null;
   }
   function placeBack() {
     if (places.length < 2) return false;
-    places.pop(); const p = places[places.length - 1]; tab = p.tab; moreView = p.moreView; return true;
+    places.pop(); const p = places[places.length - 1]; tab = p.tab; moreView = p.moreView; restoreY = p.y || 0; return true;
   }
   function enterPage(kind, arg, open, swap) {   // every full-screen page calls this when it opens. swap: replace the page on top (no new step on the Back trail)
     if (reopening) return;
@@ -279,6 +282,7 @@
     syncHistory();
     showVersion();
     PUI.hydrate();
+    if (restoreY !== null) { const y = restoreY; restoreY = null; window.scrollTo(0, y); requestAnimationFrame(() => window.scrollTo(0, y)); }
   }
 
   // The deploy stamps the commit id into the cache name, so the saved copy tells us which version is running.

@@ -702,5 +702,5 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 
 /* Size row on Edit items / item page */
 .szrow{margin:12px 0 2px}.szrow label{display:flex;justify-content:space-between;align-items:center}.szrow label span{font-weight:500;color:var(--mute);font-size:12px;text-transform:none}
-.szchips{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.szchips button{min-width:46px;height:42px;padding:0 12px;border-radius:12px;background:#fff;border:1px solid var(--line);font-weight:600;color:var(--ink);min-height:0;box-shadow:var(--sh1);width:auto}.szchips button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.szchips{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:6px -2px 0;padding:2px 2px 6px;-webkit-overflow-scrolling:touch}.szchips::-webkit-scrollbar{display:none}.szchips button{flex:none;min-width:46px;height:42px;padding:0 12px;border-radius:12px;background:#fff;border:1px solid var(--line);font-weight:600;color:var(--ink);min-height:0;box-shadow:var(--sh1);width:auto}.szchips button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .szrow .same{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:var(--tint);font-size:13px;color:var(--ink);display:flex;gap:8px;align-items:flex-start}

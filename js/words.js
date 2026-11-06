@@ -100,10 +100,12 @@
       ['jacquard', 'jacquard'], ['brocade', 'brocado'], ['organza', 'organza'], ['taffeta', 'tafetán'], ['crepe', 'crepé'], ['georgette', 'georgette'], ['poplin', 'popelín'], ['twill', 'sarga'], ['tweed', 'tweed'], ['flannel', 'franela'], ['bamboo', 'bambú'], ['hemp', 'cáñamo'], ['modal', 'modal'], ['lycra', 'licra'],
       ['elastane', 'elastano'], ['neoprene', 'neopreno'], ['silicone', 'silicona'], ['glass', 'vidrio'], ['ceramic', 'cerámica'], ['stainless steel', 'acero inoxidable'], ['titanium', 'titanio'], ['brass', 'latón'], ['zinc alloy', 'aleación de zinc'], ['sterling silver', 'plata de ley'],
       ['gold plated', 'baño de oro'], ['silver plated', 'baño de plata'], ['crystal', 'cristal'], ['diamond', 'diamante']]),
-    P('styles', [['deep v neck', 'de cuello en V profundo'], ['deep v', 'de escote profundo'], ['lantern sleeve', 'de manga farol'], ['lantern sleeves', 'de manga farol'], ['balloon sleeve', 'de manga globo'], ['balloon sleeves', 'de manga globo'],
+    P('styles', [['letter print', 'con estampado de letras'], ['letters print', 'con estampado de letras'], ['cartoon print', 'con estampado de caricaturas'], ['cartoon bear print', 'con estampado de osito'], ['bear print', 'con estampado de osos'], ['heart print', 'con estampado de corazones'],
+      ['star print', 'con estampado de estrellas'], ['flower print', 'con estampado de flores'], ['tropical print', 'con estampado tropical'], ['leaf print', 'con estampado de hojas'], ['butterfly print', 'con estampado de mariposas'], ['logo print', 'con estampado de logo'], ['slogan print', 'con estampado de frase'],
+      ['number print', 'con estampado de número'], ['graphic print', 'con estampado gráfico'], ['deep v neck', 'de cuello en V profundo'], ['deep v', 'de escote profundo'], ['lantern sleeve', 'de manga farol'], ['lantern sleeves', 'de manga farol'], ['balloon sleeve', 'de manga globo'], ['balloon sleeves', 'de manga globo'],
       ['pleated waist', 'con cintura plisada'], ['gathered waist', 'con cintura fruncida'], ['gathered back', 'con espalda fruncida'], ['tie waist', 'con cintura anudada'], ['night out', 'para salir de noche'], ['floral print', 'con estampado floral'], ['print', 'con estampado'],
       ['autumn', 'de otoño'], ['fall', 'de otoño'], ['spring', 'de primavera'], ['for ladies', 'para mujer'], ['ladies', 'de mujer'], ['woman', 'de mujer'], ['womans', 'de mujer'], ['lady', 'de mujer'], ['girl', 'de niña'], ['boy', 'de niño']]),
-    A('styles', [['stripe', 'rayado'], ['stripes', 'rayado'], ['chic', 'chic', 'all'], ['gathered', 'fruncido'], ['sleek', 'liso'], ['classy', 'elegante'], ['trendy', 'de moda', 'all'], ['stylish', 'con estilo', 'all'], ['comfy', 'cómodo'], ['comfortable', 'cómodo'], ['lightweight', 'ligero'], ['soft', 'suave'], ['warm', 'abrigado'], ['thick', 'grueso'], ['thin', 'delgado'], ['cool', 'fresco']]),
+    A('styles', [['minimalist', 'minimalista'], ['minimal', 'minimalista'], ['basic', 'básico'], ['simple', 'sencillo'], ['fashionable', 'a la moda', 'all'], ['stripe', 'rayado'], ['stripes', 'rayado'], ['chic', 'chic', 'all'], ['gathered', 'fruncido'], ['sleek', 'liso'], ['classy', 'fino'], ['trendy', 'de moda', 'all'], ['stylish', 'con estilo', 'all'], ['comfy', 'cómodo'], ['comfortable', 'cómodo'], ['lightweight', 'ligero'], ['soft', 'suave'], ['warm', 'abrigado'], ['thick', 'grueso'], ['thin', 'delgado'], ['cool', 'fresco']]),
     L('more', [['xxs', 'XXS'], ['2xl', '2XL'], ['4xl', '4XL'], ['5xl', '5XL']])
   );
   STARTER.push.apply(STARTER, MORE);
@@ -181,6 +183,7 @@
       if (x.k === 'q') { if (noun) return; groups.r.push({ text: x.raw, join }); join = null; return; }
       const g2 = x.k === 'a' ? (x.w.c === 'colours' ? 'ac' : 'a') : x.k === 'm' || x.k === 'p' ? x.k : 'r';   // colours come last ("falda mini roja")
       const text = x.k === 'a' ? agree(x.w, g, pl) : x.k === 'm' || x.k === 'p' ? x.w.es : x.raw;
+      if ((g2 === 'a' || g2 === 'ac') && groups[g2].some((e) => e.text === text)) { join = null; return; }   // the same word twice ("elegant, classy") is said once
       groups[g2].push({ text, join }); join = null;
     });
     const seq = (list, first) => list.map((e, i) => (i === 0 ? (first || '') + e.text : e.join === ',' ? ', ' + e.text : (e.join ? ' ' + e.join + ' ' : ' ') + e.text)).join('');

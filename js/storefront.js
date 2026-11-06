@@ -57,7 +57,7 @@
         let img = '';
         if (p.photo && sharpOk) { try { img = await sharpUrl(p, c.id, map, storage); if (img) sharpN++; } catch (e) { picErr++; if (picErr >= 2 || (e && /unauthorized|unauthenticated|no-default-bucket|project-not-found|quota/.test(e.code || ''))) sharpOk = false; } }
         if (p.photo && !img) img = await smallPicture(p.photo);
-        items.push({ id: p.id, name: p.name, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img });
+        items.push({ id: p.id, name: p.name, nameEs: p.nameEs, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img });
       }
       writeMap(c.id, map); info.sharp = sharpN > 0; try { localStorage.setItem('buy-sell-store-mode', sharpN > 0 || !list.some((p) => p.photo) ? 'sharp' : 'small'); } catch (e) { /* ignore */ }
       const db = Cloud.db(), sref = db.collection('stores').doc(c.id), chunks = SC.chunk(items), b = db.batch();
@@ -68,7 +68,7 @@
       info.at = Date.now(); info.count = items.length; listen(); if (storage) cleanPictures(c.id, storage).catch(() => {}); return true;
     } catch (e) { info.error = (e && e.code) || 'error'; return false; } finally { running = false; info.busy = false; A.refresh(); }
   }
-  const schedule = () => { clearTimeout(timer); if (cfg().id && root.Cloud && Cloud.ready()) timer = setTimeout(() => publish(false), 4000); };
+  const schedule = () => { clearTimeout(timer); if (A && cfg().id && root.Cloud && Cloud.ready()) timer = setTimeout(() => publish(false), 4000); };
 
   function stopListen() { if (unsub) { try { unsub(); } catch (e) { /* ignore */ } } unsub = null; listenFor = ''; }
   function listen() {

@@ -230,6 +230,7 @@
     if (e.key !== 'Enter' || !e.target.dataset || !e.target.closest || !e.target.closest('.qe')) return; const order = ['desc', 'price', 'cost'], k = order.indexOf(e.target.dataset.f); if (k < 0) return; e.preventDefault();
     if (k < order.length - 1) { const nx = $('.qe [data-f=' + order[k + 1] + ']'); if (nx) nx.focus(); } else { const b = $('.qe .qgo .pr'); if (b) b.click(); }
   });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'w-es') { e.preventDefault(); const b = $('[data-act=word-add]'); if (b) b.click(); } });
   document.addEventListener('input', (e) => { if (e.target.name === 'biz' && e.target.form && e.target.form.id === 'f-setup') { gateDraft.name = e.target.value; const n = $('#pv-name'); if (n) n.textContent = e.target.value || t('gate.bizPh'); } });
 
   const filtered = () => flt.period !== 'all' || flt.batch !== 'all';
@@ -443,7 +444,7 @@
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     const act = (a, icon, label, sub, bad) => `<button class="row tap" data-act="${a}"><span style="font-size:22px">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
     return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
-      ${go('summary', '📈', t('more.summary'), t('more.summarySub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
+      ${go('summary', '📈', t('more.summary'), t('more.summarySub'))}${act('words-open', '🔤', t('words.title'), t('words.sub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
       ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>${t('more.install')}</b><small>${isIOS ? t('more.installIOS') : t('more.installOther')}</small></div><span class="chev">›</span></button></div>`}
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
   }
@@ -687,6 +688,7 @@
     });
   }
   function openSheet(html, onClose, full) {
+    voiceStop();
     const kind = full === 'card' || full === 'sheet' ? full : null;
     if (kind) full = false; else if (!full) { html = asPage(html); full = true; }
     $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind);
@@ -699,6 +701,7 @@
   }
   function closeSheet() {
     if ($('#sheet').hidden) return;
+    voiceStop();
     pageStack = [];
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
@@ -762,6 +765,95 @@
       <div class="btns"><button class="btn primary">${t('recv.mark')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`);
   }
 
+  /* Voice: a microphone button next to the description (and the Spanish name). Uses the phone browser's speech recognition (Chrome on
+     Android; Safari on iPhone); where it is not available the button is simply not shown. On the description, words are added after what
+     is typed; in the Spanish name box they replace it. */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const MIC_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
+  const micBtn = (act) => (SR ? `<button type="button" class="mic" data-act="${act || 'mic'}" aria-label="${t('mic.tap')}">${MIC_SVG}</button>` : '');
+  let rec = null, heardTimer = 0;
+  function voiceUi(on, text, row) {
+    document.querySelectorAll('.mic').forEach((b) => b.classList.toggle('on', !!on));
+    document.querySelectorAll('.listen, .heard').forEach((e) => e.remove());
+    row = row || document.querySelector('.dscrow, .esrow'); if (!row) return;
+    const inp = row.querySelector('input');
+    if (inp) { if (on) { inp.dataset.ph = inp.placeholder; inp.placeholder = t('mic.listeningBox'); } else if (inp.dataset.ph) inp.placeholder = inp.dataset.ph; }
+    if (on) row.insertAdjacentHTML('afterend', `<div class="listen"><i></i><span>${t('mic.listening')}</span></div>`);
+    else if (text) { row.insertAdjacentHTML('afterend', `<div class="heard">🎤 ${t('mic.heard', { text: esc(text) })}</div>`); clearTimeout(heardTimer); heardTimer = setTimeout(() => { const h = document.querySelector('.heard'); if (h) h.remove(); }, 6000); }
+  }
+  function voiceStop() { const r = rec; rec = null; if (r) { try { r.abort(); } catch (e) { /* already stopped */ } } }
+  function voiceToggle(forSpanish) {
+    if (rec) { try { rec.stop(); } catch (e) { /* ignore */ } return; }
+    const box = document.querySelector(forSpanish ? '#es-name' : '.dscrow input'); if (!box || !SR) return;
+    const row = box.closest('.dscrow, .esrow'), r = new SR(); r.lang = forSpanish || I.getLang() === 'es' ? 'es-419' : 'en-US'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+    let heard = '', failed = false; rec = r;
+    r.onstart = () => voiceUi(true, '', row);
+    r.onresult = (e) => { heard = Array.from(e.results).map((x) => x[0].transcript).join(' ').trim(); const l = document.querySelector('.listen span'); if (l && heard) l.textContent = '… ' + heard; };
+    r.onerror = (e) => { failed = true; const c = e && e.error; if (c === 'aborted') return; toast(t(c === 'not-allowed' || c === 'service-not-allowed' ? 'mic.denied' : c === 'no-speech' ? 'mic.noSpeech' : c === 'network' ? 'mic.network' : 'mic.noSpeech')); };
+    r.onend = () => {
+      const mine = rec === r; rec = null;
+      if (!mine || !document.body.contains(box)) return voiceUi(false, '', row);
+      voiceUi(false, failed ? '' : heard, row);
+      if (!heard || failed) return;
+      const cur = box.value.trim(), clean = heard.replace(/[.。]+$/, ''), cap = clean.charAt(0).toUpperCase() + clean.slice(1);
+      box.value = forSpanish ? cap : (cur ? cur + ' ' + clean : cap);
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    try { r.start(); } catch (e) { rec = null; toast(t('mic.noSpeech')); }
+  }
+
+  /* Word library and the Spanish name of an item (shown to Spanish-speaking visitors of the store). */
+  const Wd = window.Words;
+  function wordList() {
+    if (!state.settings.wordsSeeded) { state.settings.words = Wd.seed(state.settings.words || []); state.settings.wordsSeeded = true; save(); }
+    return state.settings.words || [];
+  }
+  const esBadge = (i) => { const sp = Wd.spanish(i, wordList()); return sp.state === 'none' ? '' : `<u class="${sp.state === 'ok' ? 'ok' : ''}">${sp.state === 'ok' ? '✓' : '!'}</u>`; };
+  const esBtn = (i) => `<button type="button" class="fl2" data-act="es-open" data-id="${i.id}" aria-label="${t('es.aria')}">🇪🇸${esBadge(i)}</button>`;
+  function refreshEs(i) { const b = document.querySelector(`.fl2[data-id="${i.id}"]`); if (b) b.innerHTML = '🇪🇸' + esBadge(i); }
+  function sheetSpanish(id) {
+    const i = state.items.find((x) => x.id === id); if (!i) return;
+    const sp = Wd.spanish(i, wordList());
+    openSmall(`<h3>🇪🇸 ${t('es.label')}</h3><p>${t('es.sub')}</p><label>${t('es.label')}</label>
+      <div class="esrow"><input id="es-name" value="${esc(sp.es)}" placeholder="${t('es.ph')}" autocomplete="off" enterkeyhint="done">${micBtn('mic-es')}</div>
+      ${sp.missing.length ? `<div class="warn">⚠️ <span>${t('es.missing', { words: sp.missing.map((w) => '“' + esc(w) + '”').join(', ') })}</span><button type="button" data-act="es-addwords" data-id="${id}">${t('es.add')}</button></div>` : ''}
+      <div class="btns"><button class="btn primary" data-act="es-done" data-id="${id}">${t('es.done')}</button></div>
+      <a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
+  }
+  function sheetAddWords(id) {
+    const i = state.items.find((x) => x.id === id); if (!i) return;
+    const miss = Wd.spanish(i, wordList()).missing; if (!miss.length) return sheetSpanish(id);
+    openSmall(`<h3>${t('es.addTitle')}</h3><p>${t('es.addSub')}</p>
+      ${miss.map((w) => `<div class="w"><b>${esc(w)}</b><i>→</i><input data-w="${esc(w)}" placeholder="${t('words.spanish')}" autocomplete="off"></div>`).join('')}
+      <div class="btns"><button class="btn primary" data-act="es-savewords" data-id="${id}">${t('es.save')}</button></div><a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
+  }
+  let wordQ = '', wordGroup = 'all';
+  const wordGroups = ['clothes', 'colours', 'sizes', 'more', ''];
+  function wordsListHTML() {
+    const q = Wd.norm(wordQ), list = wordList().filter((w) => (wordGroup === 'all' || (wordGroup === 'yours' ? !w.c : w.c === wordGroup)) && (!q || Wd.norm(w.en).includes(q) || Wd.norm(w.es).includes(q)));
+    const html = wordGroups.map((g) => {
+      const rows = list.filter((w) => (w.c || '') === g).sort((x, y) => x.en.localeCompare(y.en));
+      return rows.length ? `<h4><span>${g ? t('words.c.' + g) : t('words.yours')}</span></h4><div class="card">${rows.map((w) => `<div class="pair"><button class="pm" data-act="word-edit" data-id="${esc(w.en)}"><b>${esc(w.en)}</b><i>→</i><span class="t2">${esc(w.es)}</span></button><button class="x" data-act="word-del" data-id="${esc(w.en)}" aria-label="${t('btn.delete')}">✕</button></div>`).join('')}</div>` : '';
+    }).join('');
+    return html || `<div class="empty">${t('words.empty')}</div>`;
+  }
+  const wordsChips = () => ['all', 'clothes', 'colours', 'sizes', 'yours'].map((g) => `<button class="${wordGroup === g ? 'on' : ''}" data-act="word-group" data-id="${g}">${g === 'all' ? t('words.all') : g === 'yours' ? t('words.yours') : t('words.c.' + g)}</button>`).join('');
+  function sheetWords(swap) {
+    enterPage('words', '', () => sheetWords(), swap);
+    const list = wordList();
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('words.title')}</b><small id="wcount">${t('words.count', { n: list.length })}</small></div></div>
+      <div class="ap lib">${state.settings.wordsHideNote ? '' : `<div class="starter">📚<b>${t('words.starter', { n: Wd.STARTER.length })}</b><button data-act="word-hide">${t('words.hide')}</button></div>`}
+      <div class="srch2"><span>🔍</span><input id="w-q" value="${esc(wordQ)}" placeholder="${t('words.search')}" autocomplete="off"></div>
+      <div class="tabs" id="wchips">${wordsChips()}</div>
+      <h4><span>${t('words.add')}</span></h4><div class="card"><div class="add"><input id="w-en" placeholder="${t('words.english')}" autocomplete="off"><i>→</i><input id="w-es" placeholder="${t('words.spanish')}" autocomplete="off" enterkeyhint="done"><button class="go" data-act="word-add" aria-label="${t('words.add')}">＋</button></div></div>
+      <div id="wlist">${wordsListHTML()}</div></div>`, null, true);
+  }
+  const wordsRefresh = () => { const l = $('#wlist'); if (l) l.innerHTML = wordsListHTML(); const c = $('#wchips'); if (c) c.innerHTML = wordsChips(); const n = $('#wcount'); if (n) n.textContent = t('words.count', { n: wordList().length }); };
+  function sheetWordEdit(en) {
+    const w = wordList().find((x) => Wd.norm(x.en) === Wd.norm(en)); if (!w) return;
+    openSmall(`<h3>${t('words.edit')}</h3><label>${t('words.english')}</label><input id="we-en" value="${esc(w.en)}" autocomplete="off"><label>${t('words.spanish')}</label><input id="we-es" value="${esc(w.es)}" autocomplete="off">
+      <div class="btns"><button class="btn primary" data-act="word-save" data-id="${esc(w.en)}">${t('btn.save')}</button><button class="btn danger" data-act="word-del2" data-id="${esc(w.en)}">${t('btn.delete')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
+  }
   // Previous / next arrows (with "4 of 8") for the top bar, to flip through the items of one batch without going back.
   const navArrows = (ids, id, act) => { const n = ids.indexOf(id); if (n < 0 || ids.length < 2) return ''; return `<div class="nx"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span><button data-act="${act}" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><button data-act="${act}" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button></div>`; };
   const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isSold(x))).map((x) => x.id).sort();
@@ -773,7 +865,7 @@
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
       <fieldset class="lockset" ${sold ? 'disabled' : ''}>
-      <label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">
+      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <label>${t('item.price')}</label><div class="grid2" id="pricerow"><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.useRec')}</button></div>
       <div id="saleblock">${saleHTML(i)}</div>
@@ -797,7 +889,7 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${navArrows(ids, id, 'qe-go')}</div>
       <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
       <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
-      <div class="qf"><label>${t('item.desc')}</label><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">
+      <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}${esBtn(i)}</div>
       <div class="grid2"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="next"></div><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div></div>
       <button class="btn" type="button" data-act="use-rec" data-id="${i.id}" style="width:100%;margin-top:10px">${t('item.useRec')}</button>
       <div id="saleblock" style="margin-top:6px">${saleHTML(i)}</div>
@@ -1347,6 +1439,20 @@
       case 'open-clearing': clearOpen.add(id); return closeSheet();
       case 'close-batch': return askCard(t('confirm.close', { id: bl(id) }), { danger: true, ok: t('batch.close') }).then((y) => { if (y) run(() => L.closeBatch(state, id), t('batch.closed', { id: bl(id) })); });
       case 'del-batch': return askCard(t('confirm.delBatch', { id: bl(id) }), { danger: true, ok: t('batch.deleteShort') }).then((y) => { if (y) run(() => L.deleteBatch(state, id), t('batch.deleted', { id: bl(id) })); });
+      case 'mic': return voiceToggle(false);
+      case 'mic-es': return voiceToggle(true);
+      case 'es-open': return sheetSpanish(id);
+      case 'es-addwords': return sheetAddWords(id);
+      case 'es-savewords': { document.querySelectorAll('.sheet [data-w]').forEach((inp) => { if (inp.value.trim()) state.settings.words = Wd.put(wordList(), inp.dataset.w, inp.value); }); save(); toast(t('words.saved')); return closeSheet(); }
+      case 'es-done': { const i = state.items.find((x) => x.id === id), v = ($('#es-name').value || '').trim(); if (i) { const auto = Wd.translate(i.desc, wordList()); if (!v || (v === auto.es && !auto.missing.length)) { i.esSet = false; delete i.nameEs; delete i.esFor; } else { i.nameEs = v; i.esSet = true; i.esFor = i.desc; } save(); } return closeSheet(); }
+      case 'es-lib': closeSheet(); return sheetWords();
+      case 'words-open': return sheetWords();
+      case 'word-group': wordGroup = id; return wordsRefresh();
+      case 'word-hide': state.settings.wordsHideNote = true; save(); { const n = document.querySelector('.starter'); if (n) n.remove(); } return;
+      case 'word-add': { const en = $('#w-en'), es = $('#w-es'); if (!en.value.trim() || !es.value.trim()) return toast(t('words.needBoth')); state.settings.words = Wd.put(wordList(), en.value, es.value, ''); save(); en.value = ''; es.value = ''; wordGroup = 'all'; wordQ = ''; $('#w-q').value = ''; wordsRefresh(); toast(t('words.saved')); return en.focus(); }
+      case 'word-edit': return sheetWordEdit(id);
+      case 'word-save': { const en = ($('#we-en').value || '').trim(), es = ($('#we-es').value || '').trim(); if (!en || !es) return toast(t('words.needBoth')); const old = wordList().find((x) => Wd.norm(x.en) === Wd.norm(id)); let w = Wd.drop(wordList(), id); w = Wd.put(w, en, es, old ? old.c : ''); state.settings.words = w; save(); return closeSheet(); }
+      case 'word-del': case 'word-del2': state.settings.words = Wd.drop(wordList(), id); save(); toast(t('words.removed')); if (t_.dataset.act === 'word-del2') return closeSheet(); return wordsRefresh();
       case 'item-go': if (id) { sheetItem(id, true); $('#sheet').scrollTop = 0; } return;
       case 'qe-open': { const ids = batchIds(id, true); if (!ids.length) return toast(t('qe.none')); return sheetQuick(id, ids[0]); }
       case 'qe-go': if (id) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;
@@ -1461,7 +1567,7 @@
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f; if (L.isSold(i)) return;
       if (f === 'discount') { i.discount = parsePct(el.value); el.value = i.discount ? i.discount + '%' : ''; save(); return refreshSaleBlock(i); }   // "50" becomes "50%"
       i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0) : el.value;
-      save(); updateSale(i);
+      save(); updateSale(i); if (f === 'desc') refreshEs(i);
     }
   });
 
@@ -1473,6 +1579,7 @@
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
+    else if (el.id === 'w-q') { wordQ = el.value; wordsRefresh(); }
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
@@ -1641,6 +1748,7 @@
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const photoKeep = () => ['1', '2', '7', 'sold'].includes(state.settings.photoKeep) ? state.settings.photoKeep : '2';   // how long an original screenshot stays after the photo is saved
   const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
+  wordList();
   Store.init({ state: () => state, bizName, refresh: () => { const top = pageStack[pageStack.length - 1]; if (top && top.key === 'store' && !$('#sheet').hidden) { const sc = $('#sheet').scrollTop; reopening = true; try { top.open(); } finally { reopening = false; } $('#sheet').scrollTop = sc; } },
     onOrders: () => { const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && (top.key === 'orders' || top.key.startsWith('order|'))) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && tab === 'sell') render(); } });
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, openSmall, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
@@ -1648,7 +1756,7 @@
     getState: () => state,
     askConflict,
     onStatus: (i) => { const was = cloud.signedIn; cloud = i; if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
-    onRemote: () => { L.migrate(state); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
+    onRemote: () => { L.migrate(state); wordList(); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });
   save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyStaticText();

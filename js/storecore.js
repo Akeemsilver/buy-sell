@@ -3,6 +3,7 @@
    an item is published as name, price, sale price, picture only. */
 (function (root) {
   const L = root.Logic || (typeof require !== 'undefined' ? require('./logic.js') : null);
+  const W = () => root.Words || (typeof require !== 'undefined' ? require('./words.js') : null);
   const num = (v) => Number(v) || 0, r2 = (n) => Math.round(n * 100) / 100;
   const PER_DOC = 20;   // items per catalogue document (each carries a small picture; a document may be up to 1 MB)
 
@@ -26,7 +27,7 @@
       if (it.status !== 'Available' && !(transit && cfg.inTransit)) return;
       const name = String(it.desc || '').trim(), sale = L.salePrice(it), price = num(it.price);
       if (!name || (price <= 0 && sale <= 0)) return;
-      out.push({ id: it.id, name, price: r2(price), sale: r2(sale), pct: sale > 0 ? Math.round(num(it.discount)) : 0, transit, photo: it.photo && it.photo.id ? it.photo.id : '' });
+      out.push({ id: it.id, name, nameEs: W() ? W().publishable(it, (s.settings && s.settings.words) || []) : '', price: r2(price), sale: r2(sale), pct: sale > 0 ? Math.round(num(it.discount)) : 0, transit, photo: it.photo && it.photo.id ? it.photo.id : '' });
     });
     return out.sort((a, b) => a.id.localeCompare(b.id));
   };

@@ -25,8 +25,8 @@
 
   function init(h) {
     hooks = h;
-    const go = () => loadScripts().then(() => {
-      const fb = root.firebase; fb.initializeApp(CONFIG); auth = fb.auth(); db = fb.firestore();
+    const go = () => loadScripts().then(() => (root.AppCheckKit ? root.AppCheckKit.load() : null)).then(() => {
+      const fb = root.firebase; fb.initializeApp(CONFIG); if (root.AppCheckKit) root.AppCheckKit.activate(fb); auth = fb.auth(); db = fb.firestore();
       try { auth.useDeviceLanguage(); } catch (e) { /* ignore */ }
       db.enablePersistence({ synchronizeTabs: true }).catch(() => {});      // works offline from the phone's saved copy
       readyRes();   // stay 'loading' until the saved sign-in is read: saying 'signedOut' now made the Sign in banner flash for people who are signed in

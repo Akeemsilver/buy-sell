@@ -102,7 +102,8 @@
   async function boot() {
     if (!sid) return msg(T.nf, T.nfText);
     try {
-      firebase.initializeApp(CONFIG); db = firebase.firestore();
+      if (window.AppCheckKit) await window.AppCheckKit.load();
+      firebase.initializeApp(CONFIG); if (window.AppCheckKit) window.AppCheckKit.activate(firebase); db = firebase.firestore();
       const snap = await db.collection('stores').doc(sid).get(); if (!snap.exists) return msg(T.nf, T.nfText);
       store = snap.data(); document.title = store.name || 'Store';
       if (store.color) { document.documentElement.style.setProperty('--brand', store.color); document.documentElement.style.setProperty('--tint', 'color-mix(in srgb,' + store.color + ' 10%,#fff)'); }

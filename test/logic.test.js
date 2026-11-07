@@ -342,3 +342,39 @@ console.log('sale price tests passed');
   assert.strictEqual(ids('zara').length, 60); assert.deepStrictEqual(ids('999'), []);
   assert.strictEqual(L.batchSearch(bs, '07')[0].kind, 'ends'); assert.strictEqual(L.batchSearch(bs, '075')[0].kind, 'ends');
 }
+{ // returning items from an invoice
+  const mk = () => { const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 3, currency: 'TTD', totalCost: 90, margin: 100 });
+    s.batches.forEach((b) => { b.status = 'Received'; }); s.items.forEach((x, n) => { x.desc = 'T' + n; x.cost = 30; x.price = 100; x.status = 'Available'; x.size = 'M'; }); return s; };
+  { // an item whose batch has not arrived goes back on the boat, not onto the shelf
+    const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 1, currency: 'TTD', totalCost: 30, margin: 100 }); const i = s.items[0]; i.desc = 'T'; i.cost = 30; i.price = 100;
+    const a = L.createInvoice(s, { itemIds: [i.id], client: 'Jo', isNew: true, paying: 100, date: new Date('2026-11-01T12:00:00') }); L.returnItems(s, a.no, [i.id]); assert.strictEqual(i.status, 'In Transit');
+  }
+  { // whole purchase, with a payment chain
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 50, date: new Date('2026-11-01T12:00:00') });
+    const b = L.recordPayment(s, a.no, 30, new Date('2026-11-02T12:00:00'));
+    const pv = L.returnPreview(s, a.no, [s.items[0].id, s.items[1].id]); assert.strictEqual(pv.all, true); assert.strictEqual(pv.paid, 80);
+    const r = L.returnItems(s, a.no, [s.items[0].id, s.items[1].id]); assert.strictEqual(r.all, true); assert.strictEqual(r.refund, 80);
+    assert.strictEqual(s.invoices.length, 0, 'every invoice in the chain is gone'); assert.ok(s.items.slice(0, 2).every((i) => i.status === 'Available' && !i.invoice && !i.customer && i.sold === 0));
+    assert.strictEqual(L.customerStats(s).filter((c) => c.name === 'Jo').length === 0 || L.customerStats(s).filter((c) => c.name === 'Jo')[0].owing === 0, true);
+  }
+  { // one of two returned: customer had paid in full -> refund due, no tip, no profit from the refund
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 200, date: new Date('2026-11-01T12:00:00') });
+    const pv = L.returnPreview(s, a.no, [s.items[0].id]); assert.strictEqual(pv.refund, 100); assert.strictEqual(pv.newTotal, 100);
+    const r = L.returnItems(s, a.no, [s.items[0].id]); assert.strictEqual(r.all, false); assert.strictEqual(r.refund, 100);
+    const n = s.invoices.find((v) => v.no === r.invoice); assert.strictEqual(n.total, 100); assert.strictEqual(n.refundDue, 100); assert.strictEqual(n.tip, 0); assert.strictEqual(n.balance, 0);
+    assert.strictEqual(s.invoices.find((v) => v.no === a.no).updatedBy, n.no, 'the old invoice is kept and marked Updated');
+    assert.strictEqual(s.items[0].status, 'Available'); assert.strictEqual(s.items[1].status, 'Paid'); assert.strictEqual(s.items[1].invoice, n.no);
+  }
+  { // one of two returned, only part paid: nothing to refund, balance shrinks
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 50, date: new Date('2026-11-01T12:00:00') });
+    const r = L.returnItems(s, a.no, [s.items[1].id]); const n = s.invoices.find((v) => v.no === r.invoice);
+    assert.strictEqual(r.refund, 0); assert.strictEqual(n.total, 100); assert.strictEqual(n.balance, 50); assert.strictEqual(n.refundDue || 0, 0); assert.strictEqual(s.items[0].status, 'Owing');
+  }
+  { // delivery stays on the purchase when the item that carried it is returned
+    const s = mk(); s.items[0].delivery = 40;
+    const a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 240, date: new Date('2026-11-01T12:00:00') });
+    const r = L.returnItems(s, a.no, [s.items[0].id]); const n = s.invoices.find((v) => v.no === r.invoice);
+    assert.strictEqual(n.delivery, 40); assert.strictEqual(n.total, 140); assert.strictEqual(r.refund, 100);
+  }
+  assert.throws(() => L.returnItems(mk(), 'NOPE', ['x']));
+}

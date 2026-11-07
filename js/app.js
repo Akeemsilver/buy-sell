@@ -1430,10 +1430,10 @@
         <div class="inv-sum">${isPaidInFull(v) ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
           <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div></div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
-      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.balance > 0 && !v.updatedBy ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
+      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${hist}${thumbs}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
-      ${isLatest ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button>` : ''}<button class="btn ${isLatest ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
+      ${isLatest && state.items.some((x) => x.invoice === v.no) ? `<button class="btn span2" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : ''}${isLatest ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button>` : ''}<button class="btn ${isLatest ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
     setTimeout(() => { if (!$('#sheet').hidden && $('#sheet .inv')) prefetchPdf(v.no); }, 600);   // build the PDF now, so Share answers the tap at once
   }
@@ -1740,7 +1740,7 @@
   const opl = (k, label) => `<span class="opl ${k}">${label}</span>`;
   // One pill, the most urgent first: arriving soon, then owing, then paid
   function orderPill(o, withAmt) {
-    if (o.status === 'declined') return opl('gone', t(o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'));
+    if (o.status === 'declined') return opl('gone', t(o.returned ? 'ord.pl.returned' : o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'));
     if (o.status !== 'done' && (o.items || []).some(itemArriving)) return opl('arr', t('ord.pl.arr'));   // no hourglass here: the room goes to the date
     const pay = L.orderPay(state, orderInvoice(o)); if (!pay) return '';
     return pay.owing > 0 ? opl('owing', withAmt ? t('ord.pl.owingAmt', { amount: money(pay.owing) }) : t('ord.pl.owing')) : opl('paid', '✓ ' + t('ord.pl.paid'));
@@ -1802,12 +1802,31 @@
       Store.setStatus(o.id, 'declined', { cancelled: true }).then(() => { toast(t('ord.cancelled')); dropPages('order|' + o.id); render(); waOpen(o, 'ord.waCancelled'); }).catch(() => toast(t('store.pubError')));
     });
   }
+  /* ---------- returns: put items from an invoice back in stock ---------- */
+  function sheetReturn(no, ordId) {
+    const pu = L.purchaseOf(state, no); if (!pu || !pu.items.length) return toast(t('ret.nothing'));
+    const rows = pu.items.map((i) => `<label class="rtrow"><input type="checkbox" data-ret value="${esc(i.id)}"><span class="rt-t"><b>${esc(i.desc)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small>${esc(i.id)}</small></span><b>${money(L.effectivePrice(i))}</b></label>`).join('');
+    openSmall(`<h3>${t('ret.title')}</h3><p class="muted small">${pu.inv.no} · ${esc(pu.inv.client)}</p>
+      <div class="rt-all"><button class="chip" data-act="ret-all">${t('ret.all')}</button></div><div class="rt-list">${rows}</div>
+      <div class="rt-sum" id="rt-sum" data-inv="${pu.inv.no}" data-ord="${esc(ordId || '')}"></div>
+      <div class="btns"><button class="btn danger" id="rt-go" data-act="ret-do" disabled>${t('ret.go.other', { n: 0 })}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
+    $('#sheet').classList.add('hdr'); retRefresh();
+  }
+  function retPicked() { return [...document.querySelectorAll('#sheet [data-ret]:checked')].map((e) => e.value); }
+  function retRefresh() {
+    const box = $('#rt-sum'); if (!box) return; const ids = retPicked(), go = $('#rt-go');
+    go.disabled = !ids.length; go.textContent = tn('ret.go', ids.length);
+    if (!ids.length) { box.innerHTML = ''; return; }
+    const pv = L.returnPreview(state, box.dataset.inv, ids);
+    box.innerHTML = `<div class="ln"><span>${t('ret.paid')}</span><b>${money(pv.paid)}</b></div>${pv.all ? `<div class="ln"><span>${t('ret.invoiceGone')}</span><b>—</b></div>` : `<div class="ln"><span>${t('ret.newTotal')}</span><b>${money(pv.newTotal)}</b></div>${pv.owing > 0 ? `<div class="ln"><span>${t('ret.stillOwing')}</span><b>${money(pv.owing)}</b></div>` : ''}`}
+      ${pv.refund > 0 ? `<div class="ln due"><span>${t('ret.refund')}</span><b>${money(pv.refund)}</b></div>` : ''}`;
+  }
   const itemPill = (o, i, it) => { if (o.status === 'declined') return ''; const k = o.status !== 'done' && itemArriving(i) ? opl('arr', '⏳ ' + t('ord.pl.arr')) : it && L.isSold(it) && it.invoice ? (it.status === 'Paid' ? opl('paid', '✓ ' + t('ord.pl.paid')) : opl('owing', t('ord.pl.owing'))) : ''; return k ? `<div class="ipl">${k}</div>` : ''; };
   function sheetOrder(id) {
     const o = Store.orders().find((x) => x.id === id); if (!o) return;
     enterPage('order', id, () => sheetOrder(id));
     const rows = (o.items || []).map((i) => { const it = state.items.find((x) => x.id === i.id), gone = !it || L.isSold(it), tr = it && it.status === 'In Transit', sold = it && L.isSold(it) && it.invoice;
-      const sub = sold && o.status !== 'new' ? t('ord.soldOn', { no: it.invoice }) : gone ? t('ord.gone') : tr ? '⏳ ' + t('ord.transit') : t('ord.available');
+      const back = o.status === 'done' && it && !L.isSold(it) && !it.invoice, sub = sold && o.status !== 'new' ? t('ord.soldOn', { no: it.invoice }) : back ? t('ord.returned') : gone ? t('ord.gone') : tr ? '⏳ ' + t('ord.transit') : t('ord.available');
       return `<div class="rw"><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small>${itemPill(o, i, it)}</div><b>${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) }), inv = orderInvoice(o), pay = L.orderPay(state, inv);
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
@@ -1817,7 +1836,7 @@
     const tl = [step(true, t('ord.tl.ordered'), Store.when(o))];
     if (o.status !== 'new') tl.push(step(o.status !== 'declined' || !!tsAt(o.confirmedAt), t('ord.tl.confirmed'), tsAt(o.confirmedAt)));
     if (pay) pay.payments.forEach((x) => tl.push(step(true, t('ord.tl.payment'), new Date(x.date), ' · ' + money(x.amount))));
-    if (o.status === 'declined') tl.push(step(true, t(o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'), tsAt(o.declinedAt)));
+    if (o.status === 'declined') tl.push(step(true, t(o.returned ? 'ord.pl.returned' : o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'), tsAt(o.declinedAt)));
     else if (o.status === 'confirmed') tl.push(step(false, handed, null));
     else if (o.status === 'done') tl.push(step(true, handed, tsAt(o.doneAt)));
     const tlCard = o.status === 'new' ? '' : `<h4><span>${t('ord.timeline')}</span></h4><div class="card tl">${tl.join('')}</div>`;
@@ -1827,7 +1846,7 @@
       ${payCard}${tlCard}
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('ord.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
         : o.status === 'confirmed' ? `<div class="btnrow"><button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected')}</button>${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
-        : o.status === 'done' && inv ? `<div class="btnrow"><button class="gbtn" data-act="view-inv" data-id="${inv}" style="flex:1">${t('ord.viewInv')}</button></div>` : ''}</div>`, null, true);
+        : o.status === 'done' && inv ? `<div class="btnrow"><button class="gbtn" data-act="view-inv" data-id="${inv}" style="flex:1">${t('ord.viewInv')}</button>${(L.purchaseOf(state, inv) || { items: [] }).items.length ? `<button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1">↩ ${t('ret.btn')}</button>` : ''}</div>` : ''}</div>`, null, true);
   }
   function confirmOrder(o) {
     const its = (o.items || []).map((i) => state.items.find((x) => x.id === i.id)).filter((it) => it && !L.isSold(it)), missing = (o.items || []).length - its.length;
@@ -1951,6 +1970,18 @@
       case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
       case 'pick-keep': return sheetChoice(t('set.keepRow'), 'set-keep', photoKeep(), ['1', '2', '7', 'sold'].map((k) => [k, t('keep.' + k)]), t('keep.note'));
       case 'set-keep': state.settings.photoKeep = id; save(); closeSheet(); PUI.sweep(photoKeep()); return render();
+      case 'return-open': return sheetReturn(id, t_.dataset.ord || '');
+      case 'ret-all': { const bx = [...document.querySelectorAll('#sheet [data-ret]')], on = bx.some((e) => !e.checked); bx.forEach((e) => { e.checked = on; }); return retRefresh(); }
+      case 'ret-do': { const box = $('#rt-sum'), ids = retPicked(), inv = box && box.dataset.inv, ordId = box && box.dataset.ord; if (!ids.length) return;
+        try {
+          const r = L.returnItems(state, inv, ids); save(); tidyPhotos(); closeSheet();
+          const money_ = r.refund > 0 ? t('ret.doneRefund', { amount: plain(money(r.refund)) }) : tn('ret.done', ids.length);
+          const po = ordId && Store.orders().find((x) => x.id === ordId);
+          if (po && r.all) Store.setStatus(ordId, 'declined', { returned: true }).catch(() => toast(t('store.pubError')));
+          render(); toast(money_);
+          if (po && !r.all) sheetOrder(ordId); else if (po) dropPages('order|' + ordId);
+        } catch (e) { toast('⚠️ ' + errMsg(e)); }
+        return; }
       case 'pay-inv': payOrd = t_.dataset.ord || ''; return sheetPay(id);
       case 'pay-full-amt': { if (payInv) { $('#pay-amt').value = String(payInv.balance); payUpdate(); } return; }
       case 'pay-save': {
@@ -2176,6 +2207,7 @@
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
+    else if (el.hasAttribute && el.hasAttribute('data-ret')) retRefresh();
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }

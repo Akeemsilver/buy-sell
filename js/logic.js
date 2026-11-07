@@ -472,6 +472,38 @@
     }
     const w = raw.replace(/^batch-?/, '').trim(); return w ? sorted.filter((b) => String(b.store || '').toLowerCase().includes(w)).map((b) => ({ b, kind: 'store' })) : sorted.map((b) => ({ b, kind: 'all' }));
   };
+  // Returns: the newest invoice of a purchase (an invoice, then the ones that updated it), the items on it, and what the customer paid so far.
+  L.purchaseOf = (s, no) => {
+    let inv = s.invoices.find((v) => v.no === no), g = 0; if (!inv) return null;
+    while (inv.updatedBy && g++ < 50) { const n = s.invoices.find((v) => v.no === inv.updatedBy); if (!n) break; inv = n; }
+    return { inv, items: s.items.filter((i) => i.invoice === inv.no), paid: r2(num(inv.amountPaid) + num(inv.previouslyPaid)) };
+  };
+  const putBack = (s, i) => { const b = s.batches.find((x) => x.id === i.batchId); i.status = b && b.status === 'In Transit' ? 'In Transit' : 'Available'; i.customer = ''; i.invoice = ''; i.sold = 0; i.owing = 0; i.paid = 0; i.delivery = 0; };   // still on the boat if its batch has not arrived
+  // What a return would do, without doing it: how much the customer paid, what the invoice becomes, and how much is due back to them.
+  L.returnPreview = (s, no, ids) => {
+    const pu = L.purchaseOf(s, no); if (!pu) return null;
+    const keep = pu.items.filter((i) => !ids.includes(i.id)), all = !keep.length;
+    const newTotal = all ? 0 : r2(keep.reduce((t, i) => t + L.effectivePrice(i), 0) + num(pu.inv.delivery));
+    return { all, paid: pu.paid, newTotal, refund: r2(Math.max(0, pu.paid - newTotal)), owing: all ? 0 : r2(Math.max(0, newTotal - pu.paid)), count: pu.items.length - keep.length };
+  };
+  // Put items from an invoice back in stock. Everything: the whole purchase (every invoice in its payment history) goes. Some: the rest becomes
+  // an updated invoice; payments carry over, and anything paid above the new total is recorded as refundDue (money to give back, never as profit).
+  L.returnItems = (s, no, ids, date) => {
+    const pu = L.purchaseOf(s, no); if (!pu) throw fail('noInvoice');
+    const pick = pu.items.filter((i) => ids.includes(i.id)); if (!pick.length) throw fail('noItems');
+    const keep = pu.items.filter((i) => !ids.includes(i.id)), pre = L.returnPreview(s, no, ids);
+    if (!keep.length) {
+      const nos = new Set(); let cur = pu.inv; while (cur) { nos.add(cur.no); cur = cur.ref ? s.invoices.find((v) => v.no === cur.ref) : null; if (cur && nos.has(cur.no)) break; }
+      s.invoices.filter((v) => nos.has(v.no)).forEach((v) => s.items.forEach((i) => { if (i.invoice === v.no) putBack(s, i); }));
+      s.invoices = s.invoices.filter((v) => !nos.has(v.no));
+      return { all: true, paid: pre.paid, refund: pre.paid };
+    }
+    const bad = L.previewInvoice(s, { itemIds: keep.map((i) => i.id), client: pu.inv.client, paying: 0, allowZero: true }).errors; if (bad.length) throw fail(bad[0]);
+    const D = num(pu.inv.delivery); pick.forEach((i) => putBack(s, i)); keep.forEach((i) => { i.delivery = 0; }); keep[0].delivery = D;
+    const inv = L.createInvoice(s, { itemIds: keep.map((i) => i.id), client: pu.inv.client, paying: 0, allowZero: true, date });
+    if (num(inv.tip) > 0) { inv.refundDue = r2(inv.tip); inv.previouslyPaid = r2(num(inv.previouslyPaid) - inv.refundDue); inv.tip = 0; inv.profit = 0; inv.loss = 0; L.applyWaterfall(s, inv.no); }
+    return { all: false, paid: pre.paid, refund: pre.refund, invoice: inv.no };
+  };
   L.deliveryOwing = (s, v) => { if (!v || v.updatedBy) return 0; const itemOwing = s.items.filter((i) => i.invoice === v.no).reduce((t, i) => t + num(i.owing), 0); return r2(Math.max(0, num(v.balance) - itemOwing)); };
   L.customerStats = (s) => {
     const names = new Set(s.customers);

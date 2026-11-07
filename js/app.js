@@ -809,7 +809,7 @@
     if (keepGhost) keepGhost = false; else removeGhost();
     const kind = full === 'card' || full === 'sheet' ? full : null;
     if (kind) full = false; else if (!full) { html = asPage(html); full = true; }
-    $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind); $('#sheet').classList.remove('pick');
+    $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind); $('#sheet').classList.remove('pick', 'hdr');
     sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full); document.body.classList.toggle('page-open', !!full);   // full-screen pages keep the bottom tab bar
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
@@ -821,7 +821,7 @@
     if ($('#sheet').hidden) return;
     voiceStop();
     pageStack = [];
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small', 'pick'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small', 'pick', 'hdr'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -856,7 +856,7 @@
     openSheet(`<h3>${t('bp.title')}</h3>
       <div class="oqbar"><span aria-hidden="true">🔍</span><input class="bq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"><span class="muted small" id="bp-n">${t('bp.n', { n: state.batches.length })}</span></div>
       <div class="bpl" id="bpl">${bpRows('')}</div>`, null, 'sheet');
-    $('#sheet').classList.add('pick');
+    $('#sheet').classList.add('pick', 'hdr');
     const cur = $('#bpl .bprow.on'); if (cur) cur.scrollIntoView({ block: 'center' });
   }
   function sheetBatchInfo(id) {
@@ -870,6 +870,7 @@
       <div class="bi-card"><div class="bi-bar">${seg('Paid', '#66bb6a')}${seg('Owing', '#ffb74d')}${seg('Available', '#5c6bc0')}${seg('In Transit', '#4fc3f7')}</div><div class="bi-lg">${lg('Paid', '#66bb6a')}${lg('Owing', '#ffb74d')}${lg('Available', '#5c6bc0')}${lg('In Transit', '#4fc3f7')}</div></div>
       <div class="bi-card">${ln(t('bi.items'), its.length + ' · ' + t('bi.withPhotos', { n: ps.withPhoto }))}${ln(t('batch.cost'), b.totalCost.toFixed(2) + ' ' + b.currency + ' @ ' + b.rate.toFixed(4))}${ln(t('bi.margin'), (Number(b.margin) || 0) + '%')}${b.dateReceived ? ln(t('bi.received'), day(b.dateReceived)) : ''}${ln(b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase'), transitText(b))}${b.dateLastPayment ? ln(t('batch.lastClearing'), day(b.dateLastPayment)) : ''}${sc.id ? ln(t('bi.inStore'), sc.batches.includes(b.id) ? t('bi.on') : t('bi.off')) : ''}</div>
       <div class="btns"><button class="btn primary" data-act="batch" data-id="${b.id}">${t('bi.open')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, 'sheet');
+    $('#sheet').classList.add('hdr');
   }
   function sheetBatch(id) {
     const b = state.batches.find((x) => x.id === id); if (!b) return;

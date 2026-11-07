@@ -860,3 +860,9 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .bi-lg{display:flex;flex-wrap:wrap;gap:6px 14px;padding:0 16px 12px;font-size:12.5px;color:var(--mute)}.bi-lg span{display:inline-flex;align-items:center;gap:6px}.bi-lg b{width:9px;height:9px;border-radius:50%;display:inline-block}
 .sheet.pick,.sheet.pick.kb{padding-bottom:var(--sab,0px)}   /* the list runs right down to the keyboard (or the screen's bottom) */
 .bi-kp small:first-child{text-transform:capitalize}
+
+/* batch pop-ups: a clearly visible header strip to hold and pull down; chips line up with the picker button */
+.sheet.hdr .grab{background:var(--card);margin-bottom:0;padding:12px 0 8px}
+.sheet.hdr .grab::before{width:54px;height:6px;background:var(--ink);opacity:.7}
+.sheet.hdr h3{background:var(--card);margin:0 -16px 12px;padding:2px 16px 12px;border-bottom:1px solid var(--line)}
+.bpk{margin-bottom:10px}.bpk .chips{padding:0;margin:0}

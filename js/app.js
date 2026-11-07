@@ -1856,7 +1856,7 @@
     const o = Store.orders().find((x) => x.id === id); if (!o) return;
     openSmall(`<h3>${t('dlv.planTitle')}</h3><p class="muted small">${esc(o.name)} · ${esc(o.code || SCore.orderCode(o.id))}</p>
       <div class="btns"><button class="btn primary" data-act="dlv-plan-set" data-id="today" data-ord="${id}">${t('dlv.planToday')}</button><button class="btn" data-act="dlv-plan-set" data-id="tomorrow" data-ord="${id}">${t('dlv.planTomorrow')}</button></div>
-      <div class="linkrow" style="margin-top:10px"><input id="plan-date" type="date" value="${esc(o.planDay || '')}" aria-label="${esc(t('dlv.planPick'))}"><button class="btn primary" data-act="dlv-plan-date" data-id="${id}">${t('dlv.planSave')}</button></div>
+      <div class="stackrow"><input id="plan-date" type="date" value="${esc(o.planDay || '')}" aria-label="${esc(t('dlv.planPick'))}"><button class="btn primary" data-act="dlv-plan-date" data-id="${id}">${t('dlv.planSave')}</button></div>
       ${o.planDay ? `<div class="btns" style="margin-top:10px"><button class="btn" data-act="dlv-plan-set" data-id="clear" data-ord="${id}">${t('dlv.planClear')}</button></div>` : ''}`, 'card');
   }
   function dlvWhatsApp(id, key) {
@@ -1867,7 +1867,7 @@
   function sheetKm(id) {
     const o = Store.orders().find((x) => x.id === id); if (!o) return;
     openSmall(`<h3>${t('km.title')}</h3><p class="muted small">${t('km.hint')}</p>
-      <div class="linkrow"><input id="km-in" type="text" inputmode="decimal" autocomplete="off" value="${o.km != null ? esc(Number(o.km).toFixed(1)) : ''}" placeholder="0.0"><button class="btn primary" data-act="km-save" data-id="${id}">${t('km.save')}</button></div>
+      <div class="stackrow"><input id="km-in" type="text" inputmode="decimal" autocomplete="off" value="${o.km != null ? esc(Number(o.km).toFixed(1)) : ''}" placeholder="0.0"><button class="btn primary" data-act="km-save" data-id="${id}">${t('km.save')}</button></div>
       ${dset().home && SCore.geo(o.lat, o.lng) ? `<div class="btns" style="margin-top:10px"><button class="btn" data-act="km-reset" data-id="${id}">${t('km.reset')}</button></div>` : ''}`, 'card');
   }
   const kmLine = (o) => { if (o.option !== 'delivery' || !(SCore.geo(o.lat, o.lng) || o.km != null)) return ''; const km = kmNum(o); return `<div class="card kmcard"><div class="rw"><div class="t"><b>${t('km.title')}</b><small>${km == null ? t('km.measuring') : o.kmSrc === 'line' ? t('km.line2', { km: km.toFixed(1) }) : t('km.line', { km: km.toFixed(1) }) + (o.kmSrc === 'manual' ? ' · ' + t('km.manual') : '')}${km != null ? ' · ' + t('dlv.roundTrip', { km: (km * 2).toFixed(1) }) : ''}</small></div><button class="dchip" data-act="km-edit" data-id="${o.id}">✏️ ${t('km.edit')}</button></div></div>`; };

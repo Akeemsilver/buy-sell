@@ -1017,3 +1017,7 @@ button.dr{display:flex;align-items:center;gap:12px;width:100%;text-align:left;pa
 .fnext .gbtn{color:var(--ink)}
 :root .fnext .gbtn,:root:not([data-theme=light]) .fnext .gbtn{color:var(--ink)}
 .stackrow{display:grid;gap:10px;margin-top:12px}.stackrow input{width:100%;box-sizing:border-box;height:48px;padding:0 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:16px}.stackrow .btn{width:100%}
+/* Maps / Waze: each one is a tile that looks pressable */
+a.ic,.dspot-c a.ic,.dvb a.ic{width:64px;min-width:64px;padding:6px 4px 5px;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 rgba(255,255,255,.06),0 2px 6px rgba(0,0,0,.18);color:var(--ink);transition:transform .08s,box-shadow .08s}
+a.ic:active{transform:translateY(1px) scale(.97);box-shadow:none}
+.dspot-c{gap:8px}

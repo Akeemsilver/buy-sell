@@ -1398,9 +1398,10 @@
     x.lineWidth = 9; rr(40, 42, 480, 166, 24); x.stroke();
     x.lineWidth = 2.5; rr(55, 57, 450, 136, 15); x.stroke();
     x.textBaseline = 'alphabetic';
-    if (lbl.length > 1) {   // two handwritten lines (an item that has not been handed over yet)
-      let hs = 54; const hf = (z) => `700 ${z}px "Segoe Print", "Bradley Hand", "Comic Sans MS", "Marker Felt", cursive`; x.font = hf(hs); while (Math.max(...lbl.map((l) => x.measureText(l).width)) > 400 && hs > 22) { hs -= 2; x.font = hf(hs); }
-      x.textAlign = 'center'; x.fillText(lbl[0], W / 2, 104); x.fillText(lbl[1], W / 2, 152); x.fillRect(110, 160, 340, 2);
+    if (lbl.length > 1) {   // two lines, in the same bold lettering as PAID IN FULL
+      let hs = 48; const hf = (z) => `900 ${z}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`, wd = (l, z) => { x.font = hf(z); return x.measureText(l).width + (l.length - 1) * 3; };
+      while (Math.max(...lbl.map((l) => wd(l, hs))) > 395 && hs > 20) hs -= 2; x.font = hf(hs);
+      spaced(lbl[0], W / 2, 100, 3); spaced(lbl[1], W / 2, 100 + hs + 8, 3); x.fillRect(82, 100 + hs + 18, 396, 2.5);
     } else {
     let size = 74; const face = (s) => `900 ${s}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     x.font = face(size); while (x.measureText(label).width + (label.length - 1) * 5 > 395 && size > 26) { size -= 2; x.font = face(size); }

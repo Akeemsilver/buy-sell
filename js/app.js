@@ -271,11 +271,12 @@
     const el = $('#appbar-right'); if (!el) return;
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     const n = ($('#back').hidden || isSettings()) ? notifCount() : 0;
+    if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools"><button class="round dots3" data-act="dlv-menu" aria-label="${t('batch.more')}">⋮</button></div>`; return; }   // the Delivery log keeps its three dots in the title bar
     el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
   }
   function render() {
     cleanSelected();
-    const moreTitles = { orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
+    const moreTitles = { deliveries: 'more.deliveries', orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
     const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
@@ -547,12 +548,13 @@
     if (moreView === 'items') return ItemLog();
     if (moreView === 'batches') return BatchLog();
     if (moreView === 'orders') return OrderLog();
+    if (moreView === 'deliveries') { if (window.Store && dset().home) Store.measure(dset().home); return DeliveryLog(); }
     if (moreView === 'summary') return Summary();
     if (moreView === 'settings') return Settings();
     if (moreView && moreView.startsWith('set-')) return SettingsPage();
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     const act = (a, icon, label, sub, bad) => `<button class="row tap" data-act="${a}"><span style="font-size:22px">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
-    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('orders', '🛍️', t('more.orders'), t('more.ordersSub', { n: window.Store ? Store.orders().length : 0 }))}${go('batches', '📦', t('more.batches'), t('more.batchesSub', { n: state.batches.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
+    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('deliveries', '🚚', t('more.deliveries'), t('more.deliveriesSub', { n: window.Store ? Store.orders().filter((o) => o.status === 'confirmed' && o.option === 'delivery').length : 0 }))}${go('orders', '🛍️', t('more.orders'), t('more.ordersSub', { n: window.Store ? Store.orders().length : 0 }))}${go('batches', '📦', t('more.batches'), t('more.batchesSub', { n: state.batches.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
       ${go('summary', '📈', t('more.summary'), t('more.summarySub'))}${act('words-open', '🔤', t('words.title'), t('words.sub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
       ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>${t('more.install')}</b><small>${isIOS ? t('more.installIOS') : t('more.installOther')}</small></div><span class="chev">›</span></button></div>`}
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
@@ -1760,6 +1762,76 @@
       <div class="ap">${route && pins.length > 1 ? `<a class="dvroute" href="${route}" target="_blank" rel="noopener">🧭 ${t('dv.route', { n: Math.min(10, pins.length) })}</a><p class="muted small" style="margin:6px 2px 12px">${t('dv.routeNote')}</p>` : ''}
       ${list.map(row).join('') || `<div class="empty" style="padding:30px 0"><b>${t('dv.none')}</b></div>`}</div>`, null, true);
   }
+  /* ---------- delivery log: every delivery and pickup, by day, with the distance driven ---------- */
+  let dlvTab = 'deliveries', dlvView = 'list', dlvQ = '', dlvDay = '', dlvMonth = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })(), dlvLink = false;
+  function dset() { return Object.assign({ home: null, base: 0, perKm: 0, freeKm: 0, round: 5 }, state.settings.delivery || {}); }
+  const saveDset = (patch) => { state.settings.delivery = Object.assign(dset(), patch); save(); };
+  const dlvWhen = (o) => (o.status === 'done' ? (tsAt(o.doneAt) || Store.when(o)) : null);
+  const dlvDayLabel = (d) => d.toLocaleDateString(I.locale(I.getLang()), { weekday: 'short' }).replace('.', '') + ' ' + dayMon(d);
+  const dlvTime = (d) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const kmText = (o) => { const km = Number(o.km); return Number.isFinite(km) && o.km != null ? km.toFixed(1) + ' km' + (o.kmSrc === 'line' ? ' ~' : '') : (SCore.geo(o.lat, o.lng) && dset().home ? '…' : '—'); };
+  function dlvRow(o) {
+    const isDel = o.option === 'delivery', gp = isDel ? SCore.geo(o.lat, o.lng) : null, km = o.km != null && Number.isFinite(Number(o.km)) ? Number(o.km) : null, rate = isDel && km != null ? SCore.rateFee(dset(), km) : null, w = dlvWhen(o);
+    const pill = o.status === 'done' ? `<span class="dpl d">${t(isDel ? 'ord.delivered' : 'ord.collected')}${w ? ' ' + dlvTime(w) : ''}</span>` : `<span class="dpl t">${t(isDel ? 'ord.toDeliver' : 'ord.toCollect')}</span>`;
+    const area = [esc(o.location || ''), o.spot ? esc(o.spot) : ''].filter(Boolean).join(' · ');
+    const end = isDel ? `<b>${esc(kmText(o))}</b><small>${money(o.deliveryPrice)}${rate != null ? ' · ' + t('dlv.yourRate', { amount: plain(money(rate)) }) : ''}</small>` : `<b>${money(o.total)}</b><small>${tn('notif.items', (o.items || []).length)}</small>`;
+    return `<button class="dr" data-act="order-open" data-id="${o.id}"><span class="ic">${o.status === 'done' ? '✅' : isDel ? '🚚' : '🛍️'}</span><div class="m"><b>${esc(o.name)} · ${esc(o.code || SCore.orderCode(o.id))}${gp ? ' <span class="pinm">📍</span>' : ''}</b><small>${area || esc(t(isDel ? 'store.delivery' : 'store.pickup'))}</small>${pill}</div><div class="e">${end}</div></button>`;
+  }
+  function DeliveryLog() {
+    const all = Store.orders().filter((o) => o.status === 'confirmed' || o.status === 'done'), isDel = (o) => o.option === 'delivery', mine = (o) => (dlvTab === 'deliveries' ? isDel(o) : !isDel(o));
+    const pend = all.filter((o) => o.status === 'confirmed'), pd = pend.filter(isDel), pp = pend.filter((o) => !isDel(o)), nItems = (a) => a.reduce((n, o) => n + (o.items || []).length, 0);
+    const hit = (o) => SCore.deliveryMatch(o, dlvQ, dlvWhen(o) || Store.when(o));
+    const pending = pend.filter(mine).filter(hit).sort((a, b) => ordKey(a) - ordKey(b)), done = all.filter((o) => o.status === 'done' && mine(o)).filter(hit);
+    const byDay = new Map(); done.forEach((o) => { const k = SCore.dayKey(dlvWhen(o) || new Date()); byDay.set(k, (byDay.get(k) || []).concat(o)); });
+    const dayHead = (k, a) => { const km = a.reduce((n, o) => n + (Number(o.km) > 0 ? Number(o.km) : 0), 0), d = new Date(k + 'T12:00:00'); return `<div class="dday"><span>${dlvDayLabel(d)}</span><span>${t('dlv.nDelivered', { n: a.length })}${km > 0 && dlvTab === 'deliveries' ? ' · ' + km.toFixed(1) + ' km' : ''}</span></div>`; };
+    const tiles = `<div class="dtiles"><div class="dtile a"><small>🚚 ${t('dlv.toDeliver')}</small><b>${pd.length}</b><small>${tn('notif.items', nItems(pd))}</small></div><div class="dtile p"><small>🛍️ ${t('dlv.forPickup')}</small><b>${pp.length}</b><small>${tn('notif.items', nItems(pp))}</small></div></div>`;
+    const head = `${tiles}<div class="oqbar"><span aria-hidden="true">🔍</span><input class="dq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('dlv.search'))}" value="${esc(dlvQ)}" aria-label="${esc(t('dlv.search'))}"><button class="oqx" data-act="dlv-q-clear" ${dlvQ ? '' : 'hidden'}>✕</button></div>
+      <div class="seg two dseg"><button class="${dlvTab === 'deliveries' ? 'on' : ''}" data-act="dlv-tab" data-id="deliveries">${t('dlv.tabD')} ${pd.length}</button><button class="${dlvTab === 'pickups' ? 'on' : ''}" data-act="dlv-tab" data-id="pickups">${t('dlv.tabP')} ${pp.length}</button></div>
+      <div class="dvw"><button class="${dlvView === 'list' ? 'on' : ''}" data-act="dlv-view" data-id="list">📋 ${t('dlv.list')}</button><button class="${dlvView === 'cal' ? 'on' : ''}" data-act="dlv-view" data-id="cal">📅 ${t('dlv.cal')}</button></div>`;
+    let body = '';
+    if (dlvView === 'cal') {
+      const { y, m } = dlvMonth, loc = I.locale(I.getLang()), cells = SCore.monthGrid(y, m), today = SCore.dayKey(new Date());
+      const wd = Array.from({ length: 7 }, (_, i) => new Date(2023, 0, 1 + i).toLocaleDateString(loc, { weekday: 'short' }).replace('.', '').slice(0, 3));
+      const inMonth = done.filter((o) => { const d = dlvWhen(o) || new Date(); return d.getFullYear() === y && d.getMonth() === m; }), kmM = inMonth.reduce((n, o) => n + (Number(o.km) > 0 ? Number(o.km) : 0), 0), feeM = inMonth.reduce((n, o) => n + (Number(o.deliveryPrice) || 0), 0);
+      const sel = dlvDay && byDay.get(dlvDay) ? [dlvDay] : [...byDay.keys()].filter((k) => k.startsWith(y + '-' + String(m + 1).padStart(2, '0'))).sort().reverse();
+      body = `<div class="cal"><div class="mh"><button data-act="dlv-prev" aria-label="‹">‹</button><b>${esc(new Date(y, m, 1).toLocaleDateString(loc, { month: 'long', year: 'numeric' }))}</b><button data-act="dlv-next" aria-label="›">›</button></div><div class="wd">${wd.map((w) => `<span>${esc(w)}</span>`).join('')}</div>
+        <div class="gr calgrid">${cells.map((c) => { const n = (byDay.get(c.key) || []).length; return `<span class="${c.inMonth ? '' : 'o'} ${n ? 'h' : ''} ${c.key === dlvDay ? 'sel' : ''} ${c.key === today ? 'td' : ''}" data-act="dlv-day" data-id="${c.key}">${c.day}${n ? `<em>${n}</em>` : ''}</span>`; }).join('')}</div></div>
+        <p class="dhint">${t('dlv.swipe')}</p>
+        <div class="dsum"><div><small>${t('dlv.month')}</small><b>${inMonth.length}</b></div>${dlvTab === 'deliveries' ? `<div><small>${t('dlv.dist')}</small><b>${kmM.toFixed(1)} km</b></div><div><small>${t('dlv.fees')}</small><b>${money(feeM)}</b></div>` : ''}</div>
+        ${sel.map((k) => dayHead(k, byDay.get(k)) + byDay.get(k).map(dlvRow).join('')).join('') || `<div class="none">${t('dlv.none')}</div>`}`;
+    } else {
+      const days = [...byDay.keys()].sort().reverse();
+      body = (pending.length ? `<div class="dday"><span>${t('dlv.pending')}</span><span>${pending.length}</span></div>${pending.map(dlvRow).join('')}` : '') + days.map((k) => dayHead(k, byDay.get(k)) + byDay.get(k).map(dlvRow).join('')).join('');
+      if (!body) body = dlvQ.trim() ? `<div class="none">${t('dlv.noMatch', { q: esc(dlvQ.trim()) })}</div>` : `<div class="none">${t('dlv.none')}</div>`;
+    }
+    return `<div class="dlv">${head}<div id="dlvbody">${body}</div></div>`;
+  }
+  const dlvRefresh = () => { if (tab === 'more' && moreView === 'deliveries') { const x = $('#dlvbody'); if (x) { const tmp = document.createElement('div'); tmp.innerHTML = DeliveryLog(); const nb = tmp.querySelector('#dlvbody'); if (nb) x.innerHTML = nb.innerHTML; const q = document.querySelector('.oqx[data-act=dlv-q-clear]'); if (q) q.hidden = !dlvQ; } } };
+  const dlvMapT = () => ({ mapHint: t('mp.hint'), mapSearch: t('mp.search'), spotHere: t('mp.here'), close: t('btn.close'), mapOk: t('mp.ok'), mapNear: (x) => t('mp.near', { x }), mapCancel: t('btn.cancel'), spotBlocked: t('mp.blocked'), mapNone: t('mp.none'), mapNoLib: t('mp.nolib') });
+  function dlvSetHome(g) { saveDset({ home: { lat: g.lat, lng: g.lng, name: g.name || '' } }); toast(t('ds.homeSet')); if (g.name == null || g.name === '') MapPick.nameOf(g.lat, g.lng, I.getLang()).then((n) => { if (n) { const h = dset().home; if (h && h.lat === g.lat) { saveDset({ home: Object.assign({}, h, { name: n }) }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); } } }); Store.measure(dset().home, true).then((n) => { if (n) toast(t('ds.measured', { n })); }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); }
+  function sheetDeliverySettings() {
+    enterPage('dsettings', '', () => sheetDeliverySettings());
+    const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), h = d.home, ex = st.avgKm || 7.4, exFee = SCore.rateFee(d, ex);
+    const inp = (k, v, label) => `<div class="ln"><span>${label}</span><input class="dinp" data-dset="${k}" type="text" inputmode="decimal" autocomplete="off" value="${v ? v : ''}" placeholder="0"></div>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('dlv.settings')}</b></div></div><div class="ap dsp">
+      <div class="dcard"><h5>${t('ds.store')}</h5>${h ? `<div class="pinrow"><span class="big">🏠</span><div class="t"><b>${esc(h.name || t('ds.pinSet'))}</b><small>${h.lat}, ${h.lng}</small></div></div>` : `<p class="muted small" style="margin:0 0 8px">${t('ds.notSet')}</p>`}
+        <div class="dbtns"><button class="btn" data-act="ds-here">📍 ${t('ds.here')}</button><button class="btn" data-act="ds-map">🗺️ ${t('ds.map')}</button></div>
+        ${dlvLink ? `<div class="linkrow"><input id="ds-link" placeholder="${esc(t('ds.linkPh'))}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" data-act="ds-linkgo">${t('ds.linkGo')}</button></div>` : `<a class="dlk" data-act="ds-linkopen">${t('ds.link')}</a>`}</div>
+      <div class="dcard"><h5>${t('ds.rates')}</h5>${inp('base', d.base, t('ds.base'))}${inp('perKm', d.perKm, t('ds.perKm'))}${inp('freeKm', d.freeKm, t('ds.free'))}${inp('round', d.round, t('ds.round'))}</div>
+      <div class="dcalc" id="ds-ex">${exFee == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: money(exFee) })}</div>
+      <div class="dcard" style="margin-top:12px"><h5>${t('ds.past')}</h5>
+        ${st.n ? `<div class="ln"><span>${t('ds.n')}</span><b>${st.n}</b></div><div class="ln"><span>${t('ds.avgKm')}</span><b>${st.avgKm} km</b></div><div class="ln"><span>${t('ds.avgFee')}</span><b>${money(st.avgFee)}</b></div><div class="ln"><span>${t('ds.perKmAvg')}</span><b>${money(st.perKm)}</b></div>
+        ${st.bands.map((b) => `<div class="dbd"><span class="l">${b.label}</span><i style="width:${Math.max(3, Math.round(b.n / st.n * 100))}%"></i><span class="r">${b.n}${b.n ? ' · ' + plain(money(b.avgFee)) : ''}</span></div>`).join('')}` : `<p class="muted small" style="margin:0">${t('ds.noData')}</p>`}
+        <p class="muted small" style="margin:10px 0 0">${t('ds.how')}</p></div>
+      <div class="btns"><button class="btn" data-act="ds-recalc">${t('ds.recalc')}</button></div></div>`, null, true);
+  }
+  function dlvExport() {
+    const q = (v) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }, d = dset();
+    const rows = Store.orders().filter((o) => o.status === 'confirmed' || o.status === 'done').sort((a, b) => ordKey(a) - ordKey(b)).map((o) => { const w = dlvWhen(o), c = Store.when(o), km = o.km != null && Number.isFinite(Number(o.km)) ? Number(o.km) : '';
+      return [o.code || SCore.orderCode(o.id), o.name, o.phone, o.option, o.location, o.spot || '', o.lat != null ? o.lat : '', o.lng != null ? o.lng : '', km, o.kmSrc || '', o.deliveryPrice != null ? o.deliveryPrice : '', km !== '' ? (SCore.rateFee(d, km) == null ? '' : SCore.rateFee(d, km)) : '', o.status, c ? c.toISOString() : '', w ? w.toISOString() : '']; });
+    const head = ['Order', 'Customer', 'Phone', 'Type', 'Area', 'Place', 'Latitude', 'Longitude', 'Km', 'Km source', 'Fee charged', 'Your rate', 'Status', 'Ordered', 'Delivered'];
+    download('b-ruiz-deliveries.csv', [head].concat(rows).map((r) => r.map(q).join(',')).join('\n'), 'text/csv');
+  }
   /* ---------- order rows: status pill + date ---------- */
   const tsAt = (v) => (v && v.toMillis ? new Date(v.toMillis()) : null);   // a saved moment (the phone shows it in its own time zone)
   const itemArriving = (i) => { const it = state.items.find((x) => x.id === i.id), b = it && state.batches.find((y) => y.id === it.batchId); return !!it && !L.isSold(it) ? it.status === 'In Transit' : !!b && bStatus(b) === 'In Transit'; };
@@ -2141,6 +2213,28 @@
       }
       case 'store-loc-del': { const c = storeCfg(); storeSet({ locations: c.locations.filter((l) => l.id !== id) }); return dropPages('storeloc|' + id); }
       case 'pin-open': return;   // the link itself opens Google Maps or Waze; this only stops the card behind it from reacting
+      case 'dlv-tab': dlvTab = id; dlvDay = ''; return render();
+      case 'dlv-view': dlvView = id; dlvDay = ''; return render();
+      case 'dlv-prev': case 'dlv-next': { const d = new Date(dlvMonth.y, dlvMonth.m + (t_.dataset.act === 'dlv-next' ? 1 : -1), 1); dlvMonth = { y: d.getFullYear(), m: d.getMonth() }; dlvDay = ''; return render(); }
+      case 'dlv-day': dlvDay = dlvDay === id ? '' : id; return render();
+      case 'dlv-q-clear': dlvQ = ''; document.querySelectorAll('.dq').forEach((e) => { e.value = ''; }); return dlvRefresh();
+      case 'dlv-menu': { const h = dset().home, pins = toDeliver().map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean), route = SCore.routeLink(pins);
+        return openSmall(`<h3>${t('dlv.title')}</h3><div class="dlvmenu">
+          <button class="btn" data-act="dlv-settings">⚙️ ${t('dlv.settings')}</button>
+          <button class="btn" data-act="dlv-home">📍 ${t(h ? 'dlv.changeHome' : 'dlv.setHome')}</button>
+          ${pins.length > 1 ? `<a class="btn" href="${route}" target="_blank" rel="noopener" data-act="pin-open">🧭 ${t('dv.route', { n: Math.min(10, pins.length) })}</a>` : ''}
+          <button class="btn" data-act="ds-recalc-close">🔄 ${t('ds.recalc')}</button>
+          <button class="btn" data-act="dlv-export">⬇️ ${t('dlv.export')}</button>
+          <button class="btn" data-act="close">${t('btn.close')}</button></div>`, 'sheet'); }
+      case 'dlv-settings': closeSheet(); return sheetDeliverySettings();
+      case 'dlv-home': closeSheet(); return sheetDeliverySettings();
+      case 'ds-recalc-close': { closeSheet(); const h = dset().home; if (!h) return sheetDeliverySettings(); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => { toast(t('ds.measured', { n })); render(); }); }
+      case 'dlv-export': closeSheet(); return dlvExport();
+      case 'ds-here': { if (!navigator.geolocation) return toast(t('mp.blocked')); toast(t('ds.finding')); return navigator.geolocation.getCurrentPosition((p) => { const g = SCore.geo(p.coords.latitude, p.coords.longitude); if (g) dlvSetHome({ lat: g.lat, lng: g.lng, name: '' }); }, () => toast(t('mp.blocked')), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }); }
+      case 'ds-map': { const h = dset().home; return MapPick.open({ lat: h && h.lat, lng: h && h.lng, name: h && h.name, lang: I.getLang(), T: dlvMapT(), onPick: (g) => dlvSetHome(g), onError: (m) => toast(m) }); }
+      case 'ds-linkopen': dlvLink = true; return sheetDeliverySettings();
+      case 'ds-linkgo': { const f = $('#ds-link'), r = SCore.parseGeoLink(f ? f.value : ''); if (r && r !== 'short') { dlvLink = false; return dlvSetHome({ lat: r.lat, lng: r.lng, name: '' }); } return toast(t(r === 'short' ? 'ds.linkShort' : 'ds.linkBad')); }
+      case 'ds-recalc': { const h = dset().home; if (!h) return toast(t('ds.notSet')); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => toast(t('ds.measured', { n }))); }
       case 'deliveries-open': return sheetDeliveries();
       case 'orders-open': { ordLimit = 20; const c = storeCfg(); if (!c.id) return sheetStore(); if (!$('#sheet').hidden) closeSheet(); go({ tab: 'more', moreView: 'orders' }); window.scrollTo(0, 0); return render(); }
       case 'ord-filter': ordFilter = id; ordLimit = 20; return render();
@@ -2248,6 +2342,8 @@
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
     else if ((el.hasAttribute && el.hasAttribute('data-ret')) || el.id === 'rt-fee') retRefresh();
+    else if (el.classList.contains('dq')) { dlvQ = el.value; dlvDay = ''; dlvRefresh(); }
+    else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }
@@ -2418,12 +2514,20 @@
     sh.addEventListener('touchcancel', () => end(true));
   })();
 
+  // Delivery log calendar: swipe the month grid left or right for the next or last month
+  (function () {
+    let x0 = null, y0 = 0;
+    document.addEventListener('touchstart', (e) => { x0 = e.touches.length === 1 && e.target.closest && e.target.closest('.calgrid') ? e.touches[0].clientX : null; y0 = e.touches[0] ? e.touches[0].clientY : 0; }, { passive: true });
+    document.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { const d = new Date(dlvMonth.y, dlvMonth.m + (dx < 0 ? 1 : -1), 1); dlvMonth = { y: d.getFullYear(), m: d.getMonth() }; dlvDay = ''; render(); } }, { passive: true });
+  })();
+
   const debounce = (fn, ms) => { let h; return () => { clearTimeout(h); h = setTimeout(fn, ms); }; };
   const photoKeep = () => ['1', '2', '7', 'sold'].includes(state.settings.photoKeep) ? state.settings.photoKeep : '2';   // how long an original screenshot stays after the photo is saved
   const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
   wordList();
   Store.init({ state: () => state, bizName, refresh: () => { const top = pageStack[pageStack.length - 1]; if (top && top.key === 'store' && !$('#sheet').hidden) { const sc = $('#sheet').scrollTop; reopening = true; try { top.open(); } finally { reopening = false; } $('#sheet').scrollTop = sc; } },
-    onOrders: () => { renderTools(); const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && top.key.startsWith('order|')) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && (tab === 'sell' || (tab === 'more' && moreView === 'orders'))) render(); } });
+    onOrders: () => { renderTools(); try { const h = dset().home; if (h && window.Store) Store.measure(h); } catch (e) { /* later */ } const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && top.key.startsWith('order|')) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && (tab === 'sell' || (tab === 'more' && (moreView === 'orders' || moreView === 'deliveries')))) render(); } });
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, openSmall, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,

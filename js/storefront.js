@@ -85,9 +85,33 @@
       orders = snap.docs.map((d) => Object.assign({ id: d.id }, d.data())).sort((a, b) => ts(b) - ts(a)); A.onOrders(); schedule();
     }, (e) => { info.error = (e && e.code) || 'error'; stopListen(); });
   }
+
+  /* ---------- distance of each delivery: the driving route by road from the seller's store pin to the customer's pin ---------- */
+  // OpenStreetMap's free routing service (no account, no live traffic). Kilometres to one decimal, or null.
+  const road = (a, b) => fetch('https://router.project-osrm.org/route/v1/driving/' + a.lng + ',' + a.lat + ';' + b.lng + ',' + b.lat + '?overview=false').then((r) => r.json()).then((j) => { const m = j && j.routes && j.routes[0] && j.routes[0].distance; return m > 0 ? Math.round(m / 100) / 10 : null; }).catch(() => null);
+  let measuring = false; const tried = new Set();
+  // Works out and saves the distance on every delivery order that has a pin and none yet (or one measured from another store pin).
+  // A road distance is kept for good; when the service cannot be reached the straight-line distance is saved, marked approximate, and tried again next time.
+  async function measure(home, again) {
+    home = home && SC.geo(home.lat, home.lng); if (measuring || !home || !cfg().id) return 0;
+    const from = home.lat + ',' + home.lng; measuring = true; let n = 0;
+    try {
+      for (const o of orders.slice()) {
+        const pin = o.option === 'delivery' ? SC.geo(o.lat, o.lng) : null; if (!pin || o.status === 'declined') continue;
+        const good = Number.isFinite(Number(o.km)) && o.kmFrom === from && o.kmSrc === 'road'; if (good) continue;
+        if (o.kmSrc === 'line' && o.kmFrom === from && !again && tried.has(o.id)) continue;
+        tried.add(o.id);
+        let km = await road(home, pin), src = 'road'; if (km == null) { km = SC.lineKm(home, pin); src = 'line'; }
+        try { await Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(o.id).update({ km, kmSrc: src, kmFrom: from }); Object.assign(o, { km, kmSrc: src, kmFrom: from }); n++; } catch (e) { /* the owner can try again */ }
+        await new Promise((ok) => setTimeout(ok, 1100));   // the free service asks for about one request a second
+      }
+    } finally { measuring = false; }
+    if (n && A.onOrders) A.onOrders();
+    return n;
+  }
   // the moment of each answer is saved too (confirmedAt, doneAt, declinedAt), for the order's timeline
   const setStatus = (id, status, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(Object.assign({ status }, status === 'new' ? {} : { [status + 'At']: Cloud.stamp() }, extra || {}));
 
-  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
+  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, measure, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
     ageMs: (o) => (ts(o) ? Date.now() - ts(o) : 0), when: (o) => (ts(o) ? new Date(ts(o)) : null) };
 })(window);

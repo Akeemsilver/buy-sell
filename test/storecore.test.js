@@ -86,3 +86,15 @@ console.log('details tests passed');
   const r = SC.routeLink([{ lat: 10.6, lng: -61.4 }, { lat: 10.7, lng: -61.3 }, { lat: 10.8, lng: -61.2 }]); assert.ok(r.endsWith('destination=10.8,-61.2&waypoints=10.6%2C-61.4%7C10.7%2C-61.3'), r);
   const many = Array.from({ length: 14 }, (_, i) => ({ lat: 10 + i / 100, lng: -61 })); assert.strictEqual(decodeURIComponent(SC.routeLink(many).split('waypoints=')[1]).split('|').length, 9, 'ten stops at most: nine on the way plus the destination');
 }
+{ // delivery log: distances, rates, calendar, search
+  const SC = require('../js/storecore.js');
+  const d = SC.lineKm({ lat: 10.5, lng: -61.4 }, { lat: 10.6, lng: -61.4 }); assert.ok(d > 11 && d < 11.3, 'a tenth of a degree north is about 11 km: ' + d);
+  assert.strictEqual(SC.rateFee({}, 7.4), null, 'no rate set yet'); assert.strictEqual(SC.rateFee({ base: 10, perKm: 3.5, freeKm: 2, round: 5 }, 7.4), 30); assert.strictEqual(SC.rateFee({ base: 10, perKm: 3.5, freeKm: 2, round: 0 }, 7.4), 28.9);
+  assert.strictEqual(SC.rateFee({ base: 10, perKm: 3.5, freeKm: 2, round: 5 }, 1), 10, 'inside the free distance only the base fee'); assert.strictEqual(SC.rateFee({ perKm: 4 }, 5), 20);
+  const orders = [{ option: 'delivery', km: 3, deliveryPrice: 40 }, { option: 'delivery', km: 7, deliveryPrice: 40 }, { option: 'delivery', km: 8, deliveryPrice: 40 }, { option: 'delivery', km: 16, deliveryPrice: 60 }, { option: 'delivery', deliveryPrice: 40 }, { option: 'pickup', km: 5 }];
+  const st = SC.deliveryStats(orders); assert.strictEqual(st.n, 4, 'only deliveries with a distance count'); assert.strictEqual(st.avgKm, 8.5); assert.strictEqual(st.avgFee, 45); assert.strictEqual(st.totalKm, 34); assert.strictEqual(st.bands[0].n, 1); assert.strictEqual(st.bands[1].n, 2); assert.strictEqual(st.bands[3].avgFee, 60); assert.strictEqual(st.perKm, 5.29);
+  const g = SC.monthGrid(2026, 10); assert.strictEqual(g.length, 42); assert.strictEqual(g.find((c) => c.inMonth).key, '2026-11-01'); assert.strictEqual(g.filter((c) => c.inMonth).length, 30); assert.strictEqual(g[0].key, '2026-11-01', 'November 2026 starts on a Sunday');
+  const o = { name: 'Akeem', phone: '868 367 9175', location: 'Couva', spot: 'Rivulet Road', code: 'ORD-3WC6C', km: 7.4, status: 'done' }, when = new Date(2026, 10, 6, 9, 40);
+  ['akeem', 'couva', 'rivulet', '3wc6c', 'ord-3wc6c', '7.4', '6 nov', 'nov 6', 'fri', '2026-11-06', '367', 'akeem couva'].forEach((q) => assert.ok(SC.deliveryMatch(o, q, when), 'finds ' + q));
+  ['zzz', '7 nov', 'sam'].forEach((q) => assert.ok(!SC.deliveryMatch(o, q, when), 'does not find ' + q)); assert.ok(SC.deliveryMatch(o, '', when));
+}

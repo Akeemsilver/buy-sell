@@ -103,6 +103,29 @@
     const q = (x) => x.lat + ',' + x.lng, last = g[g.length - 1], way = g.slice(0, -1).map(q).join('|');
     return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + q(last) + (way ? '&waypoints=' + encodeURIComponent(way) : ''); };
 
-  const api = { routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  /* ---------- delivery log: distances, rates, days ---------- */
+  const rad = (d) => d * Math.PI / 180;
+  // straight-line kilometres between two pins (the fallback when the road service cannot be reached)
+  const lineKm = (a, b) => { const R = 6371, dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng), x = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2; return Math.round(2 * R * Math.asin(Math.sqrt(x)) * 10) / 10; };
+  // the seller's own delivery rate for a distance: base fee + price per km beyond the free distance, rounded up to the nearest step (null until a rate is set)
+  const rateFee = (rate, km) => { rate = rate || {}; const base = num(rate.base), per = num(rate.perKm), free = num(rate.freeKm), step = num(rate.round); if (!(base > 0 || per > 0) || !Number.isFinite(Number(km))) return null;
+    let fee = base + Math.max(0, Number(km) - free) * per; if (step > 0) fee = Math.ceil(fee / step - 1e-9) * step; return r2(fee); };
+  // what the finished deliveries say: how far, what was charged, and the same by distance band (only orders that have a distance)
+  const deliveryStats = (orders) => { const d = (orders || []).filter((o) => o && o.option === 'delivery' && Number.isFinite(Number(o.km)) && o.km > 0);
+    const n = d.length, sum = (f) => d.reduce((t, o) => t + f(o), 0), km = sum((o) => Number(o.km)), fee = sum((o) => num(o.deliveryPrice));
+    const bands = [[0, 5, '0–5 km'], [5, 10, '5–10 km'], [10, 15, '10–15 km'], [15, 1e9, '15+ km']].map(([a, b, label]) => { const g = d.filter((o) => o.km >= a && o.km < b); return { label, from: a, to: b, n: g.length, avgFee: g.length ? r2(g.reduce((t, o) => t + num(o.deliveryPrice), 0) / g.length) : 0 }; });
+    return { n, avgKm: n ? Math.round(km / n * 10) / 10 : 0, avgFee: n ? r2(fee / n) : 0, perKm: km > 0 ? r2(fee / km) : 0, totalKm: Math.round(km * 10) / 10, totalFee: r2(fee), bands }; };
+  const dayKey = (d) => { d = new Date(d); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  // a month as 6 weeks of 7 days (Sunday first) for the calendar: each cell has its date, key, and whether it is in the month
+  const monthGrid = (y, m) => { const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay()), cells = []; for (let i = 0; i < 42; i++) { const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i); cells.push({ day: d.getDate(), key: dayKey(d), inMonth: d.getMonth() === m }); } return cells; };
+  // search for the delivery log: name, phone, area, place name, order number, kilometres, the date written the usual ways, status
+  const deliveryMatch = (o, q, when, names) => { const raw = String(q || '').trim().toLowerCase(); if (!raw) return true; names = names || {};
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'], days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dt = when ? new Date(when) : null, dtext = dt ? [dt.getDate() + ' ' + months[dt.getMonth()], months[dt.getMonth()] + ' ' + dt.getDate(), days[dt.getDay()], dt.getDate() + '/' + (dt.getMonth() + 1), dayKey(dt), String(dt.getFullYear())].join(' ') : '';
+    const hay = [o.name, o.phone, o.location, o.spot, o.code, Number.isFinite(Number(o.km)) ? Number(o.km).toFixed(1) + ' km' : '', o.status, dtext].join(' ').toLowerCase();
+    if (/^(\d{1,2}\s*[a-z]{3,}|[a-z]{3,}\s*\d{1,2})$/.test(raw) && months.some((m) => raw.includes(m))) return dtext.toLowerCase().includes(raw.replace(/\s+/g, ' ').trim());   // "6 nov" or "nov 6" is a date: it has to be that day
+    const hayNum = hay.replace(/[^a-z0-9]/g, ''); return raw.split(/\s+/).every((w) => hay.includes(w) || hayNum.includes(w.replace(/[^a-z0-9]/g, ''))); };
+
+  const api = { lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

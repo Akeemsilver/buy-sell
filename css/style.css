@@ -751,3 +751,5 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .actionbar{bottom:calc(var(--tabh) + var(--sab) + 18px);padding:10px 14px 0;background:linear-gradient(transparent,var(--bg) 60%)}
 .actionbar .btn{min-height:50px;height:50px;border-radius:14px;font-weight:600;font-size:16px;box-shadow:0 -1px 0 rgba(255,255,255,.25) inset,0 2px 6px rgba(0,0,0,.2),0 12px 26px -6px rgba(0,0,0,.55)}
 .actionbar .dual .sale{box-shadow:0 -1px 0 rgba(255,255,255,.6) inset,0 2px 6px rgba(0,0,0,.14),0 12px 26px -6px rgba(0,0,0,.45)}
+/* the main bottom button (New batch, Sell ...) has the Profit card's look: the same gradient, rounded corners and coloured glow; same place as before */
+.actionbar .btn.primary{border:0;border-radius:16px;color:#fff;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 92%,#fff) 0%,var(--brand) 30%,color-mix(in srgb,var(--brand) 47%,#000) 100%);box-shadow:0 15px 31px -12px var(--brand),0 2px 6px rgba(0,0,0,.18)}

@@ -89,7 +89,7 @@ a{color:inherit;cursor:pointer}
 .err{background:#fde1e1;color:#a32121;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:14px}
 .note{text-align:center;color:var(--mute);font-size:12px;margin:8px 0 0}
 .rem{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-2px 2px 12px;font-size:12.5px;color:var(--mute)}.rem a{color:var(--brand);font-weight:700}
-.wa.cancelb{background:#fff;color:#a32121;border:1px solid #d6d6dc}
+
 
 @media(min-width:900px){
   html,body{font-size:14px}body{padding-bottom:0}
@@ -111,3 +111,5 @@ a{color:inherit;cursor:pointer}
   .pg{padding:28px 24px}
   .drawer .ft .tot{padding-bottom:8px}
 }
+
+.hd .mnu{position:absolute;right:10px;top:calc(100% + 4px);z-index:40;min-width:230px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px -8px rgba(30,15,40,.35);padding:6px;display:flex;flex-direction:column}.hd .mnu[hidden]{display:none}.hd .mnu a,.hd .mnu button{display:block;text-align:left;padding:13px 14px;border-radius:10px;font:inherit;font-size:15px;font-weight:600;color:var(--ink);background:none;border:0;text-decoration:none}.hd .mnu a:active,.hd .mnu button:active{background:var(--tint)}

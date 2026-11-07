@@ -495,16 +495,16 @@
   function Sell() {
     if (!selected.size) return `<div class="sx"><div class="empty2"><div class="ic">🧾</div><h3>${t('sell.empty')}</h3><p>${t('sell.emptyText')}</p><button class="btn primary" data-act="goto-stock" style="width:100%">${t('sell.choose')}</button></div></div>`;
     const items = [...selected].map((id) => state.items.find((i) => i.id === id)).filter(Boolean);
-    const sub = items.reduce((n, i) => n + L.effectivePrice(i), 0), client = L.cleanName(invForm.client);
+    const sub = items.reduce((n, i) => n + L.effectivePrice(i), 0), client = L.cleanName(invForm.client), fromOrder = !!pendingOrder;   // what a customer ordered cannot be edited or taken off here
     const row = (i) => { const eff = L.effectivePrice(i), sale = L.salePrice(i) > 0 && !L.isSold(i), was = Number(i.price) || 0;
-      return `<div class="it"><button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/^<span class="ph/, '<span class="pic ph').replace(/<\/span>$/, (sale ? `<span class="s">−${Number(i.discount)}%</span>` : '') + '</span>')}<span class="t"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></span><span class="p">${eff > 0 ? money(eff) : `<span class="bad">${t('sell.noPrice')}</span>`}${sale && was > eff ? `<small><s>${money(was)}</s></small>` : ''}</span></button>
-        <button class="x" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button></div>`; };
-    return `<div class="sx"><div class="steps"><span class="on">① ${t('sell.s1')}</span><span class="${client ? 'on' : ''}">② ${t('sell.s2')}</span><span class="${client ? 'on' : ''}">③ ${t('sell.s3')}</span></div>
-      <h4><span>${t('sell.items', { n: items.length })}</span><span class="tapedit">${t('sell.tapEdit')}</span></h4>
+      return `<div class="it"><${fromOrder ? 'div' : 'button'} class="main" ${fromOrder ? '' : `data-act="edit-item" data-id="${i.id}"`}>${PUI.thumb(i).replace(/^<span class="ph/, '<span class="pic ph').replace(/<\/span>$/, (sale ? `<span class="s">−${Number(i.discount)}%</span>` : '') + '</span>')}<span class="t"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></span><span class="p">${eff > 0 ? money(eff) : `<span class="bad">${t('sell.noPrice')}</span>`}${sale && was > eff ? `<small><s>${money(was)}</s></small>` : ''}</span></${fromOrder ? 'div' : 'button'}>
+        ${fromOrder ? '' : `<button class="x" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button>`}</div>`; };
+    return `<div class="sx"><div class="steps"><button type="button" class="on" data-act="sx-go" data-id="items">① ${t('sell.s1')}</button><button type="button" class="${client ? 'on' : ''}" data-act="sx-go" data-id="customer">② ${t('sell.s2')}</button><button type="button" class="${client ? 'on' : ''}" data-act="sx-go" data-id="pay">③ ${t('sell.s3')}</button></div>
+      <h4 id="sx-items"><span>${t('sell.items', { n: items.length })}</span>${fromOrder ? '' : `<span class="tapedit">${t('sell.tapEdit')}</span>`}</h4>
       <div class="card">${items.map(row).join('')}<div class="sub"><span>${t('sell.subtotal')}</span><b>${money(sub)}</b></div></div>
-      <h4><span>${t('sell.customer')}</span></h4>
+      <h4 id="sx-customer"><span>${t('sell.customer')}</span></h4>
       ${orderCustomerCard() || `<div class="card"><div class="srch"><span>🔍</span><input id="client" name="client" value="${esc(invForm.client)}" placeholder="${t('sell.customerPh')}" autocomplete="off" enterkeyhint="done"></div><div class="people" id="combolist">${chipRows(invForm.client)}</div></div>`}
-      <h4><span>${t('sell.s3')}</span></h4>
+      <h4 id="sx-pay"><span>${t('sell.s3')}</span></h4>
       <div class="card"><div class="pay"><label for="paying">${t('sell.paying')}</label><div class="payrow"><div class="in"><span>TT$</span><input id="paying" name="paying" type="text" inputmode="decimal" value="${esc(invForm.paying)}" placeholder="0.00"></div><button class="full" data-act="pay-full">${t('sell.payFull')}</button></div><div id="prev">${previewBox()}</div></div></div></div>`;
   }
 
@@ -1674,7 +1674,7 @@
   function orderCustomerCard() {
     if (!pendingOrder || !custLock) return '';
     const o = Store.orders().find((x) => x.id === pendingOrder); if (!o) return '';
-    return `<div class="cc"><span class="av">${esc((o.name || '?').trim().charAt(0).toUpperCase())}</span><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)} · ${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${esc(o.location)}</small></div><button class="chg" data-act="cust-change">${t('ord.change')}</button></div>`;
+    return `<div class="cc"><span class="av">${esc((o.name || '?').trim().charAt(0).toUpperCase())}</span><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)} · ${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${esc(o.location)}</small></div></div>`;
   }
   // Opens WhatsApp to the customer with the message already written (the owner taps Send). In the customer's own language when the order carries it.
   function waOpen(o, key, inv) {
@@ -1701,7 +1701,7 @@
       return `<div class="rw"><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small></div><b>${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) }), inv = orderInvoice(o);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${ordWhen(o)}</small></div></div>
-      <div class="ap"><div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small></div><a class="pbtn wa" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener">💬 WhatsApp</a><a class="gbtn wa" href="tel:${esc(SCore.digits(o.phone))}">📞</a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stBadge(o)}</div></div>
+      <div class="ap"><div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small></div><a class="pbtn wa" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener">💬 WhatsApp</a><a class="gbtn wa" href="tel:${esc(SCore.digits(o.phone))}" aria-label="Call"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stBadge(o)}</div></div>
       <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('ord.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
         : o.status === 'confirmed' ? `<div class="btnrow"><button class="pbtn" data-act="order-done" data-id="${o.id}">${t('ord.handed')}</button>${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
@@ -1921,6 +1921,7 @@
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return setSale(it, !it.saleOn, null); }
       case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return setSale(it, true, Number(t_.dataset.v)); }
       case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); const old = it.price; if (onQuick()) { it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); } return setPrice(it, c.recommended, old); }
+      case 'sx-go': { const el = document.getElementById('sx-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
@@ -1948,7 +1949,6 @@
       case 'ord-filter': ordFilter = id; return hubOpen() ? render() : sheetOrders();
       case 'order-open': return sheetOrder(id);
       case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
-      case 'cust-change': custLock = false; return render();
       case 'order-cancel': return orderCancel(id);
       case 'order-decline': return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) { const o = Store.orders().find((x) => x.id === id); Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); if (o) waOpen(o, 'ord.waDeclined'); }).catch(() => toast(t('store.pubError'))); } });
       case 'order-done': Store.setStatus(id, 'done').then(() => { toast(t('ord.done')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); return;

@@ -1382,7 +1382,7 @@
   // "PAID IN FULL" rubber stamp: double border, tilted, worn ink. Seeded by invoice number so it never changes.
   const stampCache = {};
   function stampCanvas(seed, dateText, label, kind) {
-    const W = 560, H = 250, S = 2, pend = kind === 'pending', INK = pend ? '192,57,43' : '24,112,58', lbl = String(label).split('\n');
+    const W = 560, H = 250, S = 2, INK = kind === 'due' ? '180,83,9' : '24,112,58', lbl = String(label).split('\n');
     let a = 0; for (const ch of String(seed)) a = (a * 31 + ch.charCodeAt(0)) >>> 0;
     const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let x = a; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
     const ink = document.createElement('canvas'); ink.width = W * S; ink.height = H * S;
@@ -1398,9 +1398,10 @@
     x.lineWidth = 9; rr(40, 42, 480, 166, 24); x.stroke();
     x.lineWidth = 2.5; rr(55, 57, 450, 136, 15); x.stroke();
     x.textBaseline = 'alphabetic';
-    if (lbl.length > 1) {   // two handwritten lines (an item that has not been handed over yet)
-      let hs = 54; const hf = (z) => `700 ${z}px "Segoe Print", "Bradley Hand", "Comic Sans MS", "Marker Felt", cursive`; x.font = hf(hs); while (Math.max(...lbl.map((l) => x.measureText(l).width)) > 400 && hs > 22) { hs -= 2; x.font = hf(hs); }
-      x.textAlign = 'center'; x.fillText(lbl[0], W / 2, 104); x.fillText(lbl[1], W / 2, 152); x.fillRect(110, 160, 340, 2);
+    if (lbl.length > 1) {   // two lines, same bold lettering as PAID IN FULL, one size for both lines and both languages
+      let hs = 32; const hf = (z) => `900 ${z}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`, wd = (l, z) => { x.font = hf(z); return x.measureText(l).width + (l.length - 1) * 3; };
+      while (Math.max(...lbl.map((l) => wd(l, hs))) > 395 && hs > 20) hs -= 2; x.font = hf(hs);
+      spaced(lbl[0], W / 2, 104, 3); spaced(lbl[1], W / 2, 104 + hs + 12, 3); x.fillRect(82, 104 + hs + 24, 396, 2.5);
     } else {
     let size = 74; const face = (s) => `900 ${s}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     x.font = face(size); while (x.measureText(label).width + (label.length - 1) * 5 > 395 && size > 26) { size -= 2; x.font = face(size); }
@@ -1417,10 +1418,14 @@
   }
   const isPaidInFull = (v) => v.total > 0 && v.balance <= 0;
   const stampDate = (v) => new Date(v.date).toLocaleDateString(I.locale(invoiceLang()), { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase();
-  // Which stamp an invoice carries: red handwriting while the order's items have not been handed over, green PAID IN FULL, or green DELIVERED / COLLECTED when handed over with money still owing
-  const stampKind = (v) => { const o = v && v.no ? orderOfInvoice(v.no) : null; if (o && o.status === 'confirmed') return o.option === 'delivery' ? 'notDel' : 'notCol'; if (isPaidInFull(v)) return 'paid'; if (o && o.status === 'done') return o.option === 'delivery' ? 'del' : 'col'; return ''; };
-  const STAMP_KEY = { notDel: 'doc.stampNotDel', notCol: 'doc.stampNotCol', paid: 'doc.stamp', del: 'doc.stampDel', col: 'doc.stampCol' };
-  const stampCanvasFor = (v) => { const k = stampKind(v); return stampCanvas(v.no, stampDate(v), ti(STAMP_KEY[k] || 'doc.stamp'), k === 'notDel' || k === 'notCol' ? 'pending' : 'ok'); };
+  // Which stamp an invoice carries: green PAID IN FULL once paid; amber DELIVERED / COLLECTED + BALANCE DUE when handed over with money still owing; none otherwise
+  const stampKind = (v) => { if (!v || v.void) return ''; if (isPaidInFull(v)) return 'paid'; const o = v.no ? orderOfInvoice(v.no) : null; if (o && o.status === 'done') return o.option === 'delivery' ? 'del' : 'col'; return ''; };
+  const STAMP_KEY = { paid: 'doc.stamp', del: 'doc.stampDel', col: 'doc.stampCol' };
+  const stampCanvasFor = (v) => { const k = stampKind(v), due = k === 'del' || k === 'col'; return stampCanvas(v.no, stampDate(v), due ? ti(STAMP_KEY[k]) + '\n' + ti('doc.stampDue') : ti('doc.stamp'), due ? 'due' : 'ok'); };
+  // The small two-line note under the balance while money is owing and the order is still to be handed over: "To be delivered / Payment due on delivery"
+  const invNote = (v) => { if (!v || v.void || isPaidInFull(v)) return null; const o = v.no ? orderOfInvoice(v.no) : null; if (!o || o.status !== 'confirmed') return null;
+    const del = o.option === 'delivery', soon = (o.items || []).some(itemArriving), part = (Number(v.amountPaid) || 0) + (Number(v.previouslyPaid) || 0) > 0;
+    return [ti(soon ? 'inv.ln.soon' : del ? 'inv.ln.deliver' : 'inv.ln.pickup'), ti(part ? (del ? 'inv.ln.balDel' : 'inv.ln.balPick') : (del ? 'inv.ln.payDel' : 'inv.ln.payPick'))]; };
   function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang() + '|' + stampKind(v); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
 
   // "Returned on 8 Nov · 2 items back in stock · TT$ 200 had been paid" — shown on a returned or cancelled invoice
@@ -1448,7 +1453,7 @@
         <table class="inv-t"><thead><tr><th>${ti('doc.desc')}</th><th class="r">${ti('doc.qty')}</th><th class="r">${ti('doc.price')}</th><th class="r">${ti('doc.amount')}</th></tr></thead><tbody>
           ${lines.map((l) => `<tr><td>${esc(lineName(l))}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
         <div class="inv-sum">${stampKind(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
-          <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div></div>
+          <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div>${(() => { const nt = invNote(v); return nt ? `<div class="inv-note"><b>${esc(nt[0])}</b><span>${esc(nt[1])}</span></div>` : ''; })()}</div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${hist}${thumbs}${spotRow}
@@ -1516,6 +1521,7 @@
           x.save(); x.globalCompositeOperation = 'multiply';
           x.drawImage(stampCanvasFor(v), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
+        const nt = invNote(v); if (nt) { x.textAlign = 'right'; F('700', 17); x.fillStyle = '#222'; x.fillText(nt[0], R0, y + 54); F('400', 14); x.fillStyle = '#555'; x.fillText(nt[1], R0, y + 76); }
         y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
@@ -1539,7 +1545,7 @@
   // The invoice PDF is built ahead of time, as soon as the invoice screen is open, so Share can answer the tap at once:
   // the phone only allows its share sheet right after a tap, and drawing the sheet takes a few seconds.
   let pdfCache = null, pdfBusy = null;
-  const pdfKey = (v) => JSON.stringify([v, state.settings, invLangSession, invDesignId(), stampKind(v), state.items.length]);
+  const pdfKey = (v) => JSON.stringify([v, state.settings, invLangSession, invDesignId(), stampKind(v), invNote(v), state.items.length]);
   async function buildInvoicePdf(v) {
     const blob = await invoiceCanvas(v, 'image/png', false, 2.6);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
     const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));

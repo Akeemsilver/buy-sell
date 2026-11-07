@@ -1347,7 +1347,7 @@
   const INV = { mauve: '#cea8bd', band: '#e6d2db', grey: '#767676', mid: '#545454' };
   // "Language for customers" (Settings) decides invoices and the caption of shared photos: same as the app, English or Spanish.
   // The English | Español switch on an invoice only changes that invoice while it is open.
-  let invLangSession = null;
+  let invLangSession = null, invLangAuto = false;   // Auto = the language the customer chose on the store page
   // custMode: 'ask' (the default: ask when sharing), 'app' (same as the app), 'en' or 'es'. Older saved choices carry over.
   const custMode = () => { const v = pref('custLang', null); if (v === 'ask' || v === 'app' || v === 'en' || v === 'es') return v; return pref('askShareLang', true) ? 'ask' : 'app'; };
   const custLang = () => { const m = custMode(); return m === 'en' || m === 'es' ? m : I.getLang(); };
@@ -1375,12 +1375,14 @@
   }
   const invMoney = (n) => 'TT$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const invDate = (d) => new Date(d).toLocaleDateString('en-GB');
+  const esName = (it) => { const sp = Wd.spanish(it, wordList()); return sp.es || it.desc; };   // the Spanish name of an item (the saved one, or the word list's best translation)
+  const lineName = (l) => { if (invoiceLang() !== 'es') return l.desc; const m = String(l.desc).split(' · '), base = m[0].trim(), it = state.items.find((x) => String(x.desc || '').trim() === base); return it ? esName(it) + (m.length > 1 ? ' · ' + m.slice(1).join(' · ') : '') : l.desc; };
   const invLines = (v) => (v.lines && v.lines.length ? v.lines : [{ desc: v.desc, qty: v.qty, price: v.total - v.delivery }]);
 
   // "PAID IN FULL" rubber stamp: double border, tilted, worn ink. Seeded by invoice number so it never changes.
   const stampCache = {};
-  function stampCanvas(seed, dateText, label) {
-    const W = 560, H = 250, S = 2, INK = '24,112,58';
+  function stampCanvas(seed, dateText, label, kind) {
+    const W = 560, H = 250, S = 2, pend = kind === 'pending', INK = pend ? '192,57,43' : '24,112,58', lbl = String(label).split('\n');
     let a = 0; for (const ch of String(seed)) a = (a * 31 + ch.charCodeAt(0)) >>> 0;
     const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let x = a; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
     const ink = document.createElement('canvas'); ink.width = W * S; ink.height = H * S;
@@ -1396,10 +1398,15 @@
     x.lineWidth = 9; rr(40, 42, 480, 166, 24); x.stroke();
     x.lineWidth = 2.5; rr(55, 57, 450, 136, 15); x.stroke();
     x.textBaseline = 'alphabetic';
+    if (lbl.length > 1) {   // two handwritten lines (an item that has not been handed over yet)
+      let hs = 54; const hf = (z) => `700 ${z}px "Segoe Print", "Bradley Hand", "Comic Sans MS", "Marker Felt", cursive`; x.font = hf(hs); while (Math.max(...lbl.map((l) => x.measureText(l).width)) > 400 && hs > 22) { hs -= 2; x.font = hf(hs); }
+      x.textAlign = 'center'; x.fillText(lbl[0], W / 2, 104); x.fillText(lbl[1], W / 2, 152); x.fillRect(110, 160, 340, 2);
+    } else {
     let size = 74; const face = (s) => `900 ${s}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     x.font = face(size); while (x.measureText(label).width + (label.length - 1) * 5 > 395 && size > 26) { size -= 2; x.font = face(size); }
     spaced(label, W / 2, 128, 5);
     x.fillRect(82, 145, 396, 2.5);
+    }
     x.font = `700 21px Roboto, "Helvetica Neue", Arial, sans-serif`; spaced(`B-RUIZ  •  ${dateText}`, W / 2, 177, 3);
     // worn ink: speckles and a few rough patches knocked out, deterministic per invoice
     x.shadowBlur = 0; x.globalCompositeOperation = 'destination-out';
@@ -1410,8 +1417,11 @@
   }
   const isPaidInFull = (v) => v.total > 0 && v.balance <= 0;
   const stampDate = (v) => new Date(v.date).toLocaleDateString(I.locale(invoiceLang()), { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase();
-  const stampCanvasFor = (v) => stampCanvas(v.no, stampDate(v), ti('doc.stamp'));
-  function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang(); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
+  // Which stamp an invoice carries: red handwriting while the order's items have not been handed over, green PAID IN FULL, or green DELIVERED / COLLECTED when handed over with money still owing
+  const stampKind = (v) => { const o = v && v.no ? orderOfInvoice(v.no) : null; if (o && o.status === 'confirmed') return o.option === 'delivery' ? 'notDel' : 'notCol'; if (isPaidInFull(v)) return 'paid'; if (o && o.status === 'done') return o.option === 'delivery' ? 'del' : 'col'; return ''; };
+  const STAMP_KEY = { notDel: 'doc.stampNotDel', notCol: 'doc.stampNotCol', paid: 'doc.stamp', del: 'doc.stampDel', col: 'doc.stampCol' };
+  const stampCanvasFor = (v) => { const k = stampKind(v); return stampCanvas(v.no, stampDate(v), ti(STAMP_KEY[k] || 'doc.stamp'), k === 'notDel' || k === 'notCol' ? 'pending' : 'ok'); };
+  function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang() + '|' + stampKind(v); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
 
   // "Returned on 8 Nov · 2 items back in stock · TT$ 200 had been paid" — shown on a returned or cancelled invoice
   const voidBanner = (v0) => { if (!v0.void) return ''; const d = v0.void, n = (d.items || []).length, paid = num_(d.was.amountPaid) + num_(d.was.previouslyPaid);
@@ -1430,14 +1440,14 @@
     const hist = chain.length > 1 ? `<div class="hist"><h4>${t('inv.history')}</h4>${chain.slice().reverse().map((h) => `<button class="hrow ${h.no === v.no ? 'now' : ''}" data-act="inv-swap" data-id="${h.no}"><span class="hl"><b>${h.no}</b><small>${dShort(h.date)}${h.no === v.no ? ' · ' + t('inv.histNow') : ''}</small></span><span class="hr"><b>${t('inv.histPaid', { amt: money(h.amountPaid) })}</b><small class="${h.balance > 0 ? 'bad' : 'good'}">${h.balance > 0 ? t('inv.histOwes', { amt: money(h.balance) }) : t('inv.histFull')}</small></span></button>`).join('')}</div>` : '';
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
     const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${offStrip(x)}${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}${v0.returnNote.fee > 0 ? ' · ' + t('inv.feeIn', { amount: money(v0.returnNote.fee) }) : ''}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}${v0.returnNote.fee > 0 ? ' · ' + t('inv.feeIn', { amount: money(v0.returnNote.fee) }) : ''}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg three small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l && !invLangAuto ? 'on' : ''}" role="radio" aria-checked="${lg === l && !invLangAuto}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}<button class="${invLangAuto ? 'on' : ''}" role="radio" aria-checked="${invLangAuto}" data-act="inv-lang" data-id="auto" data-no="${v.no}">${t('inv.auto')}</button></div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
         <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
           <div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div></div>
         <table class="inv-t"><thead><tr><th>${ti('doc.desc')}</th><th class="r">${ti('doc.qty')}</th><th class="r">${ti('doc.price')}</th><th class="r">${ti('doc.amount')}</th></tr></thead><tbody>
-          ${lines.map((l) => `<tr><td>${esc(l.desc)}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
-        <div class="inv-sum">${isPaidInFull(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
+          ${lines.map((l) => `<tr><td>${esc(lineName(l))}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
+        <div class="inv-sum">${stampKind(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
           <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div></div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
@@ -1490,7 +1500,7 @@
         lines.forEach((l, li) => {
           if (D.tint && li % 2) { x.fillStyle = D.tint; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), rowH); }
           F('400', 16); x.fillStyle = '#000'; x.textAlign = 'left';
-          let d = String(l.desc); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(l.desc)) d = d.trim() + '…';
+          const ld = lineName(l); let d = String(ld); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(ld)) d = d.trim() + '…';
           x.fillText(d, L0, y + 24);
           x.textAlign = 'right'; x.fillText(String(l.qty), R0 - 250, y + 24); x.fillText(invMoney(l.price), R0 - 130, y + 24); x.fillText(invMoney(l.qty * l.price), R0, y + 24);
           y += rowH;
@@ -1502,7 +1512,7 @@
         });
         x.fillStyle = D.head; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
         F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ti('doc.balance'), R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
-        if (isPaidInFull(v)) {
+        if (stampKind(v) && !v.void) {
           x.save(); x.globalCompositeOperation = 'multiply';
           x.drawImage(stampCanvasFor(v), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
@@ -1529,7 +1539,7 @@
   // The invoice PDF is built ahead of time, as soon as the invoice screen is open, so Share can answer the tap at once:
   // the phone only allows its share sheet right after a tap, and drawing the sheet takes a few seconds.
   let pdfCache = null, pdfBusy = null;
-  const pdfKey = (v) => JSON.stringify([v, state.settings, invLangSession, invDesignId()]);
+  const pdfKey = (v) => JSON.stringify([v, state.settings, invLangSession, invDesignId(), stampKind(v), state.items.length]);
   async function buildInvoicePdf(v) {
     const blob = await invoiceCanvas(v, 'image/png', false, 2.6);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
     const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
@@ -1757,7 +1767,7 @@
     const po = Store.orders().find((x) => x.id === id); if (!po) return;
     const dl = po.option === 'delivery', ow = (L.orderPay(state, orderInvoice(po)) || {}).owing || 0, how = dl ? t('ord.delivered') : t('ord.collected');
     return askCard(t(dl ? 'ord.askDelivered' : 'ord.askCollected') + ' ' + (ow > 0 ? t('ord.askOwing', { amount: plain(money(ow)) }) : t('ord.askPaid')), { title: t(dl ? 'ord.askTitleDel' : 'ord.askTitleCol'), ok: t(dl ? 'ord.yesDelivered' : 'ord.yesCollected'), no: t('ord.no') }).then((y) => {
-      if (y) Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
+      if (y) Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); const here = pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id; if (here) setTimeout(() => sheetOrder(id, true), 450); else dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
   }
   /* ---------- delivery log: every delivery and pickup, by day, with the distance driven ---------- */
   let dlvTab = 'deliveries', dlvView = 'list', dlvQ = '', dlvDay = '', dlvMonth = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })(), dlvLink = false;
@@ -1928,7 +1938,7 @@
   // Opens WhatsApp to the customer with the message already written (the owner taps Send). In the customer's own language when the order carries it.
   function waOpen(o, key, inv) {
     const lang = o.lang === 'es' || o.lang === 'en' ? o.lang : undefined, plain = (n) => 'TT$ ' + (Number(n) || 0).toFixed(2);
-    const names = (inv ? state.items.filter((i) => i.invoice === inv.no) : []).map((i) => ((lang === 'es' && i.nameEs) || i.desc) + (i.size ? ' (' + i.size + ')' : '')).join(', ') || tn('notif.items', (o.items || []).length, {}, lang);
+    const names = (inv ? state.items.filter((i) => i.invoice === inv.no) : []).map((i) => (lang === 'es' ? esName(i) : i.desc) + (i.size ? ' (' + i.size + ')' : '')).join(', ') || tn('notif.items', (o.items || []).length, {}, lang);
     let where = (o.option === 'delivery' ? t('store.delivery', {}, lang) : t('store.pickup', {}, lang)) + ' · ' + o.location;
     const pin = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null; if (pin) where += ' 📍 ' + SCore.mapLinks(pin.lat, pin.lng).view + ' ';   // the space keeps the full stop out of the link
     const msg = t(key, { name: o.name, code: o.code || SCore.orderCode(o.id), items: names, where, total: plain(o.total), how: t(o.option === 'delivery' ? 'ord.howDel' : 'ord.howPick', {}, lang), store: storeCfg().name || bizName() }, lang);
@@ -1966,17 +1976,22 @@
       ${pv.refund > 0 ? `<div class="ln due"><span>${t('ret.refund')}</span><b>${money(pv.refund)}</b></div>` : ''}${pv.owesFee > 0 ? `<div class="ln due"><span>${t('ret.owesFee')}</span><b>${money(pv.owesFee)}</b></div>` : ''}`;
   }
   const itemPill = (o, i, it) => { if (o.status === 'declined') return ''; const k = o.status !== 'done' && itemArriving(i) ? opl('arr', '⏳ ' + t('ord.pl.arr')) : it && L.isSold(it) && it.invoice ? (it.status === 'Paid' ? opl('paid', '✓ ' + t('ord.pl.paid')) : opl('owing', t('ord.pl.owing'))) : ''; return k ? `<div class="ipl">${k}</div>` : ''; };
-  function sheetOrder(id) {
+  function sheetOrder(id, swap) {
     const o = Store.orders().find((x) => x.id === id); if (!o) return;
-    enterPage('order', id, () => sheetOrder(id));
+    enterPage('order', id, () => sheetOrder(id), swap);
     const rows = (o.items || []).map((i) => { const it = state.items.find((x) => x.id === i.id), gone = !it || L.isSold(it), tr = it && it.status === 'In Transit', sold = it && L.isSold(it) && it.invoice;
       const back = o.status === 'done' && it && !L.isSold(it) && !it.invoice, sub = sold && o.status !== 'new' ? t('ord.soldOn', { no: it.invoice }) : back ? t('ord.returned') : gone ? t('ord.gone') : tr ? '⏳ ' + t('ord.transit') : t('ord.available');
       return `<div class="rw"><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small>${itemPill(o, i, it)}</div><b>${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) }), inv = orderInvoice(o), pay = L.orderPay(state, inv);
     const gp = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null, ml = gp ? SCore.mapLinks(gp.lat, gp.lng) : null;   // the pin the customer chose on the map
+    const stage = stageOf(o), sib = newestFirst(Store.orders().filter((x) => stageOf(x) === stage)), at = sib.findIndex((x) => x.id === id);
+    const nav = sib.length > 1 ? `<div class="fnav"><button data-act="order-nav" data-id="${sib[(at - 1 + sib.length) % sib.length].id}" aria-label="${t('flow.prev')}">‹</button><button data-act="order-nav" data-id="${sib[(at + 1) % sib.length].id}" aria-label="${t('flow.next')}">›</button></div>` : '';
+    const stepBar = o.status === 'declined' ? '' : `<div class="fstep">${ORD_TABS.map((k, n) => `<span class="${n < ORD_TABS.indexOf(stage) ? 'dn' : n === ORD_TABS.indexOf(stage) ? 'on' : ''}">${n < ORD_TABS.indexOf(stage) ? '✓ ' : ''}${t('flow.' + k)}</span>`).join('')}</div>`;
+    const owingNow = pay && pay.owing > 0 ? pay.owing : 0;
+    const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="fdone"><i>✓</i><div>${t('flow.accepted')}${inv ? '<br>' + (owingNow > 0 ? t('flow.invOwing', { no: inv.no || inv, amount: '<b>' + money(owingNow) + '</b>' }) : t('flow.invPaid', { no: inv.no || inv })) : ''}</div></div>`;
     const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + pinRow(o) + kmLine(o);   // last on the page, after the items, payment and timeline
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
-      <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
+      <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' && o.status !== 'confirmed' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
     const step = (on, label, d, extra) => `<div class="s ${on ? 'on' : ''}"><i></i><div><b>${label}${extra || ''}</b><small>${d ? fullWhen(d) : on ? '' : t('ord.tl.notYet')}</small></div></div>`;
     const handed = t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected');
     const tl = [step(true, t('ord.tl.ordered'), Store.when(o))];
@@ -1986,12 +2001,12 @@
     else if (o.status === 'confirmed') tl.push(step(false, handed, null));
     else if (o.status === 'done') tl.push(step(true, handed, tsAt(o.doneAt)));
     const tlCard = o.status === 'new' ? '' : `<h4><span>${t('ord.timeline')}</span></h4><div class="card tl">${tl.join('')}</div>`;
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${fullWhen(Store.when(o))}</small></div></div>
-      <div class="ap"><div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small></div><a class="ibtn wapp" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a><a class="ibtn" href="tel:${esc(SCore.digits(o.phone))}" aria-label="${t('ord.call')}"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stBadge(o)}</div></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${fullWhen(Store.when(o))}</small></div>${nav}</div>
+      <div class="ap">${stepBar}${sumCard}<div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small></div><a class="ibtn wapp" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a><a class="ibtn" href="tel:${esc(SCore.digits(o.phone))}" aria-label="${t('ord.call')}"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stBadge(o)}</div></div>
       <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
       ${payCard}${tlCard}${spotCard}
-      ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('ord.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
-        : o.status === 'confirmed' ? `<div class="btnrow"><button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected')}</button>${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
+      ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('flow.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
+        : o.status === 'confirmed' ? `<div class="fnext">${owingNow > 0 ? `<button class="pbtn" data-act="pay-inv" data-id="${inv}" data-ord="${o.id}">${t('flow.take')}</button><button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`}${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
         : o.status === 'done' && inv ? `<div class="btnrow"><button class="gbtn" data-act="view-inv" data-id="${inv}" style="flex:1">${t('ord.viewInv')}</button>${(L.purchaseOf(state, inv) || { items: [] }).items.length ? `<button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1">↩ ${t('ret.btn')}</button>` : ''}</div>` : ''}</div>`, null, true);
   }
   function confirmOrder(o) {
@@ -2079,7 +2094,7 @@
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); closeSheet(); return render();
       case 'set-lang': I.setLang(id, true); applyStaticText(); closeSheet(); return render();
       case 'inv-swap': return sheetInvoice(id, true);
-      case 'inv-lang': invLangSession = id; return sheetInvoice(t_.dataset.no);
+      case 'inv-lang': { invLangAuto = id === 'auto'; if (invLangAuto) { const ao = orderOfInvoice(t_.dataset.no); invLangSession = ao && (ao.lang === 'en' || ao.lang === 'es') ? ao.lang : null; } else invLangSession = id; return sheetInvoice(t_.dataset.no); }
       case 'install':
         if (installEvt) { const ev = installEvt; installEvt = null; render(); ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); }).catch(() => {}); }
         return sheetInstallHelp();
@@ -2266,6 +2281,7 @@
       case 'dlv-home': closeSheet(); return sheetDeliverySettings();
       case 'ds-recalc-close': { closeSheet(); const h = dset().home; if (!h) return sheetDeliverySettings(); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => { toast(t('ds.measured', { n })); render(); }); }
       case 'dlv-export': closeSheet(); return dlvExport();
+      case 'order-nav': return sheetOrder(id, true);
       case 'dlv-plan': return sheetPlan(id);
       case 'dlv-plan-set': return planSave(t_.dataset.ord, id === 'today' ? SCore.dayKey(new Date()) : id === 'tomorrow' ? SCore.dayKey(new Date(Date.now() + 864e5)) : id === 'clear' ? null : id);
       case 'dlv-plan-date': { const f = $('#plan-date'); return f && f.value ? planSave(id, f.value) : toast(t('dlv.planPick')); }

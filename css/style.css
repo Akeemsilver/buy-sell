@@ -1006,3 +1006,13 @@ button.dr{display:flex;align-items:center;gap:12px;width:100%;text-align:left;pa
 .cal .gr span em u{text-decoration:none;margin-left:3px;color:#8a9bff}
 .dsug{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:rgba(255,190,60,.14);font-size:13px;line-height:1.35}
 .kmcard{margin-top:12px}
+
+/* order flow: step bar, arrows, summary, Next buttons */
+.fstep{display:flex;gap:6px;margin:0 0 14px}.fstep span{flex:1;text-align:center;padding:9px 0;border-radius:12px;background:var(--card);border:1px solid var(--line);color:var(--mute);font-size:12.5px;font-weight:600;white-space:nowrap}
+.fstep .dn{color:#5fd391}.fstep .on{background:var(--brand,#d6264a);border-color:var(--brand,#d6264a);color:#fff;font-weight:800}
+.fullbar .fnav{display:flex;gap:6px;margin-left:auto;flex:none}.fullbar .fnav button{width:34px;height:34px;min-height:0;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.14);color:#fff;border:0;font-size:20px;padding:0}
+.fdone{display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);margin-bottom:12px;font-size:13.5px;line-height:1.4}.fdone i{font-style:normal;color:#5fd391;font-weight:800}
+.fnext{display:grid;gap:8px;margin:14px 0 0}.fnext .pbtn,.fnext .gbtn{width:100%}
+.seg.three{grid-template-columns:1fr 1fr 1fr}
+.fnext .gbtn{color:var(--ink)}
+:root .fnext .gbtn,:root:not([data-theme=light]) .fnext .gbtn{color:var(--ink)}

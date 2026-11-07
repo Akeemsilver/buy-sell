@@ -80,4 +80,18 @@ const mk = (n) => { const s = L.defaultState(); L.createBatch(s, { store: 'SHEIN
   const gone = L.dropCopies(s, s.items[0].id, 3); assert.ok(!gone.includes(s.items[1]) && s.items[1].desc === 'Blue dress', 'dropping copies never drops the ordered piece');
   L.orderHold = new Set(); assert.strictEqual(L.isLocked(s.items[1]), false, 'answering the order unlocks it');
 }
+{ // what a customer owes matches their invoices, delivery included
+  const mkInv = (pay) => { const s = L.defaultState(); L.createBatch(s, { store: 'SHEIN', count: 3, currency: 'USD', totalCost: 30, margin: 100 });
+    Object.assign(s.items[0], { desc: 'T-Shirt', price: 160, cost: 10, status: 'Available', delivery: 40 });
+    L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Akeem', paying: pay, allowZero: true }); return s; };
+  let s2 = mkInv(0), inv = s2.invoices[0];
+  assert.strictEqual(inv.total, 200, 'the invoice total includes delivery'); assert.strictEqual(inv.balance, 200);
+  assert.strictEqual(L.customerStats(s2).find((c) => c.name === 'Akeem').owing, 200, 'nothing paid: the customer owes the whole invoice, delivery included (was 160)');
+  assert.strictEqual(L.totals(s2, {}).owing, 200, 'and Home agrees');
+  s2 = mkInv(160); assert.strictEqual(s2.invoices[0].balance, 40);
+  assert.strictEqual(L.customerStats(s2).find((c) => c.name === 'Akeem').owing, 40, 'items paid, delivery not: 40 still owed');
+  assert.strictEqual(L.totals(s2, {}).owing, 40);
+  s2 = mkInv(200); assert.strictEqual(L.customerStats(s2).find((c) => c.name === 'Akeem').owing, 0, 'paid in full: nothing owed'); assert.strictEqual(L.totals(s2, {}).owing, 0);
+  const s3 = mkInv(100); L.payInvoice ? null : null;
+}
 console.log('group tests passed');

@@ -797,3 +797,5 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 :root[data-theme=dark] .gbtn{color:#ff9a9a}:root[data-theme=dark] .ocancel button{color:#ff9a9a}
 
 .sx .sub.dl{color:var(--ink);font-weight:700}.sx .sub.tot{background:var(--card);color:var(--ink);font-size:16px;font-weight:800}.sx .sub.tot b{font-size:18px}
+
+.cv2 .arr{display:block;margin-top:2px;color:var(--warn);font-weight:700;font-size:12px}

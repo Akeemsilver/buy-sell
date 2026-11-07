@@ -437,6 +437,8 @@
   /* ---------- reports ---------- */
 
   // Mirrors updateCustomerLog: owing/sales come from per-item paid/owing, profit sums the invoice Profit column.
+  // Delivery is not part of any item, so delivery that is still unpaid shows only on the invoice. This is that part (the invoice balance minus what is still owing on its items).
+  L.deliveryOwing = (s, v) => { if (!v || v.updatedBy) return 0; const itemOwing = s.items.filter((i) => i.invoice === v.no).reduce((t, i) => t + num(i.owing), 0); return r2(Math.max(0, num(v.balance) - itemOwing)); };
   L.customerStats = (s) => {
     const names = new Set(s.customers);
     s.items.forEach((i) => i.customer && names.add(i.customer));
@@ -444,7 +446,7 @@
     return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b)).map((name) => {
       const items = s.items.filter((i) => i.customer === name); // any item tagged with the customer counts as bought
       const last = items.filter((i) => i.invoice).slice().sort((a, b) => invDate(s, b) - invDate(s, a))[0];
-      const owing = items.reduce((t, i) => t + num(i.owing), 0);
+      const owing = items.reduce((t, i) => t + num(i.owing), 0) + L.latestInvoices(s, name).reduce((t, v) => t + L.deliveryOwing(s, v), 0);   // what the invoices say: items plus unpaid delivery
       return { name, owing: r2(owing), status: owing > 0 ? 'Owing' : 'Up to date',
         sales: r2(items.reduce((t, i) => t + num(i.paid), 0)), bought: items.length,
         itemsOwing: items.filter((i) => i.status === 'Owing').length,
@@ -502,7 +504,8 @@
     const batches = s.batches.filter((b) => (all || b.id === f.batch) && inRange(b.datePurchased, r));
     const invs = L.filterInvoices(s, f), invNos = new Set(invs.map((v) => v.no));
     const items = s.items.filter((i) => all || i.batchId === f.batch);
-    const owing = items.reduce((t, i) => t + num(i.owing), 0);
+    const scoped = new Set(items.map((i) => i.invoice).filter(Boolean));
+    const owing = items.reduce((t, i) => t + num(i.owing), 0) + s.invoices.filter((v) => !v.updatedBy && scoped.has(v.no)).reduce((t, v) => t + L.deliveryOwing(s, v), 0);   // items plus unpaid delivery, like the invoices
     const expense = batches.reduce((t, b) => t + b.totalCost * b.rate + b.clearingPaid, 0);
     const sales = invs.reduce((t, v) => t + v.amountPaid, 0);
     // profit on items that have actually sold (sold price - landed cost); unsold stock is not counted

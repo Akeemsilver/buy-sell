@@ -1516,7 +1516,7 @@
     enterPage('store', '', () => sheetStore());
     const c = storeCfg(), inf = Store.info(), link = Store.link(c), signed = cloud.signedIn;
     const cnt = (b) => ({ a: state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, t: state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length });
-    const stat = !signed ? '' : inf.error === 'permission-denied' ? `<div class="err">${t('store.needRules')}</div>` : inf.error ? `<div class="err">${t('store.pubError')}</div>` : inf.busy ? `<p class="muted small">${t('store.publishing')}</p>` : inf.at ? `<p class="muted small">${t('store.published', { n: inf.count, when: ago(new Date(inf.at)) })} · ${t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall')}</p>` : '';
+    const stat = !signed ? '' : inf.error === 'permission-denied' ? `<div class="err">${t('store.needRules')}</div>` : inf.error === 'timeout' ? `<div class="err">${t('store.pubSlow')}</div>` : inf.error ? `<div class="err">${t('store.pubError')}</div>` : inf.busy ? `<p class="muted small">${t('store.publishing')}</p>` : inf.at ? `<p class="muted small">${t('store.published', { n: inf.count, when: ago(new Date(inf.at)) })} · ${t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall')}</p>` : '';
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.title')}</b><small>${t('store.sub')}</small></div><button class="dots" data-act="store-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="ap">${signed ? '' : `<div class="card"><div class="rw"><div class="t"><b>${t('store.needAccount')}</b><small>${t('store.needAccountSub')}</small></div><button class="pbtn" data-act="acct-open">${t('acct.signIn')}</button></div></div>`}
       ${c.id ? `<div class="link"><span>${esc(link)}</span><button data-act="store-link">${t('store.copy')}</button></div>` : `<button class="btn primary" style="width:100%" data-act="store-create" ${signed ? '' : 'disabled'}>${t('store.create')}</button>`}
@@ -1795,7 +1795,7 @@
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return sheetStore(); }
       case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return sheetStore(); }
-      case 'store-publish': toast(t('store.publishing')); Store.publish(true).then(() => { const inf = Store.info(); toast(inf.error === 'permission-denied' ? t('store.needRules') : inf.error ? t('store.pubError') : t('store.donePub', { n: inf.count })); }); return;
+      case 'store-publish': toast(t('store.publishing')); Store.publish(true).then((ran) => { const inf = Store.info(); toast(inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : !ran && inf.busy ? t('store.stillPub') : !ran ? t('store.notRan') : t('store.donePub', { n: inf.count })); }); return;
       case 'store-loc': return sheetLocation(id);
       case 'sl-flag': { const on = !t_.classList.contains('on'); t_.classList.toggle('on', on); t_.setAttribute('aria-checked', on); return; }
       case 'store-loc-save': {

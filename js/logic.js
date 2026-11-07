@@ -438,6 +438,14 @@
 
   // Mirrors updateCustomerLog: owing/sales come from per-item paid/owing, profit sums the invoice Profit column.
   // Delivery is not part of any item, so delivery that is still unpaid shows only on the invoice. This is that part (the invoice balance minus what is still owing on its items).
+  // The invoices an order's invoice became, oldest first (a payment later makes an updated invoice that replaces the old one).
+  L.invoiceForward = (s, no) => { const out = []; let cur = s.invoices.find((x) => x.no === no), g = 0; while (cur && g++ < 50) { out.push(cur); cur = cur.updatedBy ? s.invoices.find((x) => x.no === cur.updatedBy) : null; } return out; };
+  // What an order's invoice says now: total (delivery included), paid so far, still owing, and each payment with its date. null while there is no invoice.
+  L.orderPay = (s, no) => {
+    const chain = L.invoiceForward(s, no); if (!chain.length) return null;
+    const last = chain[chain.length - 1], total = num(last.total), owing = r2(Math.max(0, num(last.balance)));
+    return { inv: last.no, total, owing, paid: r2(Math.max(0, total - owing)), payments: chain.filter((v) => num(v.amountPaid) > 0).map((v) => ({ date: v.date, amount: num(v.amountPaid) })) };
+  };
   L.deliveryOwing = (s, v) => { if (!v || v.updatedBy) return 0; const itemOwing = s.items.filter((i) => i.invoice === v.no).reduce((t, i) => t + num(i.owing), 0); return r2(Math.max(0, num(v.balance) - itemOwing)); };
   L.customerStats = (s) => {
     const names = new Set(s.customers);

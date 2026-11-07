@@ -25,6 +25,7 @@
   // Batch ids are stored as BATCH-001 (kept as-is in your data); on screen the prefix follows the language: LOTE-001.
   const bl = (id) => String(id).replace(/^BATCH-/, t('batch.prefix') + '-');
   const ICONS = {
+    bell: '<path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     eyeoff: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
     download: '<path d="M12 4v11"/><path d="M7.5 11 12 15.5 16.5 11"/><path d="M5 19.5h14"/>',
@@ -265,6 +266,13 @@
 
   /* ---------- shell ---------- */
 
+  // The two buttons at the top right: the bell (notifications, with the number of new things) and the gear (Settings).
+  function renderTools() {
+    const el = $('#appbar-right'); if (!el) return;
+    const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
+    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0;
+    el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
+  }
   function render() {
     cleanSelected();
     const moreTitles = { invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
@@ -274,8 +282,7 @@
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
     $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'sell' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
-    const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
-    $('#appbar-right').innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('view', hideAmounts ? t('tool.show') : t('tool.hide'), hideAmounts ? 'eyeoff' : 'eye')}${btn('download', t('tool.download'), 'download')}${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
+    renderTools();
     document.body.classList.toggle('hide-amounts', hideAmounts);
     $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
     renderActionBar();
@@ -313,8 +320,8 @@
     const recent = L.filterInvoices(state, flt).slice(-3).reverse();
     if (!state.batches.length) return `<div class="empty"><b>${t('home.welcome')}</b>${t('home.welcomeText')}</div>
       <div class="list"><button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button><button class="btn" data-act="import-xlsx">${t('btn.importXlsx')}</button></div>`;
-    return `${filtered() ? `<button class="row tap" data-act="filter" style="margin-bottom:10px;background:var(--tint)"><div class="grow"><b>${t('home.filtered', { label: esc(filterLabel()) })}</b><small>${t('home.filteredHint')}</small></div><span class="chev">›</span></button>` : ''}<div class="stats">
-      <div class="stat hero"><span>${t('home.profit')}</span><b>${money(tot.profit)}</b></div>
+    return `<div class="fltrow"><button class="fchip ${filtered() ? 'on' : ''}" data-act="filter" aria-label="${t('tool.filter')}">📅 ${esc(filterLabel())} ▾</button></div><div class="stats">
+      <div class="stat hero"><span>${t('home.profit')}</span><b>${money(tot.profit)}</b><button class="eyeb" data-act="view" aria-label="${hideAmounts ? t('tool.show') : t('tool.hide')}"><svg viewBox="0 0 24 24">${ICONS[hideAmounts ? 'eyeoff' : 'eye']}</svg></button></div>
       <div class="stat"><span>${t('home.sales')}</span><b>${money(tot.sales)}</b></div>
       <div class="stat"><span>${t('home.owing')}</span><b>${money(tot.owing)}</b></div>
       <div class="stat"><span>${t('home.expenses')}</span><b>${money(tot.expense)}</b></div>
@@ -625,7 +632,8 @@
   }
   function BackupPage() {
     const act = (a, label, sub, bad) => `<button class="row tap" data-act="${a}"><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
-    return `<div class="list">${act('export-json', t('more.backup'), t('more.backupSub'))}${act('import-json', t('more.restore'), t('more.restoreSub'))}${act('reset', t('more.erase'), t('more.eraseSub'), true)}</div><p class="note">${t('photo.backupNote')}</p>`;
+    return `<div class="list">${act('export-json', t('more.backup'), t('more.backupSub'))}${act('import-json', t('more.restore'), t('more.restoreSub'))}${act('reset', t('more.erase'), t('more.eraseSub'), true)}</div>
+      <h2>${t('dl.sheet')}</h2><div class="list">${[['invoices', '🧾', t('dl.invoices'), state.invoices.length], ['items', '📋', t('dl.items'), state.items.length], ['customers', '👥', t('dl.customers'), L.customerStats(state).length]].map(([k, ic, ti, n]) => `<button class="row tap" data-act="csv" data-id="${k}"><span style="font-size:22px">${ic}</span><div class="grow"><b>${ti}</b><small>${t('dl.rows', { n })}</small></div></button>`).join('')}</div><p class="note">${t('photo.backupNote')}</p>`;
   }
   const invCards = () => {
     const cur = invDesignId();
@@ -1545,6 +1553,51 @@
   const ordWhen = (o) => ago(Store.when(o));
   const optText = (o) => `${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${esc(o.location)}`;
   const stBadge = (o) => `<span class="obadge ${o.status}">${t('ord.' + o.status)}</span>`;
+  /* ---------- notifications (the bell) ---------- */
+  // Built from what the app knows, each time: new store orders, things that need attention, and reminders. "New" = not yet seen on the
+  // bell page (the page marks everything seen when it is closed); a new order stays new until it is dealt with.
+  let notifCache = [];
+  const DAY = 864e5;
+  const seenNotifs = () => { const v = pref('notifSeen', {}); return v && typeof v === 'object' ? v : {}; };
+  function notifList() {
+    const out = [], now = Date.now(), c = storeCfg();
+    const add = (n) => out.push(n);
+    if (window.Store) {
+      Store.orders().filter((o) => o.status === 'new' || (Store.ageMs(o) > 0 && Store.ageMs(o) < 7 * DAY && o.status !== 'declined')).forEach((o) => add({ key: 'order:' + o.id, grp: 'orders', ic: '🛍️', always: o.status === 'new', title: t('notif.order', { code: esc(o.code || SCore.orderCode(o.id)), name: esc(o.name) }), sub: tn('notif.items', (o.items || []).length) + ' · ' + (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + money(o.total), when: Store.when(o) ? ago(Store.when(o)) : '', go: ['order-open', o.id] }));
+    }
+    state.batches.filter((b) => bStatus(b) !== 'Closed').forEach((b) => {
+      const mine = state.items.filter((i) => i.batchId === b.id && !L.isSold(i));
+      const noSize = mine.filter((i) => String(i.desc || '').trim() && !String(i.size || '').trim()).length;
+      if (noSize) add({ key: 'size:' + b.id + ':' + noSize, grp: 'attn', ic: '📏', title: tn('notif.noSize', noSize), sub: t('notif.noSizeSub', { b: bl(b.id) }), go: ['stock', b.id, 'All'] });
+      const chk = L.photoStats(state, b.id).needCheck;
+      if (chk) add({ key: 'photos:' + b.id + ':' + chk, grp: 'attn', ic: '📷', title: tn('notif.photos', chk), sub: t('notif.photosSub', { b: bl(b.id) }), go: ['stock', b.id, 'NeedCheck'] });
+      if (c.id && !c.batches.includes(b.id)) { const hid = mine.filter((i) => i.status === 'Available' && String(i.desc || '').trim() && Number(i.price) > 0).length; if (hid) add({ key: 'nis:' + b.id + ':' + hid, grp: 'attn', ic: '🏪', title: t('notif.notIn', { b: bl(b.id) }), sub: tn('notif.hidden', hid), go: ['stock', b.id, 'All'] }); }
+      if (bStatus(b) === 'In Transit') { const days = Math.floor((now - new Date(b.datePurchased).getTime()) / DAY); if (days >= 30) add({ key: 'transit:' + b.id, grp: 'remind', ic: '📦', title: t('notif.transit', { b: bl(b.id), n: days }), sub: t('notif.transitSub'), go: ['batch', b.id] }); }
+    });
+    if (c.id && window.Store) { if (Store.info().error) add({ key: 'storeerr', grp: 'attn', ic: '⚠️', title: t('notif.storeErr'), sub: t('notif.storeErrSub'), go: ['store-open', ''] }); if (!c.open) add({ key: 'storeclosed', grp: 'attn', ic: '🔒', title: t('notif.storeClosed'), sub: t('notif.storeClosedSub'), go: ['store-open', ''] }); }
+    const owes = new Map(); state.invoices.forEach((v) => { if (Number(v.balance) > 0) { const o = owes.get(v.client) || { amt: 0, since: Infinity }; o.amt += Number(v.balance); o.since = Math.min(o.since, new Date(v.date).getTime() || Infinity); owes.set(v.client, o); } });
+    owes.forEach((o, name) => { if (o.since !== Infinity && now - o.since >= 7 * DAY) add({ key: 'owes:' + name, grp: 'remind', ic: '💳', title: t('notif.owes', { name: esc(name), amt: money(o.amt) }), sub: t('notif.owesSub', { date: new Date(o.since).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short' }) }), go: ['customer', name] }); });
+    if (now > Date.UTC(2027, 0, 15) && now < Date.UTC(2027, 1, 10)) add({ key: 'billing', grp: 'remind', ic: '☁️', title: t('notif.billing'), sub: t('notif.billingSub'), go: ['', ''] });
+    return out;
+  }
+  const notifUnread = (n, seen) => n.always || !seen[n.key];
+  const notifCount = () => { try { const seen = seenNotifs(); return notifList().filter((n) => notifUnread(n, seen)).length; } catch (e) { return 0; } };
+  function notifMarkSeen() { const seen = {}; notifList().forEach((n) => { seen[n.key] = 1; }); setPref('notifSeen', seen); }
+  function sheetNotifs() {
+    enterPage('notif', '', () => sheetNotifs());
+    const list = notifList(), seen = seenNotifs(), unread = list.filter((n) => notifUnread(n, seen)).length; notifCache = list;
+    const row = (n) => `<button class="it2 ${notifUnread(n, seen) ? 'new' : ''}" data-act="notif-go" data-id="${list.indexOf(n)}">${notifUnread(n, seen) ? '<i class="dotn"></i>' : ''}<span class="ic2">${n.ic}</span><span class="tx2"><b>${n.title}</b><small>${n.sub}</small></span><span class="ago">${esc(n.when || '')}</span></button>`;
+    const grp = (k, label) => { const g = list.filter((n) => n.grp === k); return g.length ? `<h4><span>${t(label)}</span></h4><div class="card">${g.map(row).join('')}</div>` : ''; };
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('notif.title')}</b><small>${unread ? tn('notif.newN', unread) : t('notif.none')}</small></div></div>
+      <div class="bn">${unread ? `<button class="chip on" data-act="notif-read" style="margin:6px 0 0">${t('notif.readAll')}</button>` : ''}${grp('orders', 'notif.gOrders')}${grp('attn', 'notif.gAttn')}${grp('remind', 'notif.gRemind')}${list.length ? '' : `<div class="empty"><b>${t('notif.none')}</b>${t('notif.noneText')}</div>`}</div>`, () => { notifMarkSeen(); render(); }, true);
+  }
+  // Tapping a line closes the page and goes to the thing it is about (the same screens the rest of the app opens).
+  function notifGo(i) {
+    const n = notifCache[i]; if (!n || !n.go[0]) return;
+    const [act, arg, f] = n.go; closeSheet();
+    if (act === 'stock') { stockBatch = arg; stockFilter = f || 'All'; go({ tab: 'stock', moreView: null }); window.scrollTo(0, 0); return render(); }
+    const b = document.createElement('button'); b.dataset.act = act; b.dataset.id = arg; document.body.appendChild(b); b.click(); b.remove();
+  }
   function sheetOrders() {
     enterPage('orders', '', () => sheetOrders());
     const all = Store.orders(), shown = all.filter((o) => (ordFilter === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === ordFilter));
@@ -1615,18 +1668,8 @@
       <div class="btns"><button class="btn" data-act="copy-link">${t('ig.copyLink')}</button><button class="btn primary" data-act="close">${t('btn.gotIt')}</button></div>`);
   }
 
-  function sheetDownload() {
-    const row = (icon, title, sub, attrs) => `<button class="row tap" ${attrs}><span style="font-size:22px">${icon}</span><div class="grow"><b>${title}</b><small>${sub}</small></div></button>`;
-    openSmall(`<h3>${t('dl.title')}</h3><p class="muted small">${t('dl.note')}</p>
-      <div class="list" style="margin-top:12px">
-        ${row('💾', t('dl.full'), t('dl.fullSub'), 'data-act="export-json"')}
-        ${row('🧾', t('dl.invoices'), t('dl.rows', { n: state.invoices.length }), 'data-act="csv" data-id="invoices"')}
-        ${row('📋', t('dl.items'), t('dl.rows', { n: state.items.length }), 'data-act="csv" data-id="items"')}
-        ${row('👥', t('dl.customers'), t('dl.rows', { n: L.customerStats(state).length }), 'data-act="csv" data-id="customers"')}</div>
-      <p class="note">${t('photo.backupNote')}</p>
-      <div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`, 'sheet');
-  }
-
+  // Nothing downloads on a single tap: a card asks first (Yes / Cancel), in case it was tapped by mistake.
+  const confirmDownload = (file, fn) => askCard(t('dl.ask', { name: file }), { title: t('dl.askTitle'), ok: t('dl.yes') }).then((ok) => { if (ok) fn(); });
   function csvOf(kind) {
     const q = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const head = t('csv.' + kind).split('|');
@@ -1681,7 +1724,9 @@
       case 'acct-forgot': { const em = ($('#f-acct [name=email]') || {}).value; if (!em) return acctShow(t('acct.needEmail')); return Cloud.reset(em).then(() => acctShow(t('acct.resetSent', { email: em })), (e) => acctShow(acctErr(e))); }
       case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); toast(t('acct.signedOut')); });
       case 'conflict': { const f = window.__conflict; if (f) f(id); closeSheet(); return; }          // answer first: closing the pop-up counts as 'cancel'
-      case 'download': return sheetDownload();
+      case 'bell': return sheetNotifs();
+      case 'notif-read': notifMarkSeen(); return sheetNotifs();
+      case 'notif-go': return notifGo(Number(id));
       case 'filter': return sheetFilter();
       case 'settings':
         closeSheet();
@@ -1710,7 +1755,7 @@
       case 'set-period': flt.period = id; setPref('filter', flt); render(); return sheetFilter();
       case 'set-fbatch': flt.batch = id; setPref('filter', flt); render(); return sheetFilter();
       case 'clear-filter': flt = { period: 'all', batch: 'all' }; setPref('filter', flt); render(); return sheetFilter();
-      case 'csv': return download(`b-ruiz-${id}.csv`, csvOf(id), 'text/csv');
+      case 'csv': return confirmDownload(`b-ruiz-${id}.csv`, () => download(`b-ruiz-${id}.csv`, csvOf(id), 'text/csv'));
       case 'new-batch': return sheetNewBatch();
       case 'pay-clearing': return sheetPayClearing();
       case 'receive': return sheetReceive();
@@ -1855,7 +1900,7 @@
       case 'more': go({ tab: 'more', moreView: id }); window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
-      case 'export-json': return download('buy-sell-backup.json', JSON.stringify(state, null, 2));
+      case 'export-json': return confirmDownload('buy-sell-backup.json', () => download('buy-sell-backup.json', JSON.stringify(state, null, 2)));
       case 'reset': return askCard(t('confirm.reset1'), { danger: true, ok: t('btn.continue') }).then((y) => y && askCard(t('confirm.reset2'), { danger: true, ok: t('more.erase') })).then((y) => { if (y) { state = L.defaultState(); selected = new Set(); run(() => 0, t('toast.cleared')); } });
     }
   });
@@ -2075,7 +2120,7 @@
   const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
   wordList();
   Store.init({ state: () => state, bizName, refresh: () => { const top = pageStack[pageStack.length - 1]; if (top && top.key === 'store' && !$('#sheet').hidden) { const sc = $('#sheet').scrollTop; reopening = true; try { top.open(); } finally { reopening = false; } $('#sheet').scrollTop = sc; } },
-    onOrders: () => { const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && (top.key === 'orders' || top.key.startsWith('order|'))) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && tab === 'sell') render(); } });
+    onOrders: () => { renderTools(); const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && (top.key === 'orders' || top.key.startsWith('order|'))) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && tab === 'sell') render(); } });
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, openSmall, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,

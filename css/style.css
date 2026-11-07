@@ -787,3 +787,8 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 /* dark mode: a solid backdrop behind the floating tab bar and the gap above it, and a quicker fade above the button, so cards and text do not show around them */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(var(--tabh) + var(--sab) + 34px);background:linear-gradient(transparent,var(--bg) 8px);z-index:18;pointer-events:none}:root:not([data-theme=light]) body.kb::after{display:none}:root:not([data-theme=light]) .actionbar{background:linear-gradient(transparent,var(--bg) 24%)}}
 :root[data-theme=dark] body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(var(--tabh) + var(--sab) + 34px);background:linear-gradient(transparent,var(--bg) 8px);z-index:18;pointer-events:none}:root[data-theme=dark] body.kb::after{display:none}:root[data-theme=dark] .actionbar{background:linear-gradient(transparent,var(--bg) 24%)}
+/* dark mode: no coloured glow spilling out of the profit card and the main bottom button; a tight neutral shadow instead */
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .stat.hero,:root:not([data-theme=light]) .actionbar .btn.primary{box-shadow:0 8px 18px -10px rgba(0,0,0,.7),0 1px 3px rgba(0,0,0,.4)}}
+:root[data-theme=dark] .stat.hero,:root[data-theme=dark] .actionbar .btn.primary{box-shadow:0 8px 18px -10px rgba(0,0,0,.7),0 1px 3px rgba(0,0,0,.4)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--shbtn:0 3px 8px -2px rgba(0,0,0,.55)}}
+:root[data-theme=dark]{--shbtn:0 3px 8px -2px rgba(0,0,0,.55)}

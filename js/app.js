@@ -499,6 +499,14 @@
     const row = (i) => { const eff = L.effectivePrice(i), sale = L.salePrice(i) > 0 && !L.isSold(i), was = Number(i.price) || 0;
       return `<div class="it"><${fromOrder ? 'div' : 'button'} class="main" ${fromOrder ? '' : `data-act="edit-item" data-id="${i.id}"`}>${PUI.thumb(i).replace(/^<span class="ph/, '<span class="pic ph').replace(/<\/span>$/, (sale ? `<span class="s">−${Number(i.discount)}%</span>` : '') + '</span>')}<span class="t"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></span><span class="p">${eff > 0 ? money(eff) : `<span class="bad">${t('sell.noPrice')}</span>`}${sale && was > eff ? `<small><s>${money(was)}</s></small>` : ''}</span></${fromOrder ? 'div' : 'button'}>
         ${fromOrder ? '' : `<button class="x" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button>`}</div>`; };
+    if (fromOrder) {   // an order: customer first, then what they ordered with the delivery cost in plain view, then payment (no steps bar)
+      const pv = preview(), dl = pv.delivery;
+      return `<div class="sx"><h4 id="sx-customer"><span>${t('sell.customer')}</span></h4>${orderCustomerCard()}
+      <h4 id="sx-items"><span>${t('sell.items', { n: items.length })}</span></h4>
+      <div class="card">${items.map(row).join('')}<div class="sub"><span>${t('sell.subtotal')}</span><b>${money(sub)}</b></div>${dl > 0 ? `<div class="sub dl"><span>🚚 ${t('sell.deliveryRow')}</span><b>${money(dl)}</b></div>` : ''}<div class="sub tot"><span>${t('sell.totalRow')}</span><b>${money(pv.total)}</b></div></div>
+      <h4 id="sx-pay"><span>${t('sell.s3')}</span></h4>
+      <div class="card"><div class="pay"><label for="paying">${t('sell.paying')}</label><div class="payrow"><div class="in"><span>TT$</span><input id="paying" name="paying" type="text" inputmode="decimal" value="${esc(invForm.paying)}" placeholder="0.00"></div><button class="full" data-act="pay-full">${t('sell.payFull')}</button></div><div id="prev">${previewBox()}</div></div></div></div>`;
+    }
     return `<div class="sx"><div class="steps"><button type="button" class="on" data-act="sx-go" data-id="items">① ${t('sell.s1')}</button><button type="button" class="${client ? 'on' : ''}" data-act="sx-go" data-id="customer">② ${t('sell.s2')}</button><button type="button" class="${client ? 'on' : ''}" data-act="sx-go" data-id="pay">③ ${t('sell.s3')}</button></div>
       <h4 id="sx-items"><span>${t('sell.items', { n: items.length })}</span>${fromOrder ? '' : `<span class="tapedit">${t('sell.tapEdit')}</span>`}</h4>
       <div class="card">${items.map(row).join('')}<div class="sub"><span>${t('sell.subtotal')}</span><b>${money(sub)}</b></div></div>

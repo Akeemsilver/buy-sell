@@ -938,3 +938,4 @@ a.ib{display:grid;place-items:center;flex:none;width:40px;height:40px;padding:0;
 .dspot-c a.ib.w,.dvb a.ib.w{background:none;border:0}.ib svg{display:block;flex:none}.ib.g svg{width:26px;height:26px}.ib.w svg{width:40px;height:40px}
 .dspot-c a.ib,.dvb a.ib{min-height:0}
 .dspot-c a.ib,.dvb a.ib,.dspot-c a.ib+a.ib{margin:0}
+a.ib,.dspot-c a.ib,.dvb a.ib{background:none;border:0;overflow:visible}a.ib img{display:block;width:40px;height:40px;border-radius:50%}

@@ -801,7 +801,7 @@
       let done = false; const finish = (v) => { if (!done) { done = true; ok(v); } };
       window.__ask = finish;
       openSmall(`<h3>${opts.title || t('confirm.title')}</h3><p>${esc(text)}</p>
-        <div class="btns"><button class="btn ${opts.danger ? 'dsolid' : 'primary'}" data-act="ask-yes">${opts.ok || t('btn.yes')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card', () => finish(false));
+        <div class="btns"><button class="btn ${opts.danger ? 'dsolid' : 'primary'}" data-act="ask-yes">${opts.ok || t('btn.yes')}</button><button class="btn" data-act="close">${opts.no || t('btn.cancel')}</button></div>`, 'card', () => finish(false));
     });
   }
   function openSheet(html, onClose, full) {
@@ -2030,7 +2030,11 @@
       case 'order-decline': return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) { const o = Store.orders().find((x) => x.id === id); Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); if (o) waOpen(o, 'ord.waDeclined'); }).catch(() => toast(t('store.pubError'))); } });
       case 'ord-more': ordLimit += 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = ordLimit; }); return refreshOrders();
       case 'ord-q-clear': ordQ = ''; document.querySelectorAll('.oq').forEach((e) => { e.value = ''; }); return refreshOrders();
-      case 'order-done': { const po = Store.orders().find((x) => x.id === id), ow = po ? (L.orderPay(state, orderInvoice(po)) || {}).owing || 0 : 0, how = po && po.option === 'delivery' ? t('ord.delivered') : t('ord.collected'); return Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: money(ow) }) : t('ord.toastDone', { how })); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); }
+      case 'order-done': { const po = Store.orders().find((x) => x.id === id); if (!po) return;
+        const dl = po.option === 'delivery', ow = (L.orderPay(state, orderInvoice(po)) || {}).owing || 0, how = dl ? t('ord.delivered') : t('ord.collected');
+        // a tap by mistake must not move the order on, so it asks first and says where the order will go
+        return askCard(t(dl ? 'ord.askDelivered' : 'ord.askCollected') + ' ' + (ow > 0 ? t('ord.askOwing', { amount: plain(money(ow)) }) : t('ord.askPaid')), { title: t(dl ? 'ord.askTitleDel' : 'ord.askTitleCol'), ok: t(dl ? 'ord.yesDelivered' : 'ord.yesCollected'), no: t('ord.no') }).then((y) => {
+          if (y) Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); }); }
       case 'pick-client': invForm.client = id; comboOpen = false; return render();
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
       case 'combo-new': comboOpen = false; return render();

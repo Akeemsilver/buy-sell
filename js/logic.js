@@ -483,39 +483,41 @@
   };
   const putBack = (s, i) => { const b = s.batches.find((x) => x.id === i.batchId); i.status = b && b.status === 'In Transit' ? 'In Transit' : 'Available'; i.customer = ''; i.invoice = ''; i.sold = 0; i.owing = 0; i.paid = 0; i.delivery = 0; };   // still on the boat if its batch has not arrived
   // What a return would do, without doing it: how much the customer paid, what the invoice becomes, and how much is due back to them.
-  L.returnPreview = (s, no, ids) => {
-    const pu = L.purchaseOf(s, no); if (!pu) return null;
+  // fee = the delivery fee for carrying the items back: the customer covers it, so it comes off what is given back (or is added to what is owed).
+  L.returnPreview = (s, no, ids, fee) => {
+    const pu = L.purchaseOf(s, no); if (!pu) return null; fee = r2(Math.max(0, num(fee)));
     const keep = pu.items.filter((i) => !ids.includes(i.id)), all = !keep.length;
-    const newTotal = all ? 0 : r2(keep.reduce((t, i) => t + L.effectivePrice(i), 0) + num(pu.inv.delivery));
-    return { all, paid: pu.paid, newTotal, refund: r2(Math.max(0, pu.paid - newTotal)), owing: all ? 0 : r2(Math.max(0, newTotal - pu.paid)), count: pu.items.length - keep.length };
+    const newTotal = all ? 0 : r2(keep.reduce((t, i) => t + L.effectivePrice(i), 0) + num(pu.inv.delivery) + fee);
+    if (all) return { all, fee, paid: pu.paid, newTotal, refund: r2(Math.max(0, pu.paid - fee)), owing: 0, owesFee: r2(Math.max(0, fee - pu.paid)), count: pu.items.length };
+    return { all, fee, paid: pu.paid, newTotal, refund: r2(Math.max(0, pu.paid - newTotal)), owing: r2(Math.max(0, newTotal - pu.paid)), owesFee: 0, count: pu.items.length - keep.length };
   };
   // Put items from an invoice back in stock. The invoice number is cemented: nothing is ever deleted or renumbered.
   // Everything back: every invoice of the purchase stays in the log, marked Returned (or Cancelled), its amounts zeroed so no total counts it,
   // with a record of what happened (date, items, what was paid). Some back: the rest becomes an updated invoice with the next number and a note;
   // payments carry over, anything paid above the new total is recorded as refundDue, and profit is corrected so a refund is not left as profit.
   const WAS = ['total', 'amountPaid', 'previouslyPaid', 'balance', 'profit', 'loss', 'tip'];
-  L.returnItems = (s, no, ids, date, kind) => {
+  L.returnItems = (s, no, ids, date, kind, fee) => {
     const pu = L.purchaseOf(s, no); if (!pu) throw fail('noInvoice');
     const pick = pu.items.filter((i) => ids.includes(i.id)); if (!pick.length) throw fail('noItems');
-    const keep = pu.items.filter((i) => !ids.includes(i.id)), pre = L.returnPreview(s, no, ids), when = (date || new Date()).toISOString();
+    kind = kind === 'cancelled' ? 'cancelled' : 'returned'; fee = kind === 'returned' ? r2(Math.max(0, num(fee))) : 0;
+    const keep = pu.items.filter((i) => !ids.includes(i.id)), pre = L.returnPreview(s, no, ids, fee), when = (date || new Date()).toISOString();
     const rec = pick.map((i) => ({ id: i.id, name: i.desc, size: i.size || '', price: L.effectivePrice(i) }));
-    kind = kind === 'cancelled' ? 'cancelled' : 'returned';
     if (!keep.length) {
       const chain = []; let cur = pu.inv; while (cur && !chain.includes(cur)) { chain.unshift(cur); cur = cur.ref ? s.invoices.find((v) => v.no === cur.ref) : null; }
-      chain.forEach((v) => { const was = {}; WAS.forEach((k) => { was[k] = num(v[k]); v[k] = 0; }); v.void = { kind, date: when, was }; if (v === pu.inv) { v.void.items = rec; v.void.refund = pre.paid; } });
+      chain.forEach((v) => { const was = {}; WAS.forEach((k) => { was[k] = num(v[k]); v[k] = 0; }); v.void = { kind, date: when, was }; if (v === pu.inv) { v.void.items = rec; v.void.refund = pre.refund; v.void.fee = fee; v.void.owesFee = pre.owesFee; } });
       chain.forEach((v) => s.items.forEach((i) => { if (i.invoice === v.no) putBack(s, i); }));
-      return { all: true, paid: pre.paid, refund: pre.paid };
+      return { all: true, paid: pre.paid, refund: pre.refund, fee, owesFee: pre.owesFee };
     }
     const bad = L.previewInvoice(s, { itemIds: keep.map((i) => i.id), client: pu.inv.client, paying: 0, allowZero: true }).errors; if (bad.length) throw fail(bad[0]);
     const chainProfit = L.invoiceChain(s, pu.inv.no).reduce((t, v) => t + num(v.profit) + num(v.loss), 0);
     const landedKeep = keep.reduce((t, i) => t + L.itemCalc(s.batches.find((b) => b.id === i.batchId), i).landed, 0);
-    const D = num(pu.inv.delivery); pick.forEach((i) => putBack(s, i)); keep.forEach((i) => { i.delivery = 0; }); keep[0].delivery = D;
+    const D = num(pu.inv.delivery); pick.forEach((i) => putBack(s, i)); keep.forEach((i) => { i.delivery = 0; }); keep[0].delivery = D + fee;   // the return trip is charged like a delivery, so it is in the new total
     const inv = L.createInvoice(s, { itemIds: keep.map((i) => i.id), client: pu.inv.client, paying: 0, allowZero: true, date });
     if (num(inv.tip) > 0) { inv.refundDue = r2(inv.tip); inv.previouslyPaid = r2(num(inv.previouslyPaid) - inv.refundDue); inv.tip = 0; L.applyWaterfall(s, inv.no); }
     const ideal = (pre.paid - pre.refund) - landedKeep, adj = r2(ideal - chainProfit);   // what the kept items have really earned, against what the earlier invoices already counted
     inv.profit = adj > 0 ? adj : 0; inv.loss = adj < 0 ? adj : 0;
-    inv.returnNote = { from: pu.inv.no, date: when, items: rec, refund: pre.refund };
-    return { all: false, paid: pre.paid, refund: pre.refund, invoice: inv.no };
+    inv.returnNote = { from: pu.inv.no, date: when, items: rec, refund: pre.refund, fee };
+    return { all: false, paid: pre.paid, refund: pre.refund, fee, invoice: inv.no };
   };
   L.deliveryOwing = (s, v) => { if (!v || v.updatedBy) return 0; const itemOwing = s.items.filter((i) => i.invoice === v.no).reduce((t, i) => t + num(i.owing), 0); return r2(Math.max(0, num(v.balance) - itemOwing)); };
   L.customerStats = (s) => {

@@ -275,7 +275,7 @@
   }
   function render() {
     cleanSelected();
-    const moreTitles = { invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
+    const moreTitles = { batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
     const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
@@ -545,15 +545,31 @@
   function More() {
     if (moreView === 'invoices') return `<div class="list">${L.filterInvoices(state, flt).slice().reverse().map(invoiceRow).join('') || `<div class="empty">${t('invoices.none')}</div>`}</div>`;
     if (moreView === 'items') return ItemLog();
+    if (moreView === 'batches') return BatchLog();
     if (moreView === 'summary') return Summary();
     if (moreView === 'settings') return Settings();
     if (moreView && moreView.startsWith('set-')) return SettingsPage();
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     const act = (a, icon, label, sub, bad) => `<button class="row tap" data-act="${a}"><span style="font-size:22px">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
-    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
+    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('batches', '📦', t('more.batches'), t('more.batchesSub', { n: state.batches.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
       ${go('summary', '📈', t('more.summary'), t('more.summarySub'))}${act('words-open', '🔤', t('words.title'), t('words.sub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
       ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>${t('more.install')}</b><small>${isIOS ? t('more.installIOS') : t('more.installOther')}</small></div><span class="chev">›</span></button></div>`}
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
+  }
+
+  // Batch log: every batch ever bought, newest first, with a search box (same matching as the picker on the Stock tab)
+  function batchLogRows(q) {
+    const res = L.batchSearch(state.batches, q); if (!res.length) return `<div class="empty">${t('bp.none', { q: esc(String(q || '').trim()) })}</div>`;
+    return res.map(({ b }) => { const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0, bs = bStatus(b);
+      return `<button class="row tap" data-act="batch" data-id="${b.id}" style="${bs === 'Closed' ? 'opacity:.6' : ''}"><div class="grow"><b>${esc(bl(b.id))} <span class="pill ${bs.replace(' ', '')}">${stLabel(bs)}</span></b>
+        <small>${esc(b.store)} · ${day(b.datePurchased)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div></div>
+        <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="chev">›</span></button>`; }).join('');
+  }
+  function BatchLog() {
+    const by = (s) => state.batches.filter((b) => bStatus(b) === s).length;
+    return `<div class="stats"><div class="stat"><span>${t('bl.all')}</span><b>${state.batches.length}</b></div><div class="stat"><span>${stLabel('In Transit')}</span><b>${by('In Transit')}</b></div><div class="stat"><span>${stLabel('Received')}</span><b>${by('Received')}</b></div><div class="stat"><span>${stLabel('Closed')}</span><b>${by('Closed')}</b></div></div>
+      <div class="oqbar" style="margin-top:12px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
+      <div class="list" id="blog">${batchLogRows('')}</div>`;
   }
 
   function ItemLog() {
@@ -2158,6 +2174,7 @@
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
+    else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }
     else if (el.id === 'w-q') { wordQ = el.value; wordsRefresh(); }

@@ -866,3 +866,5 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .sheet.hdr .grab::before{width:54px;height:6px;background:var(--ink);opacity:.7}
 .sheet.hdr h3{background:var(--card);margin:0 -16px 12px;padding:2px 16px 12px;border-bottom:1px solid var(--line)}
 .bpk{margin-bottom:10px}.bpk .chips{padding:0;margin:0}
+.oqbar input.blq{flex:1;min-width:0;border:0;background:transparent;box-shadow:none;outline:0;padding:12px 0;font-size:15px;color:var(--ink);height:auto;min-height:0;-webkit-appearance:none;appearance:none}
+.oqbar input.blq::placeholder{color:var(--mute);opacity:.55}.oqbar input.blq::-webkit-search-cancel-button{display:none}

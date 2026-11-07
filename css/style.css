@@ -948,3 +948,8 @@ a.ic img{width:30px;height:30px}
 .rt-sum{margin:0 0 10px}.rt-list{margin-bottom:10px}   /* the figures sit above the ticks: the sheet grows upward, so the tick boxes stay where your finger is */
 .rt-fee{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.rt-fee>span:first-child{flex:1;min-width:0}.rt-fee b{display:block;font-size:14px}.rt-fee small{display:block;color:var(--mute);font-size:12px;margin-top:2px}
 .rt-fee .in{display:flex;align-items:center;gap:6px;flex:none}.rt-fee .in em{font-style:normal;color:var(--mute);font-size:13px}.rt-fee .in input{width:92px;height:42px;text-align:right;font-size:16px;font-weight:700;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);padding:0 10px;min-height:0}
+
+/* store page: the orders sit in a soft panel so you can see where they appear */
+.opanel{border-radius:16px;padding:8px 8px 0;margin-bottom:26px;background:linear-gradient(180deg,color-mix(in srgb,var(--card) 70%,transparent),transparent);border:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.opanel .otot{margin:4px 6px 10px}.opanel .btn.more.logbtn{margin:2px 0 8px;width:100%}
+.oempty{min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px;text-align:center;color:var(--mute)}.oempty .em{font-size:30px;opacity:.55}.oempty small{font-size:12px;opacity:.8}

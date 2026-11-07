@@ -1,0 +1,11 @@
+const assert = require('assert');
+const { idsOf, release } = require('../functions/logic.js');
+assert.deepStrictEqual(idsOf({ items: [{ id: 'a1' }, { id: 'b2' }, {}, null, { id: 5 }] }), ['a1', 'b2'], 'only real item numbers');
+assert.deepStrictEqual(idsOf(null), []); assert.deepStrictEqual(idsOf({}), []);
+const o = (status) => ({ status, items: [{ id: 'a1' }, { id: 'a2' }] });
+assert.deepStrictEqual(release(o('new'), o('confirmed')), ['a1', 'a2'], 'accepting lets the hold go (the items are sold then)');
+assert.deepStrictEqual(release(o('new'), o('declined')), ['a1', 'a2'], 'declining puts the items back');
+assert.deepStrictEqual(release(o('confirmed'), o('declined')), [], 'already released once');
+assert.deepStrictEqual(release(o('new'), o('new')), [], 'a change that is not an answer holds on');
+assert.deepStrictEqual(release(undefined, o('declined')), []);
+console.log('function tests passed');

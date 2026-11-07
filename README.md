@@ -117,6 +117,16 @@ Set `WORKBOOK_JSON=/path/to/dump.json` when running the tests to also check the 
 ## The online store page
 `store.html` (js/store.js, css/store.css) is the public shop, phone first with a bigger layout on computers: a header with search, saved items (hearts) and the cart; a grid with filter chips and sorting; an item page (picture, price, sizes, quantity, optional **Details**, pickup and delivery from the store settings, sticky Add to cart); a cart (a drawer on computers) and the order form. Each item can have optional Details in English and Spanish (item page in the app); costs and profit are never published.
 
+## Hiding ordered items instantly (Cloud Function)
+
+When a customer sends an order, the items in it are held back from the store until the owner answers. The owner's app does this the next time it is open. To do it instantly, even when the app is closed, deploy the small function in `functions/`:
+
+1. In Google Cloud (project `b-ruiz`) create a service account with the roles Firebase Admin, Cloud Functions Admin and Service Account User, and download its JSON key.
+2. In GitHub, Settings, Secrets and variables, Actions, add a secret named `FIREBASE_SERVICE_ACCOUNT` with the whole JSON.
+3. Re-run the workflow "Deploy functions". Without the secret it skips itself.
+
+Firestore rules **1.02** (adds the customer's language `lang` to an order) must also be published in the Firebase console. The About page shows the rules version the app expects.
+
 ## Before the app goes live (do these when the owner says "I'm ready for the app to go live")
 1. **Firebase plan:** upgrade the `b-ruiz` project to Blaze (card on file). Then set a budget alert of about US$1 in the Google Cloud console (alerts email; they do not stop charges).
 2. **Cloud Storage:** Firebase console → Build → Storage → Get started, pick a US location.

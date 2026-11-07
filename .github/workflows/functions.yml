@@ -1,0 +1,28 @@
+name: Deploy functions
+# Publishes the Firebase function that hides ordered items at once. It only runs when the secret FIREBASE_SERVICE_ACCOUNT exists
+# (see README: "Hide ordered items instantly"); without it this workflow does nothing and the app works exactly as before.
+on:
+  push:
+    branches: [main]
+    paths: ['functions/**', 'firebase.json']
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Is the secret there?
+        id: sa
+        run: if [ -z "$SA" ]; then echo "No FIREBASE_SERVICE_ACCOUNT secret: skipping"; echo "have=no" >> "$GITHUB_OUTPUT"; else echo "have=yes" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.sa.outputs.have == 'yes'
+        with:
+          node-version: 20
+      - name: Deploy
+        if: steps.sa.outputs.have == 'yes'
+        run: |
+          npm install --prefix functions --omit=dev
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools@13 deploy --only functions --project b-ruiz --non-interactive

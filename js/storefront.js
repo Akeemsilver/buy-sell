@@ -10,6 +10,8 @@
   const info = { at: 0, count: 0, error: '', busy: false, sharp: false };
   const pics = new Map();
   const cfg = () => SC.norm(A.state().settings.store);
+  // Items inside an order nobody has answered yet: they are held back from the store until the order is accepted (then they are sold) or declined.
+  const reserved = () => orders.filter((o) => o.status === 'new').flatMap((o) => (o.items || []).map((i) => i.id)).filter(Boolean);
   const link = (c) => { const id = (c || cfg()).id; return id ? new URL('store.html?s=' + id, location.href).href : ''; };
   const ts = (o) => (o.createdAt && o.createdAt.toMillis ? o.createdAt.toMillis() : 0);
 
@@ -52,7 +54,7 @@
     if (running && Date.now() - runStart < TUNE.stale) return false;   // one at a time (a run stuck for over a minute is given up)
     running = true; runStart = Date.now(); info.busy = true; info.error = '';
     try {
-      const list = SC.shown(A.state(), c), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
+      const list = SC.shown(A.state(), c, reserved()), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
       const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null; try { if (storage) { storage.setMaxUploadRetryTime(8000); storage.setMaxOperationRetryTime(8000); } } catch (e) { /* older SDK */ }
       const retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
       const sig = SC.hash({ head, list, retry, pv: 2 }), key = 'buy-sell-store-sig:' + c.id;
@@ -66,7 +68,7 @@
       }
       writeMap(c.id, map); info.sharp = sharpN > 0; try { localStorage.setItem('buy-sell-store-mode', sharpN > 0 || !list.some((p) => p.photo) ? 'sharp' : 'small'); } catch (e) { /* ignore */ }
       const db = Cloud.db(), sref = db.collection('stores').doc(c.id), chunks = SC.chunk(items), b = db.batch();
-      b.set(sref, Object.assign({ workspace: Cloud.workspace(), ownerUid: Cloud.uid(), chunks: chunks.length, count: items.length, updatedAt: Cloud.stamp() }, head));
+      b.set(sref, Object.assign({ workspace: Cloud.workspace(), ownerUid: Cloud.uid(), chunks: chunks.length, count: items.length, updatedAt: Cloud.stamp() }, head), { merge: true });   // merge: keeps the 'reserved' list the Firebase function keeps
       chunks.forEach((part, i) => b.set(sref.collection('catalog').doc('c' + i), { i, items: part }));
       await withTimeout(b.commit(), TUNE.commit);
       try { localStorage.setItem(key, sig); } catch (e) { /* published again next time */ }
@@ -80,11 +82,11 @@
     const c = cfg(); if (!c.id || !root.Cloud || !Cloud.ready()) return stopListen();
     if (unsub && listenFor === c.id) return; stopListen(); listenFor = c.id;
     unsub = Cloud.db().collection('stores').doc(c.id).collection('orders').onSnapshot((snap) => {
-      orders = snap.docs.map((d) => Object.assign({ id: d.id }, d.data())).sort((a, b) => ts(b) - ts(a)); A.onOrders();
+      orders = snap.docs.map((d) => Object.assign({ id: d.id }, d.data())).sort((a, b) => ts(b) - ts(a)); A.onOrders(); schedule();
     }, (e) => { info.error = (e && e.code) || 'error'; stopListen(); });
   }
-  const setStatus = (id, status) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update({ status });
+  const setStatus = (id, status, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(Object.assign({ status }, extra || {}));
 
-  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, newCount: () => orders.filter((o) => o.status === 'new').length,
+  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
     ageMs: (o) => (ts(o) ? Date.now() - ts(o) : 0), when: (o) => (ts(o) ? new Date(ts(o)) : null) };
 })(window);

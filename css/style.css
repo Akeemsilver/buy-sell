@@ -900,3 +900,4 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .sth .seg button.on{flex:1.35}
 .sth .seg button{flex:1 1 0}
 .ordseg button{padding-left:6px;padding-right:6px}
+.pay .paybar{padding:4px 16px 16px}.pay .paybar .btn{width:100%}

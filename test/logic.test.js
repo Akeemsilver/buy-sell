@@ -332,3 +332,13 @@ console.log('sale price tests passed');
   assert.strictEqual(m(s.items[0].id), 'item'); assert.strictEqual(m(s.items[0].id.replace('-', '')), 'item', 'item numbers match without the dash'); assert.strictEqual(m('dress'), 'item');
   assert.strictEqual(m('burke'), 'customer'); assert.strictEqual(m('706'), 'phone'); assert.strictEqual(m('zzz'), undefined); assert.strictEqual(m('  '), undefined);
 }
+{ // batch picker search
+  const bs = []; for (let n = 1; n <= 120; n++) bs.push({ id: 'BATCH-' + String(n).padStart(3, '0'), num: n, store: n % 2 ? 'SHEIN' : 'ZARA' });
+  const ids = (q) => L.batchSearch(bs, q).map((x) => x.b.id);
+  assert.strictEqual(ids('').length, 120); assert.strictEqual(ids('')[0], 'BATCH-120', 'newest first');
+  assert.deepStrictEqual(ids('007'), ['BATCH-007']); assert.strictEqual(ids('7')[0], 'BATCH-117', 'ends with 7, newest first'); assert.ok(ids('7').includes('BATCH-070'), 'then the ones that contain it');
+  assert.strictEqual(ids('07')[0], 'BATCH-107'); assert.strictEqual(ids('07')[1], 'BATCH-007'); assert.ok(ids('07').includes('BATCH-075'));
+  assert.deepStrictEqual(ids('batch-007'), ['BATCH-007'], 'the whole word works'); assert.deepStrictEqual(ids('BATCH 007'), ['BATCH-007']);
+  assert.strictEqual(ids('zara').length, 60); assert.deepStrictEqual(ids('999'), []);
+  assert.strictEqual(L.batchSearch(bs, '07')[0].kind, 'ends'); assert.strictEqual(L.batchSearch(bs, '075')[0].kind, 'ends');
+}

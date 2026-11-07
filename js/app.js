@@ -33,7 +33,7 @@
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
     home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
     stock: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
-    sell: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+    sell: '<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9v10h16V9"/><path d="M4 9a3 3 0 0 0 5.3 1.8A3 3 0 0 0 12 12a3 3 0 0 0 2.7-1.2A3 3 0 0 0 20 9"/><path d="M10 19v-5h4v5"/>',
     people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .8 3.5 2.8 3.5 6"/>',
     more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   };
@@ -276,15 +276,15 @@
   function render() {
     cleanSelected();
     const moreTitles = { invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? t('sell.newInv') : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
-    $('#back').hidden = !(tab === 'more' && moreView);
+    $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
     $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
-    $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'sell' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
+    $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     renderTools();
     document.body.classList.toggle('hide-amounts', hideAmounts);
-    $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: Sell, people: People, more: More }[tab]();
+    $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, more: More }[tab]();
     renderActionBar();
     syncHistory();
     showVersion();
@@ -302,7 +302,7 @@
     const bar = $('#actionbar'); let html = '';
     if (tab === 'home') html = `<button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button>`;
     else if (tab === 'stock' && selected.size) html = `<div class="dual"><button class="btn sale" data-act="sale-open">🏷 ${t('sale.btn')}</button><button class="btn primary go" data-act="goto-sell">${tn('bar.sell', selected.size)}</button></div>`;
-    else if (tab === 'sell' && selected.size) {
+    else if (tab === 'sell' && moreView === 'invoice' && selected.size) {
       const p = preview();
       html = `<button class="btn primary" data-act="make-invoice" ${p.errors.length ? 'disabled' : ''}>${t('bar.create', { amount: money(p.total) })}</button>`;
     }
@@ -460,14 +460,44 @@
       + shown.map((c) => `<button type="button" class="pp ${c.name === invForm.client ? 'on' : ''}" data-act="pick-client" data-id="${esc(c.name)}"><i>${ini(c.name)}${c.owing > 0 ? '<u></u>' : ''}</i>${esc(c.name)}</button>`).join('')
       || (f ? '' : `<div class="muted small" style="padding:10px 4px">${t('sell.noCustomers')}</div>`);
   }
+  /* ---------- Store tab: run the online store; the invoice page lives inside it ---------- */
+  const hubOpen = () => tab === 'sell' && !moreView && $('#sheet').hidden;
+  const SellTab = () => (moreView === 'invoice' ? Sell() : StoreHub());
+  function StoreHub() {
+    const c = storeCfg(), signed = cloud.signedIn, inf = Store.info();
+    if (!c.id) return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><b>${t('hub.setup')}</b><small>${t('store.needAccountSub')}</small></div></div><div class="lnk">${signed ? `<button class="btn primary" style="flex:1" data-act="store-create">${t('store.create')}</button>` : `<button class="btn primary" style="flex:1" data-act="acct-open">${t('acct.signIn')}</button>`}</div></div></div>`;
+    const live = SCore.shown(state, c).length, all = Store.orders(), cnt = (f) => all.filter((o) => (f === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === f)).length;
+    const list = all.filter((o) => (ordFilter === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === ordFilter)).slice(0, 5);
+    const stat = !signed ? t('store.needAccount') : inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : inf.busy ? t('store.publishing') : inf.at ? t('store.published', { n: inf.count, when: ago(new Date(inf.at)) }) + ' · ' + t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall') : '';
+    const hidden = state.items.filter((i) => c.batches.includes(i.batchId) && i.status === 'Available' && String(i.desc || '').trim() && !(Number(i.price) > 0) && !(L.salePrice(i) > 0)), hid0 = hidden[0];
+    const row = (o) => `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${tn('notif.items', (o.items || []).length)} · ${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${money(o.total)}</small></div><span class="go">${t('hub.open')}</span></button>`;
+    const batchRow = (b) => { const a = state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, tr = state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length; return `<div class="rw2"><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a, t: tr })}</small></div>${swt('store-batch', b.id, c.batches.includes(b.id))}</div>`; };
+    const link = (act, ic, label) => `<button data-act="${act}">${ic} ${label}</button>`;
+    return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><div class="live ${c.open ? '' : 'off'}"><i></i>${c.open ? t('hub.open2') : t('hub.closed')}</div><small>${esc(c.open ? t('hub.liveSub', { n: live }) : t('store.openSub'))}${stat ? ' · ' + esc(stat) : ''}</small></div>${swt('store-toggle', 'open', c.open)}</div>
+      <div class="lnk">${link('store-link', '🔗', t('store.copy') + ' ' + t('hub.link'))}${link('store-share', '📤', t('hub.share'))}${link('store-preview', '👁', t('hub.preview'))}</div></div>
+      <h4><span>${t('store.orders')}</span><a data-act="orders-open">${t('hub.seeAll')}</a></h4>
+      <div class="seg">${['new', 'confirmed', 'done'].map((f) => `<button class="${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt(f)}</button>`).join('')}</div>
+      ${list.length ? list.map(row).join('') : `<div class="none">${t('hub.noOrders')}</div>`}
+      <h4><span>${t('hub.see')}</span></h4>
+      <div class="box">${state.batches.slice().sort((a, b) => b.num - a.num).map(batchRow).join('') || `<div class="rw2"><div class="t"><small>${t('stock.none')}</small></div></div>`}</div>
+      ${hid0 ? `<div class="warn"><span style="font-size:20px">⚠️</span><div><b>${tn('hub.hidden', hidden.length)}</b><br><small>${t('hub.hiddenSub')}</small></div><button class="fx" data-act="open-stock" data-id="${hid0.batchId}">${t('hub.fix')}</button></div>` : ''}
+      <h4><span>${t('hub.settings')}</span></h4>
+      <div class="box"><button class="rw2 tap" data-act="store-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
+        <button class="rw2 tap" data-act="store-open"><div class="t"><b>${t('hub.contact')}</b><small>${esc(c.name || bizName())} · ${esc(c.whatsapp) || t('store.whatsappSub')}</small></div><span class="chev">›</span></button>
+        <button class="rw2 tap" data-act="words-open"><div class="t"><b>${t('hub.spanish')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div><span class="chev">›</span></button>
+        <div class="rw2"><div class="t"><b>${t('store.left')}</b><small>${t('hub.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div>
+        <div class="rw2"><div class="t"><b>${t('store.transit')}</b><small>${t('hub.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div>
+        <div class="rw2"><div class="t"><b>${t('store.autoNew')}</b><small>${t('hub.autoSub')}</small></div>${swt('store-toggle', 'autoNew', c.autoNew)}</div>
+        <button class="rw2 tap" data-act="store-open"><div class="t"><b>${t('hub.all')}</b></div><span class="chev">›</span></button></div></div>`;
+  }
   function Sell() {
-    if (!selected.size) return storeStrip() + `<div class="sx"><div class="empty2"><div class="ic">🧾</div><h3>${t('sell.empty')}</h3><p>${t('sell.emptyText')}</p><button class="btn primary" data-act="goto-stock" style="width:100%">${t('sell.choose')}</button></div></div>`;
+    if (!selected.size) return `<div class="sx"><div class="empty2"><div class="ic">🧾</div><h3>${t('sell.empty')}</h3><p>${t('sell.emptyText')}</p><button class="btn primary" data-act="goto-stock" style="width:100%">${t('sell.choose')}</button></div></div>`;
     const items = [...selected].map((id) => state.items.find((i) => i.id === id)).filter(Boolean);
     const sub = items.reduce((n, i) => n + L.effectivePrice(i), 0), client = L.cleanName(invForm.client);
     const row = (i) => { const eff = L.effectivePrice(i), sale = L.salePrice(i) > 0 && !L.isSold(i), was = Number(i.price) || 0;
       return `<div class="it"><button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/^<span class="ph/, '<span class="pic ph').replace(/<\/span>$/, (sale ? `<span class="s">−${Number(i.discount)}%</span>` : '') + '</span>')}<span class="t"><b>${esc(i.desc) || `<span class="bad">${t('sell.noDesc')}</span>`}</b><small>${i.id}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}${i.invoice ? t('sell.onInv', { no: i.invoice }) : ''}</small></span><span class="p">${eff > 0 ? money(eff) : `<span class="bad">${t('sell.noPrice')}</span>`}${sale && was > eff ? `<small><s>${money(was)}</s></small>` : ''}</span></button>
         <button class="x" data-act="unselect" data-id="${i.id}" aria-label="${t('aria.remove')}">✕</button></div>`; };
-    return `${storeStrip()}<div class="sx"><div class="steps"><span class="on">① ${t('sell.s1')}</span><span class="${client ? 'on' : ''}">② ${t('sell.s2')}</span><span class="${client ? 'on' : ''}">③ ${t('sell.s3')}</span></div>
+    return `<div class="sx"><div class="steps"><span class="on">① ${t('sell.s1')}</span><span class="${client ? 'on' : ''}">② ${t('sell.s2')}</span><span class="${client ? 'on' : ''}">③ ${t('sell.s3')}</span></div>
       <h4><span>${t('sell.items', { n: items.length })}</span><span class="tapedit">${t('sell.tapEdit')}</span></h4>
       <div class="card">${items.map(row).join('')}<div class="sub"><span>${t('sell.subtotal')}</span><b>${money(sub)}</b></div></div>
       <h4><span>${t('sell.customer')}</span></h4>
@@ -1623,7 +1653,7 @@
     its.forEach((it) => selected.add(it.id)); invForm.client = o.name; invForm.paying = '';
     if (o.option === 'delivery' && o.deliveryPrice > 0) its[0].delivery = o.deliveryPrice;
     save(); if (o.status === 'new') Store.setStatus(o.id, 'confirmed').catch(() => toast(t('store.pubError')));
-    closeSheet(); go({ tab: 'sell', moreView: null }); window.scrollTo(0, 0); render(); toast(missing ? t('ord.someGone', { n: missing }) : t('ord.opened'));
+    closeSheet(); go({ tab: 'sell', moreView: 'invoice' }); window.scrollTo(0, 0); render(); toast(missing ? t('ord.someGone', { n: missing }) : t('ord.opened'));
   }
 
   /* ---------- top-bar tools ---------- */
@@ -1824,7 +1854,7 @@
       case 'sale-apply': { const ids = [...selected], v = document.querySelector('#sale-in') ? parsePct($('#sale-in').value) : salePct; if (!(v > 0)) return toast(t('sale.pickFirst')); const n = L.bulkSale(state, ids, v); save(); closeSheet(); render(); return toast(tn('sale.done', n, { pct: v })); }
       case 'sale-off': { const n = L.clearSale(state, [...selected]); save(); closeSheet(); render(); return toast(tn('sale.off', n)); }
       case 'split-group': { const it = state.items.find((x) => x.id === id); if (it) { L.splitFromGroup(state, id); save(); closeSheet(); render(); toast(t('grp.splitDone')); } return; }
-      case 'goto-sell': go({ tab: 'sell', moreView: null }); window.scrollTo(0, 0); return render();
+      case 'goto-sell': go({ tab: 'sell', moreView: 'invoice' }); window.scrollTo(0, 0); return render();
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
@@ -1834,12 +1864,14 @@
       case 'unselect': selected.delete(id); return render();
       case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
+      case 'store-share': { const c = storeCfg(); if (!c.id) return sheetStore(); const url = Store.link(c), name = c.name || bizName(); if (navigator.share) return navigator.share({ title: name, text: t('store.shareText', { name }), url }).catch(() => {}); return copyText(url).then((ok) => toast(ok ? t('store.copied') : url)); }
+      case 'store-preview': { const c = storeCfg(); if (!c.id) return sheetStore(); window.open(Store.link(c), '_blank', 'noopener'); return; }
       case 'store-link': { const c = storeCfg(); if (!c.id) return sheetStore(); return copyText(Store.link(c)).then((ok) => toast(ok ? t('store.copied') : Store.link(c))); }
       case 'store-open': return sheetStore();
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
-      case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return sheetStore(); }
-      case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return sheetStore(); }
+      case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
+      case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return hubOpen() ? render() : sheetStore(); }
       case 'store-publish': toast(t('store.publishing')); Store.publish(true).then((ran) => { const inf = Store.info(); toast(inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : !ran && inf.busy ? t('store.stillPub') : !ran ? t('store.notRan') : t('store.donePub', { n: inf.count })); }); return;
       case 'store-loc': return sheetLocation(id);
       case 'sl-flag': { const on = !t_.classList.contains('on'); t_.classList.toggle('on', on); t_.setAttribute('aria-checked', on); return; }
@@ -1851,7 +1883,7 @@
       }
       case 'store-loc-del': { const c = storeCfg(); storeSet({ locations: c.locations.filter((l) => l.id !== id) }); return dropPages('storeloc|' + id); }
       case 'orders-open': { const c = storeCfg(); if (!c.id) return sheetStore(); return sheetOrders(); }
-      case 'ord-filter': ordFilter = id; return sheetOrders();
+      case 'ord-filter': ordFilter = id; return hubOpen() ? render() : sheetOrders();
       case 'order-open': return sheetOrder(id);
       case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
       case 'order-decline': return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
@@ -1861,7 +1893,7 @@
       case 'combo-new': comboOpen = false; return render();
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
       case 'make-invoice': return run(() => L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying }), (inv) => {
-        selected = new Set(); invForm = { client: '', paying: '' }; setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
+        selected = new Set(); invForm = { client: '', paying: '' }; go({ tab: 'sell', moreView: null }); setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
       case 'customer': return sheetCustomer(id);
       case 'cust-edit': return sheetCustEdit(id);
       case 'cust-save': {

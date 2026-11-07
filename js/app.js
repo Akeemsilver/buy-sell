@@ -1790,15 +1790,19 @@
     const all = newestFirst(Store.orders()), q = ordQ.trim(), hub = limit <= 5;
     const more = (n, lim) => (n > lim ? `<button class="btn more" data-act="ord-more">${t('ord.showMore', { n: Math.min(20, n - lim) })}</button>` : '');
     const logBtn = (n) => `<button class="btn more logbtn" data-act="orders-open">${t('ord.openLog')} · ${n}</button>`;   // the store page shows only the newest 5; the rest lives in the order log
+    const panel = (inner) => `<div class="opanel">${inner}</div>`;   // on the store page the orders sit in a soft panel, so you can see where they appear
     if (q) {
       const hits = all.map((o) => ({ o, st: stageOf(o), m: L.orderMatch(state, o, q, orderInvoice(o)) })).filter((x) => x.m);
-      if (!hits.length) return `<div class="none">${t('ord.noMatch', { q: esc(q) })}</div>`;
+      if (!hits.length) return hub ? panel(`<div class="oempty"><span class="em">🔍</span><span>${t('ord.noMatch', { q: esc(q) })}</span></div>`) : `<div class="none">${t('ord.noMatch', { q: esc(q) })}</div>`;
       const lim = hub ? limit : Math.max(limit, ordLimit), shown = hits.slice(0, lim);
-      return ORD_TABS.map((st) => { const g = shown.filter((x) => x.st === st); return g.length ? `<div class="ostage">${t('ord.f.' + st).toUpperCase()} · ${hits.filter((x) => x.st === st).length}</div>${g.map((x) => ordRow(x.o, x.m)).join('')}` : ''; }).join('') + (hub ? (hits.length > lim ? logBtn(hits.length) : '') : more(hits.length, lim));
+      const body = ORD_TABS.map((st) => { const g = shown.filter((x) => x.st === st); return g.length ? `<div class="ostage">${t('ord.f.' + st).toUpperCase()} · ${hits.filter((x) => x.st === st).length}</div>${g.map((x) => ordRow(x.o, x.m)).join('')}` : ''; }).join('');
+      return hub ? panel(body + (hits.length > lim ? logBtn(hits.length) : '')) : body + more(hits.length, lim);
     }
     const list = all.filter((o) => stageOf(o) === ordFilter), owed = ordFilter === 'handed' ? list.reduce((n, o) => n + ((L.orderPay(state, orderInvoice(o)) || {}).owing || 0), 0) : 0;
-    return (owed > 0 ? `<div class="otot">${tn('ord.nOrders', list.length)} · <b>${t('ord.stillToCollect', { amount: money(owed) })}</b></div>` : '') +
-      (list.length ? list.slice(0, limit).map((o) => ordRow(o)).join('') + (hub ? logBtn(list.length) : more(list.length, limit)) : `<div class="none">${t('hub.noOrders')}</div>`);
+    const tot = owed > 0 ? `<div class="otot">${tn('ord.nOrders', list.length)} · <b>${t('ord.stillToCollect', { amount: money(owed) })}</b></div>` : '';
+    if (!list.length) return hub ? panel(`<div class="oempty"><span class="em">🛍️</span><span>${t('ord.empty.' + ordFilter)}</span><small>${t('ord.emptyHint.' + ordFilter)}</small></div>`) : `<div class="none">${t('hub.noOrders')}</div>`;
+    const rows = list.slice(0, limit).map((o) => ordRow(o)).join('');
+    return hub ? panel(tot + rows + logBtn(list.length)) : tot + rows + more(list.length, limit);
   }
   const refreshOrders = () => { document.querySelectorAll('.ordp').forEach((e) => { e.innerHTML = ordPanel(Number(e.dataset.lim) || 20); }); document.querySelectorAll('.ordseg').forEach((e) => { e.hidden = !!ordQ.trim(); }); document.querySelectorAll('.oqx').forEach((e) => { e.hidden = !ordQ; }); };
   // More > Order log: every order, with the search box and the same four tabs (nothing is ever removed from it)

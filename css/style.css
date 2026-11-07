@@ -901,3 +901,11 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .sth .seg button{flex:1 1 0}
 .ordseg button{padding-left:6px;padding-right:6px}
 .pay .paybar{padding:4px 16px 16px}.pay .paybar .btn{width:100%}
+
+/* returns: pick the items that come back */
+.rt-all{margin:2px 0 8px}.rt-list{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;max-height:34dvh;overflow-y:auto}
+.rtrow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.rtrow:last-child{border:0}
+.rtrow input{width:22px;height:22px;min-height:0;flex:none;accent-color:var(--brand)}.rtrow .rt-t{flex:1;min-width:0}.rtrow b{font-size:14.5px}.rtrow small{display:block;color:var(--mute)}
+.rt-sum{margin:12px 0 4px;border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}.rt-sum:empty{display:none}
+.rt-sum .ln{display:flex;justify-content:space-between;gap:10px;padding:9px 14px;font-size:14px;border-bottom:1px solid var(--line)}.rt-sum .ln:last-child{border:0}.rt-sum .ln span{color:var(--mute)}.rt-sum .ln.due b{color:#b26a00}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .rt-sum .ln.due b{color:#ffcc80}}:root[data-theme=dark] .rt-sum .ln.due b{color:#ffcc80}

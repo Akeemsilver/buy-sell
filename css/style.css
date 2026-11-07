@@ -827,7 +827,7 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .oqbar input.oq{flex:1;min-width:0;border:0;background:transparent;box-shadow:none;outline:0;padding:12px 0;font-size:15px;color:var(--ink);height:auto;min-height:0;-webkit-appearance:none;appearance:none}
 .oqbar input.oq::placeholder{color:var(--mute);opacity:.55}.oqbar input.oq::-webkit-search-cancel-button{display:none}
 .oqbar .oqx{border:0;background:none;color:var(--mute);font-size:16px;padding:6px;min-height:0;box-shadow:none}
-.ordseg button{font-size:12.5px;padding-left:2px;padding-right:2px;white-space:nowrap;min-width:0}
+.ordseg button{font-size:12px;padding-left:2px;padding-right:2px;white-space:nowrap;min-width:0}
 .ostage{margin:12px 2px 6px;font-size:12px;letter-spacing:.06em;font-weight:800;color:var(--mute)}
 .otot{margin:2px 4px 10px;font-size:13px;color:var(--mute)}.otot b{color:#b26a00}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .otot b{color:#ffcc80}}:root[data-theme=dark] .otot b{color:#ffcc80}
@@ -896,8 +896,10 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 
 /* the selected tab rises like a lens: a little bigger than its slot, outlined, glowing, with room around the label */
 .seg button{position:relative;transition:transform .18s cubic-bezier(.2,.9,.3,1.35),box-shadow .18s,flex-grow .18s}
-.seg button.on,.sth .seg button.on{z-index:2;transform:scale(1.07);background:var(--card);color:var(--brand);font-weight:800;outline:1.5px solid var(--brand);outline-offset:-1.5px;box-shadow:0 6px 14px rgba(0,0,0,.45),0 0 12px color-mix(in srgb,var(--brand) 55%,transparent)}
-.sth .seg button.on{flex:1.35}
+.seg button.on,.sth .seg button.on{z-index:2;transform:scale(1.03);background:var(--card);color:var(--brand);font-weight:700;outline:1px solid color-mix(in srgb,var(--brand) 75%,transparent);outline-offset:-1px;box-shadow:0 3px 8px rgba(0,0,0,.16),0 0 8px color-mix(in srgb,var(--brand) 22%,transparent)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .seg button.on,:root:not([data-theme=light]) .sth .seg button.on{box-shadow:0 4px 10px rgba(0,0,0,.4),0 0 9px color-mix(in srgb,var(--brand) 38%,transparent)}}
+:root[data-theme=dark] .seg button.on,:root[data-theme=dark] .sth .seg button.on{box-shadow:0 4px 10px rgba(0,0,0,.4),0 0 9px color-mix(in srgb,var(--brand) 38%,transparent)}
+.sth .seg button.on{flex:1.3}
 .sth .seg button{flex:1 1 0}
 .ordseg button{padding-left:6px;padding-right:6px}
 .pay .paybar{padding:4px 16px 16px}.pay .paybar .btn{width:100%}

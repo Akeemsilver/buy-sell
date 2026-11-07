@@ -1521,7 +1521,7 @@
           x.save(); x.globalCompositeOperation = 'multiply';
           x.drawImage(stampCanvasFor(v), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
-        const nt = invNote(v); if (nt) { x.textAlign = 'right'; F('700', 17); x.fillStyle = '#222'; x.fillText(nt[0], R0, y + 54); F('400', 14); x.fillStyle = '#555'; x.fillText(nt[1], R0, y + 76); }
+        const nt = invNote(v); if (nt) { x.textAlign = 'right'; F('700', 17); x.fillStyle = '#222'; x.fillText(nt[0], R0, y + 104); F('400', 14); x.fillStyle = '#555'; x.fillText(nt[1], R0, y + 126); }
         y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);

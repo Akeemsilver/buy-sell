@@ -871,3 +871,25 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .sth h4 .allsw{display:inline-flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:700;color:var(--ink)}
 .sth h4 .allsw .tog{flex:none}
 .sth h4 .allsw{margin-right:13px}
+
+/* dark mode: the batch pop-ups are lighter than the page, with a lighter header and a glowing top edge */
+@media (prefers-color-scheme:dark){
+:root:not([data-theme=light]) .sheet.hdr{background:#241a28;border-top:2px solid var(--brand);box-shadow:0 -10px 44px color-mix(in srgb,var(--brand) 28%,transparent),0 -14px 40px rgba(0,0,0,.7)}
+:root:not([data-theme=light]) .sheet.hdr .grab,:root:not([data-theme=light]) .sheet.hdr h3{background:#3a2a40}
+:root:not([data-theme=light]) .sheet.hdr .grab{border-bottom:0}
+:root:not([data-theme=light]) .sheet.hdr h3{border-bottom:1px solid rgba(255,255,255,.12)}
+:root:not([data-theme=light]) .sheet.hdr .grab::before{background:#fff;opacity:.85}
+:root:not([data-theme=light]) .sheet.hdr .bi-kp>div,:root:not([data-theme=light]) .sheet.hdr .bi-card{background:#2d2234;border-color:rgba(255,255,255,.08)}
+:root:not([data-theme=light]) .sheet.hdr .oqbar{background:#2d2234;border-color:rgba(255,255,255,.1)}
+:root:not([data-theme=light]) .sheet.hdr .bpl,:root:not([data-theme=light]) .sheet.hdr .bprow{border-color:rgba(255,255,255,.08)}
+:root:not([data-theme=light]) body:has(.sheet.hdr:not([hidden])) #scrim{background:rgba(0,0,0,.72)}
+}
+:root[data-theme=dark] .sheet.hdr{background:#241a28;border-top:2px solid var(--brand);box-shadow:0 -10px 44px color-mix(in srgb,var(--brand) 28%,transparent),0 -14px 40px rgba(0,0,0,.7)}
+:root[data-theme=dark] .sheet.hdr .grab,:root[data-theme=dark] .sheet.hdr h3{background:#3a2a40}
+:root[data-theme=dark] .sheet.hdr .grab{border-bottom:0}
+:root[data-theme=dark] .sheet.hdr h3{border-bottom:1px solid rgba(255,255,255,.12)}
+:root[data-theme=dark] .sheet.hdr .grab::before{background:#fff;opacity:.85}
+:root[data-theme=dark] .sheet.hdr .bi-kp>div,:root[data-theme=dark] .sheet.hdr .bi-card{background:#2d2234;border-color:rgba(255,255,255,.08)}
+:root[data-theme=dark] .sheet.hdr .oqbar{background:#2d2234;border-color:rgba(255,255,255,.1)}
+:root[data-theme=dark] .sheet.hdr .bpl,:root[data-theme=dark] .sheet.hdr .bprow{border-color:rgba(255,255,255,.08)}
+:root[data-theme=dark] body:has(.sheet.hdr:not([hidden])) #scrim{background:rgba(0,0,0,.72)}

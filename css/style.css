@@ -943,3 +943,5 @@ a.ib,.dspot-c a.ib,.dvb a.ib{background:none;border:0;overflow:visible}a.ib img{
 /* each map icon with its name under it (34px icons) */
 a.ic,.dspot-c a.ic,.dvb a.ic{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;width:52px;min-width:52px;height:auto;min-height:0;padding:0;margin:0;background:none;border:0;border-radius:0;text-decoration:none;color:var(--mute);font-size:10.5px;font-weight:700;line-height:1}
 a.ic img{display:block;width:34px;height:34px;border-radius:50%}a.ic span{display:block}
+a.ic img{width:30px;height:30px}
+.dvrow .dspot-c{flex:1 1 100%;margin:0 12px 12px}

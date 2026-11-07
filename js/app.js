@@ -1747,14 +1747,14 @@
   const orderOfInvoice = (no) => Store.orders().find((o) => o.invoice && L.invoiceForward(state, o.invoice).some((x) => x.no === no));
   const orderOfItem = (id) => Store.orders().filter((o) => o.status !== 'declined' && (o.items || []).some((i) => i.id === id)).sort((a, b) => (Store.when(b) || 0) - (Store.when(a) || 0))[0];
   const pinRow = (o) => { const gp = orderPin(o); return gp ? `<div class="dspot-c"><span class="dp" aria-hidden="true">📍</span><span class="dt">${esc(o.spot || t('spot.h'))}</span>${spotBtns(gp)}</div>` : ''; };   // one slim row: the pin, the place, and the Google Maps and Waze icons
-  const ICON_GMAPS = '<img src="icons/gmaps.png" alt="" width="34" height="34">', ICON_WAZE = '<img src="icons/waze.png" alt="" width="34" height="34">';   // the Google Maps and Waze app icons (copied from the seller's own phone)
+  const ICON_GMAPS = '<img src="icons/gmaps.png" alt="" width="30" height="30">', ICON_WAZE = '<img src="icons/waze.png" alt="" width="30" height="30">';   // the Google Maps and Waze app icons (copied from the seller's own phone)
   const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="ic" data-act="pin-open" href="${ml.google}" target="_blank" rel="noopener" aria-label="Google Maps">${ICON_GMAPS}<span>Maps</span></a><a class="ic" data-act="pin-open" href="${ml.waze}" target="_blank" rel="noopener" aria-label="Waze">${ICON_WAZE}<span>Waze</span></a>`; };   // each icon with its name under it is one tap target
   function sheetDeliveries() {
     enterPage('deliveries', '', () => sheetDeliveries());
     const list = toDeliver(), pins = list.map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean), route = SCore.routeLink(pins);
     const row = (o) => { const gp = SCore.geo(o.lat, o.lng), pay = L.orderPay(state, orderInvoice(o));
-      return `<div class="dvrow"><button class="dvt" data-act="order-open" data-id="${o.id}"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${esc(o.location)}${o.spot ? ' · ' + esc(o.spot) : ''}</small><small>${esc(o.phone)} · ${ago(Store.when(o))}${pay && pay.owing > 0 ? ' · ' + t('ord.pl.owing') + ' ' + plain(money(pay.owing)) : ''}</small></button>
-        ${gp ? `<div class="dvb">${spotBtns(gp)}</div>` : `<div class="dvn">${t('dv.nopin')}</div>`}</div>`; };
+      return `<div class="dvrow"><button class="dvt" data-act="order-open" data-id="${o.id}"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${esc(o.location)}</small><small>${esc(o.phone)} · ${ago(Store.when(o))}${pay && pay.owing > 0 ? ' · ' + t('ord.pl.owing') + ' ' + plain(money(pay.owing)) : ''}</small></button>
+        ${gp ? pinRow(o) : `<div class="dvn">${t('dv.nopin')}</div>`}</div>`; };
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('dv.title')}</b><small>${t('dv.sub', { n: list.length })}</small></div></div>
       <div class="ap">${route && pins.length > 1 ? `<a class="dvroute" href="${route}" target="_blank" rel="noopener">🧭 ${t('dv.route', { n: Math.min(10, pins.length) })}</a><p class="muted small" style="margin:6px 2px 12px">${t('dv.routeNote')}</p>` : ''}
       ${list.map(row).join('') || `<div class="empty" style="padding:30px 0"><b>${t('dv.none')}</b></div>`}</div>`, null, true);

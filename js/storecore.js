@@ -69,6 +69,36 @@
   // wa.me link: a 7-digit local number is taken as a Trinidad and Tobago number (+1 868).
   const waLink = (phone, text) => { let d = digits(phone); if (d.length === 7) d = '1868' + d; else if (d.length === 10 && d.startsWith('868')) d = '1' + d; return 'https://wa.me/' + d + (text ? '?text=' + encodeURIComponent(text) : ''); };
 
-  const api = { PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+
+  /* ---------- delivery spot (a pin the customer picks on the map) ---------- */
+  const validGeo = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+  const geo = (lat, lng) => { lat = Number(lat); lng = Number(lng); return validGeo(lat, lng) ? { lat: Math.round(lat * 1e5) / 1e5, lng: Math.round(lng * 1e5) / 1e5 } : null; };   // 5 decimals is about a metre
+  const mapLinks = (lat, lng) => ({ google: 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng, view: 'https://www.google.com/maps?q=' + lat + ',' + lng, waze: 'https://waze.com/ul?ll=' + lat + ',' + lng + '&navigate=yes' });
+  // A pasted link or "10.65, -61.50": the pin it holds, or 'short' (a shortened link the page cannot open), or null.
+  const parseGeoLink = (text) => {
+    let t = String(text || '').trim(); if (!t) return null;
+    try { t = decodeURIComponent(t); } catch (e) { /* keep as typed */ }
+    const pt = (a, b) => geo(a, b), plain = t.match(/^(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+    if (plain) return pt(plain[1], plain[2]);
+    const pats = [/@(-?\d+\.\d+),(-?\d+\.\d+)/, /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, /[?&](?:q|ll|query|destination|center|daddr|saddr)=\s*(-?\d+\.\d+)\s*[, +]\s*(-?\d+\.\d+)/];
+    for (const re of pats) { const m = t.match(re); if (m) { const g = pt(m[1], m[2]); if (g) return g; } }
+    return /(maps\.app\.goo\.gl|goo\.gl\/maps|waze\.com\/ul\/)/i.test(t) ? 'short' : null;
+  };
+  // The map pictures (OpenStreetMap tiles) that fill a w x h box centred on the pin, each with its position inside the box. No map library needed.
+  const tileView = (lat, lng, z, w, h) => {
+    const n = Math.pow(2, z), rad = lat * Math.PI / 180, px = (lng + 180) / 360 * n * 256, py = (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * n * 256, x0 = px - w / 2, y0 = py - h / 2, tiles = [];
+    for (let ty = Math.floor(y0 / 256); ty <= Math.floor((y0 + h) / 256); ty++) for (let tx = Math.floor(x0 / 256); tx <= Math.floor((x0 + w) / 256); tx++) {
+      if (ty < 0 || ty >= n) continue; const wx = ((tx % n) + n) % n;
+      tiles.push({ url: 'https://tile.openstreetmap.org/' + z + '/' + wx + '/' + ty + '.png', left: Math.round(tx * 256 - x0), top: Math.round(ty * 256 - y0) });
+    }
+    return { w, h, tiles };
+  };
+  // The map picture as HTML (a box of OpenStreetMap tiles with a pin in the middle): used on the order form and on the seller's order page.
+  const tileHtml = (lat, lng, z, w, h, css) => { const v = tileView(lat, lng, z, w, h);
+    return '<div class="tv" style="position:relative;overflow:hidden;background:#e9e5dc;' + (css || '') + '"><div style="position:absolute;left:50%;top:50%;width:' + w + 'px;height:' + h + 'px;margin:' + (-h / 2) + 'px 0 0 ' + (-w / 2) + 'px">'
+      + v.tiles.map((t) => '<img alt="" loading="lazy" src="' + t.url + '" style="position:absolute;left:' + t.left + 'px;top:' + t.top + 'px;width:256px;height:256px;max-width:none">').join('')
+      + '</div><svg viewBox="0 0 24 34" width="26" height="36" style="position:absolute;left:50%;top:50%;margin:-35px 0 0 -13px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))"><path d="M12 0C5.4 0 0 5.2 0 11.7 0 20 12 34 12 34s12-14 12-22.3C24 5.2 18.6 0 12 0z" fill="#d6264a"/><circle cx="12" cy="11.5" r="4.5" fill="#fff"/></svg></div>'; };
+
+  const api = { tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

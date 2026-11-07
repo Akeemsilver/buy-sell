@@ -16,7 +16,7 @@
     'lang.name': 'English',
     /* navigation + top bar */
     'nav.home': 'Home', 'nav.stock': 'Stock', 'nav.sell': 'Store', 'nav.people': 'People', 'nav.more': 'More',
-    'title.invoices': 'Invoices', 'title.items': 'Item log', 'title.summary': 'Summary', 'title.settings': 'Settings',
+    'title.invoices': 'Invoice log', 'title.items': 'Item log', 'title.summary': 'Summary', 'title.settings': 'Settings',
     'aria.back': 'Back', 'aria.main': 'Main', 'aria.logo': 'B-RUIZ Tienda Online',
     'tool.show': 'Show amounts', 'tool.hide': 'Hide amounts', 'tool.download': 'Download or export', 'tool.filter': 'Filter', 'tool.settings': 'Settings',
     /* statuses (display only) */
@@ -112,7 +112,7 @@
     'people.none': 'No customers yet', 'people.noneText': 'Customers appear when you create your first invoice.', 'people.search': 'Search customers', 'people.noMatch': 'No match.',
     'people.sub.one': '{n} item · {amount} sales', 'people.sub.other': '{n} items · {amount} sales',
     /* more */
-    'more.invoices': 'Invoices', 'more.invoicesSub': '{n} total', 'more.items': 'Item log', 'more.itemsSub': '{n} items',
+    'more.invoices': 'Invoice log', 'more.invoicesSub': '{n} total', 'more.items': 'Item log', 'more.itemsSub': '{n} items',
     'more.summary': 'Summary', 'more.summarySub': 'Monthly sales, expenses, profit', 'more.settings': 'Settings', 'more.settingsSub': 'Language, theme, exchange rates',
     'more.install': 'Install app', 'more.installIOS': 'Add to your iPhone home screen', 'more.installOther': 'Add to your home screen',
     'more.import': 'Import .xlsx workbook', 'more.importSub': 'Replaces data on this device', 'more.backup': 'Backup', 'more.backupSub': 'Save everything as a file',
@@ -458,7 +458,7 @@
   const ES = {
     'lang.name': 'Español',
     'nav.home': 'Inicio', 'nav.stock': 'Inventario', 'nav.sell': 'Tienda', 'nav.people': 'Clientes', 'nav.more': 'Más',
-    'title.invoices': 'Facturas', 'title.items': 'Registro de artículos', 'title.summary': 'Resumen', 'title.settings': 'Ajustes',
+    'title.invoices': 'Registro de facturas', 'title.items': 'Registro de artículos', 'title.summary': 'Resumen', 'title.settings': 'Ajustes',
     'aria.back': 'Atrás', 'aria.main': 'Principal', 'aria.logo': 'B-RUIZ Tienda Online',
     'tool.show': 'Mostrar montos', 'tool.hide': 'Ocultar montos', 'tool.download': 'Descargar o exportar', 'tool.filter': 'Filtrar', 'tool.settings': 'Ajustes',
     'status.InTransit': 'En tránsito', 'status.Available': 'Disponible', 'status.Owing': 'Debe', 'status.Paid': 'Pagado', 'status.Closed': 'Cerrado', 'status.Received': 'Recibido',
@@ -545,7 +545,7 @@
     'err.sheetjs': 'No se pudo cargar el lector de hojas de cálculo (requiere internet).', 'err.save': 'No se pudo guardar en el navegador.',
     'people.none': 'Aún no hay clientes', 'people.noneText': 'Los clientes aparecen al crear tu primera factura.', 'people.search': 'Buscar clientes', 'people.noMatch': 'Sin resultados.',
     'people.sub.one': '{n} artículo · {amount} en ventas', 'people.sub.other': '{n} artículos · {amount} en ventas',
-    'more.invoices': 'Facturas', 'more.invoicesSub': '{n} en total', 'more.items': 'Registro de artículos', 'more.itemsSub': '{n} artículos',
+    'more.invoices': 'Registro de facturas', 'more.invoicesSub': '{n} en total', 'more.items': 'Registro de artículos', 'more.itemsSub': '{n} artículos',
     'more.summary': 'Resumen', 'more.summarySub': 'Ventas, gastos y ganancia por mes', 'more.settings': 'Ajustes', 'more.settingsSub': 'Idioma, tema, tasas de cambio',
     'more.install': 'Instalar app', 'more.installIOS': 'Agrégala a la pantalla de inicio de tu iPhone', 'more.installOther': 'Agrégala a tu pantalla de inicio',
     'more.import': 'Importar libro .xlsx', 'more.importSub': 'Reemplaza los datos de este dispositivo', 'more.backup': 'Copia de seguridad', 'more.backupSub': 'Guarda todo en un archivo',

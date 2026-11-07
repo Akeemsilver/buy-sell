@@ -1833,8 +1833,9 @@
     const pu = L.purchaseOf(state, no); if (!pu || !pu.items.length) return toast(t('ret.nothing'));
     const rows = pu.items.map((i) => `<label class="rtrow"><input type="checkbox" data-ret value="${esc(i.id)}"><span class="rt-t"><b>${esc(i.desc)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small>${esc(i.id)}</small></span><b>${money(L.effectivePrice(i))}</b></label>`).join('');
     openSmall(`<h3>${t('ret.title')}</h3><p class="muted small">${pu.inv.no} · ${esc(pu.inv.client)}</p>
-      <div class="rt-all"><button class="chip" data-act="ret-all">${t('ret.all')}</button></div><div class="rt-list">${rows}</div>
+      <div class="rt-all"><button class="chip" data-act="ret-all">${t('ret.all')}</button></div>
       <div class="rt-sum" id="rt-sum" data-inv="${pu.inv.no}" data-ord="${esc(ordId || '')}"></div>
+      <div class="rt-list">${rows}</div>
       <div class="btns"><button class="btn danger" id="rt-go" data-act="ret-do" disabled>${t('ret.go.other', { n: 0 })}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
     $('#sheet').classList.add('hdr'); retRefresh();
   }

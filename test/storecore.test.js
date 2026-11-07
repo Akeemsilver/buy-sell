@@ -98,3 +98,13 @@ console.log('details tests passed');
   ['akeem', 'couva', 'rivulet', '3wc6c', 'ord-3wc6c', '7.4', '6 nov', 'nov 6', 'fri', '2026-11-06', '367', 'akeem couva'].forEach((q) => assert.ok(SC.deliveryMatch(o, q, when), 'finds ' + q));
   ['zzz', '7 nov', 'sam'].forEach((q) => assert.ok(!SC.deliveryMatch(o, q, when), 'does not find ' + q)); assert.ok(SC.deliveryMatch(o, '', when));
 }
+{ // trip cost, profit, nearest-first stops
+  const SC = require('../js/storecore.js');
+  assert.strictEqual(SC.tripCost(7.4, 1.5), 22.2, 'there and back: 2 x 7.4 x 1.5'); assert.strictEqual(SC.tripCost(7.4, 0), null); assert.strictEqual(SC.tripCost('x', 2), null);
+  const orders = [{ option: 'delivery', km: 3, deliveryPrice: 40 }, { option: 'delivery', km: 16, deliveryPrice: 40 }];
+  const st = SC.deliveryStats(orders, 1.5); assert.strictEqual(st.totalCost, 57, 'costs 9 + 48'); assert.strictEqual(st.profit, 23); assert.strictEqual(st.lossN, 1, 'the 16 km trip costs 48 and charged 40'); assert.strictEqual(st.avgCost, 28.5);
+  assert.strictEqual(SC.deliveryStats(orders, 0).lossN, 0); assert.strictEqual(SC.deliveryStats(orders, 0).totalCost, 0);
+  const home = { lat: 10.65, lng: -61.5 }, far = { id: 'far', lat: 10.9, lng: -61.1 }, near = { id: 'near', lat: 10.66, lng: -61.49 }, mid = { id: 'mid', lat: 10.7, lng: -61.4 }, nopin = { id: 'none' };
+  assert.deepStrictEqual(SC.nearestFirst(home, [far, nopin, mid, near]).map((x) => x.id), ['near', 'mid', 'far', 'none'], 'nearest first, stops without a pin last');
+  assert.deepStrictEqual(SC.nearestFirst(null, [far, near]).map((x) => x.id), ['far', 'near'], 'no store pin: the order given'); assert.deepStrictEqual(SC.nearestFirst(home, []), []);
+}

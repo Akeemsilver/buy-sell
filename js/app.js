@@ -14,7 +14,7 @@
   const bizName = () => state.settings.businessName || 'B-RUIZ';
   const initials = (n) => String(n).trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toUpperCase() || '·';
   // Versions shown in Settings > About. APP_VERSION goes up by 0.01 with each release; RULES_VERSION must match the header of firestore.rules (a test checks).
-  const APP_VERSION = '1.00', RULES_VERSION = '1.03', CLOUD_LIMIT = 1073741824;
+  const APP_VERSION = '1.00', RULES_VERSION = '1.04', CLOUD_LIMIT = 1073741824;
   const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
@@ -1752,79 +1752,115 @@
   const pinRow = (o) => { const gp = orderPin(o); return gp ? `<div class="dspot-c"><span class="dp" aria-hidden="true">📍</span><span class="dt">${esc(o.spot || t('spot.h'))}</span>${spotBtns(gp)}</div>` : ''; };   // one slim row: the pin, the place, and the Google Maps and Waze icons
   const ICON_GMAPS = '<img src="icons/gmaps.png" alt="" width="30" height="30">', ICON_WAZE = '<img src="icons/waze.png" alt="" width="30" height="30">';   // the Google Maps and Waze app icons (copied from the seller's own phone)
   const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="ic" data-act="pin-open" href="${ml.google}" target="_blank" rel="noopener" aria-label="Google Maps">${ICON_GMAPS}<span>Maps</span></a><a class="ic" data-act="pin-open" href="${ml.waze}" target="_blank" rel="noopener" aria-label="Waze">${ICON_WAZE}<span>Waze</span></a>`; };   // each icon with its name under it is one tap target
-  function sheetDeliveries() {
-    enterPage('deliveries', '', () => sheetDeliveries());
-    const list = toDeliver(), pins = list.map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean), route = SCore.routeLink(pins);
-    const row = (o) => { const gp = SCore.geo(o.lat, o.lng), pay = L.orderPay(state, orderInvoice(o));
-      return `<div class="dvrow"><button class="dvt" data-act="order-open" data-id="${o.id}"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${esc(o.location)}</small><small>${esc(o.phone)} · ${ago(Store.when(o))}${pay && pay.owing > 0 ? ' · ' + t('ord.pl.owing') + ' ' + plain(money(pay.owing)) : ''}</small></button>
-        ${gp ? pinRow(o) : `<div class="dvn">${t('dv.nopin')}</div>`}</div>`; };
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('dv.title')}</b><small>${t('dv.sub', { n: list.length })}</small></div></div>
-      <div class="ap">${route && pins.length > 1 ? `<a class="dvroute" href="${route}" target="_blank" rel="noopener">🧭 ${t('dv.route', { n: Math.min(10, pins.length) })}</a><p class="muted small" style="margin:6px 2px 12px">${t('dv.routeNote')}</p>` : ''}
-      ${list.map(row).join('') || `<div class="empty" style="padding:30px 0"><b>${t('dv.none')}</b></div>`}</div>`, null, true);
+  // Delivered / Collected: asks first (a tap by mistake must not move the order on) and says where the order will go
+  function markHanded(id) {
+    const po = Store.orders().find((x) => x.id === id); if (!po) return;
+    const dl = po.option === 'delivery', ow = (L.orderPay(state, orderInvoice(po)) || {}).owing || 0, how = dl ? t('ord.delivered') : t('ord.collected');
+    return askCard(t(dl ? 'ord.askDelivered' : 'ord.askCollected') + ' ' + (ow > 0 ? t('ord.askOwing', { amount: plain(money(ow)) }) : t('ord.askPaid')), { title: t(dl ? 'ord.askTitleDel' : 'ord.askTitleCol'), ok: t(dl ? 'ord.yesDelivered' : 'ord.yesCollected'), no: t('ord.no') }).then((y) => {
+      if (y) Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
   }
   /* ---------- delivery log: every delivery and pickup, by day, with the distance driven ---------- */
   let dlvTab = 'deliveries', dlvView = 'list', dlvQ = '', dlvDay = '', dlvMonth = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })(), dlvLink = false;
-  function dset() { return Object.assign({ home: null, base: 0, perKm: 0, freeKm: 0, round: 5 }, state.settings.delivery || {}); }
+  function dset() { return Object.assign({ home: null, base: 0, perKm: 0, freeKm: 0, round: 5, costKm: 0, showRate: true }, state.settings.delivery || {}); }
   const saveDset = (patch) => { state.settings.delivery = Object.assign(dset(), patch); save(); };
   const dlvWhen = (o) => (o.status === 'done' ? (tsAt(o.doneAt) || Store.when(o)) : null);
   const dlvDayLabel = (d) => d.toLocaleDateString(I.locale(I.getLang()), { weekday: 'short' }).replace('.', '') + ' ' + dayMon(d);
   const dlvTime = (d) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const kmText = (o) => { const km = Number(o.km); return Number.isFinite(km) && o.km != null ? km.toFixed(1) + ' km' + (o.kmSrc === 'line' ? ' ~' : '') : (SCore.geo(o.lat, o.lng) && dset().home ? '…' : '—'); };
+  const kmNum = (o) => (o.km != null && Number.isFinite(Number(o.km)) ? Number(o.km) : null);
+  const planLabel = (k) => { if (!k) return ''; const today = SCore.dayKey(new Date()), tom = SCore.dayKey(new Date(Date.now() + 864e5)); return k === today ? t('dlv.today') : k === tom ? t('dlv.tomorrow') : dlvDayLabel(new Date(k + 'T12:00:00')); };
   function dlvRow(o) {
-    const isDel = o.option === 'delivery', gp = isDel ? SCore.geo(o.lat, o.lng) : null, km = o.km != null && Number.isFinite(Number(o.km)) ? Number(o.km) : null, rate = isDel && km != null ? SCore.rateFee(dset(), km) : null, w = dlvWhen(o);
-    const pill = o.status === 'done' ? `<span class="dpl d">${t(isDel ? 'ord.delivered' : 'ord.collected')}${w ? ' ' + dlvTime(w) : ''}</span>` : `<span class="dpl t">${t(isDel ? 'ord.toDeliver' : 'ord.toCollect')}</span>`;
+    const isDel = o.option === 'delivery', gp = isDel ? SCore.geo(o.lat, o.lng) : null, km = kmNum(o), d = dset(), w = dlvWhen(o), pending = o.status === 'confirmed';
+    const rate = isDel && km != null && d.showRate ? SCore.rateFee(d, km) : null, cost = isDel && km != null ? SCore.tripCost(km, d.costKm) : null, fee = Number(o.deliveryPrice) || 0, prof = cost != null ? Math.round((fee - cost) * 100) / 100 : null;
+    const pill = o.status === 'done' ? `<span class="dpl d">${t(isDel ? 'ord.delivered' : 'ord.collected')}${w ? ' ' + dlvTime(w) : ''}</span>` : `<span class="dpl t">${t(isDel ? 'ord.toDeliver' : 'ord.toCollect')}</span>${o.planDay ? `<span class="dpl p">📅 ${esc(planLabel(o.planDay))}</span>` : ''}`;
     const area = [esc(o.location || ''), o.spot ? esc(o.spot) : ''].filter(Boolean).join(' · ');
-    const end = isDel ? `<b>${esc(kmText(o))}</b><small>${money(o.deliveryPrice)}${rate != null ? ' · ' + t('dlv.yourRate', { amount: plain(money(rate)) }) : ''}</small>` : `<b>${money(o.total)}</b><small>${tn('notif.items', (o.items || []).length)}</small>`;
-    return `<button class="dr" data-act="order-open" data-id="${o.id}"><span class="ic">${o.status === 'done' ? '✅' : isDel ? '🚚' : '🛍️'}</span><div class="m"><b>${esc(o.name)} · ${esc(o.code || SCore.orderCode(o.id))}${gp ? ' <span class="pinm">📍</span>' : ''}</b><small>${area || esc(t(isDel ? 'store.delivery' : 'store.pickup'))}</small>${pill}</div><div class="e">${end}</div></button>`;
+    const sub = [money(fee)].concat(rate != null ? [t('dlv.yourRate', { amount: plain(money(rate)) })] : []).concat(prof != null ? [`<span class="${prof < 0 ? 'loss' : 'gain'}">${t(prof < 0 ? 'dlv.loss' : 'dlv.profit', { amount: plain(money(Math.abs(prof))) })}</span>`] : []).join(' · ');
+    const end = isDel ? `<b>${esc(kmText(o))}</b>${km != null ? `<small>${t('dlv.roundTrip', { km: (km * 2).toFixed(1) })}</small>` : ''}<small>${sub}</small>` : `<b>${money(o.total)}</b><small>${tn('notif.items', (o.items || []).length)}</small>`;
+    const chips = pending ? `<div class="dchips">${isDel ? `<button class="dchip" data-act="dlv-way" data-id="${o.id}">📲 ${t('dlv.onWay')}</button><button class="dchip" data-act="dlv-plan" data-id="${o.id}">📅 ${t(o.planDay ? 'dlv.change' : 'dlv.plan')}</button>` : ''}<button class="dchip go" data-act="dlv-done" data-id="${o.id}">✅ ${t(isDel ? 'ord.delivered' : 'ord.collected')}</button></div>` : (isDel ? `<div class="dchips"><button class="dchip" data-act="dlv-thanks" data-id="${o.id}">💬 ${t('dlv.thanks')}</button></div>` : '');
+    return `<div class="dcard2"><button class="dr" data-act="order-open" data-id="${o.id}"><span class="ic">${o.status === 'done' ? '✅' : isDel ? '🚚' : '🛍️'}</span><div class="m"><b>${esc(o.name)} · ${esc(o.code || SCore.orderCode(o.id))}${gp ? ' <span class="pinm">📍</span>' : ''}</b><small>${area || esc(t(isDel ? 'store.delivery' : 'store.pickup'))}</small>${pill}</div><div class="e">${end}</div></button>
+      ${o.note ? `<div class="dnote">📝 ${esc(o.note)}</div>` : ''}${pending && gp ? pinRow(o) : ''}${chips}</div>`;
   }
   function DeliveryLog() {
-    const all = Store.orders().filter((o) => o.status === 'confirmed' || o.status === 'done'), isDel = (o) => o.option === 'delivery', mine = (o) => (dlvTab === 'deliveries' ? isDel(o) : !isDel(o));
+    const all = Store.orders().filter((o) => o.status === 'confirmed' || o.status === 'done'), isDel = (o) => o.option === 'delivery', mine = (o) => (dlvTab === 'deliveries' ? isDel(o) : !isDel(o)), d = dset();
     const pend = all.filter((o) => o.status === 'confirmed'), pd = pend.filter(isDel), pp = pend.filter((o) => !isDel(o)), nItems = (a) => a.reduce((n, o) => n + (o.items || []).length, 0);
-    const hit = (o) => SCore.deliveryMatch(o, dlvQ, dlvWhen(o) || Store.when(o));
-    const pending = pend.filter(mine).filter(hit).sort((a, b) => ordKey(a) - ordKey(b)), done = all.filter((o) => o.status === 'done' && mine(o)).filter(hit);
+    const hit = (o) => SCore.deliveryMatch(o, dlvQ, dlvWhen(o) || Store.when(o)), today = SCore.dayKey(new Date());
+    const pending = pend.filter(mine).filter(hit).sort((a, b) => (a.planDay || '9') < (b.planDay || '9') ? -1 : (a.planDay || '9') > (b.planDay || '9') ? 1 : ordKey(a) - ordKey(b)), done = all.filter((o) => o.status === 'done' && mine(o)).filter(hit);
     const byDay = new Map(); done.forEach((o) => { const k = SCore.dayKey(dlvWhen(o) || new Date()); byDay.set(k, (byDay.get(k) || []).concat(o)); });
-    const dayHead = (k, a) => { const km = a.reduce((n, o) => n + (Number(o.km) > 0 ? Number(o.km) : 0), 0), d = new Date(k + 'T12:00:00'); return `<div class="dday"><span>${dlvDayLabel(d)}</span><span>${t('dlv.nDelivered', { n: a.length })}${km > 0 && dlvTab === 'deliveries' ? ' · ' + km.toFixed(1) + ' km' : ''}</span></div>`; };
+    const planned = new Map(); pending.filter((o) => o.planDay && isDel(o)).forEach((o) => planned.set(o.planDay, (planned.get(o.planDay) || 0) + 1));
+    const driven = (a) => a.reduce((n, o) => n + (Number(o.km) > 0 ? 2 * Number(o.km) : 0), 0);
+    const dayHead = (k, a) => { const km = driven(a), dd = new Date(k + 'T12:00:00'); return `<div class="dday"><span>${dlvDayLabel(dd)}</span><span>${t('dlv.nDelivered', { n: a.length })}${km > 0 && dlvTab === 'deliveries' ? ' · ' + t('dlv.driven', { km: km.toFixed(1) }) : ''}</span></div>`; };
     const tiles = `<div class="dtiles"><div class="dtile a"><small>🚚 ${t('dlv.toDeliver')}</small><b>${pd.length}</b><small>${tn('notif.items', nItems(pd))}</small></div><div class="dtile p"><small>🛍️ ${t('dlv.forPickup')}</small><b>${pp.length}</b><small>${tn('notif.items', nItems(pp))}</small></div></div>`;
+    // today's run: the stops planned for today (or every pending delivery with a pin when nothing is planned), nearest first from the store, in one Google Maps route
+    const runSet = (pd.filter((o) => o.planDay === today).length ? pd.filter((o) => o.planDay === today) : pd).filter((o) => SCore.geo(o.lat, o.lng)), run = SCore.nearestFirst(d.home, runSet.map((o) => ({ lat: o.lat, lng: o.lng, id: o.id }))), runLink = SCore.routeLink(run);
+    const runBtn = dlvTab === 'deliveries' && run.length >= 1 ? `<a class="dvroute" href="${runLink}" target="_blank" rel="noopener" data-act="pin-open">🧭 ${t('dlv.run', { n: Math.min(10, run.length) })}</a><p class="muted small" style="margin:6px 2px 12px">${t(pd.filter((o) => o.planDay === today).length ? 'dlv.runToday' : 'dlv.runAll')}</p>` : '';
     const head = `${tiles}<div class="oqbar"><span aria-hidden="true">🔍</span><input class="dq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('dlv.search'))}" value="${esc(dlvQ)}" aria-label="${esc(t('dlv.search'))}"><button class="oqx" data-act="dlv-q-clear" ${dlvQ ? '' : 'hidden'}>✕</button></div>
       <div class="seg two dseg"><button class="${dlvTab === 'deliveries' ? 'on' : ''}" data-act="dlv-tab" data-id="deliveries">${t('dlv.tabD')} ${pd.length}</button><button class="${dlvTab === 'pickups' ? 'on' : ''}" data-act="dlv-tab" data-id="pickups">${t('dlv.tabP')} ${pp.length}</button></div>
       <div class="dvw"><button class="${dlvView === 'list' ? 'on' : ''}" data-act="dlv-view" data-id="list">📋 ${t('dlv.list')}</button><button class="${dlvView === 'cal' ? 'on' : ''}" data-act="dlv-view" data-id="cal">📅 ${t('dlv.cal')}</button></div>`;
+    const section = (title, list) => (list.length ? `<div class="dday"><span>${title}</span><span>${list.length}</span></div>${list.map(dlvRow).join('')}` : '');
+    const pendingBlocks = () => {
+      if (!pending.length) return '';
+      if (dlvTab !== 'deliveries') return section(t('dlv.pending'), pending);
+      const over = pending.filter((o) => o.planDay && o.planDay < today), td = pending.filter((o) => o.planDay === today), later = pending.filter((o) => o.planDay && o.planDay > today), none = pending.filter((o) => !o.planDay);
+      const laterDays = [...new Set(later.map((o) => o.planDay))].sort();
+      return section(t('dlv.overdue'), over) + section(t('dlv.todayH'), td) + laterDays.map((k) => section(dlvDayLabel(new Date(k + 'T12:00:00')), later.filter((o) => o.planDay === k))).join('') + section(t('dlv.unplanned'), none);
+    };
     let body = '';
     if (dlvView === 'cal') {
-      const { y, m } = dlvMonth, loc = I.locale(I.getLang()), cells = SCore.monthGrid(y, m), today = SCore.dayKey(new Date());
+      const { y, m } = dlvMonth, loc = I.locale(I.getLang()), cells = SCore.monthGrid(y, m);
       const wd = Array.from({ length: 7 }, (_, i) => new Date(2023, 0, 1 + i).toLocaleDateString(loc, { weekday: 'short' }).replace('.', '').slice(0, 3));
-      const inMonth = done.filter((o) => { const d = dlvWhen(o) || new Date(); return d.getFullYear() === y && d.getMonth() === m; }), kmM = inMonth.reduce((n, o) => n + (Number(o.km) > 0 ? Number(o.km) : 0), 0), feeM = inMonth.reduce((n, o) => n + (Number(o.deliveryPrice) || 0), 0);
-      const sel = dlvDay && byDay.get(dlvDay) ? [dlvDay] : [...byDay.keys()].filter((k) => k.startsWith(y + '-' + String(m + 1).padStart(2, '0'))).sort().reverse();
+      const inMonth = done.filter((o) => { const dd = dlvWhen(o) || new Date(); return dd.getFullYear() === y && dd.getMonth() === m; }), kmM = driven(inMonth), feeM = inMonth.reduce((n, o) => n + (Number(o.deliveryPrice) || 0), 0), costM = inMonth.reduce((n, o) => n + (SCore.tripCost(o.km, d.costKm) || 0), 0);
+      const sel = dlvDay && (byDay.get(dlvDay) || planned.get(dlvDay)) ? [dlvDay] : [...byDay.keys()].filter((k) => k.startsWith(y + '-' + String(m + 1).padStart(2, '0'))).sort().reverse();
       body = `<div class="cal"><div class="mh"><button data-act="dlv-prev" aria-label="‹">‹</button><b>${esc(new Date(y, m, 1).toLocaleDateString(loc, { month: 'long', year: 'numeric' }))}</b><button data-act="dlv-next" aria-label="›">›</button></div><div class="wd">${wd.map((w) => `<span>${esc(w)}</span>`).join('')}</div>
-        <div class="gr calgrid">${cells.map((c) => { const n = (byDay.get(c.key) || []).length; return `<span class="${c.inMonth ? '' : 'o'} ${n ? 'h' : ''} ${c.key === dlvDay ? 'sel' : ''} ${c.key === today ? 'td' : ''}" data-act="dlv-day" data-id="${c.key}">${c.day}${n ? `<em>${n}</em>` : ''}</span>`; }).join('')}</div></div>
-        <p class="dhint">${t('dlv.swipe')}</p>
-        <div class="dsum"><div><small>${t('dlv.month')}</small><b>${inMonth.length}</b></div>${dlvTab === 'deliveries' ? `<div><small>${t('dlv.dist')}</small><b>${kmM.toFixed(1)} km</b></div><div><small>${t('dlv.fees')}</small><b>${money(feeM)}</b></div>` : ''}</div>
-        ${sel.map((k) => dayHead(k, byDay.get(k)) + byDay.get(k).map(dlvRow).join('')).join('') || `<div class="none">${t('dlv.none')}</div>`}`;
+        <div class="gr calgrid">${cells.map((c) => { const n = (byDay.get(c.key) || []).length, pl = planned.get(c.key) || 0; return `<span class="${c.inMonth ? '' : 'o'} ${n ? 'h' : ''} ${pl ? 'pl' : ''} ${c.key === dlvDay ? 'sel' : ''} ${c.key === today ? 'td' : ''}" data-act="dlv-day" data-id="${c.key}">${c.day}${n || pl ? `<em>${n ? n : ''}${pl ? '<u>' + pl + '</u>' : ''}</em>` : ''}</span>`; }).join('')}</div></div>
+        <p class="dhint">${t('dlv.swipe')}<br>${t('dlv.legend')}</p>
+        <div class="dsum"><div><small>${t('dlv.month')}</small><b>${inMonth.length}</b></div>${dlvTab === 'deliveries' ? `<div><small>${t('dlv.dist')}</small><b>${kmM.toFixed(1)} km</b></div><div><small>${t('dlv.fees')}</small><b>${money(feeM)}</b></div>${d.costKm > 0 ? `<div><small>${t('dlv.profitWord')}</small><b class="${feeM - costM < 0 ? 'loss' : 'gain'}">${money(feeM - costM)}</b></div>` : ''}` : ''}</div>
+        ${dlvDay && planned.get(dlvDay) ? section(planLabel(dlvDay), pending.filter((o) => o.planDay === dlvDay)) : ''}${sel.filter((k) => byDay.get(k)).map((k) => dayHead(k, byDay.get(k)) + byDay.get(k).map(dlvRow).join('')).join('') || (dlvDay && planned.get(dlvDay) ? '' : `<div class="none">${t('dlv.none')}</div>`)}`;
     } else {
       const days = [...byDay.keys()].sort().reverse();
-      body = (pending.length ? `<div class="dday"><span>${t('dlv.pending')}</span><span>${pending.length}</span></div>${pending.map(dlvRow).join('')}` : '') + days.map((k) => dayHead(k, byDay.get(k)) + byDay.get(k).map(dlvRow).join('')).join('');
+      body = pendingBlocks() + days.map((k) => dayHead(k, byDay.get(k)) + byDay.get(k).map(dlvRow).join('')).join('');
       if (!body) body = dlvQ.trim() ? `<div class="none">${t('dlv.noMatch', { q: esc(dlvQ.trim()) })}</div>` : `<div class="none">${t('dlv.none')}</div>`;
     }
-    return `<div class="dlv">${head}<div id="dlvbody">${body}</div></div>`;
+    return `<div class="dlv">${head}${dlvView === 'list' ? runBtn : ''}<div id="dlvbody">${body}</div></div>`;
   }
   const dlvRefresh = () => { if (tab === 'more' && moreView === 'deliveries') { const x = $('#dlvbody'); if (x) { const tmp = document.createElement('div'); tmp.innerHTML = DeliveryLog(); const nb = tmp.querySelector('#dlvbody'); if (nb) x.innerHTML = nb.innerHTML; const q = document.querySelector('.oqx[data-act=dlv-q-clear]'); if (q) q.hidden = !dlvQ; } } };
   const dlvMapT = () => ({ mapHint: t('mp.hint'), mapSearch: t('mp.search'), spotHere: t('mp.here'), close: t('btn.close'), mapOk: t('mp.ok'), mapNear: (x) => t('mp.near', { x }), mapCancel: t('btn.cancel'), spotBlocked: t('mp.blocked'), mapNone: t('mp.none'), mapNoLib: t('mp.nolib') });
   function dlvSetHome(g) { saveDset({ home: { lat: g.lat, lng: g.lng, name: g.name || '' } }); toast(t('ds.homeSet')); if (g.name == null || g.name === '') MapPick.nameOf(g.lat, g.lng, I.getLang()).then((n) => { if (n) { const h = dset().home; if (h && h.lat === g.lat) { saveDset({ home: Object.assign({}, h, { name: n }) }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); } } }); Store.measure(dset().home, true).then((n) => { if (n) toast(t('ds.measured', { n })); }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); }
   function sheetDeliverySettings() {
     enterPage('dsettings', '', () => sheetDeliverySettings());
-    const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), h = d.home, ex = st.avgKm || 7.4, exFee = SCore.rateFee(d, ex);
+    const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done'), d.costKm), h = d.home, ex = st.avgKm || 7.4, exFee = SCore.rateFee(d, ex);
     const inp = (k, v, label) => `<div class="ln"><span>${label}</span><input class="dinp" data-dset="${k}" type="text" inputmode="decimal" autocomplete="off" value="${v ? v : ''}" placeholder="0"></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('dlv.settings')}</b></div></div><div class="ap dsp">
       <div class="dcard"><h5>${t('ds.store')}</h5>${h ? `<div class="pinrow"><span class="big">🏠</span><div class="t"><b>${esc(h.name || t('ds.pinSet'))}</b><small>${h.lat}, ${h.lng}</small></div></div>` : `<p class="muted small" style="margin:0 0 8px">${t('ds.notSet')}</p>`}
         <div class="dbtns"><button class="btn" data-act="ds-here">📍 ${t('ds.here')}</button><button class="btn" data-act="ds-map">🗺️ ${t('ds.map')}</button></div>
         ${dlvLink ? `<div class="linkrow"><input id="ds-link" placeholder="${esc(t('ds.linkPh'))}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" data-act="ds-linkgo">${t('ds.linkGo')}</button></div>` : `<a class="dlk" data-act="ds-linkopen">${t('ds.link')}</a>`}</div>
-      <div class="dcard"><h5>${t('ds.rates')}</h5>${inp('base', d.base, t('ds.base'))}${inp('perKm', d.perKm, t('ds.perKm'))}${inp('freeKm', d.freeKm, t('ds.free'))}${inp('round', d.round, t('ds.round'))}</div>
+      <div class="dcard"><h5>${t('ds.rates')}</h5>${inp('base', d.base, t('ds.base'))}${inp('perKm', d.perKm, t('ds.perKm'))}${inp('freeKm', d.freeKm, t('ds.free'))}${inp('round', d.round, t('ds.round'))}${inp('costKm', d.costKm, t('ds.costKm'))}<label class="chkrow" style="margin-top:8px"><input type="checkbox" data-dsshow ${d.showRate ? 'checked' : ''}><span>${t('ds.showRate')}</span></label></div>
       <div class="dcalc" id="ds-ex">${exFee == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: money(exFee) })}</div>
       <div class="dcard" style="margin-top:12px"><h5>${t('ds.past')}</h5>
-        ${st.n ? `<div class="ln"><span>${t('ds.n')}</span><b>${st.n}</b></div><div class="ln"><span>${t('ds.avgKm')}</span><b>${st.avgKm} km</b></div><div class="ln"><span>${t('ds.avgFee')}</span><b>${money(st.avgFee)}</b></div><div class="ln"><span>${t('ds.perKmAvg')}</span><b>${money(st.perKm)}</b></div>
-        ${st.bands.map((b) => `<div class="dbd"><span class="l">${b.label}</span><i style="width:${Math.max(3, Math.round(b.n / st.n * 100))}%"></i><span class="r">${b.n}${b.n ? ' · ' + plain(money(b.avgFee)) : ''}</span></div>`).join('')}` : `<p class="muted small" style="margin:0">${t('ds.noData')}</p>`}
+        ${st.n ? `<div class="ln"><span>${t('ds.n')}</span><b>${st.n}</b></div><div class="ln"><span>${t('ds.avgKm')}</span><b>${st.avgKm} km</b></div><div class="ln"><span>${t('ds.avgFee')}</span><b>${money(st.avgFee)}</b></div><div class="ln"><span>${t('ds.perKmAvg')}</span><b>${money(st.perKm)}</b></div>${d.costKm > 0 ? `<div class="ln"><span>${t('ds.avgCost')}</span><b>${money(st.avgCost)}</b></div><div class="ln"><span>${t('ds.profitTotal')}</span><b class="${st.profit < 0 ? 'loss' : 'gain'}">${money(st.profit)}</b></div><div class="ln"><span>${t('ds.lossN')}</span><b>${st.lossN}</b></div>` : ''}
+        ${st.bands.map((b) => `<div class="dbd"><span class="l">${b.label}</span><i style="width:${Math.max(3, Math.round(b.n / st.n * 100))}%"></i><span class="r">${b.n}${b.n ? ' · ' + plain(money(b.avgFee)) : ''}</span></div>`).join('')}${d.costKm > 0 ? st.bands.filter((b) => b.n && b.avgCost > b.avgFee).map((b) => `<p class="dsug">💡 <b>${t('ds.sugg')}</b> · ${t('ds.suggLine', { label: b.label, cost: plain(money(b.avgCost)), fee: plain(money(b.avgFee)) })}</p>`).join('') : ''}` : `<p class="muted small" style="margin:0">${t('ds.noData')}</p>`}
         <p class="muted small" style="margin:10px 0 0">${t('ds.how')}</p></div>
       <div class="btns"><button class="btn" data-act="ds-recalc">${t('ds.recalc')}</button></div></div>`, null, true);
   }
+  function planSave(id, day) { closeSheet(); return Store.patch(id, { planDay: day || null }).then(() => { toast(t('dlv.planSaved')); render(); }).catch(() => toast(t('store.pubError'))); }
+  function sheetPlan(id) {
+    const o = Store.orders().find((x) => x.id === id); if (!o) return;
+    openSmall(`<h3>${t('dlv.planTitle')}</h3><p class="muted small">${esc(o.name)} · ${esc(o.code || SCore.orderCode(o.id))}</p>
+      <div class="btns"><button class="btn primary" data-act="dlv-plan-set" data-id="today" data-ord="${id}">${t('dlv.planToday')}</button><button class="btn" data-act="dlv-plan-set" data-id="tomorrow" data-ord="${id}">${t('dlv.planTomorrow')}</button></div>
+      <div class="linkrow" style="margin-top:10px"><input id="plan-date" type="date" value="${esc(o.planDay || '')}" aria-label="${esc(t('dlv.planPick'))}"><button class="btn primary" data-act="dlv-plan-date" data-id="${id}">${t('dlv.planSave')}</button></div>
+      ${o.planDay ? `<div class="btns" style="margin-top:10px"><button class="btn" data-act="dlv-plan-set" data-id="clear" data-ord="${id}">${t('dlv.planClear')}</button></div>` : ''}`, 'card');
+  }
+  function dlvWhatsApp(id, key) {
+    const o = Store.orders().find((x) => x.id === id); if (!o) return;
+    const lang = o.lang === 'es' || o.lang === 'en' ? o.lang : undefined, msg = t(key, { name: o.name, code: o.code || SCore.orderCode(o.id), store: storeCfg().name || bizName() }, lang);
+    const w = window.open(SCore.waLink(o.phone, msg), '_blank'); if (!w) toast(t('ord.waBlocked'));
+  }
+  function sheetKm(id) {
+    const o = Store.orders().find((x) => x.id === id); if (!o) return;
+    openSmall(`<h3>${t('km.title')}</h3><p class="muted small">${t('km.hint')}</p>
+      <div class="linkrow"><input id="km-in" type="text" inputmode="decimal" autocomplete="off" value="${o.km != null ? esc(Number(o.km).toFixed(1)) : ''}" placeholder="0.0"><button class="btn primary" data-act="km-save" data-id="${id}">${t('km.save')}</button></div>
+      ${dset().home && SCore.geo(o.lat, o.lng) ? `<div class="btns" style="margin-top:10px"><button class="btn" data-act="km-reset" data-id="${id}">${t('km.reset')}</button></div>` : ''}`, 'card');
+  }
+  const kmLine = (o) => { if (o.option !== 'delivery' || !(SCore.geo(o.lat, o.lng) || o.km != null)) return ''; const km = kmNum(o); return `<div class="card kmcard"><div class="rw"><div class="t"><b>${t('km.title')}</b><small>${km == null ? t('km.measuring') : o.kmSrc === 'line' ? t('km.line2', { km: km.toFixed(1) }) : t('km.line', { km: km.toFixed(1) }) + (o.kmSrc === 'manual' ? ' · ' + t('km.manual') : '')}${km != null ? ' · ' + t('dlv.roundTrip', { km: (km * 2).toFixed(1) }) : ''}</small></div><button class="dchip" data-act="km-edit" data-id="${o.id}">✏️ ${t('km.edit')}</button></div></div>`; };
   function dlvExport() {
     const q = (v) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }, d = dset();
     const rows = Store.orders().filter((o) => o.status === 'confirmed' || o.status === 'done').sort((a, b) => ordKey(a) - ordKey(b)).map((o) => { const w = dlvWhen(o), c = Store.when(o), km = o.km != null && Number.isFinite(Number(o.km)) ? Number(o.km) : '';
@@ -1938,7 +1974,7 @@
       return `<div class="rw"><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small>${itemPill(o, i, it)}</div><b>${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) }), inv = orderInvoice(o), pay = L.orderPay(state, inv);
     const gp = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null, ml = gp ? SCore.mapLinks(gp.lat, gp.lng) : null;   // the pin the customer chose on the map
-    const spotCard = pinRow(o);   // last on the page, after the items, payment and timeline
+    const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + pinRow(o) + kmLine(o);   // last on the page, after the items, payment and timeline
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
       <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
     const step = (on, label, d, extra) => `<div class="s ${on ? 'on' : ''}"><i></i><div><b>${label}${extra || ''}</b><small>${d ? fullWhen(d) : on ? '' : t('ord.tl.notYet')}</small></div></div>`;
@@ -2230,12 +2266,21 @@
       case 'dlv-home': closeSheet(); return sheetDeliverySettings();
       case 'ds-recalc-close': { closeSheet(); const h = dset().home; if (!h) return sheetDeliverySettings(); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => { toast(t('ds.measured', { n })); render(); }); }
       case 'dlv-export': closeSheet(); return dlvExport();
+      case 'dlv-plan': return sheetPlan(id);
+      case 'dlv-plan-set': return planSave(t_.dataset.ord, id === 'today' ? SCore.dayKey(new Date()) : id === 'tomorrow' ? SCore.dayKey(new Date(Date.now() + 864e5)) : id === 'clear' ? null : id);
+      case 'dlv-plan-date': { const f = $('#plan-date'); return f && f.value ? planSave(id, f.value) : toast(t('dlv.planPick')); }
+      case 'dlv-way': return dlvWhatsApp(id, 'dlv.waOnWay');
+      case 'dlv-thanks': return dlvWhatsApp(id, 'dlv.waThanks');
+      case 'dlv-done': return markHanded(id);
+      case 'km-edit': return sheetKm(id);
+      case 'km-save': { const f = $('#km-in'), v = parseAmt(f ? f.value : ''), o = Store.orders().find((x) => x.id === id); if (!(v > 0) || !o) return toast(t('km.hint')); closeSheet(); return Store.patch(id, { km: Math.round(v * 10) / 10, kmSrc: 'manual', kmFrom: dset().home ? { lat: dset().home.lat, lng: dset().home.lng } : null }).then(() => { toast(t('km.saved')); if (tab === 'more' && moreView === 'deliveries') render(); else sheetOrder(id); }).catch(() => toast(t('store.pubError'))); }
+      case 'km-reset': { const o = Store.orders().find((x) => x.id === id), h = dset().home; closeSheet(); if (!o || !h) return toast(t('ds.notSet')); toast(t('km.measuring')); return Store.patch(id, { kmSrc: null }).then(() => Store.measure(h, true)).then(() => { render(); sheetOrder(id); }).catch(() => toast(t('store.pubError'))); }
       case 'ds-here': { if (!navigator.geolocation) return toast(t('mp.blocked')); toast(t('ds.finding')); return navigator.geolocation.getCurrentPosition((p) => { const g = SCore.geo(p.coords.latitude, p.coords.longitude); if (g) dlvSetHome({ lat: g.lat, lng: g.lng, name: '' }); }, () => toast(t('mp.blocked')), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }); }
       case 'ds-map': { const h = dset().home; return MapPick.open({ lat: h && h.lat, lng: h && h.lng, name: h && h.name, lang: I.getLang(), T: dlvMapT(), onPick: (g) => dlvSetHome(g), onError: (m) => toast(m) }); }
       case 'ds-linkopen': dlvLink = true; return sheetDeliverySettings();
       case 'ds-linkgo': { const f = $('#ds-link'), r = SCore.parseGeoLink(f ? f.value : ''); if (r && r !== 'short') { dlvLink = false; return dlvSetHome({ lat: r.lat, lng: r.lng, name: '' }); } return toast(t(r === 'short' ? 'ds.linkShort' : 'ds.linkBad')); }
       case 'ds-recalc': { const h = dset().home; if (!h) return toast(t('ds.notSet')); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => toast(t('ds.measured', { n }))); }
-      case 'deliveries-open': return sheetDeliveries();
+      case 'deliveries-open': if (!$('#sheet').hidden) closeSheet(); go({ tab: 'more', moreView: 'deliveries' }); window.scrollTo(0, 0); return render();
       case 'orders-open': { ordLimit = 20; const c = storeCfg(); if (!c.id) return sheetStore(); if (!$('#sheet').hidden) closeSheet(); go({ tab: 'more', moreView: 'orders' }); window.scrollTo(0, 0); return render(); }
       case 'ord-filter': ordFilter = id; ordLimit = 20; return render();
       case 'order-open': return sheetOrder(id);
@@ -2244,11 +2289,7 @@
       case 'order-decline': return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) { const o = Store.orders().find((x) => x.id === id); Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); if (o) waOpen(o, 'ord.waDeclined'); }).catch(() => toast(t('store.pubError'))); } });
       case 'ord-more': ordLimit += 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = ordLimit; }); return refreshOrders();
       case 'ord-q-clear': ordQ = ''; document.querySelectorAll('.oq').forEach((e) => { e.value = ''; }); return refreshOrders();
-      case 'order-done': { const po = Store.orders().find((x) => x.id === id); if (!po) return;
-        const dl = po.option === 'delivery', ow = (L.orderPay(state, orderInvoice(po)) || {}).owing || 0, how = dl ? t('ord.delivered') : t('ord.collected');
-        // a tap by mistake must not move the order on, so it asks first and says where the order will go
-        return askCard(t(dl ? 'ord.askDelivered' : 'ord.askCollected') + ' ' + (ow > 0 ? t('ord.askOwing', { amount: plain(money(ow)) }) : t('ord.askPaid')), { title: t(dl ? 'ord.askTitleDel' : 'ord.askTitleCol'), ok: t(dl ? 'ord.yesDelivered' : 'ord.yesCollected'), no: t('ord.no') }).then((y) => {
-          if (y) Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); }); }
+      case 'order-done': return markHanded(id);
       case 'pick-client': invForm.client = id; comboOpen = false; return render();
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
       case 'combo-new': comboOpen = false; return render();
@@ -2343,6 +2384,7 @@
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
     else if ((el.hasAttribute && el.hasAttribute('data-ret')) || el.id === 'rt-fee') retRefresh();
     else if (el.classList.contains('dq')) { dlvQ = el.value; dlvDay = ''; dlvRefresh(); }
+    else if (el.dataset && el.dataset.dsshow !== undefined) saveDset({ showRate: !!el.checked });
     else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }

@@ -446,6 +446,20 @@
     const last = chain[chain.length - 1], total = num(last.total), owing = r2(Math.max(0, num(last.balance)));
     return { inv: last.no, total, owing, paid: r2(Math.max(0, total - owing)), payments: chain.filter((v) => num(v.amountPaid) > 0).map((v) => ({ date: v.date, amount: num(v.amountPaid) })) };
   };
+  // Where an order is: new, confirmed, handed (it left your hands but money is still owing), done (handed over and paid in full). Declined and cancelled orders sit with Done.
+  L.orderStage = (o, pay) => (o.status === 'done' ? (pay && pay.owing > 0 ? 'handed' : 'done') : o.status === 'declined' ? 'done' : o.status);
+  // Does a search match this order? Looks at the order number, the invoice number(s), item numbers and names, the customer's name and phone. Returns what matched, or null.
+  const nk = (x) => String(x == null ? '' : x).toLowerCase().replace(/[^a-z0-9]/g, '');
+  L.orderMatch = (s, o, q, invNo) => {
+    const raw = String(q == null ? '' : q).trim().toLowerCase(), n = nk(raw); if (!raw || !n) return null;
+    if (nk(o.code).includes(n)) return { kind: 'order', text: o.code };
+    const v = invNo ? L.invoiceForward(s, invNo).find((x) => nk(x.no).includes(n)) : null; if (v) return { kind: 'invoice', text: v.no };
+    const it = (o.items || []).find((i) => nk(i.id).includes(n) || String(i.name || '').toLowerCase().includes(raw));
+    if (it) return { kind: 'item', text: [it.id, it.name, it.size].filter(Boolean).join(' · ') };
+    if (String(o.name || '').toLowerCase().includes(raw)) return { kind: 'customer', text: o.name };
+    const d = raw.replace(/\D/g, ''); if (d.length >= 3 && String(o.phone || '').replace(/\D/g, '').includes(d)) return { kind: 'phone', text: o.phone };
+    return null;
+  };
   L.deliveryOwing = (s, v) => { if (!v || v.updatedBy) return 0; const itemOwing = s.items.filter((i) => i.invoice === v.no).reduce((t, i) => t + num(i.owing), 0); return r2(Math.max(0, num(v.balance) - itemOwing)); };
   L.customerStats = (s) => {
     const names = new Set(s.customers);

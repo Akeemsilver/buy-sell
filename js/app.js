@@ -466,18 +466,16 @@
   function StoreHub() {
     const c = storeCfg(), signed = cloud.signedIn, inf = Store.info();
     if (!c.id) return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><b>${t('hub.setup')}</b><small>${t('store.needAccountSub')}</small></div></div><div class="lnk">${signed ? `<button class="btn primary" style="flex:1" data-act="store-create">${t('store.create')}</button>` : `<button class="btn primary" style="flex:1" data-act="acct-open">${t('acct.signIn')}</button>`}</div></div></div>`;
-    const live = SCore.shown(state, c, Store.reserved()).length, all = Store.orders(), cnt = (f) => all.filter((o) => (f === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === f)).length;
-    const list = all.filter((o) => (ordFilter === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === ordFilter)).slice(0, 5);
+    const live = SCore.shown(state, c, Store.reserved()).length;
     const stat = !signed ? '' : inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : inf.busy ? t('store.publishing') : inf.at ? t('store.published', { n: inf.count, when: ago(new Date(inf.at)) }) + ' · ' + t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall') : '';
     const hidden = state.items.filter((i) => c.batches.includes(i.batchId) && i.status === 'Available' && String(i.desc || '').trim() && !(Number(i.price) > 0) && !(L.salePrice(i) > 0)), hid0 = hidden[0];
-    const row = ordRow;
     const batchRow = (b) => { const a = state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, tr = state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length; return `<div class="rw2"><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a, t: tr })}</small></div>${swt('store-batch', b.id, c.batches.includes(b.id))}</div>`; };
     const link = (act, ic, label) => `<button data-act="${act}">${ic} ${label}</button>`;
     return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><div class="live ${c.open ? '' : 'off'}"><i></i>${c.open ? t('hub.open2') : t('hub.closed')}</div><small>${esc(c.open ? t('hub.liveSub', { n: live }) : t('store.openSub'))}</small></div>${swt('store-toggle', 'open', c.open)}</div>
       <div class="lnk">${link('store-link', '🔗', t('store.copy') + ' ' + t('hub.link'))}${link('store-share', '📤', t('hub.share'))}${link('store-preview', '👁', t('hub.preview'))}</div></div>
       <h4><span>${t('store.orders')}</span><a data-act="orders-open">${t('hub.seeAll')}</a></h4>
-      <div class="seg">${['new', 'confirmed', 'done'].map((f) => `<button class="${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt(f)}</button>`).join('')}</div>
-      ${list.length ? list.map(row).join('') : `<div class="none">${t('hub.noOrders')}</div>`}
+      ${ordHead()}
+      <div class="ordp" data-lim="5">${ordPanel(5)}</div>
       <h4><span>${t('hub.see')}</span></h4>
       <div class="box">${state.batches.slice().sort((a, b) => b.num - a.num).map(batchRow).join('') || `<div class="rw2"><div class="t"><small>${t('stock.none')}</small></div></div>`}</div>
       ${hid0 ? `<div class="warn"><span style="font-size:20px">⚠️</span><div><b>${tn('hub.hidden', hidden.length)}</b><br><small>${t('hub.hiddenSub')}</small></div><button class="fx" data-act="open-stock" data-id="${hid0.batchId}">${t('hub.fix')}</button></div>` : ''}
@@ -1645,7 +1643,7 @@
   let ordFilter = 'new';
   const ordWhen = (o) => ago(Store.when(o));
   const optText = (o) => `${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${esc(o.location)}`;
-  const stBadge = (o) => `<span class="obadge ${o.status}">${t(o.status === 'confirmed' ? (o.option === 'delivery' ? 'ord.toDeliver' : 'ord.toCollect') : 'ord.' + o.status)}</span>`;
+  const stBadge = (o) => { const st = stageOf(o); return st === 'handed' ? `<span class="obadge confirmed">${t('ord.stHanded')}</span>` : `<span class="obadge ${o.status}">${t(o.status === 'confirmed' ? (o.option === 'delivery' ? 'ord.toDeliver' : 'ord.toCollect') : 'ord.' + o.status)}</span>`; };
   /* ---------- notifications (the bell) ---------- */
   // Built from what the app knows, each time: new store orders, things that need attention, and reminders. "New" = not yet seen on the
   // bell page (the page marks everything seen when it is closed); a new order stays new until it is dealt with.
@@ -1696,24 +1694,41 @@
   const itemArriving = (i) => { const it = state.items.find((x) => x.id === i.id), b = it && state.batches.find((y) => y.id === it.batchId); return !!it && !L.isSold(it) ? it.status === 'In Transit' : !!b && bStatus(b) === 'In Transit'; };
   const opl = (k, label) => `<span class="opl ${k}">${label}</span>`;
   // One pill, the most urgent first: arriving soon, then owing, then paid
-  function orderPill(o) {
+  function orderPill(o, withAmt) {
     if (o.status === 'declined') return opl('gone', t(o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'));
     if (o.status !== 'done' && (o.items || []).some(itemArriving)) return opl('arr', t('ord.pl.arr'));   // no hourglass here: the room goes to the date
     const pay = L.orderPay(state, orderInvoice(o)); if (!pay) return '';
-    return pay.owing > 0 ? opl('owing', t('ord.pl.owing')) : opl('paid', '✓ ' + t('ord.pl.paid'));
+    return pay.owing > 0 ? opl('owing', withAmt ? t('ord.pl.owingAmt', { amount: money(pay.owing) }) : t('ord.pl.owing')) : opl('paid', '✓ ' + t('ord.pl.paid'));
   }
-  function ordRow(o) {
+  function ordRow(o, match) {
     const n = tn('notif.items', (o.items || []).length), when = o.status === 'done' && tsAt(o.doneAt) ? t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected') + ' ' + ago(tsAt(o.doneAt)) : (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + ago(Store.when(o));
-    return `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div class="mid"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${n} · ${when}</small></div><div class="end"><b>${money(o.total)}</b>${orderPill(o)}</div></button>`;
+    return `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div class="mid"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${n} · ${when}</small>${match ? `<small class="omatch">${esc(t('ord.m.' + match.kind, { text: match.text }))}</small>` : ''}</div><div class="end"><b>${money(o.total)}</b>${orderPill(o, stageOf(o) === 'handed')}</div></button>`;
   }
-  let ordLimit = 20;
+  let ordLimit = 20, ordQ = '';
+  const ORD_TABS = ['new', 'confirmed', 'handed', 'done'];
+  const stageOf = (o) => L.orderStage(o, L.orderPay(state, orderInvoice(o)));
+  // search box + the four tabs (the tabs step aside while searching)
+  const ordHead = () => { const cnt = {}; ORD_TABS.forEach((f) => { cnt[f] = 0; }); Store.orders().forEach((o) => { cnt[stageOf(o)]++; });
+    return `<div class="oqbar"><span aria-hidden="true">🔍</span><input class="oq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('ord.search'))}" value="${esc(ordQ)}" aria-label="${esc(t('ord.search'))}"><button class="oqx" data-act="ord-q-clear" aria-label="${t('ord.clear')}" ${ordQ ? '' : 'hidden'}>✕</button></div>
+      <div class="seg ordseg" ${ordQ.trim() ? 'hidden' : ''}>${ORD_TABS.map((f) => `<button class="${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt[f]}</button>`).join('')}</div>`; };
+  function ordPanel(limit) {
+    const all = Store.orders(), q = ordQ.trim(), more = (n, lim) => (n > lim ? `<button class="btn more" data-act="ord-more">${t('ord.showMore', { n: Math.min(20, n - lim) })}</button>` : '');
+    if (q) {
+      const hits = all.map((o) => ({ o, st: stageOf(o), m: L.orderMatch(state, o, q, orderInvoice(o)) })).filter((x) => x.m);
+      if (!hits.length) return `<div class="none">${t('ord.noMatch', { q: esc(q) })}</div>`;
+      const lim = Math.max(limit, ordLimit), shown = hits.slice(0, lim);
+      return ORD_TABS.map((st) => { const g = shown.filter((x) => x.st === st); return g.length ? `<div class="ostage">${t('ord.f.' + st).toUpperCase()} · ${hits.filter((x) => x.st === st).length}</div>${g.map((x) => ordRow(x.o, x.m)).join('')}` : ''; }).join('') + more(hits.length, lim);
+    }
+    const list = all.filter((o) => stageOf(o) === ordFilter), owed = ordFilter === 'handed' ? list.reduce((n, o) => n + ((L.orderPay(state, orderInvoice(o)) || {}).owing || 0), 0) : 0;
+    return (owed > 0 ? `<div class="otot">${tn('ord.nOrders', list.length)} · <b>${t('ord.stillToCollect', { amount: money(owed) })}</b></div>` : '') +
+      (list.length ? list.slice(0, limit).map((o) => ordRow(o)).join('') + (limit > 5 ? more(list.length, limit) : '') : `<div class="none">${t('hub.noOrders')}</div>`);
+  }
+  const refreshOrders = () => { document.querySelectorAll('.ordp').forEach((e) => { e.innerHTML = ordPanel(Number(e.dataset.lim) || 20); }); document.querySelectorAll('.ordseg').forEach((e) => { e.hidden = !!ordQ.trim(); }); document.querySelectorAll('.oqx').forEach((e) => { e.hidden = !ordQ; }); };
   function sheetOrders() {
     enterPage('orders', '', () => sheetOrders());
-    const all = Store.orders(), shown = all.filter((o) => (ordFilter === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === ordFilter));
-    const cnt = (f) => all.filter((o) => (f === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === f)).length;
+    const all = Store.orders();
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.orders')}</b><small>${t('ord.count', { n: all.length })}</small></div></div>
-      <div class="ap"><div class="chiprow ordchips">${['new', 'confirmed', 'done'].map((f) => `<button class="chip ${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt(f)}</button>`).join('')}</div>
-      <div class="sth">${shown.slice(0, ordLimit).map(ordRow).join('') || `<div class="empty" style="padding:30px 0"><b>${t('ord.none')}</b>${t('ord.noneText')}</div>`}${shown.length > ordLimit ? `<button class="btn more" data-act="ord-more">${t('ord.showMore', { n: Math.min(20, shown.length - ordLimit) })}</button>` : ''}</div></div>`, null, true);
+      <div class="ap sth">${ordHead()}<div class="ordp" data-lim="${ordLimit}">${ordPanel(ordLimit)}</div></div>`, null, true);
   }
   // The invoice an order was turned into (saved on the order; older orders: the invoice their sold items are on).
   const orderInvoice = (o) => o.invoice || ((o.items || []).map((i) => state.items.find((x) => x.id === i.id)).find((it) => it && it.invoice && L.isSold(it)) || {}).invoice || '';
@@ -1766,7 +1781,7 @@
       <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
       ${payCard}${tlCard}
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('ord.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
-        : o.status === 'confirmed' ? `<div class="btnrow"><button class="pbtn" data-act="order-done" data-id="${o.id}">${t('ord.handed')}</button>${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
+        : o.status === 'confirmed' ? `<div class="btnrow"><button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected')}</button>${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
         : o.status === 'done' && inv ? `<div class="btnrow"><button class="gbtn" data-act="view-inv" data-id="${inv}" style="flex:1">${t('ord.viewInv')}</button></div>` : ''}</div>`, null, true);
   }
   function confirmOrder(o) {
@@ -2013,8 +2028,9 @@
       case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
       case 'order-cancel': return orderCancel(id);
       case 'order-decline': return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) { const o = Store.orders().find((x) => x.id === id); Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); if (o) waOpen(o, 'ord.waDeclined'); }).catch(() => toast(t('store.pubError'))); } });
-      case 'ord-more': ordLimit += 20; return sheetOrders();
-      case 'order-done': Store.setStatus(id, 'done').then(() => { toast(t('ord.done')); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); return;
+      case 'ord-more': ordLimit += 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = ordLimit; }); return refreshOrders();
+      case 'ord-q-clear': ordQ = ''; document.querySelectorAll('.oq').forEach((e) => { e.value = ''; }); return refreshOrders();
+      case 'order-done': { const po = Store.orders().find((x) => x.id === id), ow = po ? (L.orderPay(state, orderInvoice(po)) || {}).owing || 0 : 0, how = po && po.option === 'delivery' ? t('ord.delivered') : t('ord.collected'); return Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: money(ow) }) : t('ord.toastDone', { how })); dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); }
       case 'pick-client': invForm.client = id; comboOpen = false; return render();
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
       case 'combo-new': comboOpen = false; return render();
@@ -2107,6 +2123,7 @@
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
+    else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }
     else if (el.id === 'w-q') { wordQ = el.value; wordsRefresh(); }
     else if (el.id === 'w-try') tryName();
     else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);

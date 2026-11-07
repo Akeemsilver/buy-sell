@@ -821,3 +821,15 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .tl{padding:6px 16px}.tl .s{display:flex;gap:12px;padding:9px 0;position:relative}.tl .s i{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);margin-top:4px;flex:none;background:var(--card);position:relative;z-index:1}.tl .s.on i{background:#43a047;border-color:#43a047}
 .tl .s b{display:block;font-size:14px}.tl .s small{color:var(--mute);font-size:12.5px}.tl .s:not(:last-child)::before{content:'';position:absolute;left:5px;top:24px;bottom:-6px;width:2px;background:var(--line)}
 .sth .ord{gap:10px;padding:12px}.sth .ord .ic{width:36px;height:36px;font-size:17px}.sth .ord .mid small{font-size:12px}.sth .ord .end .opl{padding:2px 7px;font-size:10px}
+
+/* orders: search bar, four tabs in one row, stage headings, owing total */
+.oqbar{display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid var(--line);border-radius:14px;background:var(--card);margin:0 0 10px}
+.oqbar input.oq{flex:1;min-width:0;border:0;background:transparent;box-shadow:none;outline:0;padding:12px 0;font-size:15px;color:var(--ink);height:auto;min-height:0;-webkit-appearance:none;appearance:none}
+.oqbar input.oq::placeholder{color:var(--mute);opacity:.55}.oqbar input.oq::-webkit-search-cancel-button{display:none}
+.oqbar .oqx{border:0;background:none;color:var(--mute);font-size:16px;padding:6px;min-height:0;box-shadow:none}
+.ordseg button{font-size:12.5px;padding-left:2px;padding-right:2px;white-space:nowrap;min-width:0}
+.ostage{margin:12px 2px 6px;font-size:12px;letter-spacing:.06em;font-weight:800;color:var(--mute)}
+.otot{margin:2px 4px 10px;font-size:13px;color:var(--mute)}.otot b{color:#b26a00}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .otot b{color:#ffcc80}}:root[data-theme=dark] .otot b{color:#ffcc80}
+.sth .ord .mid small.omatch{color:var(--brand);font-weight:700;margin-top:3px}
+.ordseg[hidden],.oqbar .oqx[hidden]{display:none}

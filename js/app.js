@@ -1393,6 +1393,7 @@
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
       ${isLatest ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button>` : ''}<button class="btn ${isLatest ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
+    setTimeout(() => { if (!$('#sheet').hidden && $('#sheet .inv')) prefetchPdf(v.no); }, 600);   // build the PDF now, so Share answers the tap at once
   }
 
   // Draws the same invoice onto a canvas (800 x N, 2x) so it can be shared or saved as a PNG for WhatsApp etc.
@@ -1473,31 +1474,42 @@
     g.drawImage(card, x, y, dw, dh);
     return o;
   }
-  // Share the invoice as a PDF file straight from the phone (the share sheet gets the file; nothing has to be downloaded first).
+  // The invoice PDF is built ahead of time, as soon as the invoice screen is open, so Share can answer the tap at once:
+  // the phone only allows its share sheet right after a tap, and drawing the sheet takes a few seconds.
+  let pdfCache = null, pdfBusy = null;
+  const pdfKey = (v) => JSON.stringify([v, state.settings, invLangSession, invDesignId()]);
+  async function buildInvoicePdf(v) {
+    const blob = await invoiceCanvas(v, 'image/png', false, 2.6);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
+    const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
+    const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
+    return new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
+  }
+  function readyPdf(v) {   // a promise for this invoice's PDF: the finished one, the one being built, or a new one
+    const key = pdfKey(v);
+    if (pdfCache && pdfCache.key === key) return Promise.resolve(pdfCache.file);
+    if (pdfBusy && pdfBusy.key === key) return pdfBusy.p;
+    const p = buildInvoicePdf(v).then((file) => { pdfCache = { key, file }; return file; }).finally(() => { if (pdfBusy && pdfBusy.key === key) pdfBusy = null; });
+    pdfBusy = { key, p }; return p;
+  }
+  const prefetchPdf = (no) => { const v = state.invoices.find((x) => x.no === no); if (v) readyPdf(v).catch(() => { /* built again when Share is tapped */ }); };
+  const sharePdfFile = (v, file) => navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+  const savePdfFile = (file) => { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); };
   function shareInvoicePdf(no, download) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
-    toast(t('doc.preparing'));
-    invoiceCanvas(v, 'image/png', false, 2.6).then(async (blob) => {   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
-      const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
-      const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
-      const file = new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
-      if (!download && navigator.canShare && navigator.canShare({ files: [file] })) {
-        return navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
-      }
-      const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-      toast(download ? t('doc.saved') : t('doc.noSharePdf'));
-    }).catch((e) => toast('⚠️ ' + errMsg(e)));
-  }
-  function shareInvoiceImage(no, saveOnly) {
-    const v = state.invoices.find((x) => x.no === no); if (!v) return;
-    toast(t('doc.preparing'));
-    invoiceCanvas(v, 'image/png', true).then((blob) => {
-      const file = new File([blob], `${v.no} ${v.client}.png`, { type: 'image/png' });
-      if (!saveOnly && navigator.canShare && navigator.canShare({ files: [file] })) {
-        return navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
-      }
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-      toast(saveOnly ? t('doc.saved') : t('doc.noShare'));
+    const canShare = (f) => !download && navigator.canShare && navigator.canShare({ files: [f] });
+    if (pdfCache && pdfCache.key === pdfKey(v)) {   // already built: answer the tap straight away
+      const f = pdfCache.file;
+      if (canShare(f)) return sharePdfFile(v, f).catch((e) => toast('⚠️ ' + errMsg(e)));
+      savePdfFile(f); return toast(download ? t('doc.saved') : t('doc.noSharePdf'));
+    }
+    toast(t('doc.preparingPdf'));
+    readyPdf(v).then((f) => {
+      if (!canShare(f)) { savePdfFile(f); return toast(download ? t('doc.saved') : t('doc.noSharePdf')); }
+      // the phone may let the tap expire while the PDF is drawn: try, and if it refuses ask for one more tap
+      return sharePdfFile(v, f).catch((e) => {
+        if (e && e.name === 'NotAllowedError') return askCard(t('doc.pdfReady'), { ok: t('invUI.shareBtn'), title: t('doc.pdfReadyTitle') }).then((y) => (y ? sharePdfFile(v, f).catch((er) => toast('⚠️ ' + errMsg(er))) : undefined));
+        throw e;
+      });
     }).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
 
@@ -1987,10 +1999,8 @@
       case 'return-item': return askCard(t('item.returnItemAsk', { id }), { danger: true, ok: t('item.returnItem') }).then((y) => { if (y) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } });
       case 'del-inv': return askCard(t('confirm.delInv', { id }), { danger: true, ok: t('btn.delete') }).then((y) => { if (!y) return; try { L.deleteInvoice(state, id); save(); tidyPhotos(); toast(t('inv.deleted', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); });
       case 'print': return window.print();
-      case 'share-img': return shareInvoiceImage(id, false);
       case 'share-pdf': return shareInvoicePdf(id, false);
       case 'download-pdf': return shareInvoicePdf(id, true);
-      case 'save-img': return shareInvoiceImage(id, true);
       case 'inv-full': case 'inv-design-view': {
         const real = state.invoices.find((x) => x.no === id), d = new Date();
         const sample = { no: 'INV00001', client: ti('doc.sampleClient'), date: d.toISOString(), due: new Date(d.getTime() + 6048e5).toISOString(), lines: [{ desc: ti('doc.sampleItem'), qty: 1, price: 250 }], delivery: 0, total: 250, amountPaid: 250, previouslyPaid: 0, balance: 0 };

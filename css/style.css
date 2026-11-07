@@ -799,3 +799,25 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .sx .sub.dl{color:var(--ink);font-weight:700}.sx .sub.tot{background:var(--card);color:var(--ink);font-size:16px;font-weight:800}.sx .sub.tot b{font-size:18px}
 
 .cv2 .arr{display:block;margin-top:2px;color:var(--warn);font-weight:700;font-size:12px}
+
+/* order rows: status pill under the amount, friendly date in the plain text */
+.opl{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:800;letter-spacing:.02em;white-space:nowrap;line-height:1.5;background:#e6e6ea;color:#555}
+.opl.paid{background:#d9f0e0;color:#1d6b3a}.opl.owing{background:#fde3bf;color:#8a4b00}.opl.arr{background:#dbeafe;color:#1e4e8c}.opl.gone{background:#e6e6ea;color:#555}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .opl{background:#2a2a30;color:#b9b9c3}:root:not([data-theme=light]) .opl.paid{background:#1f3a21;color:#a5d6a7}:root:not([data-theme=light]) .opl.owing{background:#4a3213;color:#ffcc80}:root:not([data-theme=light]) .opl.arr{background:#142c47;color:#90caf9}}
+:root[data-theme=dark] .opl{background:#2a2a30;color:#b9b9c3}:root[data-theme=dark] .opl.paid{background:#1f3a21;color:#a5d6a7}:root[data-theme=dark] .opl.owing{background:#4a3213;color:#ffcc80}:root[data-theme=dark] .opl.arr{background:#142c47;color:#90caf9}
+.sth .ord .mid{flex:1;min-width:0}.sth .ord .mid b,.sth .ord .mid small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sth .ord .end{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}.sth .ord .end b{font-size:14px;white-space:nowrap}
+.sth .btn.more{width:100%;margin-top:4px}
+.ipl{margin-top:5px}
+/* order page: WhatsApp and phone icons beside the name, payment card, timeline */
+.ap .rw .ibtn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:none;text-decoration:none;padding:0}
+.ap .rw .ibtn.wapp{background:#25d366;border-color:#25d366;color:#fff}
+.ap .rw .ibtn+.ibtn{margin-left:8px}
+.pay .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 10px}.pay .big{font-size:19px;font-weight:800;color:var(--brand)}
+.pay .bar{height:8px;border-radius:99px;background:var(--line);margin:0 16px 10px;overflow:hidden}.pay .bar i{display:block;height:100%;border-radius:99px;background:#43a047}
+.pay .ln{display:flex;justify-content:space-between;padding:7px 16px;font-size:14px;color:var(--mute)}.pay .ln b{color:var(--ink)}.pay .ln.due b{color:#b26a00;font-size:15px}.pay .ln.ok b{color:#2e7d32}.pay .ln:last-child{padding-bottom:14px}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .pay .ln.due b{color:#ffcc80}:root:not([data-theme=light]) .pay .ln.ok b{color:#a5d6a7}}
+:root[data-theme=dark] .pay .ln.due b{color:#ffcc80}:root[data-theme=dark] .pay .ln.ok b{color:#a5d6a7}
+.tl{padding:6px 16px}.tl .s{display:flex;gap:12px;padding:9px 0;position:relative}.tl .s i{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);margin-top:4px;flex:none;background:var(--card);position:relative;z-index:1}.tl .s.on i{background:#43a047;border-color:#43a047}
+.tl .s b{display:block;font-size:14px}.tl .s small{color:var(--mute);font-size:12.5px}.tl .s:not(:last-child)::before{content:'';position:absolute;left:5px;top:24px;bottom:-6px;width:2px;background:var(--line)}
+.sth .ord{gap:10px;padding:12px}.sth .ord .ic{width:36px;height:36px;font-size:17px}.sth .ord .mid small{font-size:12px}.sth .ord .end .opl{padding:2px 7px;font-size:10px}

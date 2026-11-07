@@ -305,3 +305,14 @@ console.log('all tests passed');
   assert.ok(L.previewInvoice(s2, { itemIds: [s2.items[0].id], client: 'A', paying: 10 }).errors.includes('noPrice'), 'no price at all is still an error');
 }
 console.log('sale price tests passed');
+{ // an order's payment summary follows its invoice through later payments
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 1, currency: 'TTD', totalCost: 50, margin: 100 });
+  s.items[0].desc = 'T'; s.items[0].cost = 50; s.items[0].price = 200; s.items[0].status = 'Available';
+  assert.strictEqual(L.orderPay(s, 'NOPE'), null, 'no invoice, no summary');
+  const a = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Jo', isNew: true, paying: 0, allowZero: true, date: new Date('2026-11-01T12:00:00') });
+  let p = L.orderPay(s, a.no); assert.strictEqual(p.owing, 200); assert.strictEqual(p.paid, 0); assert.strictEqual(p.payments.length, 0);
+  const b = L.recordPayment(s, a.no, 80, new Date('2026-11-03T12:00:00'));
+  p = L.orderPay(s, a.no); assert.strictEqual(p.inv, b.no, 'follows the updated invoice'); assert.strictEqual(p.paid, 80); assert.strictEqual(p.owing, 120); assert.strictEqual(p.payments.length, 1);
+  L.recordPayment(s, b.no, 120, new Date('2026-11-05T12:00:00'));
+  p = L.orderPay(s, a.no); assert.strictEqual(p.owing, 0); assert.strictEqual(p.paid, 200); assert.strictEqual(p.payments.length, 2);
+}

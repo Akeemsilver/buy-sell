@@ -473,7 +473,7 @@
     const link = (act, ic, label) => `<button data-act="${act}">${ic} ${label}</button>`;
     return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><div class="live ${c.open ? '' : 'off'}"><i></i>${c.open ? t('hub.open2') : t('hub.closed')}</div><small>${esc(c.open ? t('hub.liveSub', { n: live }) : t('store.openSub'))}</small></div>${swt('store-toggle', 'open', c.open)}</div>
       <div class="lnk">${link('store-link', '🔗', t('store.copy') + ' ' + t('hub.link'))}${link('store-share', '📤', t('hub.share'))}${link('store-preview', '👁', t('hub.preview'))}</div></div>
-      <h4><span>${t('store.orders')}</span><a data-act="orders-open">${t('hub.seeAll')}</a></h4>
+      <h4><span>${t('store.orders')}</span><span class="ha">${toDeliver().length ? `<a data-act="deliveries-open">🚚 ${t('dv.btn')} (${toDeliver().length})</a>` : ''}<a data-act="orders-open">${t('hub.seeAll')}</a></span></h4>
       ${ordHead()}
       <div class="ordp" data-lim="5">${ordPanel(5)}</div>
       <h4><span>${t('hub.see')}</span>${state.batches.length ? `<span class="allsw">${t('store.selAll')} ${swt('store-batch-all', 'all', state.batches.every((b) => c.batches.includes(b.id)))}</span>` : ''}</h4>
@@ -1419,6 +1419,8 @@
     enterPage('invoice', no, () => sheetInvoice(no), swap);
     let latest = v; while (latest.updatedBy) { const n = state.invoices.find((x) => x.no === latest.updatedBy); if (!n || n === latest) break; latest = n; }
     const isLatest = latest === v;
+    const ordOf = Store.orders().find((o) => o.invoice && L.invoiceForward(state, o.invoice).some((x) => x.no === v0.no)), spOf = ordOf && ordOf.option === 'delivery' ? SCore.geo(ordOf.lat, ordOf.lng) : null;   // the delivery pin of the order this invoice came from
+    const spotRow = spOf ? `<div class="dspot-c"><span>📍 ${t('spot.h')}${ordOf.spot ? ' · ' + esc(ordOf.spot) : ''}</span><div>${spotBtns(spOf)}</div></div>` : '';
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
     const chain = L.invoiceChain(state, v.no), dShort = (d) => new Date(d).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short', year: 'numeric' });
@@ -1435,7 +1437,7 @@
         <div class="inv-sum">${isPaidInFull(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
           <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div></div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
-      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
+      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>${spotRow}
       ${hist}${thumbs}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
       ${isLatest && !v0.void && state.items.some((x) => x.invoice === v.no) ? `<button class="btn span2" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : ''}${isLatest && !v0.void ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.cancel')}</button>` : ''}<button class="btn ${isLatest && !v0.void ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
@@ -1739,6 +1741,19 @@
     if (act === 'stock') { stockBatch = arg; stockFilter = f || 'All'; go({ tab: 'stock', moreView: null }); window.scrollTo(0, 0); return render(); }
     const b = document.createElement('button'); b.dataset.act = act; b.dataset.id = arg; document.body.appendChild(b); b.click(); b.remove();
   }
+  /* ---------- deliveries: every confirmed delivery order with its pin, and one route for all of them ---------- */
+  const toDeliver = () => Store.orders().filter((o) => o.status === 'confirmed' && o.option === 'delivery').slice().sort((a, b) => (Store.when(a) || 0) - (Store.when(b) || 0));
+  const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="gm" href="${ml.google}" target="_blank" rel="noopener">🗺️ Google Maps</a><a class="wz" href="${ml.waze}" target="_blank" rel="noopener">🚗 Waze</a>`; };
+  function sheetDeliveries() {
+    enterPage('deliveries', '', () => sheetDeliveries());
+    const list = toDeliver(), pins = list.map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean), route = SCore.routeLink(pins);
+    const row = (o) => { const gp = SCore.geo(o.lat, o.lng), pay = L.orderPay(state, orderInvoice(o));
+      return `<div class="dvrow"><button class="dvt" data-act="order-open" data-id="${o.id}"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${esc(o.location)}${o.spot ? ' · ' + esc(o.spot) : ''}</small><small>${esc(o.phone)} · ${ago(Store.when(o))}${pay && pay.owing > 0 ? ' · ' + t('ord.pl.owing') + ' ' + plain(money(pay.owing)) : ''}</small></button>
+        ${gp ? `<div class="dvb">${spotBtns(gp)}</div>` : `<div class="dvn">${t('dv.nopin')}</div>`}</div>`; };
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('dv.title')}</b><small>${t('dv.sub', { n: list.length })}</small></div></div>
+      <div class="ap">${route && pins.length > 1 ? `<a class="dvroute" href="${route}" target="_blank" rel="noopener">🧭 ${t('dv.route', { n: Math.min(10, pins.length) })}</a><p class="muted small" style="margin:6px 2px 12px">${t('dv.routeNote')}</p>` : ''}
+      ${list.map(row).join('') || `<div class="empty" style="padding:30px 0"><b>${t('dv.none')}</b></div>`}</div>`, null, true);
+  }
   /* ---------- order rows: status pill + date ---------- */
   const tsAt = (v) => (v && v.toMillis ? new Date(v.toMillis()) : null);   // a saved moment (the phone shows it in its own time zone)
   const itemArriving = (i) => { const it = state.items.find((x) => x.id === i.id), b = it && state.batches.find((y) => y.id === it.batchId); return !!it && !L.isSold(it) ? it.status === 'In Transit' : !!b && bStatus(b) === 'In Transit'; };
@@ -1752,7 +1767,7 @@
   }
   function ordRow(o, match) {
     const n = tn('notif.items', (o.items || []).length), when = o.status === 'done' && tsAt(o.doneAt) ? t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected') + ' ' + ago(tsAt(o.doneAt)) : (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + ago(Store.when(o));
-    return `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div class="mid"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${n} · ${when}</small>${match ? `<small class="omatch">${esc(t('ord.m.' + match.kind, { text: match.text }))}</small>` : ''}</div><div class="end"><b>${money(o.total)}</b>${orderPill(o, stageOf(o) === 'handed')}</div></button>`;
+    return `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div class="mid"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}${o.option === 'delivery' && SCore.geo(o.lat, o.lng) ? ' <span class="pinm" title="' + t('spot.h') + '">📍</span>' : ''}</b><small>${n} · ${when}</small>${match ? `<small class="omatch">${esc(t('ord.m.' + match.kind, { text: match.text }))}</small>` : ''}</div><div class="end"><b>${money(o.total)}</b>${orderPill(o, stageOf(o) === 'handed')}</div></button>`;
   }
   let ordLimit = 20, ordQ = '';
   const ORD_TABS = ['new', 'confirmed', 'handed', 'done'];
@@ -2110,6 +2125,7 @@
         storeSet({ locations: id === 'new' ? c.locations.concat(loc) : c.locations.map((l) => (l.id === id ? loc : l)) }); pageStack = pageStack.filter((p) => p.key !== 'storeloc|' + id); return dropPages('storeloc|' + id);
       }
       case 'store-loc-del': { const c = storeCfg(); storeSet({ locations: c.locations.filter((l) => l.id !== id) }); return dropPages('storeloc|' + id); }
+      case 'deliveries-open': return sheetDeliveries();
       case 'orders-open': { ordLimit = 20; const c = storeCfg(); if (!c.id) return sheetStore(); return sheetOrders(); }
       case 'ord-filter': ordFilter = id; ordLimit = 20; return hubOpen() ? render() : sheetOrders();
       case 'order-open': return sheetOrder(id);

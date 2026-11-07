@@ -1458,7 +1458,7 @@
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${hist}${thumbs}${spotRow}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
-      ${isLatest && !v0.void && state.items.some((x) => x.invoice === v.no) ? `<button class="btn span2" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : ''}${isLatest && !v0.void ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.cancel')}</button>` : ''}<button class="btn ${isLatest && !v0.void ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
+      ${(() => { const rr = isLatest && !v0.void && state.items.some((x) => x.invoice === v.no), cc = isLatest && !v0.void; return (rr ? `<button class="btn rs ${cc ? '' : 'span2'}" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : '') + (cc ? `<button class="btn rs ${rr ? '' : 'span2'}" data-act="del-inv" data-id="${v.no}">${t('invUI.cancel')}</button>` : ''); })()}<button class="btn slim span2" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
     setTimeout(() => { if (!$('#sheet').hidden && $('#sheet .inv')) prefetchPdf(v.no); }, 600);   // build the PDF now, so Share answers the tap at once
   }
@@ -1766,8 +1766,8 @@
   const orderOfInvoice = (no) => Store.orders().find((o) => o.invoice && L.invoiceForward(state, o.invoice).some((x) => x.no === no));
   const orderOfItem = (id) => Store.orders().filter((o) => o.status !== 'declined' && (o.items || []).some((i) => i.id === id)).sort((a, b) => (Store.when(b) || 0) - (Store.when(a) || 0))[0];
   const pinRow = (o) => { const gp = orderPin(o); return gp ? `<div class="dspot-c"><span class="dp" aria-hidden="true">📍</span><span class="dt">${esc(o.spot || t('spot.h'))}</span>${spotBtns(gp)}</div>` : ''; };   // one slim row: the pin, the place, and the Google Maps and Waze icons
-  const ICON_GMAPS = '<img src="icons/gmaps.png" alt="" width="30" height="30">', ICON_WAZE = '<img src="icons/waze.png" alt="" width="30" height="30">';   // the Google Maps and Waze app icons (copied from the seller's own phone)
-  const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="ic" data-act="pin-open" href="${ml.google}" target="_blank" rel="noopener" aria-label="Google Maps">${ICON_GMAPS}<span>Maps</span></a><a class="ic" data-act="pin-open" href="${ml.waze}" target="_blank" rel="noopener" aria-label="Waze">${ICON_WAZE}<span>Waze</span></a>`; };   // each icon with its name under it is one tap target
+  const ICON_GMAPS = '<img src="icons/gmaps.png" alt="" width="40" height="40">', ICON_WAZE = '<img src="icons/waze.png" alt="" width="40" height="40">';   // the Google Maps and Waze app icons (copied from the seller's own phone)
+  const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="ic" data-act="pin-open" href="${ml.google}" target="_blank" rel="noopener" aria-label="Google Maps" title="Google Maps">${ICON_GMAPS}</a><a class="ic" data-act="pin-open" href="${ml.waze}" target="_blank" rel="noopener" aria-label="Waze" title="Waze">${ICON_WAZE}</a>`; };   // each icon with its name under it is one tap target
   // Delivered / Collected: asks first (a tap by mistake must not move the order on) and says where the order will go
   function markHanded(id) {
     const po = Store.orders().find((x) => x.id === id); if (!po) return;
@@ -2137,7 +2137,7 @@
       case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
       case 'pick-keep': return sheetChoice(t('set.keepRow'), 'set-keep', photoKeep(), ['1', '2', '7', 'sold'].map((k) => [k, t('keep.' + k)]), t('keep.note'));
       case 'set-keep': state.settings.photoKeep = id; save(); closeSheet(); PUI.sweep(photoKeep()); return render();
-      case 'return-open': return sheetReturn(id, t_.dataset.ord || '');
+      case 'return-open': { const ro = t_.dataset.ord || ''; return askCard(t('ret.popDesc'), { title: t('ret.popTitle'), ok: t('ret.popOk'), no: t('ret.popNo') }).then((y) => { if (y) sheetReturn(id, ro); }); }
       case 'ret-all': { const bx = [...document.querySelectorAll('#sheet [data-ret]')], on = bx.some((e) => !e.checked); bx.forEach((e) => { e.checked = on; }); return retRefresh(); }
       case 'ret-do': { const box = $('#rt-sum'), ids = retPicked(), inv = box && box.dataset.inv, ordId = box && box.dataset.ord; if (!ids.length) return;
         try {
@@ -2334,7 +2334,7 @@
       case 'view-inv': return sheetInvoice(id);
       case 'return-inv': return sheetReturn(id, '');
       case 'return-item': return askCard(t('item.returnItemAsk', { id }), { danger: true, ok: t('item.returnItem') }).then((y) => { if (y) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } });
-      case 'del-inv': return askCard(t('confirm.cancelInv', { id }), { danger: true, ok: t('invUI.cancel') }).then((y) => { if (!y) return; try { const pu = L.purchaseOf(state, id); if (pu && pu.items.length) L.returnItems(state, id, pu.items.map((x) => x.id), new Date(), 'cancelled'); save(); tidyPhotos(); toast(t('inv.cancelled', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); });
+      case 'del-inv': return askCard(t('inv.cancelDesc'), { title: t('inv.cancelTitle'), danger: true, ok: t('invUI.cancel'), no: t('inv.keep') }).then((y) => { if (!y) return; try { const pu = L.purchaseOf(state, id); if (pu && pu.items.length) L.returnItems(state, id, pu.items.map((x) => x.id), new Date(), 'cancelled'); save(); tidyPhotos(); toast(t('inv.cancelled', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); });
       case 'print': return window.print();
       case 'share-pdf': return shareInvoicePdf(id, false);
       case 'download-pdf': return shareInvoicePdf(id, true);

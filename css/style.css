@@ -911,3 +911,7 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .rt-sum{margin:12px 0 4px;border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}.rt-sum:empty{display:none}
 .rt-sum .ln{display:flex;justify-content:space-between;gap:10px;padding:9px 14px;font-size:14px;border-bottom:1px solid var(--line)}.rt-sum .ln:last-child{border:0}.rt-sum .ln span{color:var(--mute)}.rt-sum .ln.due b{color:#b26a00}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .rt-sum .ln.due b{color:#ffcc80}}:root[data-theme=dark] .rt-sum .ln.due b{color:#ffcc80}
+
+/* returned / cancelled invoices stay in the log */
+.pill.Returned,.pill.Cancelled{background:var(--line);color:var(--mute)}
+.voidbar{margin:10px 0;padding:12px 14px;border-radius:14px;background:var(--tint);border:1px solid var(--line);color:var(--ink)}.voidbar b{display:block}.voidbar small{display:block;color:var(--mute);margin-top:3px}.voidbar.soft{font-size:13.5px}

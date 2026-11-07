@@ -868,3 +868,5 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .bpk{margin-bottom:10px}.bpk .chips{padding:0;margin:0}
 .oqbar input.blq{flex:1;min-width:0;border:0;background:transparent;box-shadow:none;outline:0;padding:12px 0;font-size:15px;color:var(--ink);height:auto;min-height:0;-webkit-appearance:none;appearance:none}
 .oqbar input.blq::placeholder{color:var(--mute);opacity:.55}.oqbar input.blq::-webkit-search-cancel-button{display:none}
+.sth h4 .allsw{display:inline-flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:700;color:var(--ink)}
+.sth h4 .allsw .tog{flex:none}

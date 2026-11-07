@@ -928,3 +928,13 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .dvn{padding:0 14px 12px;color:var(--mute);font-size:13px}
 .dspot-c{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.dspot-c>span{display:block;font-weight:700;margin-bottom:8px}.dspot-c>.dsb{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .dspot-c .dmt{display:block;width:100%;margin-top:8px;border:0;background:none;color:var(--brand);font-weight:700;font-size:13.5px;padding:6px;min-height:0;box-shadow:none}.dspot-c .dmap{margin-top:8px}
+
+/* delivery spot: one slim row with the Google Maps and Waze icons */
+.dspot-c{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px 8px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.dspot-c>span.dp{flex:none;margin:0;display:inline;font-weight:400}.dspot-c>span.dt{flex:1;min-width:0;margin:0;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+a.ib{display:grid;place-items:center;flex:none;width:40px;height:40px;padding:0;border-radius:50%;overflow:hidden;text-decoration:none;font-size:0;background:#fff;border:1px solid var(--line)}a.ib.w{background:none;border:0}
+.dvrow{display:flex;flex-wrap:wrap;align-items:center}.dvrow .dvt{flex:1 1 0;min-width:0}.dvrow .dvb{display:flex;gap:8px;padding:0 12px 0 0;flex:none}.dvrow .dvn{flex:1 1 100%}
+.dspot-c a.ib,.dvb a.ib{display:grid;place-items:center;width:40px;height:40px;min-width:40px;padding:0;gap:0;border-radius:50%;background:#fff;border:1px solid var(--line);color:inherit}
+.dspot-c a.ib.w,.dvb a.ib.w{background:none;border:0}.ib svg{display:block;flex:none}.ib.g svg{width:26px;height:26px}.ib.w svg{width:40px;height:40px}
+.dspot-c a.ib,.dvb a.ib{min-height:0}
+.dspot-c a.ib,.dvb a.ib,.dspot-c a.ib+a.ib{margin:0}

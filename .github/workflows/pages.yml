@@ -21,7 +21,10 @@ jobs:
       - name: Run tests
         run: npm test
       - name: Stamp version
-        run: sed -i "s/const CACHE = '[^']*'/const CACHE = 'buy-sell-${GITHUB_SHA::7}'/" sw.js && grep -n "const CACHE" sw.js
+        run: |
+          sed -i "s/const CACHE = '[^']*'/const CACHE = 'buy-sell-${GITHUB_SHA::7}'/" sw.js && grep -n "const CACHE" sw.js
+          # the public store page has no service worker: tag its files with the commit so a phone can never keep using an old copy
+          sed -i -E "s#(css/store\.css|js/storecore\.js|js/store\.js)\"#\1?v=${GITHUB_SHA::7}\"#g" store.html && grep -n "?v=" store.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

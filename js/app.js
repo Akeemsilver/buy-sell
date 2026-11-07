@@ -1233,6 +1233,7 @@
     const b = batchOf(i), sold = L.isSold(i), ord = !sold && L.isHeld(i), lock = sold || ord, ordr = ord ? Store.orders().find((o) => o.status === 'new' && (o.items || []).some((x) => x.id === i.id)) : null;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : ord ? t('item.orderedTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
       ${ord ? `<div class="lockbar">🔒 <div><b>${t('item.orderedLock')}</b><small>${t('item.orderedNote')}</small>${ordr ? `<button class="pay-btn" data-act="order-open" data-id="${ordr.id}">${t('item.viewOrder')}</button>` : ''}</div></div>` : ''}
+      ${(sold || ord) ? pinRow(orderOfItem(i.id)) : ''}
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
       <fieldset class="lockset" ${lock ? 'disabled' : ''}>
@@ -1419,8 +1420,7 @@
     enterPage('invoice', no, () => sheetInvoice(no), swap);
     let latest = v; while (latest.updatedBy) { const n = state.invoices.find((x) => x.no === latest.updatedBy); if (!n || n === latest) break; latest = n; }
     const isLatest = latest === v;
-    const ordOf = Store.orders().find((o) => o.invoice && L.invoiceForward(state, o.invoice).some((x) => x.no === v0.no)), spOf = ordOf && ordOf.option === 'delivery' ? SCore.geo(ordOf.lat, ordOf.lng) : null;   // the delivery pin of the order this invoice came from
-    const spotRow = spOf ? `<div class="dspot-c"><span>📍 ${t('spot.h')}${ordOf.spot ? ' · ' + esc(ordOf.spot) : ''}</span><div>${spotBtns(spOf)}</div></div>` : '';
+    const spotRow = pinRow(orderOfInvoice(v0.no));   // the delivery pin of the order this invoice came from
     const lines = invLines(v), sub = lines.reduce((s, l) => s + l.qty * l.price, 0), st = L.invoiceStatus(v), lg = invoiceLang();
     // Small pictures of the items sold on this invoice: the same stored thumbnail the stock list uses, nothing is copied.
     const chain = L.invoiceChain(state, v.no), dShort = (d) => new Date(d).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short', year: 'numeric' });
@@ -1616,7 +1616,7 @@
       return `<div class="cp-inv cv2 ${due ? 'due' : ''}" data-act="view-inv" data-id="${v.no}">
         <div class="c2-top"><button class="num" data-act="view-inv" data-id="${v.no}"><b>${v.no}</b></button>${due && !v.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-from="${esc(name)}" data-back="cust">${t('pay.btn')}</button>` : ''}</div>
         <div class="c2-mid"><div class="c2-stack">${stack}</div><div class="c2-txt"><small>${day(v.date)}</small><b>${label}${nPay > 1 ? ' · ' + tn('cust.paymentsN', nPay) : ''}</b>${arr ? `<small class="arr">⏳ ${arr < its.length ? t('cust.arrN', { n: arr, m: its.length }) : t('ord.transit')}</small>` : ''}</div><div class="c2-r"><b>${money(v.total)}</b>${due ? `<span class="owes">${t('cust.stillOwes', { amt: money(v.balance) })}</span>` : `<span class="ok">● ${invStLabel(st)}</span>`}</div></div>
-        ${due ? `<div class="c2-bar"><i style="width:${pct}%"></i></div>` : ''}</div>`;
+        ${due ? `<div class="c2-bar"><i style="width:${pct}%"></i></div>` : ''}${pinRow(orderOfInvoice(v.no))}</div>`;
     };
     openSheet(`<div class="cpage"><div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
       <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><small>${invs.length ? lastCap : since}</small><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button></div><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div>
@@ -1743,7 +1743,11 @@
   }
   /* ---------- deliveries: every confirmed delivery order with its pin, and one route for all of them ---------- */
   const toDeliver = () => Store.orders().filter((o) => o.status === 'confirmed' && o.option === 'delivery').slice().sort((a, b) => (Store.when(a) || 0) - (Store.when(b) || 0));
-  const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="gm" href="${ml.google}" target="_blank" rel="noopener">🗺️ Google Maps</a><a class="wz" href="${ml.waze}" target="_blank" rel="noopener">🚗 Waze</a>`; };
+  const orderPin = (o) => (o && o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null);
+  const orderOfInvoice = (no) => Store.orders().find((o) => o.invoice && L.invoiceForward(state, o.invoice).some((x) => x.no === no));
+  const orderOfItem = (id) => Store.orders().filter((o) => o.status !== 'declined' && (o.items || []).some((i) => i.id === id)).sort((a, b) => (Store.when(b) || 0) - (Store.when(a) || 0))[0];
+  const pinRow = (o) => { const gp = orderPin(o); return gp ? `<div class="dspot-c"><span>📍 ${t('spot.h')}${o.spot ? ' · ' + esc(o.spot) : ''}</span><div>${spotBtns(gp)}</div></div>` : ''; };   // the customer's pin with Google Maps and Waze, wherever the order shows up
+  const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="gm" data-act="pin-open" href="${ml.google}" target="_blank" rel="noopener">🗺️ Google Maps</a><a class="wz" data-act="pin-open" href="${ml.waze}" target="_blank" rel="noopener">🚗 Waze</a>`; };
   function sheetDeliveries() {
     enterPage('deliveries', '', () => sheetDeliveries());
     const list = toDeliver(), pins = list.map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean), route = SCore.routeLink(pins);
@@ -1851,7 +1855,7 @@
       return `<div class="rw"><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small>${itemPill(o, i, it)}</div><b>${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) }), inv = orderInvoice(o), pay = L.orderPay(state, inv);
     const gp = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null, ml = gp ? SCore.mapLinks(gp.lat, gp.lng) : null;   // the pin the customer chose on the map
-    const spotCard = gp ? `<h4><span>${t('spot.h')}</span></h4><div class="card dspot">${SCore.tileHtml(gp.lat, gp.lng, 16, 460, 170, 'height:150px;width:100%')}<div class="tx"><b>📍 ${t('spot.placed')}</b><small>${gp.lat}, ${gp.lng}${o.spot ? ' · ' + esc(o.spot) : ''}</small></div><div class="bt"><a class="gm" href="${ml.google}" target="_blank" rel="noopener">🗺️ Google Maps</a><a class="wz" href="${ml.waze}" target="_blank" rel="noopener">🚗 Waze</a></div></div>` : '';
+    const spotCard = gp ? `<h4><span>${t('spot.h')}</span></h4><div class="card dspot">${SCore.tileHtml(gp.lat, gp.lng, 16, 460, 170, 'height:150px;width:100%')}<div class="tx"><b>📍 ${t('spot.placed')}</b><small>${gp.lat}, ${gp.lng}${o.spot ? ' · ' + esc(o.spot) : ''}</small></div><div class="bt"><a class="gm" data-act="pin-open" href="${ml.google}" target="_blank" rel="noopener">🗺️ Google Maps</a><a class="wz" data-act="pin-open" href="${ml.waze}" target="_blank" rel="noopener">🚗 Waze</a></div></div>` : '';
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
       <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
     const step = (on, label, d, extra) => `<div class="s ${on ? 'on' : ''}"><i></i><div><b>${label}${extra || ''}</b><small>${d ? fullWhen(d) : on ? '' : t('ord.tl.notYet')}</small></div></div>`;
@@ -2125,6 +2129,7 @@
         storeSet({ locations: id === 'new' ? c.locations.concat(loc) : c.locations.map((l) => (l.id === id ? loc : l)) }); pageStack = pageStack.filter((p) => p.key !== 'storeloc|' + id); return dropPages('storeloc|' + id);
       }
       case 'store-loc-del': { const c = storeCfg(); storeSet({ locations: c.locations.filter((l) => l.id !== id) }); return dropPages('storeloc|' + id); }
+      case 'pin-open': return;   // the link itself opens Google Maps or Waze; this only stops the card behind it from reacting
       case 'deliveries-open': return sheetDeliveries();
       case 'orders-open': { ordLimit = 20; const c = storeCfg(); if (!c.id) return sheetStore(); return sheetOrders(); }
       case 'ord-filter': ordFilter = id; ordLimit = 20; return hubOpen() ? render() : sheetOrders();

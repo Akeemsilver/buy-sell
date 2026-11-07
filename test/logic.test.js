@@ -72,7 +72,7 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   Object.assign(s.items[0], { desc: 'a', cost: 5, sold: 50, status: 'Owing', customer: 'Di' });
   s.invoices.push({ no: 'INV00001', client: 'Di', desc: 'a', lines: [], total: 50, amountPaid: 20, previouslyPaid: 0, balance: 30, delivery: 0, date: new Date().toISOString(), due: new Date().toISOString(), qty: 1, ref: '', profit: 0, loss: 0, tip: 0, updatedBy: '' });
   s.items[0].invoice = 'INV00001';
-  assert.equal(L.customerStats(s)[0].owing, 0);          // before: missing data
+  assert.equal(L.customerStats(s)[0].owing, 30);         // before the migration the item figures are missing, but the invoice already says 30
   L.migrate(JSON.parse(JSON.stringify(s)));
   assert.equal(L.customerStats(L.migrate(s))[0].owing, 30);
 })();

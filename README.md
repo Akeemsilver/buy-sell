@@ -125,7 +125,7 @@ When a customer sends an order, the items in it are held back from the store unt
 2. In GitHub, Settings, Secrets and variables, Actions, add a secret named `FIREBASE_SERVICE_ACCOUNT` with the whole JSON.
 3. Re-run the workflow "Deploy functions". Without the secret it skips itself.
 
-Firestore rules **1.03** (adds the customer's language `lang` and the delivery map pin `lat`, `lng`, `spot` to an order) must also be published in the Firebase console. The About page shows the rules version the app expects.
+Firestore rules **1.04** (adds the customer's language `lang`, the delivery map pin `lat`, `lng`, `spot` and the delivery notes `note` to an order) must also be published in the Firebase console. The About page shows the rules version the app expects.
 
 ## Before the app goes live (do these when the owner says "I'm ready for the app to go live")
 1. **Firebase plan:** upgrade the `b-ruiz` project to Blaze (card on file). Then set a budget alert of about US$1 in the Google Cloud console (alerts email; they do not stop charges).

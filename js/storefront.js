@@ -98,6 +98,7 @@
     try {
       for (const o of orders.slice()) {
         const pin = o.option === 'delivery' ? SC.geo(o.lat, o.lng) : null; if (!pin || o.status === 'declined') continue;
+        if (o.kmSrc === 'manual') continue;   // a distance the seller typed is never measured again
         const good = Number.isFinite(Number(o.km)) && o.kmFrom === from && o.kmSrc === 'road'; if (good) continue;
         if (o.kmSrc === 'line' && o.kmFrom === from && !again && tried.has(o.id)) continue;
         tried.add(o.id);
@@ -109,9 +110,11 @@
     if (n && A.onOrders) A.onOrders();
     return n;
   }
+  // any other change to one order (a planned delivery day, a distance typed by hand)
+  const patch = (id, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(extra);
   // the moment of each answer is saved too (confirmedAt, doneAt, declinedAt), for the order's timeline
   const setStatus = (id, status, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(Object.assign({ status }, status === 'new' ? {} : { [status + 'At']: Cloud.stamp() }, extra || {}));
 
-  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, measure, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
+  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, measure, patch, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
     ageMs: (o) => (ts(o) ? Date.now() - ts(o) : 0), when: (o) => (ts(o) ? new Date(ts(o)) : null) };
 })(window);

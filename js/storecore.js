@@ -111,10 +111,16 @@
   const rateFee = (rate, km) => { rate = rate || {}; const base = num(rate.base), per = num(rate.perKm), free = num(rate.freeKm), step = num(rate.round); if (!(base > 0 || per > 0) || !Number.isFinite(Number(km))) return null;
     let fee = base + Math.max(0, Number(km) - free) * per; if (step > 0) fee = Math.ceil(fee / step - 1e-9) * step; return r2(fee); };
   // what the finished deliveries say: how far, what was charged, and the same by distance band (only orders that have a distance)
-  const deliveryStats = (orders) => { const d = (orders || []).filter((o) => o && o.option === 'delivery' && Number.isFinite(Number(o.km)) && o.km > 0);
-    const n = d.length, sum = (f) => d.reduce((t, o) => t + f(o), 0), km = sum((o) => Number(o.km)), fee = sum((o) => num(o.deliveryPrice));
-    const bands = [[0, 5, '0–5 km'], [5, 10, '5–10 km'], [10, 15, '10–15 km'], [15, 1e9, '15+ km']].map(([a, b, label]) => { const g = d.filter((o) => o.km >= a && o.km < b); return { label, from: a, to: b, n: g.length, avgFee: g.length ? r2(g.reduce((t, o) => t + num(o.deliveryPrice), 0) / g.length) : 0 }; });
-    return { n, avgKm: n ? Math.round(km / n * 10) / 10 : 0, avgFee: n ? r2(fee / n) : 0, perKm: km > 0 ? r2(fee / km) : 0, totalKm: Math.round(km * 10) / 10, totalFee: r2(fee), bands }; };
+  // the cost of one delivery trip: there and back, at the seller's cost per kilometre (fuel and wear)
+  const tripCost = (km, costKm) => (Number.isFinite(Number(km)) && num(costKm) > 0 ? r2(2 * Number(km) * num(costKm)) : null);
+  const deliveryStats = (orders, costKm) => { const d = (orders || []).filter((o) => o && o.option === 'delivery' && Number.isFinite(Number(o.km)) && o.km > 0);
+    const n = d.length, sum = (f) => d.reduce((t, o) => t + f(o), 0), km = sum((o) => Number(o.km)), fee = sum((o) => num(o.deliveryPrice)), cost = sum((o) => tripCost(o.km, costKm) || 0);
+    const bands = [[0, 5, '0–5 km'], [5, 10, '5–10 km'], [10, 15, '10–15 km'], [15, 1e9, '15+ km']].map(([a, b, label]) => { const g = d.filter((o) => o.km >= a && o.km < b); return { label, from: a, to: b, n: g.length, avgFee: g.length ? r2(g.reduce((t, o) => t + num(o.deliveryPrice), 0) / g.length) : 0, avgCost: g.length && num(costKm) > 0 ? r2(g.reduce((t, o) => t + (tripCost(o.km, costKm) || 0), 0) / g.length) : 0 }; });
+    return { n, avgKm: n ? Math.round(km / n * 10) / 10 : 0, avgFee: n ? r2(fee / n) : 0, perKm: km > 0 ? r2(fee / km) : 0, totalKm: Math.round(km * 10) / 10, totalFee: r2(fee), totalCost: r2(cost), profit: r2(fee - cost), avgCost: n && cost > 0 ? r2(cost / n) : 0, lossN: num(costKm) > 0 ? d.filter((o) => num(o.deliveryPrice) < (tripCost(o.km, costKm) || 0)).length : 0, bands }; };
+  // stops in the order to drive them: always the nearest one next, starting from the store pin (straight-line distances; stops without a pin go last, in their own order)
+  const nearestFirst = (home, items) => { const pin = (x) => geo(x.lat, x.lng), todo = (items || []).filter((x) => pin(x)), rest = (items || []).filter((x) => !pin(x)), out = []; let at = home && geo(home.lat, home.lng);
+    while (todo.length) { let bi = 0; if (at) { let bd = Infinity; todo.forEach((x, i) => { const d = lineKm(at, pin(x)); if (d < bd) { bd = d; bi = i; } }); } const nx = todo.splice(bi, 1)[0]; out.push(nx); at = pin(nx); }
+    return out.concat(rest); };
   const dayKey = (d) => { d = new Date(d); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   // a month as 6 weeks of 7 days (Sunday first) for the calendar: each cell has its date, key, and whether it is in the month
   const monthGrid = (y, m) => { const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay()), cells = []; for (let i = 0; i < 42; i++) { const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i); cells.push({ day: d.getDate(), key: dayKey(d), inMonth: d.getMonth() === m }); } return cells; };
@@ -126,6 +132,6 @@
     if (/^(\d{1,2}\s*[a-z]{3,}|[a-z]{3,}\s*\d{1,2})$/.test(raw) && months.some((m) => raw.includes(m))) return dtext.toLowerCase().includes(raw.replace(/\s+/g, ' ').trim());   // "6 nov" or "nov 6" is a date: it has to be that day
     const hayNum = hay.replace(/[^a-z0-9]/g, ''); return raw.split(/\s+/).every((w) => hay.includes(w) || hayNum.includes(w.replace(/[^a-z0-9]/g, ''))); };
 
-  const api = { lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

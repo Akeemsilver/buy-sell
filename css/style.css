@@ -893,3 +893,10 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 :root[data-theme=dark] .sheet.hdr .oqbar{background:#2d2234;border-color:rgba(255,255,255,.1)}
 :root[data-theme=dark] .sheet.hdr .bpl,:root[data-theme=dark] .sheet.hdr .bprow{border-color:rgba(255,255,255,.08)}
 :root[data-theme=dark] body:has(.sheet.hdr:not([hidden])) #scrim{background:rgba(0,0,0,.72)}
+
+/* the selected tab rises like a lens: a little bigger than its slot, outlined, glowing, with room around the label */
+.seg button{position:relative;transition:transform .18s cubic-bezier(.2,.9,.3,1.35),box-shadow .18s,flex-grow .18s}
+.seg button.on,.sth .seg button.on{z-index:2;transform:scale(1.07);background:var(--card);color:var(--brand);font-weight:800;outline:1.5px solid var(--brand);outline-offset:-1.5px;box-shadow:0 6px 14px rgba(0,0,0,.45),0 0 12px color-mix(in srgb,var(--brand) 55%,transparent)}
+.sth .seg button.on{flex:1.35}
+.sth .seg button{flex:1 1 0}
+.ordseg button{padding-left:6px;padding-right:6px}

@@ -833,3 +833,13 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .otot b{color:#ffcc80}}:root[data-theme=dark] .otot b{color:#ffcc80}
 .sth .ord .mid small.omatch{color:var(--brand);font-weight:700;margin-top:3px}
 .ordseg[hidden],.oqbar .oqx[hidden]{display:none}
+
+/* stock tiles: all the same height; name on one line, then number · size, then customer · invoice */
+.item{min-height:86px}
+.item .main b:not(.szb){-webkit-line-clamp:1;line-clamp:1}
+.item .main small b.szb{display:inline;white-space:nowrap}
+.item .main small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .chk{width:36px}.item .chk input{width:22px;height:22px}
+.item .main{gap:8px}.item .side{padding-right:2px}
+.item .share-btn{width:38px;height:38px;margin-right:6px}.item .share-btn svg{width:18px;height:18px}
+.item .main small{font-size:12px}

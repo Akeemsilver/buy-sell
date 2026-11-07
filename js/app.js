@@ -271,7 +271,7 @@
     const el = $('#appbar-right'); if (!el) return;
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     const n = ($('#back').hidden || isSettings()) ? notifCount() : 0;
-    el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
+    el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
   }
   function render() {
     cleanSelected();
@@ -320,7 +320,7 @@
     const recent = L.filterInvoices(state, flt).slice(-3).reverse();
     if (!state.batches.length) return `<div class="empty"><b>${t('home.welcome')}</b>${t('home.welcomeText')}</div>
       <div class="list"><button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button><button class="btn" data-act="import-xlsx">${t('btn.importXlsx')}</button></div>`;
-    return `<div class="fltrow"><button class="fchip ${filtered() ? 'on' : ''}" data-act="filter" aria-label="${t('tool.filter')}">📅 ${esc(filterLabel())} ▾</button></div><div class="stats">
+    return `${filtered() ? `<button class="row tap" data-act="filter" style="margin-bottom:10px;background:var(--tint)"><div class="grow"><b>${t('home.filtered', { label: esc(filterLabel()) })}</b><small>${t('home.filteredHint')}</small></div><span class="chev">›</span></button>` : ''}<div class="stats">
       <div class="stat hero"><span>${t('home.profit')}</span><b>${money(tot.profit)}</b><button class="eyeb" data-act="view" aria-label="${hideAmounts ? t('tool.show') : t('tool.hide')}"><svg viewBox="0 0 24 24">${ICONS[hideAmounts ? 'eyeoff' : 'eye']}</svg></button></div>
       <div class="stat"><span>${t('home.sales')}</span><b>${money(tot.sales)}</b></div>
       <div class="stat"><span>${t('home.owing')}</span><b>${money(tot.owing)}</b></div>

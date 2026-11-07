@@ -3,7 +3,10 @@
    Pictures are small JPEGs stored inside the catalogue documents, so no paid storage is needed. */
 (function (root) {
   const SC = root.StoreCore, PS = root.PhotoStore;
-  let A = null, orders = [], unsub = null, listenFor = '', timer = 0, running = false;
+  let A = null, orders = [], unsub = null, listenFor = '', timer = 0, running = false, runStart = 0;
+  // Nothing may hang the publish: a picture upload or the final write that never answers is given up after a while (the small free picture is used instead).
+  const TUNE = { pic: 20000, commit: 40000, stale: 90000 };
+  const withTimeout = (p, ms) => { let t; return Promise.race([p, new Promise((_, no) => { t = setTimeout(() => no(Object.assign(new Error('timeout'), { code: 'timeout' })), ms); })]).finally(() => clearTimeout(t)); };
   const info = { at: 0, count: 0, error: '', busy: false, sharp: false };
   const pics = new Map();
   const cfg = () => SC.norm(A.state().settings.store);
@@ -45,25 +48,27 @@
 
   // Writes the store and its catalogue when something public changed (compared with what was last written from this phone).
   async function publish(force) {
-    const c = cfg(); if (!c.id || !root.Cloud || !Cloud.ready() || running) return false;
-    running = true; info.busy = true; info.error = '';
+    const c = cfg(); if (!c.id || !root.Cloud || !Cloud.ready()) return false;
+    if (running && Date.now() - runStart < TUNE.stale) return false;   // one at a time (a run stuck for over a minute is given up)
+    running = true; runStart = Date.now(); info.busy = true; info.error = '';
     try {
       const list = SC.shown(A.state(), c), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
-      const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null, retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
+      const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null; try { if (storage) { storage.setMaxUploadRetryTime(8000); storage.setMaxOperationRetryTime(8000); } } catch (e) { /* older SDK */ }
+      const retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
       const sig = SC.hash({ head, list, retry }), key = 'buy-sell-store-sig:' + c.id;
       if (!force && localStorage.getItem(key) === sig) { info.at = info.at || Date.now(); info.count = list.length; if (storage) cleanPictures(c.id, storage).catch(() => {}); return false; }
       const map = readMap(c.id); let sharpOk = !!storage, sharpN = 0, picErr = 0; const items = [];
       for (const p of list) {
         let img = '';
-        if (p.photo && sharpOk) { try { img = await sharpUrl(p, c.id, map, storage); if (img) sharpN++; } catch (e) { picErr++; if (picErr >= 2 || (e && /unauthorized|unauthenticated|no-default-bucket|project-not-found|quota/.test(e.code || ''))) sharpOk = false; } }
-        if (p.photo && !img) img = await smallPicture(p.photo);
+        if (p.photo && sharpOk) { try { img = await withTimeout(sharpUrl(p, c.id, map, storage), TUNE.pic); if (img) sharpN++; } catch (e) { picErr++; if (picErr >= 2 || (e && /unauthorized|unauthenticated|no-default-bucket|project-not-found|quota|timeout/.test(e.code || ''))) sharpOk = false; } }
+        if (p.photo && !img) img = await withTimeout(smallPicture(p.photo), TUNE.pic).catch(() => '');
         items.push(Object.assign({ id: p.id, name: p.name, nameEs: p.nameEs, sizes: p.sizes, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img }, p.details ? { details: p.details } : {}, p.detailsEs ? { detailsEs: p.detailsEs } : {}));
       }
       writeMap(c.id, map); info.sharp = sharpN > 0; try { localStorage.setItem('buy-sell-store-mode', sharpN > 0 || !list.some((p) => p.photo) ? 'sharp' : 'small'); } catch (e) { /* ignore */ }
       const db = Cloud.db(), sref = db.collection('stores').doc(c.id), chunks = SC.chunk(items), b = db.batch();
       b.set(sref, Object.assign({ workspace: Cloud.workspace(), ownerUid: Cloud.uid(), chunks: chunks.length, count: items.length, updatedAt: Cloud.stamp() }, head));
       chunks.forEach((part, i) => b.set(sref.collection('catalog').doc('c' + i), { i, items: part }));
-      await b.commit();
+      await withTimeout(b.commit(), TUNE.commit);
       try { localStorage.setItem(key, sig); } catch (e) { /* published again next time */ }
       info.at = Date.now(); info.count = items.length; listen(); if (storage) cleanPictures(c.id, storage).catch(() => {}); return true;
     } catch (e) { info.error = (e && e.code) || 'error'; return false; } finally { running = false; info.busy = false; A.refresh(); }
@@ -80,6 +85,6 @@
   }
   const setStatus = (id, status) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update({ status });
 
-  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, info: () => info, orders: () => orders, newCount: () => orders.filter((o) => o.status === 'new').length,
+  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, newCount: () => orders.filter((o) => o.status === 'new').length,
     ageMs: (o) => (ts(o) ? Date.now() - ts(o) : 0), when: (o) => (ts(o) ? new Date(ts(o)) : null) };
 })(window);

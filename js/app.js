@@ -275,7 +275,7 @@
   }
   function render() {
     cleanSelected();
-    const moreTitles = { batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
+    const moreTitles = { orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
     const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
@@ -546,12 +546,13 @@
     if (moreView === 'invoices') return `<div class="list">${L.filterInvoices(state, flt).slice().reverse().map(invoiceRow).join('') || `<div class="empty">${t('invoices.none')}</div>`}</div>`;
     if (moreView === 'items') return ItemLog();
     if (moreView === 'batches') return BatchLog();
+    if (moreView === 'orders') return OrderLog();
     if (moreView === 'summary') return Summary();
     if (moreView === 'settings') return Settings();
     if (moreView && moreView.startsWith('set-')) return SettingsPage();
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     const act = (a, icon, label, sub, bad) => `<button class="row tap" data-act="${a}"><span style="font-size:22px">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
-    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('batches', '📦', t('more.batches'), t('more.batchesSub', { n: state.batches.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
+    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('orders', '🛍️', t('more.orders'), t('more.ordersSub', { n: window.Store ? Store.orders().length : 0 }))}${go('batches', '📦', t('more.batches'), t('more.batchesSub', { n: state.batches.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
       ${go('summary', '📈', t('more.summary'), t('more.summarySub'))}${act('words-open', '🔤', t('words.title'), t('words.sub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
       ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>${t('more.install')}</b><small>${isIOS ? t('more.installIOS') : t('more.installOther')}</small></div><span class="chev">›</span></button></div>`}
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
@@ -1781,25 +1782,27 @@
   const ordHead = () => { const cnt = {}; ORD_TABS.forEach((f) => { cnt[f] = 0; }); Store.orders().forEach((o) => { cnt[stageOf(o)]++; });
     return `<div class="oqbar"><span aria-hidden="true">🔍</span><input class="oq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('ord.search'))}" value="${esc(ordQ)}" aria-label="${esc(t('ord.search'))}"><button class="oqx" data-act="ord-q-clear" aria-label="${t('ord.clear')}" ${ordQ ? '' : 'hidden'}>✕</button></div>
       <div class="seg ordseg" ${ordQ.trim() ? 'hidden' : ''}>${ORD_TABS.map((f) => `<button class="${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt[f]}</button>`).join('')}</div>`; };
+  // newest first: the moment of the latest thing that happened to the order
+  const ordKey = (o) => { const c = Store.when(o), t0 = (v) => (tsAt(v) ? tsAt(v).getTime() : 0), c0 = c ? c.getTime() : 0;
+    return Math.max(c0, o.status === 'done' ? t0(o.doneAt) : o.status === 'confirmed' ? t0(o.confirmedAt) : o.status === 'declined' ? t0(o.declinedAt) : 0); };
+  const newestFirst = (a) => a.slice().sort((x, y) => ordKey(y) - ordKey(x));
   function ordPanel(limit) {
-    const all = Store.orders(), q = ordQ.trim(), more = (n, lim) => (n > lim ? `<button class="btn more" data-act="ord-more">${t('ord.showMore', { n: Math.min(20, n - lim) })}</button>` : '');
+    const all = newestFirst(Store.orders()), q = ordQ.trim(), hub = limit <= 5;
+    const more = (n, lim) => (n > lim ? `<button class="btn more" data-act="ord-more">${t('ord.showMore', { n: Math.min(20, n - lim) })}</button>` : '');
+    const logBtn = (n) => `<button class="btn more logbtn" data-act="orders-open">${t('ord.openLog')} · ${n}</button>`;   // the store page shows only the newest 5; the rest lives in the order log
     if (q) {
       const hits = all.map((o) => ({ o, st: stageOf(o), m: L.orderMatch(state, o, q, orderInvoice(o)) })).filter((x) => x.m);
       if (!hits.length) return `<div class="none">${t('ord.noMatch', { q: esc(q) })}</div>`;
-      const lim = Math.max(limit, ordLimit), shown = hits.slice(0, lim);
-      return ORD_TABS.map((st) => { const g = shown.filter((x) => x.st === st); return g.length ? `<div class="ostage">${t('ord.f.' + st).toUpperCase()} · ${hits.filter((x) => x.st === st).length}</div>${g.map((x) => ordRow(x.o, x.m)).join('')}` : ''; }).join('') + more(hits.length, lim);
+      const lim = hub ? limit : Math.max(limit, ordLimit), shown = hits.slice(0, lim);
+      return ORD_TABS.map((st) => { const g = shown.filter((x) => x.st === st); return g.length ? `<div class="ostage">${t('ord.f.' + st).toUpperCase()} · ${hits.filter((x) => x.st === st).length}</div>${g.map((x) => ordRow(x.o, x.m)).join('')}` : ''; }).join('') + (hub ? (hits.length > lim ? logBtn(hits.length) : '') : more(hits.length, lim));
     }
     const list = all.filter((o) => stageOf(o) === ordFilter), owed = ordFilter === 'handed' ? list.reduce((n, o) => n + ((L.orderPay(state, orderInvoice(o)) || {}).owing || 0), 0) : 0;
     return (owed > 0 ? `<div class="otot">${tn('ord.nOrders', list.length)} · <b>${t('ord.stillToCollect', { amount: money(owed) })}</b></div>` : '') +
-      (list.length ? list.slice(0, limit).map((o) => ordRow(o)).join('') + (limit > 5 ? more(list.length, limit) : '') : `<div class="none">${t('hub.noOrders')}</div>`);
+      (list.length ? list.slice(0, limit).map((o) => ordRow(o)).join('') + (hub ? logBtn(list.length) : more(list.length, limit)) : `<div class="none">${t('hub.noOrders')}</div>`);
   }
   const refreshOrders = () => { document.querySelectorAll('.ordp').forEach((e) => { e.innerHTML = ordPanel(Number(e.dataset.lim) || 20); }); document.querySelectorAll('.ordseg').forEach((e) => { e.hidden = !!ordQ.trim(); }); document.querySelectorAll('.oqx').forEach((e) => { e.hidden = !ordQ; }); };
-  function sheetOrders() {
-    enterPage('orders', '', () => sheetOrders());
-    const all = Store.orders();
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('store.orders')}</b><small>${t('ord.count', { n: all.length })}</small></div></div>
-      <div class="ap sth">${ordHead()}<div class="ordp" data-lim="${ordLimit}">${ordPanel(ordLimit)}</div></div>`, null, true);
-  }
+  // More > Order log: every order, with the search box and the same four tabs (nothing is ever removed from it)
+  function OrderLog() { return `<div class="sth">${ordHead()}<div class="ordp" data-lim="${ordLimit}">${ordPanel(ordLimit)}</div></div>`; }
   // The invoice an order was turned into (saved on the order; older orders: the invoice their sold items are on).
   const orderInvoice = (o) => o.invoice || ((o.items || []).map((i) => state.items.find((x) => x.id === i.id)).find((it) => it && it.invoice && L.isSold(it)) || {}).invoice || '';
   Object.defineProperty(L, 'orderHold', { get: () => new Set(Store.reserved()), configurable: true });   // items inside unanswered orders are locked like sold ones
@@ -2133,8 +2136,8 @@
       case 'store-loc-del': { const c = storeCfg(); storeSet({ locations: c.locations.filter((l) => l.id !== id) }); return dropPages('storeloc|' + id); }
       case 'pin-open': return;   // the link itself opens Google Maps or Waze; this only stops the card behind it from reacting
       case 'deliveries-open': return sheetDeliveries();
-      case 'orders-open': { ordLimit = 20; const c = storeCfg(); if (!c.id) return sheetStore(); return sheetOrders(); }
-      case 'ord-filter': ordFilter = id; ordLimit = 20; return hubOpen() ? render() : sheetOrders();
+      case 'orders-open': { ordLimit = 20; const c = storeCfg(); if (!c.id) return sheetStore(); if (!$('#sheet').hidden) closeSheet(); go({ tab: 'more', moreView: 'orders' }); window.scrollTo(0, 0); return render(); }
+      case 'ord-filter': ordFilter = id; ordLimit = 20; return render();
       case 'order-open': return sheetOrder(id);
       case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
       case 'order-cancel': return orderCancel(id);
@@ -2187,7 +2190,7 @@
       case 'inv-color': setInvStyle({ color: id || null }); return render();
       case 'inv-reset': { const m = Object.assign({}, state.settings.invoiceStyle); delete m[invDesignId()]; state.settings.invoiceStyle = m; save(); if (invFsOn) { invFsControls(); invFsPreview(); } return render(); }
       case 'inv-design': state.settings.invoiceDesign = id; save(); toast(t('invd.saved')); return render();
-      case 'more': go({ tab: 'more', moreView: id }); window.scrollTo(0, 0); return render();
+      case 'more': if (id === 'orders') { ordLimit = 20; ordQ = ''; } go({ tab: 'more', moreView: id }); window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
       case 'export-json': return confirmDownload('buy-sell-backup.json', () => download('buy-sell-backup.json', JSON.stringify(state, null, 2)));
@@ -2414,7 +2417,7 @@
   const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
   wordList();
   Store.init({ state: () => state, bizName, refresh: () => { const top = pageStack[pageStack.length - 1]; if (top && top.key === 'store' && !$('#sheet').hidden) { const sc = $('#sheet').scrollTop; reopening = true; try { top.open(); } finally { reopening = false; } $('#sheet').scrollTop = sc; } },
-    onOrders: () => { renderTools(); const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && (top.key === 'orders' || top.key.startsWith('order|'))) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && tab === 'sell') render(); } });
+    onOrders: () => { renderTools(); const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && top.key.startsWith('order|')) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && (tab === 'sell' || (tab === 'more' && moreView === 'orders'))) render(); } });
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, openSmall, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({
     getState: () => state,

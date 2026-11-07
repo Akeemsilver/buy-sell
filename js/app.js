@@ -476,7 +476,7 @@
       <h4><span>${t('store.orders')}</span><a data-act="orders-open">${t('hub.seeAll')}</a></h4>
       ${ordHead()}
       <div class="ordp" data-lim="5">${ordPanel(5)}</div>
-      <h4><span>${t('hub.see')}</span></h4>
+      <h4><span>${t('hub.see')}</span>${state.batches.length ? `<span class="allsw">${t('store.selAll')} ${swt('store-batch-all', 'all', state.batches.every((b) => c.batches.includes(b.id)))}</span>` : ''}</h4>
       <div class="box">${state.batches.slice().sort((a, b) => b.num - a.num).map(batchRow).join('') || `<div class="rw2"><div class="t"><small>${t('stock.none')}</small></div></div>`}</div>
       ${hid0 ? `<div class="warn"><span style="font-size:20px">⚠️</span><div><b>${tn('hub.hidden', hidden.length)}</b><br><small>${t('hub.hiddenSub')}</small></div><button class="fx" data-act="open-stock" data-id="${hid0.batchId}">${t('hub.fix')}</button></div>` : ''}
       <h4><span>${t('hub.settings')}</span></h4>
@@ -2058,6 +2058,7 @@
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
+      case 'store-batch-all': { const c = storeCfg(), all = state.batches.map((b) => b.id), on = all.every((x) => c.batches.includes(x)); storeSet({ batches: on ? [] : all }); return hubOpen() ? render() : sheetStore(); }   // all on -> turn every batch off; otherwise turn every batch on
       case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return hubOpen() ? render() : sheetStore(); }
       case 'store-publish': toast(t('store.publishing')); Store.publish(true).then((ran) => { const inf = Store.info(); toast(inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : !ran && inf.busy ? t('store.stillPub') : !ran ? t('store.notRan') : t('store.donePub', { n: inf.count })); }); return;
       case 'store-loc': return sheetLocation(id);

@@ -468,12 +468,12 @@
     if (!c.id) return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><b>${t('hub.setup')}</b><small>${t('store.needAccountSub')}</small></div></div><div class="lnk">${signed ? `<button class="btn primary" style="flex:1" data-act="store-create">${t('store.create')}</button>` : `<button class="btn primary" style="flex:1" data-act="acct-open">${t('acct.signIn')}</button>`}</div></div></div>`;
     const live = SCore.shown(state, c).length, all = Store.orders(), cnt = (f) => all.filter((o) => (f === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === f)).length;
     const list = all.filter((o) => (ordFilter === 'done' ? o.status === 'done' || o.status === 'declined' : o.status === ordFilter)).slice(0, 5);
-    const stat = !signed ? t('store.needAccount') : inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : inf.busy ? t('store.publishing') : inf.at ? t('store.published', { n: inf.count, when: ago(new Date(inf.at)) }) + ' · ' + t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall') : '';
+    const stat = !signed ? '' : inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : inf.busy ? t('store.publishing') : inf.at ? t('store.published', { n: inf.count, when: ago(new Date(inf.at)) }) + ' · ' + t(inf.sharp ? 'store.picsSharp' : 'store.picsSmall') : '';
     const hidden = state.items.filter((i) => c.batches.includes(i.batchId) && i.status === 'Available' && String(i.desc || '').trim() && !(Number(i.price) > 0) && !(L.salePrice(i) > 0)), hid0 = hidden[0];
     const row = (o) => `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</b><small>${tn('notif.items', (o.items || []).length)} · ${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${money(o.total)}</small></div><span class="go">${t('hub.open')}</span></button>`;
     const batchRow = (b) => { const a = state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, tr = state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length; return `<div class="rw2"><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a, t: tr })}</small></div>${swt('store-batch', b.id, c.batches.includes(b.id))}</div>`; };
     const link = (act, ic, label) => `<button data-act="${act}">${ic} ${label}</button>`;
-    return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><div class="live ${c.open ? '' : 'off'}"><i></i>${c.open ? t('hub.open2') : t('hub.closed')}</div><small>${esc(c.open ? t('hub.liveSub', { n: live }) : t('store.openSub'))}${stat ? ' · ' + esc(stat) : ''}</small></div>${swt('store-toggle', 'open', c.open)}</div>
+    return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><div class="live ${c.open ? '' : 'off'}"><i></i>${c.open ? t('hub.open2') : t('hub.closed')}</div><small>${esc(c.open ? t('hub.liveSub', { n: live }) : t('store.openSub'))}</small></div>${swt('store-toggle', 'open', c.open)}</div>
       <div class="lnk">${link('store-link', '🔗', t('store.copy') + ' ' + t('hub.link'))}${link('store-share', '📤', t('hub.share'))}${link('store-preview', '👁', t('hub.preview'))}</div></div>
       <h4><span>${t('store.orders')}</span><a data-act="orders-open">${t('hub.seeAll')}</a></h4>
       <div class="seg">${['new', 'confirmed', 'done'].map((f) => `<button class="${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt(f)}</button>`).join('')}</div>
@@ -482,13 +482,15 @@
       <div class="box">${state.batches.slice().sort((a, b) => b.num - a.num).map(batchRow).join('') || `<div class="rw2"><div class="t"><small>${t('stock.none')}</small></div></div>`}</div>
       ${hid0 ? `<div class="warn"><span style="font-size:20px">⚠️</span><div><b>${tn('hub.hidden', hidden.length)}</b><br><small>${t('hub.hiddenSub')}</small></div><button class="fx" data-act="open-stock" data-id="${hid0.batchId}">${t('hub.fix')}</button></div>` : ''}
       <h4><span>${t('hub.settings')}</span></h4>
-      <div class="box"><button class="rw2 tap" data-act="store-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
-        <button class="rw2 tap" data-act="store-open"><div class="t"><b>${t('hub.contact')}</b><small>${esc(c.name || bizName())} · ${esc(c.whatsapp) || t('store.whatsappSub')}</small></div><span class="chev">›</span></button>
+      <div class="box"><button class="rw2 tap" data-act="pickup-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
+        <button class="rw2 tap" data-act="contact-open"><div class="t"><b>${t('hub.contact')}</b><small>${esc(c.name || bizName())} · ${esc(c.whatsapp) || t('store.whatsappSub')}</small></div><span class="chev">›</span></button>
         <button class="rw2 tap" data-act="words-open"><div class="t"><b>${t('hub.spanish')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div><span class="chev">›</span></button>
         <div class="rw2"><div class="t"><b>${t('store.left')}</b><small>${t('hub.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div>
         <div class="rw2"><div class="t"><b>${t('store.transit')}</b><small>${t('hub.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div>
         <div class="rw2"><div class="t"><b>${t('store.autoNew')}</b><small>${t('hub.autoSub')}</small></div>${swt('store-toggle', 'autoNew', c.autoNew)}</div>
-        <button class="rw2 tap" data-act="store-open"><div class="t"><b>${t('hub.all')}</b></div><span class="chev">›</span></button></div></div>`;
+        <button class="rw2 tap" data-act="store-open"><div class="t"><b>${t('hub.all')}</b></div><span class="chev">›</span></button></div>
+      <div class="pubcard ${inf.error || !signed ? 'bad' : ''}"><i></i><div><b>${!signed ? t('store.needAccount') : inf.error ? t('hub.pubProblem') : inf.busy ? t('store.publishing') : inf.at ? t('hub.upToDate') : t('hub.notYet')}</b><small>${esc(stat)}</small></div></div>
+      <button class="pubbtn" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="pubnote">${t('hub.autoNote')}</p></div>`;
   }
   function Sell() {
     if (!selected.size) return `<div class="sx"><div class="empty2"><div class="ic">🧾</div><h3>${t('sell.empty')}</h3><p>${t('sell.emptyText')}</p><button class="btn primary" data-act="goto-stock" style="width:100%">${t('sell.choose')}</button></div></div>`;
@@ -1570,6 +1572,26 @@
       <div class="card"><div class="rw"><div class="t"><b>${t('store.name')}</b></div><input class="sfield" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"></div><div class="rw"><div class="t"><b>${t('store.whatsapp')}</b><small>${t('store.whatsappSub')}</small></div><input class="sfield" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="868 555 0100" autocomplete="off" enterkeyhint="done"></div></div>
       <button class="btn" style="width:100%;margin-top:6px" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="muted small" style="margin:10px 2px">${t('store.note')}</p>` : ''}</div>`, null, true);
   }
+  // Pickup and delivery: only the places, with what each offers; tap one to change it, or add a place.
+  function sheetPickup() {
+    enterPage('pickup', '', () => sheetPickup());
+    const c = storeCfg(), chip = (on, html) => `<span class="chp ${on ? '' : 'off'}">${html}</span>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.delivery')}</b><small>${t('pd.sub')}</small></div></div>
+      <div class="pd"><p class="lead">${t('pd.lead')}</p>
+      ${c.locations.map((l) => `<button class="lrow" data-act="store-loc" data-id="${l.id}"><div class="t"><b>${esc(l.name)}</b>${chip(l.pickup, t('store.pickup') + (l.pickup ? ' · ' + t('store.free') : ''))}${chip(l.delivery, t('store.delivery') + (l.delivery ? ' ' + money(l.price) : ''))}</div><span class="chev">›</span></button>`).join('')}
+      <button class="addp" data-act="store-loc" data-id="new">＋ ${t('pd.add')}</button>
+      ${c.locations.length ? '' : `<div class="tip">💡<div>${t('pd.tip')}</div></div>`}</div>`, null, true);
+  }
+  // Store name and WhatsApp: two boxes and how they look to customers (saves as you type).
+  function sheetContact() {
+    enterPage('storecontact', '', () => sheetContact());
+    const c = storeCfg(), nm = c.name || bizName();
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.contact')}</b><small>${t('ct.sub')}</small></div></div>
+      <div class="pd"><div class="fld"><label for="ct-name">${t('store.name')}</label><input id="ct-name" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"><small>${t('ct.nameSub')}</small></div>
+      <div class="fld"><label for="ct-wa">${t('store.whatsapp')}</label><input id="ct-wa" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="1 868 555 0100" autocomplete="off" enterkeyhint="done"><small>${t('ct.waSub')}</small></div>
+      <div class="pvw"><div class="cap">${t('ct.how')}</div><div class="top"><span class="lg" id="ct-pl">${esc((nm.trim().charAt(0) || '?').toUpperCase())}</span><span id="ct-pn">${esc(nm)}</span></div><div class="wab">${t('ct.wa')}</div></div>
+      <p class="lead" style="margin-top:14px">${t('ct.saves')}</p></div>`, null, true);
+  }
   function sheetLocation(id) {
     const c = storeCfg(), l = c.locations.find((x) => x.id === id) || { id: '', name: '', pickup: true, delivery: true, price: 25 };
     enterPage('storeloc', id, () => sheetLocation(id));
@@ -1868,6 +1890,8 @@
       case 'store-preview': { const c = storeCfg(); if (!c.id) return sheetStore(); window.open(Store.link(c), '_blank', 'noopener'); return; }
       case 'store-link': { const c = storeCfg(); if (!c.id) return sheetStore(); return copyText(Store.link(c)).then((ok) => toast(ok ? t('store.copied') : Store.link(c))); }
       case 'store-open': return sheetStore();
+      case 'pickup-open': return sheetPickup();
+      case 'contact-open': return sheetContact();
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
@@ -1975,7 +1999,7 @@
   document.addEventListener('input', (e) => {
     const el = e.target;
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
-    if (el.dataset.store) { storeSet({ [el.dataset.store]: el.value }); return; }
+    if (el.dataset.store) { storeSet({ [el.dataset.store]: el.value }); const pn = $('#ct-pn'); if (pn) { const n = storeCfg().name || bizName(); pn.textContent = n; $('#ct-pl').textContent = (n.trim().charAt(0) || '?').toUpperCase(); } return; }
     if (el.id === 'pay-amt') { payUpdate(); return; }
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }

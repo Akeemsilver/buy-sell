@@ -79,3 +79,10 @@ console.log('details tests passed');
   const tv = SC.tileView(10.6549, -61.5019, 16, 300, 200); assert.ok(tv.tiles.length >= 4 && tv.tiles.length <= 6); assert.ok(tv.tiles.every((t) => /^https:\/\/tile\.openstreetmap\.org\/16\/\d+\/\d+\.png$/.test(t.url)));
   assert.ok(tv.tiles.some((t) => t.left <= 150 && t.left + 256 >= 150 && t.top <= 100 && t.top + 256 >= 100), 'a tile covers the middle of the box, where the pin sits');
 }
+{ // one route through the pinned deliveries
+  const SC = require('../js/storecore.js');
+  assert.strictEqual(SC.routeLink([]), ''); assert.strictEqual(SC.routeLink([{ lat: 'x', lng: 1 }]), '');
+  assert.strictEqual(SC.routeLink([{ lat: 10.6, lng: -61.4 }]), 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=10.6,-61.4');
+  const r = SC.routeLink([{ lat: 10.6, lng: -61.4 }, { lat: 10.7, lng: -61.3 }, { lat: 10.8, lng: -61.2 }]); assert.ok(r.endsWith('destination=10.8,-61.2&waypoints=10.6%2C-61.4%7C10.7%2C-61.3'), r);
+  const many = Array.from({ length: 14 }, (_, i) => ({ lat: 10 + i / 100, lng: -61 })); assert.strictEqual(decodeURIComponent(SC.routeLink(many).split('waypoints=')[1]).split('|').length, 9, 'ten stops at most: nine on the way plus the destination');
+}

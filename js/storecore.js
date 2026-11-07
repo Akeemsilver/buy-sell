@@ -98,7 +98,11 @@
     return '<div class="tv" style="position:relative;overflow:hidden;background:#e9e5dc;' + (css || '') + '"><div style="position:absolute;left:50%;top:50%;width:' + w + 'px;height:' + h + 'px;margin:' + (-h / 2) + 'px 0 0 ' + (-w / 2) + 'px">'
       + v.tiles.map((t) => '<img alt="" loading="lazy" src="' + t.url + '" style="position:absolute;left:' + t.left + 'px;top:' + t.top + 'px;width:256px;height:256px;max-width:none">').join('')
       + '</div><svg viewBox="0 0 24 34" width="26" height="36" style="position:absolute;left:50%;top:50%;margin:-35px 0 0 -13px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))"><path d="M12 0C5.4 0 0 5.2 0 11.7 0 20 12 34 12 34s12-14 12-22.3C24 5.2 18.6 0 12 0z" fill="#d6264a"/><circle cx="12" cy="11.5" r="4.5" fill="#fff"/></svg></div>'; };
+  // One Google Maps route through several pinned stops (the last is the destination, the others are stops on the way; it starts from where the phone is). Maps takes about 10 stops.
+  const routeLink = (pts) => { const g = (pts || []).map((x) => geo(x.lat, x.lng)).filter(Boolean).slice(0, 10); if (!g.length) return '';
+    const q = (x) => x.lat + ',' + x.lng, last = g[g.length - 1], way = g.slice(0, -1).map(q).join('|');
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + q(last) + (way ? '&waypoints=' + encodeURIComponent(way) : ''); };
 
-  const api = { tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

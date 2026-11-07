@@ -31,4 +31,4 @@ jobs:
         run: |
           npm install --prefix functions --omit=dev
           printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
-          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools@latest deploy --only functions --project b-ruiz --non-interactive
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools@latest deploy --only functions --project b-ruiz --non-interactive --force

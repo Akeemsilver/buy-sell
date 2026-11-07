@@ -1106,7 +1106,7 @@
         if (ch === 'add') L.addItems(state, i.batchId, need - free); else if (ch === 'use' && free) need = free; else return reQuick(i);
       }
       try { L.makeCopies(state, i.id, need); } catch (e) { toast('⚠️ ' + errMsg(e)); return reQuick(i); }
-      save(); render(); reQuick(i); return szpOpen(i, false);
+      save(); render(); return reQuick(i);   // only the count changes; the size picker opens when the owner taps Split by size
     }
     const ok = await askCard(tn('qty.dropAsk', cur - want, { name: String(i.desc || '').trim() || t('item.untitled') }), { danger: true, ok: t('qty.dropOk') });
     if (ok) { L.dropCopies(state, i.id, cur - want); save(); render(); }

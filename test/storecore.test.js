@@ -57,4 +57,11 @@ console.log('store core tests passed');
   const c = SC.shown(s2, { batches: [s2.batches[0].id] }); assert.strictEqual(c.length, 1); assert.strictEqual(c[0].details, 'Soft cotton'); assert.strictEqual(c[0].detailsEs, 'Algodón suave');
   assert.ok(!('cost' in c[0]), 'still no cost');
 }
+{
+  const all = SC.shown(s, { batches: [b1] }).flatMap((g) => (g.sizes ? g.sizes.flatMap((z) => z.ids || []) : [g.id]));
+  const held = all[0], kept = SC.shown(s, { batches: [b1] }, [held]);
+  const ids = kept.flatMap((g) => (g.sizes ? g.sizes.flatMap((z) => z.ids || []) : [g.id]));
+  assert.ok(!ids.includes(held), 'an item held by an unanswered order is not published');
+  assert.strictEqual(ids.length, all.length - 1, 'only that item is held back');
+}
 console.log('details tests passed');

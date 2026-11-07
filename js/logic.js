@@ -323,7 +323,7 @@
    * invoice this one replaces carry over, overpayment becomes a tip, and a tip that exceeds profit
    * turns into a loss (profit is floored at 0).
    */
-  L.previewInvoice = (s, { itemIds, client, paying }) => {
+  L.previewInvoice = (s, { itemIds, client, paying, allowZero }) => {
     const items = itemIds.map((id) => s.items.find((i) => i.id === id)).filter(Boolean);
     client = L.canonicalName(s, client);
     const errors = [];
@@ -332,7 +332,7 @@
     if (!client) errors.push('noClient');
     if (items.some((i) => !i.desc.trim())) errors.push('noDesc');
     if (items.some((i) => L.effectivePrice(i) <= 0)) errors.push('noPrice');
-    if (items.length && paying <= 0) errors.push('noPaying');
+    if (items.length && (allowZero ? paying < 0 : paying <= 0)) errors.push('noPaying');
 
     const landed = items.reduce((t, i) => t + L.itemCalc(s.batches.find((b) => b.id === i.batchId), i).landed, 0);
     const totalSold = items.reduce((t, i) => t + L.effectivePrice(i), 0);
@@ -363,8 +363,8 @@
       profit: r2(profit), loss: r2(loss), landed, ref, status: paying + prev >= total ? 'Paid' : 'Owing' };
   };
 
-  L.createInvoice = (s, { itemIds, client, isNew, paying, date }) => {
-    const p = L.previewInvoice(s, { itemIds, client, paying });
+  L.createInvoice = (s, { itemIds, client, isNew, paying, date, allowZero }) => {
+    const p = L.previewInvoice(s, { itemIds, client, paying, allowZero });
     if (p.errors.length) throw fail(p.errors[0]);
     client = L.canonicalName(s, client);
     const d = date || new Date();

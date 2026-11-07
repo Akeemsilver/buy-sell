@@ -27,10 +27,10 @@
   // Items the store shows: only the chosen batches, only items for sale (Available, or In Transit when that is switched on), and only
   // items that have a name and a price. Items with the same name, price and sale price are ONE card; what differs is the size, so the card
   // lists the sizes that are still available and which items they are. Costs and profit are never part of this.
-  const shown = (s, cfgIn) => {
-    const cfg = norm(cfgIn), ok = new Set(cfg.batches), groups = new Map();
+  const shown = (s, cfgIn, reserved) => {
+    const cfg = norm(cfgIn), ok = new Set(cfg.batches), groups = new Map(), held = new Set(reserved || []);   // held = items in an order that has not been answered yet
     (s.items || []).slice().sort((a, b) => a.id.localeCompare(b.id)).forEach((it) => {
-      if (!ok.has(it.batchId)) return;
+      if (!ok.has(it.batchId) || held.has(it.id)) return;
       const transit = it.status === 'In Transit';
       if (it.status !== 'Available' && !(transit && cfg.inTransit)) return;
       const name = String(it.desc || '').trim(), sale = L.salePrice(it), price = num(it.price);

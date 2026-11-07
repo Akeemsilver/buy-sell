@@ -1,0 +1,8 @@
+{
+  "name": "b-ruiz-functions",
+  "private": true,
+  "description": "Hides ordered items from the store at once",
+  "main": "index.js",
+  "engines": { "node": "20" },
+  "dependencies": { "firebase-admin": "^12.7.0", "firebase-functions": "^5.1.1" }
+}

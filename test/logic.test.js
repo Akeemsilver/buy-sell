@@ -316,3 +316,19 @@ console.log('sale price tests passed');
   L.recordPayment(s, b.no, 120, new Date('2026-11-05T12:00:00'));
   p = L.orderPay(s, a.no); assert.strictEqual(p.owing, 0); assert.strictEqual(p.paid, 200); assert.strictEqual(p.payments.length, 2);
 }
+{ // order stages and search
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 1, currency: 'TTD', totalCost: 50, margin: 100 });
+  s.items[0].desc = 'Blue dress'; s.items[0].cost = 50; s.items[0].price = 200; s.items[0].status = 'Available';
+  const a = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Burke', isNew: true, paying: 50, date: new Date('2026-11-01T12:00:00') });
+  const b = L.recordPayment(s, a.no, 10, new Date('2026-11-02T12:00:00'));
+  const o = { code: 'ORD-WDDK4', name: 'Burke', phone: '868 706 1847', status: 'done', items: [{ id: s.items[0].id, name: 'Blue dress', size: 'M' }] };
+  assert.strictEqual(L.orderStage({ status: 'new' }, null), 'new'); assert.strictEqual(L.orderStage({ status: 'confirmed' }, null), 'confirmed');
+  assert.strictEqual(L.orderStage(o, L.orderPay(s, a.no)), 'handed', 'handed over but owing');
+  L.recordPayment(s, b.no, 140, new Date('2026-11-03T12:00:00'));
+  assert.strictEqual(L.orderStage(o, L.orderPay(s, a.no)), 'done', 'paid in full moves to done by itself');
+  assert.strictEqual(L.orderStage({ status: 'declined' }, null), 'done');
+  const m = (q) => (L.orderMatch(s, o, q, a.no) || {}).kind;
+  assert.strictEqual(m('wddk'), 'order'); assert.strictEqual(m('ord wddk4'), 'order'); assert.strictEqual(m(a.no.toLowerCase()), 'invoice', 'an older invoice number in the chain finds it too'); assert.strictEqual(m(b.no), 'invoice');
+  assert.strictEqual(m(s.items[0].id), 'item'); assert.strictEqual(m(s.items[0].id.replace('-', '')), 'item', 'item numbers match without the dash'); assert.strictEqual(m('dress'), 'item');
+  assert.strictEqual(m('burke'), 'customer'); assert.strictEqual(m('706'), 'phone'); assert.strictEqual(m('zzz'), undefined); assert.strictEqual(m('  '), undefined);
+}

@@ -67,4 +67,17 @@ const mk = (n) => { const s = L.defaultState(); L.createBatch(s, { store: 'SHEIN
   L.bulkSale(s, [ids[1]], 50); assert.strictEqual(L.salePrice(s.items[1]), 100, 'a new percentage replaces the old one');
   L.clearSale(s, ids); assert.strictEqual(L.salePrice(s.items[0]), 0); assert.strictEqual(SC.shown(s, { batches: ['BATCH-001'] })[0].sale, 0);
 }
+{ // an item inside an unanswered order is locked like a sold one, and group changes leave it alone
+  const s = L.defaultState(); L.createBatch(s, { store: 'SHEIN', count: 6, currency: 'USD', totalCost: 60, margin: 100 });
+  Object.assign(s.items[0], { desc: 'Blue dress', price: 100, cost: 10 }); L.makeCopies(s, s.items[0].id, 3);
+  assert.strictEqual(L.isLocked(s.items[1]), false, 'free to edit by default');
+  L.orderHold = new Set([s.items[1].id]);
+  assert.strictEqual(L.isHeld(s.items[1]), true); assert.strictEqual(L.isLocked(s.items[1]), true, 'ordered = locked');
+  assert.strictEqual(L.isSold(s.items[1]), false, 'but not sold');
+  assert.ok(!L.groupOf(s, s.items[0]).includes(s.items[1]), 'a held piece is not part of the group being edited');
+  L.applyToGroup(s, Object.assign(s.items[0], { price: 150 }), ['price']);
+  assert.strictEqual(s.items[1].price, 100, 'a group price change does not touch the ordered piece');
+  const gone = L.dropCopies(s, s.items[0].id, 3); assert.ok(!gone.includes(s.items[1]) && s.items[1].desc === 'Blue dress', 'dropping copies never drops the ordered piece');
+  L.orderHold = new Set(); assert.strictEqual(L.isLocked(s.items[1]), false, 'answering the order unlocks it');
+}
 console.log('group tests passed');

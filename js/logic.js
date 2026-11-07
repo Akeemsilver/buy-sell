@@ -204,7 +204,11 @@
   const byId = (a, b) => a.id.localeCompare(b.id);
   L.GROUP_FIELDS = ['desc', 'cost', 'price', 'saleOn', 'discount', 'nameEs', 'esSet', 'esFor', 'details', 'detailsEs'];
   L.newGroupId = (() => { let n = 0; return () => 'G' + Date.now().toString(36) + (++n).toString(36) + Math.floor(Math.random() * 1296).toString(36); })();
-  L.groupOf = (s, it) => (it.grp ? s.items.filter((x) => x.grp === it.grp && !L.isSold(x)).sort(byId) : [it]);
+  // An item inside an order the owner has not answered yet is held: locked for editing like a sold one (the app fills orderHold from the store orders).
+  L.orderHold = new Set();
+  L.isHeld = (it) => { const h = L.orderHold; return !!(it && h && h.has && h.has(it.id)); };
+  L.isLocked = (it) => L.isSold(it) || L.isHeld(it);
+  L.groupOf = (s, it) => (it.grp ? s.items.filter((x) => x.grp === it.grp && !L.isLocked(x)).sort(byId) : [it]);
   // An empty spot in a batch: nothing typed, no picture, not sold, not part of a group.
   L.isEmptySlot = (i) => !L.isSold(i) && !String(i.desc || '').trim() && !(num(i.price) > 0) && !(num(i.cost) > 0) && !i.photo && !i.grp && !String(i.size || '').trim() && !i.invoice && !i.customer;
   L.freeSlots = (s, batchId) => s.items.filter((i) => i.batchId === batchId && L.isEmptySlot(i)).sort(byId);

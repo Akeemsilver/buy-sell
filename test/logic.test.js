@@ -354,7 +354,11 @@ console.log('sale price tests passed');
     const b = L.recordPayment(s, a.no, 30, new Date('2026-11-02T12:00:00'));
     const pv = L.returnPreview(s, a.no, [s.items[0].id, s.items[1].id]); assert.strictEqual(pv.all, true); assert.strictEqual(pv.paid, 80);
     const r = L.returnItems(s, a.no, [s.items[0].id, s.items[1].id]); assert.strictEqual(r.all, true); assert.strictEqual(r.refund, 80);
-    assert.strictEqual(s.invoices.length, 0, 'every invoice in the chain is gone'); assert.ok(s.items.slice(0, 2).every((i) => i.status === 'Available' && !i.invoice && !i.customer && i.sold === 0));
+    assert.strictEqual(s.invoices.length, 2, 'the invoices stay in the log, nothing is deleted'); assert.deepStrictEqual(s.invoices.map((v) => v.no), [a.no, b.no]);
+    assert.ok(s.invoices.every((v) => v.void && v.void.kind === 'returned' && v.total === 0 && v.balance === 0 && v.profit === 0), 'marked Returned and zeroed so no total counts them');
+    assert.strictEqual(s.invoices[1].void.refund, 80); assert.strictEqual(s.invoices[1].void.items.length, 2); assert.strictEqual(s.invoices[0].void.was.total, 200, 'what it was is remembered');
+    assert.strictEqual(L.invoiceStatus(s.invoices[1]), 'Returned');
+    { const c = L.createInvoice(s, { itemIds: [s.items[2].id], client: 'Kay', isNew: true, paying: 100, date: new Date('2026-11-04T12:00:00') }); assert.strictEqual(c.no, 'INV00003', 'a returned invoice keeps its number: the next one is new'); } assert.ok(s.items.slice(0, 2).every((i) => i.status === 'Available' && !i.invoice && !i.customer && i.sold === 0));
     assert.strictEqual(L.customerStats(s).filter((c) => c.name === 'Jo').length === 0 || L.customerStats(s).filter((c) => c.name === 'Jo')[0].owing === 0, true);
   }
   { // one of two returned: customer had paid in full -> refund due, no tip, no profit from the refund
@@ -377,4 +381,23 @@ console.log('sale price tests passed');
     assert.strictEqual(n.delivery, 40); assert.strictEqual(n.total, 140); assert.strictEqual(r.refund, 100);
   }
   assert.throws(() => L.returnItems(mk(), 'NOPE', ['x']));
+}
+{ // numbers are cemented: even a removed invoice never has its number given out again
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'TTD', totalCost: 60, margin: 100 });
+  s.batches.forEach((b) => { b.status = 'Received'; }); s.items.forEach((x) => { x.desc = 'T'; x.cost = 30; x.price = 100; x.status = 'Available'; });
+  const a = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Jo', isNew: true, paying: 100, date: new Date('2026-11-01T12:00:00') }); assert.strictEqual(a.no, 'INV00001');
+  L.deleteInvoice(s, a.no); assert.strictEqual(L.nextInvoiceNo(s), 'INV00002', 'a deleted number is still retired');
+  const b = L.createInvoice(s, { itemIds: [s.items[1].id], client: 'Jo', isNew: true, paying: 100, date: new Date('2026-11-02T12:00:00') }); assert.strictEqual(b.no, 'INV00002');
+  const r = L.returnItems(s, b.no, [s.items[1].id], new Date('2026-11-03T12:00:00'), 'cancelled'); assert.strictEqual(r.all, true); assert.strictEqual(L.invoiceStatus(s.invoices[0]), 'Cancelled');
+  assert.strictEqual(L.nextInvoiceNo(s), 'INV00003'); assert.strictEqual(L.totals(s).owing, 0);
+  assert.strictEqual(L.monthlySummary(s, 2026)[10].sales, 0, 'a cancelled invoice adds nothing to sales'); assert.strictEqual(L.customerStats(s).filter((c) => c.name === 'Jo')[0].profit, 0);
+}
+{ // partial return: profit follows the money kept, and the refund is not profit
+  const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'TTD', totalCost: 60, margin: 100 });
+  s.batches.forEach((b) => { b.status = 'Received'; }); s.items.forEach((x) => { x.desc = 'T'; x.cost = 30; x.price = 100; x.status = 'Available'; });
+  const a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 200, date: new Date('2026-11-01T12:00:00') });
+  const before = L.monthlySummary(s, 2026)[10].profit; assert.strictEqual(before, 140, 'paid 200 for two items that cost 60');
+  L.returnItems(s, a.no, [s.items[0].id], new Date('2026-11-02T12:00:00'));
+  const after = L.monthlySummary(s, 2026)[10].profit; assert.strictEqual(after, 70, 'kept one item: 100 kept - 30 cost');
+  const n = s.invoices[1]; assert.strictEqual(n.returnNote.from, a.no); assert.strictEqual(n.returnNote.refund, 100);
 }

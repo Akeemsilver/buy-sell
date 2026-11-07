@@ -291,8 +291,11 @@
 
   /* ---------- invoices ---------- */
 
+  // Invoice numbers are cemented: they only go up. Returned and cancelled invoices stay in the log, and the running counter
+  // (settings.invoiceSeq) also covers any invoice that was ever removed, so a number is never given out twice.
+  const invN = (no) => parseInt(String(no).replace(/\D/g, ''), 10) || 0;
   L.nextInvoiceNo = (s) => {
-    const max = s.invoices.reduce((m, i) => Math.max(m, parseInt(String(i.no).replace(/\D/g, ''), 10) || 0), 0);
+    const max = Math.max(s.invoices.reduce((m, i) => Math.max(m, invN(i.no)), 0), num((s.settings || {}).invoiceSeq));
     return 'INV' + String(max + 1).padStart(5, '0');
   };
 
@@ -319,7 +322,7 @@
     return s;
   };
 
-  L.invoiceStatus = (inv) => (inv.updatedBy ? 'Updated' : inv.balance > 0 ? 'Owing' : 'Paid');
+  L.invoiceStatus = (inv) => (inv.void ? (inv.void.kind === 'cancelled' ? 'Cancelled' : 'Returned') : inv.updatedBy ? 'Updated' : inv.balance > 0 ? 'Owing' : 'Paid');
 
   /**
    * Work out everything an invoice would contain without saving it.
@@ -380,7 +383,7 @@
       qty: p.items.length, ref: p.ref, profit: p.profit, loss: p.loss, tip: r2(p.tip), updatedBy: '',
     };
     if (p.ref) { const old = s.invoices.find((v) => v.no === p.ref); if (old) old.updatedBy = inv.no; }
-    s.invoices.push(inv);
+    s.invoices.push(inv); s.settings = s.settings || {}; s.settings.invoiceSeq = Math.max(num(s.settings.invoiceSeq), invN(inv.no));
     p.items.forEach((i) => { if (num(i.sold) <= 0) i.sold = r2(L.effectivePrice(i)); i.invoice = inv.no; i.customer = client; });
     L.applyWaterfall(s, inv.no);
     if (!s.customers.includes(client)) s.customers.push(client);
@@ -404,7 +407,7 @@
     return out;
   };
   // What a customer's page lists: only the newest invoice of each purchase (older ones are reached through its payment history).
-  L.latestInvoices = (s, name) => s.invoices.filter((v) => v.client === name && !v.updatedBy);
+  L.latestInvoices = (s, name) => s.invoices.filter((v) => v.client === name && !v.updatedBy && !v.void);
 
   // Change a customer's name everywhere (customers list, items, invoices, location). Typing a name that already exists merges the two.
   // Returns the final name. Changing only the capital letters of the same name is allowed.
@@ -430,7 +433,7 @@
     if (!inv) return;
     s.items.forEach((i) => { if (i.invoice === no) { i.invoice = inv.ref || ''; if (!inv.ref) { i.status = 'Available'; i.customer = ''; } } });
     s.invoices.forEach((v) => { if (v.updatedBy === no) v.updatedBy = ''; });
-    s.invoices = s.invoices.filter((v) => v.no !== no);
+    s.invoices = s.invoices.filter((v) => v.no !== no); s.settings = s.settings || {}; s.settings.invoiceSeq = Math.max(num(s.settings.invoiceSeq), invN(no));   // the number is never handed out again
     if (inv.ref) L.applyWaterfall(s, inv.ref);
   };
 
@@ -486,22 +489,32 @@
     const newTotal = all ? 0 : r2(keep.reduce((t, i) => t + L.effectivePrice(i), 0) + num(pu.inv.delivery));
     return { all, paid: pu.paid, newTotal, refund: r2(Math.max(0, pu.paid - newTotal)), owing: all ? 0 : r2(Math.max(0, newTotal - pu.paid)), count: pu.items.length - keep.length };
   };
-  // Put items from an invoice back in stock. Everything: the whole purchase (every invoice in its payment history) goes. Some: the rest becomes
-  // an updated invoice; payments carry over, and anything paid above the new total is recorded as refundDue (money to give back, never as profit).
-  L.returnItems = (s, no, ids, date) => {
+  // Put items from an invoice back in stock. The invoice number is cemented: nothing is ever deleted or renumbered.
+  // Everything back: every invoice of the purchase stays in the log, marked Returned (or Cancelled), its amounts zeroed so no total counts it,
+  // with a record of what happened (date, items, what was paid). Some back: the rest becomes an updated invoice with the next number and a note;
+  // payments carry over, anything paid above the new total is recorded as refundDue, and profit is corrected so a refund is not left as profit.
+  const WAS = ['total', 'amountPaid', 'previouslyPaid', 'balance', 'profit', 'loss', 'tip'];
+  L.returnItems = (s, no, ids, date, kind) => {
     const pu = L.purchaseOf(s, no); if (!pu) throw fail('noInvoice');
     const pick = pu.items.filter((i) => ids.includes(i.id)); if (!pick.length) throw fail('noItems');
-    const keep = pu.items.filter((i) => !ids.includes(i.id)), pre = L.returnPreview(s, no, ids);
+    const keep = pu.items.filter((i) => !ids.includes(i.id)), pre = L.returnPreview(s, no, ids), when = (date || new Date()).toISOString();
+    const rec = pick.map((i) => ({ id: i.id, name: i.desc, size: i.size || '', price: L.effectivePrice(i) }));
+    kind = kind === 'cancelled' ? 'cancelled' : 'returned';
     if (!keep.length) {
-      const nos = new Set(); let cur = pu.inv; while (cur) { nos.add(cur.no); cur = cur.ref ? s.invoices.find((v) => v.no === cur.ref) : null; if (cur && nos.has(cur.no)) break; }
-      s.invoices.filter((v) => nos.has(v.no)).forEach((v) => s.items.forEach((i) => { if (i.invoice === v.no) putBack(s, i); }));
-      s.invoices = s.invoices.filter((v) => !nos.has(v.no));
+      const chain = []; let cur = pu.inv; while (cur && !chain.includes(cur)) { chain.unshift(cur); cur = cur.ref ? s.invoices.find((v) => v.no === cur.ref) : null; }
+      chain.forEach((v) => { const was = {}; WAS.forEach((k) => { was[k] = num(v[k]); v[k] = 0; }); v.void = { kind, date: when, was }; if (v === pu.inv) { v.void.items = rec; v.void.refund = pre.paid; } });
+      chain.forEach((v) => s.items.forEach((i) => { if (i.invoice === v.no) putBack(s, i); }));
       return { all: true, paid: pre.paid, refund: pre.paid };
     }
     const bad = L.previewInvoice(s, { itemIds: keep.map((i) => i.id), client: pu.inv.client, paying: 0, allowZero: true }).errors; if (bad.length) throw fail(bad[0]);
+    const chainProfit = L.invoiceChain(s, pu.inv.no).reduce((t, v) => t + num(v.profit) + num(v.loss), 0);
+    const landedKeep = keep.reduce((t, i) => t + L.itemCalc(s.batches.find((b) => b.id === i.batchId), i).landed, 0);
     const D = num(pu.inv.delivery); pick.forEach((i) => putBack(s, i)); keep.forEach((i) => { i.delivery = 0; }); keep[0].delivery = D;
     const inv = L.createInvoice(s, { itemIds: keep.map((i) => i.id), client: pu.inv.client, paying: 0, allowZero: true, date });
-    if (num(inv.tip) > 0) { inv.refundDue = r2(inv.tip); inv.previouslyPaid = r2(num(inv.previouslyPaid) - inv.refundDue); inv.tip = 0; inv.profit = 0; inv.loss = 0; L.applyWaterfall(s, inv.no); }
+    if (num(inv.tip) > 0) { inv.refundDue = r2(inv.tip); inv.previouslyPaid = r2(num(inv.previouslyPaid) - inv.refundDue); inv.tip = 0; L.applyWaterfall(s, inv.no); }
+    const ideal = (pre.paid - pre.refund) - landedKeep, adj = r2(ideal - chainProfit);   // what the kept items have really earned, against what the earlier invoices already counted
+    inv.profit = adj > 0 ? adj : 0; inv.loss = adj < 0 ? adj : 0;
+    inv.returnNote = { from: pu.inv.no, date: when, items: rec, refund: pre.refund };
     return { all: false, paid: pre.paid, refund: pre.refund, invoice: inv.no };
   };
   L.deliveryOwing = (s, v) => { if (!v || v.updatedBy) return 0; const itemOwing = s.items.filter((i) => i.invoice === v.no).reduce((t, i) => t + num(i.owing), 0); return r2(Math.max(0, num(v.balance) - itemOwing)); };

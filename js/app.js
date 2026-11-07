@@ -341,10 +341,10 @@
     ${recent.length ? `<h2>${t('home.recent')}</h2><div class="list">${recent.map(invoiceRow).join('')}</div>` : ''}`;
   }
 
-  function invoiceRow(v) {
-    const st = L.invoiceStatus(v);
-    return `<button class="row tap" data-act="view-inv" data-id="${v.no}"><div class="grow"><b>${v.no} · ${esc(v.client)}</b><small>${esc(v.desc)}</small></div>
-      <div class="end"><b>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></div></button>`;
+  function invoiceRow(v0) {
+    const st = L.invoiceStatus(v0), v = v0.void ? Object.assign({}, v0, v0.void.was) : v0;
+    return `<button class="row tap" data-act="view-inv" data-id="${v0.no}"${v0.void ? ' style="opacity:.75"' : ''}><div class="grow"><b>${v0.no} · ${esc(v0.client)}</b><small>${esc(v0.desc)}${v0.void ? ' · ' + t(v0.void.kind === 'cancelled' ? 'inv.voidCancelled' : 'inv.voidReturned', { date: dayMon(new Date(v0.void.date)) }) : ''}</small></div>
+      <div class="end"><b${v0.void ? ' style="text-decoration:line-through"' : ''}>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></div></button>`;
   }
 
   /* ---------- Stock ---------- */
@@ -1409,8 +1409,13 @@
   const stampCanvasFor = (v) => stampCanvas(v.no, stampDate(v), ti('doc.stamp'));
   function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang(); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
 
+  // "Returned on 8 Nov · 2 items back in stock · TT$ 200 had been paid" — shown on a returned or cancelled invoice
+  const voidBanner = (v0) => { if (!v0.void) return ''; const d = v0.void, n = (d.items || []).length, paid = num_(d.was.amountPaid) + num_(d.was.previouslyPaid);
+    return `<div class="voidbar"><b>↩ ${t(d.kind === 'cancelled' ? 'inv.voidCancelled' : 'inv.voidReturned', { date: dayMon(new Date(d.date)) })}</b>${n ? `<small>${(d.items || []).map((i) => esc(i.name) + (i.size ? ' · ' + esc(szLabel(i.size)) : '')).join(', ')}</small>` : ''}${paid > 0 ? `<small>${t('inv.voidPaid', { amount: money(paid) })}</small>` : ''}</div>`; };
+  const num_ = (x) => Number(x) || 0;
   function sheetInvoice(no, swap) {   // swap: show this invoice in place of the one on screen (the payment history rows do this)
-    const v = state.invoices.find((x) => x.no === no); if (!v) return;
+    const v0 = state.invoices.find((x) => x.no === no); if (!v0) return;
+    const v = v0.void ? Object.assign({}, v0, v0.void.was) : v0;   // a returned invoice is shown as it was, with a note
     enterPage('invoice', no, () => sheetInvoice(no), swap);
     let latest = v; while (latest.updatedBy) { const n = state.invoices.find((x) => x.no === latest.updatedBy); if (!n || n === latest) break; latest = n; }
     const isLatest = latest === v;
@@ -1420,20 +1425,20 @@
     const hist = chain.length > 1 ? `<div class="hist"><h4>${t('inv.history')}</h4>${chain.slice().reverse().map((h) => `<button class="hrow ${h.no === v.no ? 'now' : ''}" data-act="inv-swap" data-id="${h.no}"><span class="hl"><b>${h.no}</b><small>${dShort(h.date)}${h.no === v.no ? ' · ' + t('inv.histNow') : ''}</small></span><span class="hr"><b>${t('inv.histPaid', { amt: money(h.amountPaid) })}</b><small class="${h.balance > 0 ? 'bad' : 'good'}">${h.balance > 0 ? t('inv.histOwes', { amt: money(h.balance) }) : t('inv.histFull')}</small></span></button>`).join('')}</div>` : '';
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
     const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${offStrip(x)}${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
         <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
           <div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div></div>
         <table class="inv-t"><thead><tr><th>${ti('doc.desc')}</th><th class="r">${ti('doc.qty')}</th><th class="r">${ti('doc.price')}</th><th class="r">${ti('doc.amount')}</th></tr></thead><tbody>
           ${lines.map((l) => `<tr><td>${esc(l.desc)}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
-        <div class="inv-sum">${isPaidInFull(v) ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
+        <div class="inv-sum">${isPaidInFull(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
           <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div></div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
-      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
+      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${hist}${thumbs}
       <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
-      ${isLatest && state.items.some((x) => x.invoice === v.no) ? `<button class="btn span2" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : ''}${isLatest ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.delete')}</button>` : ''}<button class="btn ${isLatest ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
+      ${isLatest && !v0.void && state.items.some((x) => x.invoice === v.no) ? `<button class="btn span2" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : ''}${isLatest && !v0.void ? `<button class="btn danger" data-act="del-inv" data-id="${v.no}">${t('invUI.cancel')}</button>` : ''}<button class="btn ${isLatest && !v0.void ? '' : 'span2'}" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
     setTimeout(() => { if (!$('#sheet').hidden && $('#sheet .inv')) prefetchPdf(v.no); }, 600);   // build the PDF now, so Share answers the tap at once
   }
@@ -1798,7 +1803,7 @@
     const inv = orderInvoice(o), code = o.code || SCore.orderCode(o.id);
     return askCard(t('ord.cancelAsk', { code }), { danger: true, ok: t('ord.cancelOk') }).then((y) => {
       if (!y) return;
-      try { if (inv) { L.deleteInvoice(state, inv); save(); tidyPhotos(); } } catch (e) { return toast('⚠️ ' + errMsg(e)); }
+      try { if (inv) { const pu = L.purchaseOf(state, inv); if (pu && pu.items.length) L.returnItems(state, inv, pu.items.map((x) => x.id), new Date(), 'cancelled'); save(); tidyPhotos(); } } catch (e) { return toast('⚠️ ' + errMsg(e)); }
       Store.setStatus(o.id, 'declined', { cancelled: true }).then(() => { toast(t('ord.cancelled')); dropPages('order|' + o.id); render(); waOpen(o, 'ord.waCancelled'); }).catch(() => toast(t('store.pubError')));
     });
   }
@@ -2135,9 +2140,9 @@
         return save2();
       }
       case 'view-inv': return sheetInvoice(id);
-      case 'return-inv': { const n = state.items.filter((x) => x.invoice === id).length; return askCard(t('item.returnAsk', { no: id, n }), { danger: true, ok: t('item.returnInv') }).then((y) => { if (y) { closeSheet(); run(() => L.deleteInvoice(state, id), t('item.returned')); } }); }
+      case 'return-inv': return sheetReturn(id, '');
       case 'return-item': return askCard(t('item.returnItemAsk', { id }), { danger: true, ok: t('item.returnItem') }).then((y) => { if (y) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } });
-      case 'del-inv': return askCard(t('confirm.delInv', { id }), { danger: true, ok: t('btn.delete') }).then((y) => { if (!y) return; try { L.deleteInvoice(state, id); save(); tidyPhotos(); toast(t('inv.deleted', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); });
+      case 'del-inv': return askCard(t('confirm.cancelInv', { id }), { danger: true, ok: t('invUI.cancel') }).then((y) => { if (!y) return; try { const pu = L.purchaseOf(state, id); if (pu && pu.items.length) L.returnItems(state, id, pu.items.map((x) => x.id), new Date(), 'cancelled'); save(); tidyPhotos(); toast(t('inv.cancelled', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); });
       case 'print': return window.print();
       case 'share-pdf': return shareInvoicePdf(id, false);
       case 'download-pdf': return shareInvoicePdf(id, true);

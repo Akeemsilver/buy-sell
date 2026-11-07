@@ -1565,6 +1565,7 @@
     box.innerHTML = amt <= 0 ? `<span>${t('pay.after')}</span><span>—</span>` : amt > v.balance + 0.005 ? `<span>${t('pay.tooMuch')}</span><span></span>` : `<span>${t('pay.after')}</span><span>${left <= 0.004 ? '✓ ' + t('pay.afterPaid') : t('pay.afterOwes', { amt: money(left) })}</span>`;
     save.disabled = amt <= 0 || amt > v.balance + 0.005;
   }
+  let payOrd = '';   // the order page a payment was started from: after saving, go back to it
   function sheetPay(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v || v.updatedBy || v.balance <= 0) return;
     enterPage('pay', no, () => sheetPay(no));
@@ -1810,7 +1811,7 @@
       return `<div class="rw"><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small>${itemPill(o, i, it)}</div><b>${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) }), inv = orderInvoice(o), pay = L.orderPay(state, inv);
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
-      <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div></div>` : '';
+      <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
     const step = (on, label, d, extra) => `<div class="s ${on ? 'on' : ''}"><i></i><div><b>${label}${extra || ''}</b><small>${d ? fullWhen(d) : on ? '' : t('ord.tl.notYet')}</small></div></div>`;
     const handed = t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected');
     const tl = [step(true, t('ord.tl.ordered'), Store.when(o))];
@@ -1950,11 +1951,11 @@
       case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
       case 'pick-keep': return sheetChoice(t('set.keepRow'), 'set-keep', photoKeep(), ['1', '2', '7', 'sold'].map((k) => [k, t('keep.' + k)]), t('keep.note'));
       case 'set-keep': state.settings.photoKeep = id; save(); closeSheet(); PUI.sweep(photoKeep()); return render();
-      case 'pay-inv': return sheetPay(id);
+      case 'pay-inv': payOrd = t_.dataset.ord || ''; return sheetPay(id);
       case 'pay-full-amt': { if (payInv) { $('#pay-amt').value = String(payInv.balance); payUpdate(); } return; }
       case 'pay-save': {
         const amt = parseAmt($('#pay-amt').value), dv = $('#pay-date').value, date = dv ? new Date(dv + 'T12:00:00') : new Date();
-        try { const inv = L.recordPayment(state, id, amt, date); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
+        try { const inv = L.recordPayment(state, id, amt, date); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); if (payOrd && Store.orders().some((x) => x.id === payOrd)) { const back = payOrd; payOrd = ''; return sheetOrder(back); } return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
       }
       case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.thumbsAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
       case 'free-space': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.freeAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }

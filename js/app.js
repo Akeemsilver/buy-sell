@@ -772,10 +772,18 @@
   // Small decisions are pop-ups, not pages: 'card' (a question in the middle, two buttons) or 'sheet' (a list of choices from the bottom).
   // They open over whatever is showing; closing them puts that page back (answering first, so the page shows the new state).
   let smallPrev = null;
+  // The full-screen page under a card or pop-up stays visible behind it (a still copy; the real page is reopened when the card closes).
+  let ghost = null, keepGhost = false;
+  const removeGhost = () => { if (ghost) { ghost.remove(); ghost = null; } };
   function openSmall(html, kind, onClose) {
     const sh = $('#sheet');
     if (!sh.hidden && !sh.classList.contains('small') && pageStack.length) smallPrev = { stack: pageStack.slice(), open: pageStack[pageStack.length - 1].open };
+    if (!sh.hidden && sh.classList.contains('full') && !sh.classList.contains('small')) {
+      removeGhost(); ghost = document.createElement('div'); ghost.className = 'sheet full ghost'; ghost.setAttribute('aria-hidden', 'true');
+      ghost.innerHTML = sh.innerHTML.replace(/\sid="/g, ' data-gid="'); document.body.appendChild(ghost); ghost.scrollTop = sh.scrollTop; keepGhost = true;
+    } else if (ghost && sh.classList.contains('small')) keepGhost = true;
     openSheet(html, () => {
+      removeGhost();
       const p = smallPrev; smallPrev = null; if (onClose) onClose();
       if (p) { reopening = true; try { p.open(); } finally { reopening = false; } pageStack = p.stack; }
     }, kind);
@@ -792,6 +800,7 @@
   }
   function openSheet(html, onClose, full) {
     voiceStop();
+    if (keepGhost) keepGhost = false; else removeGhost();
     const kind = full === 'card' || full === 'sheet' ? full : null;
     if (kind) full = false; else if (!full) { html = asPage(html); full = true; }
     $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind);

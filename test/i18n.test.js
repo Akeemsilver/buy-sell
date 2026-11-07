@@ -47,7 +47,7 @@ setLang('es');
 assert.strictEqual(t('home.soldOf', { sold: 2, count: 5 }), '2/5 vendidos');
 assert.strictEqual(tn('home.itemsOwing', 1), '1 artículo pendiente');
 assert.strictEqual(tn('home.itemsOwing', 3), '3 artículos pendientes');
-assert.strictEqual(t('nav.sell', null, 'en'), 'Sell');
+assert.strictEqual(t('nav.sell', null, 'en'), 'Store');
 assert.strictEqual(t('no.such.key'), 'no.such.key');
 setLang('en');
 assert.strictEqual(tn('home.itemsOwing', 1), '1 item owing');

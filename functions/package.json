@@ -3,6 +3,6 @@
   "private": true,
   "description": "Hides ordered items from the store at once",
   "main": "index.js",
-  "engines": { "node": "20" },
-  "dependencies": { "firebase-admin": "^12.7.0", "firebase-functions": "^5.1.1" }
+  "engines": { "node": "22" },
+  "dependencies": { "firebase-admin": "^13.0.0", "firebase-functions": "^6.0.0" }
 }

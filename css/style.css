@@ -946,3 +946,5 @@ a.ic img{display:block;width:34px;height:34px;border-radius:50%}a.ic span{displa
 a.ic img{width:30px;height:30px}
 .dvrow .dspot-c{flex:1 1 100%;margin:0 12px 12px}
 .rt-sum{margin:0 0 10px}.rt-list{margin-bottom:10px}   /* the figures sit above the ticks: the sheet grows upward, so the tick boxes stay where your finger is */
+.rt-fee{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.rt-fee>span:first-child{flex:1;min-width:0}.rt-fee b{display:block;font-size:14px}.rt-fee small{display:block;color:var(--mute);font-size:12px;margin-top:2px}
+.rt-fee .in{display:flex;align-items:center;gap:6px;flex:none}.rt-fee .in em{font-style:normal;color:var(--mute);font-size:13px}.rt-fee .in input{width:92px;height:42px;text-align:right;font-size:16px;font-weight:700;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);padding:0 10px;min-height:0}

@@ -1413,7 +1413,7 @@
 
   // "Returned on 8 Nov · 2 items back in stock · TT$ 200 had been paid" — shown on a returned or cancelled invoice
   const voidBanner = (v0) => { if (!v0.void) return ''; const d = v0.void, n = (d.items || []).length, paid = num_(d.was.amountPaid) + num_(d.was.previouslyPaid);
-    return `<div class="voidbar"><b>↩ ${t(d.kind === 'cancelled' ? 'inv.voidCancelled' : 'inv.voidReturned', { date: dayMon(new Date(d.date)) })}</b>${n ? `<small>${(d.items || []).map((i) => esc(i.name) + (i.size ? ' · ' + esc(szLabel(i.size)) : '')).join(', ')}</small>` : ''}${paid > 0 ? `<small>${t('inv.voidPaid', { amount: money(paid) })}</small>` : ''}</div>`; };
+    return `<div class="voidbar"><b>↩ ${t(d.kind === 'cancelled' ? 'inv.voidCancelled' : 'inv.voidReturned', { date: dayMon(new Date(d.date)) })}</b>${n ? `<small>${(d.items || []).map((i) => esc(i.name) + (i.size ? ' · ' + esc(szLabel(i.size)) : '')).join(', ')}</small>` : ''}${paid > 0 ? `<small>${t('inv.voidPaid', { amount: money(paid) })}</small>` : ''}${d.fee > 0 ? `<small>${t('inv.voidFee', { amount: money(d.fee) })}</small>` : ''}</div>`; };
   const num_ = (x) => Number(x) || 0;
   function sheetInvoice(no, swap) {   // swap: show this invoice in place of the one on screen (the payment history rows do this)
     const v0 = state.invoices.find((x) => x.no === no); if (!v0) return;
@@ -1428,7 +1428,7 @@
     const hist = chain.length > 1 ? `<div class="hist"><h4>${t('inv.history')}</h4>${chain.slice().reverse().map((h) => `<button class="hrow ${h.no === v.no ? 'now' : ''}" data-act="inv-swap" data-id="${h.no}"><span class="hl"><b>${h.no}</b><small>${dShort(h.date)}${h.no === v.no ? ' · ' + t('inv.histNow') : ''}</small></span><span class="hr"><b>${t('inv.histPaid', { amt: money(h.amountPaid) })}</b><small class="${h.balance > 0 ? 'bad' : 'good'}">${h.balance > 0 ? t('inv.histOwes', { amt: money(h.balance) }) : t('inv.histFull')}</small></span></button>`).join('')}</div>` : '';
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
     const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${offStrip(x)}${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}${v0.returnNote.fee > 0 ? ' · ' + t('inv.feeIn', { amount: money(v0.returnNote.fee) }) : ''}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg two small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l ? 'on' : ''}" role="radio" aria-checked="${lg === l}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
         <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
@@ -1839,6 +1839,7 @@
       <div class="rt-all"><button class="chip" data-act="ret-all">${t('ret.all')}</button></div>
       <div class="rt-sum" id="rt-sum" data-inv="${pu.inv.no}" data-ord="${esc(ordId || '')}"></div>
       <div class="rt-list">${rows}</div>
+      <label class="rt-fee"><span><b>${t('ret.feeLabel')}</b><small>${t('ret.feeNote')}</small></span><span class="in"><em>TT$</em><input id="rt-fee" type="text" inputmode="decimal" autocomplete="off" value="${num_(pu.inv.delivery) > 0 ? num_(pu.inv.delivery).toFixed(2) : ''}" placeholder="0.00"></span></label>
       <div class="btns"><button class="btn danger" id="rt-go" data-act="ret-do" disabled>${t('ret.go.other', { n: 0 })}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
     $('#sheet').classList.add('hdr'); retRefresh();
   }
@@ -1847,9 +1848,10 @@
     const box = $('#rt-sum'); if (!box) return; const ids = retPicked(), go = $('#rt-go');
     go.disabled = !ids.length; go.textContent = tn('ret.go', ids.length);
     if (!ids.length) { box.innerHTML = ''; return; }
-    const pv = L.returnPreview(state, box.dataset.inv, ids);
+    const fee = parseAmt(($('#rt-fee') || {}).value), pv = L.returnPreview(state, box.dataset.inv, ids, fee);
     box.innerHTML = `<div class="ln"><span>${t('ret.paid')}</span><b>${money(pv.paid)}</b></div>${pv.all ? `<div class="ln"><span>${t('ret.invoiceGone')}</span><b>—</b></div>` : `<div class="ln"><span>${t('ret.newTotal')}</span><b>${money(pv.newTotal)}</b></div>${pv.owing > 0 ? `<div class="ln"><span>${t('ret.stillOwing')}</span><b>${money(pv.owing)}</b></div>` : ''}`}
-      ${pv.refund > 0 ? `<div class="ln due"><span>${t('ret.refund')}</span><b>${money(pv.refund)}</b></div>` : ''}`;
+      ${fee > 0 ? `<div class="ln"><span>${t('ret.fee')}</span><b>${money(fee)}</b></div>` : ''}
+      ${pv.refund > 0 ? `<div class="ln due"><span>${t('ret.refund')}</span><b>${money(pv.refund)}</b></div>` : ''}${pv.owesFee > 0 ? `<div class="ln due"><span>${t('ret.owesFee')}</span><b>${money(pv.owesFee)}</b></div>` : ''}`;
   }
   const itemPill = (o, i, it) => { if (o.status === 'declined') return ''; const k = o.status !== 'done' && itemArriving(i) ? opl('arr', '⏳ ' + t('ord.pl.arr')) : it && L.isSold(it) && it.invoice ? (it.status === 'Paid' ? opl('paid', '✓ ' + t('ord.pl.paid')) : opl('owing', t('ord.pl.owing'))) : ''; return k ? `<div class="ipl">${k}</div>` : ''; };
   function sheetOrder(id) {
@@ -2006,8 +2008,8 @@
       case 'ret-all': { const bx = [...document.querySelectorAll('#sheet [data-ret]')], on = bx.some((e) => !e.checked); bx.forEach((e) => { e.checked = on; }); return retRefresh(); }
       case 'ret-do': { const box = $('#rt-sum'), ids = retPicked(), inv = box && box.dataset.inv, ordId = box && box.dataset.ord; if (!ids.length) return;
         try {
-          const r = L.returnItems(state, inv, ids); save(); tidyPhotos(); closeSheet();
-          const money_ = r.refund > 0 ? t('ret.doneRefund', { amount: plain(money(r.refund)) }) : tn('ret.done', ids.length);
+          const r = L.returnItems(state, inv, ids, undefined, 'returned', parseAmt(($('#rt-fee') || {}).value)); save(); tidyPhotos(); closeSheet();
+          const money_ = r.owesFee > 0 ? t('ret.doneOwes', { amount: plain(money(r.owesFee)) }) : r.refund > 0 ? t('ret.doneRefund', { amount: plain(money(r.refund)) }) : tn('ret.done', ids.length);
           const po = ordId && Store.orders().find((x) => x.id === ordId);
           if (po && r.all) Store.setStatus(ordId, 'declined', { returned: true }).catch(() => toast(t('store.pubError')));
           render(); toast(money_);
@@ -2241,7 +2243,7 @@
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
-    else if (el.hasAttribute && el.hasAttribute('data-ret')) retRefresh();
+    else if ((el.hasAttribute && el.hasAttribute('data-ret')) || el.id === 'rt-fee') retRefresh();
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }

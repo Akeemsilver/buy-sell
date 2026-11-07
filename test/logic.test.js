@@ -401,3 +401,31 @@ console.log('sale price tests passed');
   const after = L.monthlySummary(s, 2026)[10].profit; assert.strictEqual(after, 70, 'kept one item: 100 kept - 30 cost');
   const n = s.invoices[1]; assert.strictEqual(n.returnNote.from, a.no); assert.strictEqual(n.returnNote.refund, 100);
 }
+{ // the customer covers the delivery fee for the trip back
+  const mk = () => { const s = L.defaultState(); L.createBatch(s, { store: 'X', count: 2, currency: 'TTD', totalCost: 60, margin: 100 });
+    s.batches.forEach((b) => { b.status = 'Received'; }); s.items.forEach((x) => { x.desc = 'T'; x.cost = 30; x.price = 100; x.status = 'Available'; }); s.items[0].delivery = 40; return s; };
+  { // paid in full (2 items 200 + 40 delivery = 240); one item back with a 40 return fee: kept 100 + 40 + 40 = 180, so 60 comes back
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 240, date: new Date('2026-11-01T12:00:00') });
+    const pv = L.returnPreview(s, a.no, [s.items[1].id], 40); assert.strictEqual(pv.fee, 40); assert.strictEqual(pv.newTotal, 180); assert.strictEqual(pv.refund, 60); assert.strictEqual(pv.owing, 0);
+    assert.strictEqual(L.returnPreview(s, a.no, [s.items[1].id], 0).refund, 100, 'without a fee 100 comes back');
+    const r = L.returnItems(s, a.no, [s.items[1].id], new Date('2026-11-02T12:00:00'), 'returned', 40); const n = s.invoices.find((v) => v.no === r.invoice);
+    assert.strictEqual(r.refund, 60); assert.strictEqual(n.total, 180); assert.strictEqual(n.refundDue, 60); assert.strictEqual(n.returnNote.fee, 40); assert.strictEqual(n.delivery, 80);
+  }
+  { // part paid: the fee is added to what is still owed
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 100, date: new Date('2026-11-01T12:00:00') });
+    const pv = L.returnPreview(s, a.no, [s.items[1].id], 40); assert.strictEqual(pv.refund, 0); assert.strictEqual(pv.owing, 80, '100 + 40 + 40 kept, 100 paid');
+  }
+  { // everything back: the fee comes off the money given back
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id, s.items[1].id], client: 'Jo', isNew: true, paying: 240, date: new Date('2026-11-01T12:00:00') });
+    assert.strictEqual(L.returnPreview(s, a.no, [s.items[0].id, s.items[1].id], 40).refund, 200);
+    const r = L.returnItems(s, a.no, [s.items[0].id, s.items[1].id], new Date('2026-11-02T12:00:00'), 'returned', 40); assert.strictEqual(r.refund, 200); assert.strictEqual(s.invoices[0].void.fee, 40); assert.strictEqual(s.invoices[0].void.refund, 200);
+  }
+  { // paid less than the fee: the customer still owes the rest
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Jo', isNew: true, paying: 10, date: new Date('2026-11-01T12:00:00') });
+    const pv = L.returnPreview(s, a.no, [s.items[0].id], 40); assert.strictEqual(pv.refund, 0); assert.strictEqual(pv.owesFee, 30);
+  }
+  { // cancelling never charges a return fee
+    const s = mk(), a = L.createInvoice(s, { itemIds: [s.items[0].id], client: 'Jo', isNew: true, paying: 140, date: new Date('2026-11-01T12:00:00') });
+    const r = L.returnItems(s, a.no, [s.items[0].id], new Date(), 'cancelled', 40); assert.strictEqual(r.fee, 0); assert.strictEqual(r.refund, 140);
+  }
+}

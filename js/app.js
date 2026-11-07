@@ -271,6 +271,7 @@
     const el = $('#appbar-right'); if (!el) return;
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     const n = ($('#back').hidden || isSettings()) ? notifCount() : 0;
+    if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools"><button class="round dots3" data-act="dlv-menu" aria-label="${t('batch.more')}">⋮</button></div>`; return; }   // the Delivery log keeps its three dots in the title bar
     el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
   }
   function render() {
@@ -1783,7 +1784,7 @@
     const pending = pend.filter(mine).filter(hit).sort((a, b) => ordKey(a) - ordKey(b)), done = all.filter((o) => o.status === 'done' && mine(o)).filter(hit);
     const byDay = new Map(); done.forEach((o) => { const k = SCore.dayKey(dlvWhen(o) || new Date()); byDay.set(k, (byDay.get(k) || []).concat(o)); });
     const dayHead = (k, a) => { const km = a.reduce((n, o) => n + (Number(o.km) > 0 ? Number(o.km) : 0), 0), d = new Date(k + 'T12:00:00'); return `<div class="dday"><span>${dlvDayLabel(d)}</span><span>${t('dlv.nDelivered', { n: a.length })}${km > 0 && dlvTab === 'deliveries' ? ' · ' + km.toFixed(1) + ' km' : ''}</span></div>`; };
-    const tiles = `<div class="dtiles"><div class="dtile a"><small>🚚 ${t('dlv.toDeliver')}</small><b>${pd.length}</b><small>${tn('notif.items', nItems(pd))}</small></div><div class="dtile p"><small>🛍️ ${t('dlv.forPickup')}</small><b>${pp.length}</b><small>${tn('notif.items', nItems(pp))}</small></div><button class="dmenu" data-act="dlv-menu" aria-label="${t('batch.more')}">⋮</button></div>`;
+    const tiles = `<div class="dtiles"><div class="dtile a"><small>🚚 ${t('dlv.toDeliver')}</small><b>${pd.length}</b><small>${tn('notif.items', nItems(pd))}</small></div><div class="dtile p"><small>🛍️ ${t('dlv.forPickup')}</small><b>${pp.length}</b><small>${tn('notif.items', nItems(pp))}</small></div></div>`;
     const head = `${tiles}<div class="oqbar"><span aria-hidden="true">🔍</span><input class="dq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('dlv.search'))}" value="${esc(dlvQ)}" aria-label="${esc(t('dlv.search'))}"><button class="oqx" data-act="dlv-q-clear" ${dlvQ ? '' : 'hidden'}>✕</button></div>
       <div class="seg two dseg"><button class="${dlvTab === 'deliveries' ? 'on' : ''}" data-act="dlv-tab" data-id="deliveries">${t('dlv.tabD')} ${pd.length}</button><button class="${dlvTab === 'pickups' ? 'on' : ''}" data-act="dlv-tab" data-id="pickups">${t('dlv.tabP')} ${pp.length}</button></div>
       <div class="dvw"><button class="${dlvView === 'list' ? 'on' : ''}" data-act="dlv-view" data-id="list">📋 ${t('dlv.list')}</button><button class="${dlvView === 'cal' ? 'on' : ''}" data-act="dlv-view" data-id="cal">📅 ${t('dlv.cal')}</button></div>`;
@@ -2217,8 +2218,17 @@
       case 'dlv-prev': case 'dlv-next': { const d = new Date(dlvMonth.y, dlvMonth.m + (t_.dataset.act === 'dlv-next' ? 1 : -1), 1); dlvMonth = { y: d.getFullYear(), m: d.getMonth() }; dlvDay = ''; return render(); }
       case 'dlv-day': dlvDay = dlvDay === id ? '' : id; return render();
       case 'dlv-q-clear': dlvQ = ''; document.querySelectorAll('.dq').forEach((e) => { e.value = ''; }); return dlvRefresh();
-      case 'dlv-menu': return openSmall(`<h3>${t('dlv.title')}</h3><div class="btns" style="margin-top:8px"><button class="btn" data-act="dlv-settings">⚙️ ${t('dlv.settings')}</button><button class="btn" data-act="dlv-export">⬇️ ${t('dlv.export')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, 'sheet');
+      case 'dlv-menu': { const h = dset().home, pins = toDeliver().map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean), route = SCore.routeLink(pins);
+        return openSmall(`<h3>${t('dlv.title')}</h3><div class="dlvmenu">
+          <button class="btn" data-act="dlv-settings">⚙️ ${t('dlv.settings')}</button>
+          <button class="btn" data-act="dlv-home">📍 ${t(h ? 'dlv.changeHome' : 'dlv.setHome')}</button>
+          ${pins.length > 1 ? `<a class="btn" href="${route}" target="_blank" rel="noopener" data-act="pin-open">🧭 ${t('dv.route', { n: Math.min(10, pins.length) })}</a>` : ''}
+          <button class="btn" data-act="ds-recalc-close">🔄 ${t('ds.recalc')}</button>
+          <button class="btn" data-act="dlv-export">⬇️ ${t('dlv.export')}</button>
+          <button class="btn" data-act="close">${t('btn.close')}</button></div>`, 'sheet'); }
       case 'dlv-settings': closeSheet(); return sheetDeliverySettings();
+      case 'dlv-home': closeSheet(); return sheetDeliverySettings();
+      case 'ds-recalc-close': { closeSheet(); const h = dset().home; if (!h) return sheetDeliverySettings(); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => { toast(t('ds.measured', { n })); render(); }); }
       case 'dlv-export': closeSheet(); return dlvExport();
       case 'ds-here': { if (!navigator.geolocation) return toast(t('mp.blocked')); toast(t('ds.finding')); return navigator.geolocation.getCurrentPosition((p) => { const g = SCore.geo(p.coords.latitude, p.coords.longitude); if (g) dlvSetHome({ lat: g.lat, lng: g.lng, name: '' }); }, () => toast(t('mp.blocked')), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }); }
       case 'ds-map': { const h = dset().home; return MapPick.open({ lat: h && h.lat, lng: h && h.lng, name: h && h.name, lang: I.getLang(), T: dlvMapT(), onPick: (g) => dlvSetHome(g), onError: (m) => toast(m) }); }

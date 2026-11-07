@@ -1019,3 +1019,17 @@ button.dr{display:flex;align-items:center;gap:12px;width:100%;text-align:left;pa
 .stackrow{display:grid;gap:10px;margin-top:12px}.stackrow input{width:100%;box-sizing:border-box;height:48px;padding:0 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:16px}.stackrow .btn{width:100%}
 
 .inv-note{position:absolute;right:8px;bottom:24px;width:min(300px,100%);text-align:right;line-height:1.3;color:#222}.inv-note b{display:block;font-size:14px}.inv-note span{display:block;font-size:12px;color:#555}
+
+/* app shortcuts: one standard size (40px), round, with a shadow so they look like buttons */
+.ap .rw .ibtn{width:40px;height:40px;box-shadow:0 3px 8px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.12) inset}.ap .rw .ibtn svg{width:20px;height:20px}
+a.ic,.dspot-c a.ic,.dvb a.ic{width:40px;min-width:40px;height:40px;border-radius:50%;background:none;border:0;box-shadow:0 3px 8px rgba(0,0,0,.4);padding:0;justify-content:center;gap:0}
+a.ic img,.dspot-c a.ic img{width:40px;height:40px;border-radius:50%}.dspot-c{gap:12px}
+a.ic:active,.ap .rw .ibtn:active{transform:translateY(1px) scale(.97);box-shadow:none}
+/* pop-up buttons use the same text size as the page buttons */
+.btns .btn{font-size:15px}
+/* invoice page buttons */
+.btn.rs{color:#a32121;border:1px solid rgba(163,33,33,.4);background:transparent;font-size:15px;font-weight:800;height:50px}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .btn.rs{color:#ff9a9a;border-color:rgba(255,154,154,.45)}}
+:root[data-theme=dark] .btn.rs{color:#ff9a9a;border-color:rgba(255,154,154,.45)}
+.b22 .btn.slim{min-height:44px;height:44px;font-size:15px;font-weight:700}
+.b22 .btn.primary{font-size:15px}

@@ -25,10 +25,10 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.sa.outputs.have == 'yes'
         with:
-          node-version: 20
+          node-version: 22
       - name: Deploy
         if: steps.sa.outputs.have == 'yes'
         run: |
           npm install --prefix functions --omit=dev
           printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
-          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools@13 deploy --only functions --project b-ruiz --non-interactive
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools@latest deploy --only functions --project b-ruiz --non-interactive

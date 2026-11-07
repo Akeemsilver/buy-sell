@@ -65,3 +65,17 @@ console.log('store core tests passed');
   assert.strictEqual(ids.length, all.length - 1, 'only that item is held back');
 }
 console.log('details tests passed');
+
+{ // delivery spot: pins, links, pasted links, map tiles
+  const SC = require('../js/storecore.js');
+  assert.deepStrictEqual(SC.geo(10.654912345, -61.501987654), { lat: 10.65491, lng: -61.50199 }); assert.strictEqual(SC.geo(0, 0), null); assert.strictEqual(SC.geo(95, 10), null); assert.strictEqual(SC.geo('x', 1), null);
+  const ln = SC.mapLinks(10.6549, -61.5019); assert.strictEqual(ln.google, 'https://www.google.com/maps/dir/?api=1&destination=10.6549,-61.5019'); assert.strictEqual(ln.waze, 'https://waze.com/ul?ll=10.6549,-61.5019&navigate=yes');
+  const g = { lat: 10.6549, lng: -61.5019 };
+  assert.deepStrictEqual(SC.parseGeoLink('10.6549, -61.5019'), g); assert.deepStrictEqual(SC.parseGeoLink('10.6549 -61.5019'), g);
+  assert.deepStrictEqual(SC.parseGeoLink('https://www.google.com/maps/place/Chaguanas/@10.6549,-61.5019,15z/data=!3m1'), g);
+  assert.deepStrictEqual(SC.parseGeoLink('https://www.google.com/maps?q=10.6549,-61.5019'), g); assert.deepStrictEqual(SC.parseGeoLink('https://maps.google.com/?q=10.6549%2C-61.5019'), g);
+  assert.deepStrictEqual(SC.parseGeoLink('https://www.google.com/maps/place/x/data=!4m2!3d10.6549!4d-61.5019'), g); assert.deepStrictEqual(SC.parseGeoLink('https://waze.com/ul?ll=10.6549,-61.5019&navigate=yes'), g);
+  assert.strictEqual(SC.parseGeoLink('https://maps.app.goo.gl/AbCdEf123'), 'short', 'a shortened link cannot be opened by the page'); assert.strictEqual(SC.parseGeoLink('hello'), null); assert.strictEqual(SC.parseGeoLink(''), null);
+  const tv = SC.tileView(10.6549, -61.5019, 16, 300, 200); assert.ok(tv.tiles.length >= 4 && tv.tiles.length <= 6); assert.ok(tv.tiles.every((t) => /^https:\/\/tile\.openstreetmap\.org\/16\/\d+\/\d+\.png$/.test(t.url)));
+  assert.ok(tv.tiles.some((t) => t.left <= 150 && t.left + 256 >= 150 && t.top <= 100 && t.top + 256 >= 100), 'a tile covers the middle of the box, where the pin sits');
+}

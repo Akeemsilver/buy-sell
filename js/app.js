@@ -375,7 +375,7 @@
   // Sale for everything picked in Stock: percentage chips, an example, one big button.
   let salePct = 25;
   function saleExample() {
-    const its = [...selected].map((id) => state.items.find((i) => i.id === id)).filter((i) => i && !L.isSold(i)); if (!its.length) return '';
+    const its = [...selected].map((id) => state.items.find((i) => i.id === id)).filter((i) => i && !L.isLocked(i)); if (!its.length) return '';
     const same = its.every((x) => SCore.sameName(x.desc) === SCore.sameName(its[0].desc) && L.r2(Number(x.price) || 0) === L.r2(Number(its[0].price) || 0)), p = Number(its[0].price) || 0;
     const sub = same && its[0].desc ? esc(its[0].desc) + ' ×' + its.length + (p ? ' · ' + money(p) + ' ' + t('sale.each') : '') : tn('sale.items', its.length);
     return { sub, p: same && p ? p : 0 };
@@ -392,7 +392,7 @@
       ${ex && ex.p && pctNow ? `<div class="ex"><span>${t('sale.price')}</span><span><s>${money(ex.p)}</s><b>${money(L.r2(ex.p * (1 - pctNow / 100)))}</b></span></div>` : ''}`;
   }
   function sheetSale() {
-    const its = [...selected].map((id) => state.items.find((i) => i.id === id)).filter((i) => i && !L.isSold(i)); if (!its.length) return;
+    const its = [...selected].map((id) => state.items.find((i) => i.id === id)).filter((i) => i && !L.isLocked(i)); if (!its.length) return;
     const ex = saleExample(), cur = its.find((x) => x.saleOn && x.discount); salePct = cur ? Number(cur.discount) : 25;
     const std = [10, 20, 25, 50].includes(salePct) ? false : true;
     openSmall(`<h3>${tn('sale.title', its.length)}</h3><p>${ex.sub}</p><div id="bulksale">${saleBody(ex, std)}</div>
@@ -402,14 +402,14 @@
   // A design with many pieces (more than 10) is one row until opened; everything else is one row per item.
   const GRP_BIG = 10; let grpOpen = new Set();
   function stockRows(b, items) {
-    const counts = {}; items.forEach((i) => { if (i.grp && !L.isSold(i)) counts[i.grp] = (counts[i.grp] || 0) + 1; });
+    const counts = {}; items.forEach((i) => { if (i.grp && !L.isLocked(i)) counts[i.grp] = (counts[i.grp] || 0) + 1; });
     const done = new Set(); let out = '';
     items.forEach((i) => {
-      const big = i.grp && !L.isSold(i) && counts[i.grp] > GRP_BIG;
+      const big = i.grp && !L.isLocked(i) && counts[i.grp] > GRP_BIG;
       if (!big) { out += itemCard(b, i); return; }
       if (grpOpen.has(i.grp)) { if (!done.has(i.grp)) { done.add(i.grp); out += `<button class="row tap grpclose" data-act="grp-toggle" data-id="${i.grp}">▲ ${grpName(i)} ×${counts[i.grp]} · ${t('grp.collapse')}</button>`; } out += itemCard(b, i); return; }
       if (done.has(i.grp)) return; done.add(i.grp);
-      const mem = items.filter((x) => x.grp === i.grp && !L.isSold(x)), all = mem.every((x) => selected.has(x.id)), cnt = L.sizeCounts(state, i), sale = L.salePrice(i);
+      const mem = items.filter((x) => x.grp === i.grp && !L.isLocked(x)), all = mem.every((x) => selected.has(x.id)), cnt = L.sizeCounts(state, i), sale = L.salePrice(i);
       out += `<div class="item grp ${all ? 'sel' : ''}" data-grp="${i.grp}"><label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-selgrp="${i.grp}" ${all ? 'checked' : ''}></label>
         <button class="main" data-act="grp-toggle" data-id="${i.grp}">${PUI.thumb(i)}<span class="txt"><b>${grpName(i)} <em class="gxn">×${mem.length}</em></b><small>${esc(sizeSummary(cnt)) || t('size.none')}</small></span></button>
         <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${sale ? money(sale) : i.price ? money(i.price) : ''}</b></div><span class="chev">›</span></div>`;
@@ -419,7 +419,7 @@
   // Above the list once something is picked: how many, Select all, Clear.
   function selBar(items) {
     if (!selected.size) return '';
-    const pool = items.filter((i) => !L.isSold(i));
+    const pool = items.filter((i) => !L.isLocked(i));
     return `<div class="selbar"><span><b>${t('sel.n', { n: selected.size })}</b> ${t('sel.ofM', { m: pool.length })}</span><span><button data-act="sel-all">${t('sel.all', { m: pool.length })}</button> <button data-act="sel-clear">${t('sel.clear')}</button></span></div>`;
   }
   const boughtOffPct = (i) => {
@@ -434,7 +434,7 @@
     return `<div class="item ${sel ? 'sel' : ''} ${i.status === 'Paid' ? 'paid' : ''}" data-id="${i.id}">
       <label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-sel ${sel ? 'checked' : ''}></label>
       <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/<\/span>$/, (sale && !L.isSold(i) ? `<small class="saleoff ph-sale">−${Number(i.discount)}%</small>` : offStrip(i)) + '</span>')}<span class="txt"><b>${esc(i.desc) || `<span class="muted">${t('item.untitled')}</span>`}${String(i.desc || '').trim() && !String(i.size || '').trim() && !L.isSold(i) ? ` <i class="szwarn" title="${t('size.missingTip')}">!</i>` : ''}</b>
-        <small>${i.id}${i.size ? ' · <b class="szb">' + esc(szLabel(i.size)) + '</b>' : ''}${i.customer ? ' · ' + esc(i.customer) : ''}${i.invoice ? ' · ' + i.invoice : ''}</small></span></button>
+        <small>${i.id}${i.size ? ' · <b class="szb">' + esc(szLabel(i.size)) + '</b>' : ''}${i.customer ? ' · ' + esc(i.customer) : ''}${i.invoice ? ' · ' + i.invoice : ''}${L.isHeld(i) && !L.isSold(i) ? ' · 🔒 ' + t('stock.ordered') : ''}</small></span></button>
       <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${priceHtml}</b></div>
       <button class="share-btn" data-act="photo-share" data-id="${i.id}" aria-label="${t('photo.share')}" ${noPhoto ? 'disabled' : ''}>${SHARE}</button></div>`;
   }
@@ -1017,11 +1017,12 @@
     shoeUS: range(5, 13, 0.5), shoeEU: range(35, 46, 1).map((x) => 'EU ' + x), shoeUK: range(3, 12, 0.5).map((x) => 'UK ' + x),
   };
   const szLabel = (z) => (z === 'One size' ? t('size.one') : z);
+  const lockToast = (i) => toast(t(L.isSold(i) ? 'item.lockedToast' : 'item.orderedToast'));
   const grpOf = (i) => L.groupOf(state, i);
   const grpName = (i) => esc(String(i.desc || '').trim() || t('item.untitled'));
   const sizeSummary = (list) => list.filter((c) => c.s).map((c) => szLabel(c.s) + ' ×' + c.n).join(' · ');
   // The items one "Edit batch" page walks through: a design with several pieces is one stop.
-  const quickIds = (batchId) => state.items.filter((x) => x.batchId === batchId && !L.isSold(x)).filter((x) => !x.grp || grpOf(x)[0] === x).map((x) => x.id).sort();
+  const quickIds = (batchId) => state.items.filter((x) => x.batchId === batchId && !L.isLocked(x)).filter((x) => !x.grp || grpOf(x)[0] === x).map((x) => x.id).sort();
   const idNo = (id) => String(id).split('-')[1] || id;
   const onQuick = () => !!document.querySelector('#sheet .qe');
   function grpNote(i, single) {
@@ -1175,16 +1176,17 @@
   document.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.szt')) e.preventDefault(); });
   // Previous / next arrows (with "4 of 8") for the top bar, to flip through the items of one batch without going back.
   const navArrows = (ids, id, act) => { const n = ids.indexOf(id); if (n < 0 || ids.length < 2) return ''; return `<div class="nx"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span><button data-act="${act}" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><button data-act="${act}" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button></div>`; };
-  const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isSold(x))).map((x) => x.id).sort();
+  const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isLocked(x))).map((x) => x.id).sort();
   function sheetItem(id, swap) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     enterPage('item', id, () => sheetItem(id), swap);
-    const b = batchOf(i), sold = L.isSold(i);
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
+    const b = batchOf(i), sold = L.isSold(i), ord = !sold && L.isHeld(i), lock = sold || ord, ordr = ord ? Store.orders().find((o) => o.status === 'new' && (o.items || []).some((x) => x.id === i.id)) : null;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : ord ? t('item.orderedTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
+      ${ord ? `<div class="lockbar">🔒 <div><b>${t('item.orderedLock')}</b><small>${t('item.orderedNote')}</small>${ordr ? `<button class="pay-btn" data-act="order-open" data-id="${ordr.id}">${t('item.viewOrder')}</button>` : ''}</div></div>` : ''}
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
-      <fieldset class="lockset" ${sold ? 'disabled' : ''}>
-      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${sold ? '' : szSection(i, true, false)}${sold ? '' : grpNote(i, true)}
+      <fieldset class="lockset" ${lock ? 'disabled' : ''}>
+      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${lock ? '' : szSection(i, true, false)}${lock ? '' : grpNote(i, true)}
       <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
       <div class="mrow" id="pricerow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
       <div id="saleblock">${saleHTML(i)}</div>
@@ -1198,7 +1200,7 @@
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       </fieldset>
       ${sold ? `<div class="btns">${i.invoice ? `<button class="btn" data-act="view-inv" data-id="${i.invoice}">${t('item.viewInv')}</button><button class="btn danger" data-act="return-inv" data-id="${i.invoice}">${t('item.returnInv')}</button>` : `<button class="btn danger" data-act="return-item" data-id="${i.id}">${t('item.returnItem')}</button>`}<button class="btn" data-act="close">${t('btn.done')}</button></div>`
-      : `<div class="btns"><button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>
+      : `<div class="btns">${ord ? '' : `<button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>`}
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
     $('#sheet').dataset.item = id; updateSale(i); scrollSize();
     const hlr = $('#szrow.hl'); if (hlr) setTimeout(() => hlr.scrollIntoView({ block: 'center' }), 60);   // an item with a name but no size: bring the Size block into view
@@ -1669,6 +1671,7 @@
   }
   // The invoice an order was turned into (saved on the order; older orders: the invoice their sold items are on).
   const orderInvoice = (o) => o.invoice || ((o.items || []).map((i) => state.items.find((x) => x.id === i.id)).find((it) => it && it.invoice && L.isSold(it)) || {}).invoice || '';
+  Object.defineProperty(L, 'orderHold', { get: () => new Set(Store.reserved()), configurable: true });   // items inside unanswered orders are locked like sold ones
   let pendingOrder = null, custLock = false;   // the order whose invoice page is open, and whether its customer card is locked in
   // The customer on the invoice page of an order: one card instead of the search list.
   function orderCustomerCard() {
@@ -1864,11 +1867,11 @@
       case 'es-savewords': { document.querySelectorAll('.sheet .wb').forEach((row) => { const inp = row.querySelector('[data-w]'), sel = row.querySelector('[data-wt]'); if (inp.value.trim()) state.settings.words = Wd.put(wordList(), inp.dataset.w, inp.value, '', sel ? sel.value : 'a'); }); save(); toast(t('words.saved')); return closeSheet(); }
       case 'es-done': { const i = state.items.find((x) => x.id === id), v = ($('#es-name').value || '').trim(); if (i) { const auto = Wd.translate(i.desc, wordList()); if (!v || (v === auto.es && !auto.missing.length)) { i.esSet = false; delete i.nameEs; delete i.esFor; } else { i.nameEs = v; i.esSet = true; i.esFor = i.desc; } L.applyToGroup(state, i, ['nameEs', 'esSet', 'esFor']); save(); } return closeSheet(); }
       case 'es-lib': closeSheet(); return sheetWords();
-      case 'size-set': { const i = state.items.find((x) => x.id === id); if (!i) return; if (L.isSold(i)) return toast(t('item.lockedToast')); const v = t_.dataset.v; i.size = String(i.size || '').toLowerCase() === v.toLowerCase() ? '' : v; save(); return refreshSize(i); }
+      case 'size-set': { const i = state.items.find((x) => x.id === id); if (!i) return; if (L.isLocked(i)) return lockToast(i); const v = t_.dataset.v; i.size = String(i.size || '').toLowerCase() === v.toLowerCase() ? '' : v; save(); return refreshSize(i); }
       case 'qty-inc': case 'qty-dec': { const it = state.items.find((x) => x.id === id); if (!it) return; const g = grpOf(it).length; return setQty(it, g + (t_.dataset.act === 'qty-inc' ? 1 : -1)); }
       case 'scope-pick': { const f = window.__scope; if (f) f(t_.dataset.v); return closeSheet(); }
       case 'slots-add': case 'slots-use': { const f = window.__slots; if (f) f(t_.dataset.act === 'slots-add' ? 'add' : 'use'); return closeSheet(); }
-      case 'szp-open': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return szpOpen(it, !!t_.dataset.single); }
+      case 'szp-open': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return szpOpen(it, !!t_.dataset.single); }
       case 'szp-tap': if (holdFired) { holdFired = false; return; } return szpTap(t_.dataset.v);
       case 'szp-pop': return szpPopOpen(t_.dataset.v);
       case 'szp-tab': szp.tab = t_.dataset.v; szp.pop = null; return szpDraw();
@@ -1881,14 +1884,14 @@
       case 'szp-zero': { $('#szp-n').value = '0'; return; }
       case 'szp-rest': { const z = szp.last, rest = szp.n - szpTotal(); if (z && rest > 0) { szp.d[z] = (szp.d[z] || 0) + rest; szpDraw(); } return; }
       case 'szp-done': { const ok = szp.single ? szpTotal() === 1 : szpTotal() === szp.n; if (!ok) return toast(szp.single ? t('szp.pickOne') : t('szp.mustMatch', { n: szp.n })); if (szpApply()) { qeTried = false; closeSheet(); } return; }
-      case 'size-other': { const i = state.items.find((x) => x.id === id); if (!i) return; if (L.isSold(i)) return toast(t('item.lockedToast')); return openSmall(`<h3>${t('size.label')}</h3><p>${t('size.otherSub')}</p><input id="size-in" value="${esc(i.size || '')}" placeholder="${t('size.ph')}" autocomplete="off" maxlength="20"><div class="btns"><button class="btn primary" data-act="size-save" data-id="${id}">${t('btn.save')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet'); }
+      case 'size-other': { const i = state.items.find((x) => x.id === id); if (!i) return; if (L.isLocked(i)) return lockToast(i); return openSmall(`<h3>${t('size.label')}</h3><p>${t('size.otherSub')}</p><input id="size-in" value="${esc(i.size || '')}" placeholder="${t('size.ph')}" autocomplete="off" maxlength="20"><div class="btns"><button class="btn primary" data-act="size-save" data-id="${id}">${t('btn.save')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet'); }
       case 'size-save': { const i = state.items.find((x) => x.id === id); if (i) { i.size = ($('#size-in').value || '').trim().slice(0, 20); save(); } return closeSheet(); }
       case 'store-left': { const c = storeCfg(); state.settings.store = Object.assign(c, { showLeft: !c.showLeft }); save(); t_.classList.toggle('on', !!state.settings.store.showLeft); t_.setAttribute('aria-checked', String(!!state.settings.store.showLeft)); return; }
       case 'store-more': return openSmall(`<h3>${t('batch.more')}</h3><div class="ap" style="padding:12px 0 0"><div class="card" style="margin:0"><div class="rw"><div class="t"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div></div><div class="list" style="margin-top:12px"><button class="row tap" data-act="store-help"><span style="font-size:22px">💡</span><div class="grow"><b>${t('sh.menu')}</b><small>${t('sh.menuSub')}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
       case 'store-help': closeSheet(); return sheetStoreHelp();
       case 'sh-lang': shLang = id; return sheetStoreHelp(true);
       case 'words-open': return sheetWords();
-      case 'page-more': { const cur = state.items.find((x) => x.id === $('#sheet').dataset.item), sp = cur && cur.grp && !L.isSold(cur) && grpOf(cur).length > 1 ? `<button class="row tap" data-act="split-group" data-id="${cur.id}"><span style="font-size:22px">🧩</span><div class="grow"><b>${t('grp.split')}</b><small>${t('grp.splitSub')}</small></div></button>` : ''; return openSmall(`<h3>${t('batch.more')}</h3><div class="list" style="margin-top:12px">${sp}<button class="row tap" data-act="words-from-menu"><span style="font-size:22px">🔤</span><div class="grow"><b>${t('words.openLib')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet'); }
+      case 'page-more': { const cur = state.items.find((x) => x.id === $('#sheet').dataset.item), sp = cur && cur.grp && !L.isLocked(cur) && grpOf(cur).length > 1 ? `<button class="row tap" data-act="split-group" data-id="${cur.id}"><span style="font-size:22px">🧩</span><div class="grow"><b>${t('grp.split')}</b><small>${t('grp.splitSub')}</small></div></button>` : ''; return openSmall(`<h3>${t('batch.more')}</h3><div class="list" style="margin-top:12px">${sp}<button class="row tap" data-act="words-from-menu"><span style="font-size:22px">🔤</span><div class="grow"><b>${t('words.openLib')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div></button></div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet'); }
       case 'words-from-menu': closeSheet(); return sheetWords();
       case 'word-group': wordGroup = id; return wordsRefresh();
       case 'word-hide': state.settings.wordsHideNote = true; save(); { const n = document.querySelector('.starter'); if (n) n.remove(); } return;
@@ -1906,7 +1909,7 @@
       case 'open-stock': stockBatch = id; stockFilter = 'All'; closeSheet(); go({ tab: 'stock', moreView: null }); return render();
       case 'goto-stock': go({ tab: 'stock', moreView: null }); return render();
       case 'grp-toggle': grpOpen.has(id) ? grpOpen.delete(id) : grpOpen.add(id); return render();
-      case 'sel-all': { state.items.filter((i) => i.batchId === stockBatch && !L.isSold(i)).forEach((i) => selected.add(i.id)); return render(); }
+      case 'sel-all': { state.items.filter((i) => i.batchId === stockBatch && !L.isLocked(i)).forEach((i) => selected.add(i.id)); return render(); }
       case 'sel-clear': selected.clear(); return render();
       case 'sale-open': return sheetSale();
       case 'sale-pick': salePct = Number(t_.dataset.v); salePctDraw(); return;
@@ -1918,12 +1921,12 @@
       case 'pick-batch': stockBatch = id; return render();
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
-      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return setSale(it, !it.saleOn, null); }
-      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); return setSale(it, true, Number(t_.dataset.v)); }
-      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isSold(it)) return toast(t('item.lockedToast')); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); const old = it.price; if (onQuick()) { it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); } return setPrice(it, c.recommended, old); }
+      case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return setSale(it, !it.saleOn, null); }
+      case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return setSale(it, true, Number(t_.dataset.v)); }
+      case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); const old = it.price; if (onQuick()) { it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); } return setPrice(it, c.recommended, old); }
       case 'sx-go': { const el = document.getElementById('sx-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       case 'unselect': selected.delete(id); return render();
-      case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isSold(it)) return toast(t('item.lockedToast')); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
+      case 'select-close': { const it = state.items.find((x) => x.id === id); if (it && L.isLocked(it)) return lockToast(it); if (it) { L.prefillSold(it); save(); } selected.add(id); closeSheet(); } return toast(t('item.added'));
       case 'unselect-close': selected.delete(id); closeSheet(); return;
       case 'store-share': { const c = storeCfg(); if (!c.id) return sheetStore(); const url = Store.link(c), name = c.name || bizName(); if (navigator.share) return navigator.share({ title: name, text: t('store.shareText', { name }), url }).catch(() => {}); return copyText(url).then((ok) => toast(ok ? t('store.copied') : url)); }
       case 'store-preview': { const c = storeCfg(); if (!c.id) return sheetStore(); window.open(Store.link(c), '_blank', 'noopener'); return; }
@@ -2021,7 +2024,7 @@
 
   document.addEventListener('change', (e) => {
     const el = e.target;
-    if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isSold(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
+    if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isLocked(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
     if (el.hasAttribute('data-sel')) {
       const id = el.closest('.item').dataset.id;
       el.checked ? selected.add(id) : selected.delete(id);
@@ -2029,7 +2032,7 @@
     }
     if (el.dataset.qty) { const it = state.items.find((x) => x.id === el.dataset.qty); if (it) setQty(it, el.value); return; }
     if (el.dataset.f && $('#sheet').dataset.item) {
-      const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f; if (L.isSold(i)) return;
+      const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f; if (L.isLocked(i)) return;
       if (f === 'discount') { const pc = parsePct(el.value); el.value = pc ? pc + '%' : ''; if (discOld.id !== i.id) discOld = { id: i.id, v: i.discount }; i.discount = pc; return setSale(i, i.saleOn, pc); }   // "50" becomes "50%"
       if (f === 'price' && !onQuick() && grpOf(i).length > 1) { const nv = Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0), old = i.price; if (nv === old) return; i.price = nv; return setPrice(i, nv, old); }
       i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0) : el.value;

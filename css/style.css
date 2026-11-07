@@ -843,3 +843,20 @@ body.page-open .sheet.full{padding-bottom:calc(var(--tabspace) + 16px)}
 .item .main{gap:8px}.item .side{padding-right:2px}
 .item .share-btn{width:38px;height:38px;margin-right:6px}.item .share-btn svg{width:18px;height:18px}
 .item .main small{font-size:12px}
+
+/* batch picker button + scrolling chips, picker panel, batch details pop-up */
+.bpk{display:flex;gap:8px;align-items:center}.bpk .chips{flex:1;min-width:0;margin:0}
+.bpk .drop{flex:none;border:0;border-radius:99px;padding:0 16px;min-height:38px;font-size:13px;font-weight:800;background:var(--brand);color:#fff;white-space:nowrap;box-shadow:var(--sh1)}
+.row .go{color:var(--brand);font-size:22px;font-weight:700;padding-left:6px;flex:none}
+.sheet.pick{height:calc(100dvh - 110px);max-height:none;display:flex;flex-direction:column;overflow:hidden}
+.sheet.pick .oqbar{flex:none}.sheet.pick .oqbar input.bq{flex:1;min-width:0;border:0;background:transparent;box-shadow:none;outline:0;padding:12px 0;font-size:16px;color:var(--ink);height:auto;min-height:0;-webkit-appearance:none;appearance:none}
+.sheet.pick .oqbar input.bq::placeholder{color:var(--mute);opacity:.55}.sheet.pick .oqbar input.bq::-webkit-search-cancel-button{display:none}
+.bpl{flex:1;min-height:0;overflow:auto;margin:0 -16px;border-top:1px solid var(--line);overscroll-behavior:contain}
+.bprow{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 16px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);border-radius:0;box-shadow:none;min-height:0}
+.bprow.on{background:var(--tint)}.bprow b{display:block;font-size:15px}.bprow small{display:block;color:var(--mute);margin-top:2px;font-size:12.5px}
+.bi-sub{margin:0 0 12px}.bi-kp{display:grid;grid-template-columns:1fr 1fr;gap:10px}.bi-kp>div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}.bi-kp small{color:var(--mute);display:block}.bi-kp b{font-size:18px}.bi-kp b.ok{color:var(--ok)}
+.bi-card{background:var(--card);border:1px solid var(--line);border-radius:16px;margin-top:12px;overflow:hidden}.bi-card .ln{display:flex;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:14px}.bi-card .ln:last-child{border:0}.bi-card .ln span{color:var(--mute)}.bi-card .ln b{text-align:right}
+.bi-bar{display:flex;height:10px;border-radius:99px;overflow:hidden;margin:14px 16px 8px;background:var(--line)}.bi-bar i{display:block}
+.bi-lg{display:flex;flex-wrap:wrap;gap:6px 14px;padding:0 16px 12px;font-size:12.5px;color:var(--mute)}.bi-lg span{display:inline-flex;align-items:center;gap:6px}.bi-lg b{width:9px;height:9px;border-radius:50%;display:inline-block}
+.sheet.pick,.sheet.pick.kb{padding-bottom:var(--sab,0px)}   /* the list runs right down to the keyboard (or the screen's bottom) */
+.bi-kp small:first-child{text-transform:capitalize}

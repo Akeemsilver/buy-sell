@@ -361,9 +361,9 @@
     const items = all.filter((i) => (stockFilter === 'All' ? true : stockFilter === 'NeedCheck' ? i.photo && !i.photo.checked : i.status === stockFilter));
     const st = L.batchStats(state, b);
     const chips = (arr, cur, act, label) => arr.map((x) => `<button class="chip ${x === cur ? 'on' : ''}" data-act="${act}" data-id="${esc(x)}">${esc(label ? label(x) : x)}</button>`).join('');
-    return `<div class="chips">${chips(open.map((x) => x.id), stockBatch, 'pick-batch', bl)}<button class="chip" data-act="new-batch">${t('stock.addBatch')}</button></div>
-      <div class="row" style="margin-bottom:10px"><div class="grow"><b>${t('stock.invested', { status: stLabel(bStatus(b)), amount: money(st.investment) })}</b><small>${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</small></div>
-        <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div></div>
+    return `<div class="bpk"><button class="drop" data-act="batch-pick" aria-label="${t('bp.title')}">${esc(bl(b.id))} <span aria-hidden="true">▾</span></button><div class="chips">${chips(open.filter((x) => x.id !== stockBatch).map((x) => x.id), stockBatch, 'pick-batch', bl)}<button class="chip" data-act="new-batch">${t('stock.addBatch')}</button></div></div>
+      <div class="row tap" role="button" tabindex="0" data-act="batch-info" data-id="${b.id}" style="margin-bottom:10px"><div class="grow"><b>${t('stock.invested', { status: stLabel(bStatus(b)), amount: money(st.investment) })}</b><small>${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</small></div>
+        <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="go" aria-hidden="true">›</span></div>
       <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>
         ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button><button class="chip" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.short')}</button></div>
       ${(() => { const sc = storeCfg(); return sc.id && !sc.batches.includes(b.id) && all.some((i) => i.status === 'Available' && String(i.desc || '').trim()) ? `<div class="row" style="margin-bottom:10px;flex-wrap:wrap;background:#fff4e0;border-color:#f1d4a0"><div class="grow"><b>${t('store.notIn')}</b><small>${t('store.notInSub')}</small></div><button class="chip on" data-act="store-addbatch" data-id="${b.id}">${t('store.addBatch')}</button></div>` : ''; })()}
@@ -809,7 +809,7 @@
     if (keepGhost) keepGhost = false; else removeGhost();
     const kind = full === 'card' || full === 'sheet' ? full : null;
     if (kind) full = false; else if (!full) { html = asPage(html); full = true; }
-    $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind);
+    $('#sheet').classList.toggle('card', kind === 'card'); $('#sheet').classList.toggle('small', !!kind); $('#sheet').classList.remove('pick');
     sheetClose = onClose || null; $('#sheet').classList.toggle('full', !!full); document.body.classList.toggle('page-open', !!full);   // full-screen pages keep the bottom tab bar
     $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').hidden = false; $('#scrim').hidden = false; $('#sheet').scrollTop = 0;
     document.body.style.overflow = 'hidden';
@@ -821,7 +821,7 @@
     if ($('#sheet').hidden) return;
     voiceStop();
     pageStack = [];
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small', 'pick'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -844,6 +844,33 @@
   }
 
   const clearOpen = new Set();   // received batches whose clearing payment was opened again (to fix a mistake)
+  /* ---------- batch picker (search) and the batch details pop-up ---------- */
+  function bpRows(q) {
+    const res = L.batchSearch(state.batches, q), k = String(q || '').trim();
+    if (!res.length) return `<div class="none">${t('bp.none', { q: esc(k) })}</div>`;
+    return res.map(({ b, kind }) => { const a = state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, tr = state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length, bs = bStatus(b);
+      const why = kind === 'ends' ? t('bp.ends', { q: esc(k) }) : kind === 'has' ? t('bp.has', { q: esc(k) }) : '';
+      return `<button class="bprow ${b.id === stockBatch ? 'on' : ''}" data-act="batch-pick-do" data-id="${esc(b.id)}"><div><b>${esc(bl(b.id))}</b><small>${why ? why + ' · ' : ''}${t('store.batchCount', { a, t: tr })}${b.store ? ' · ' + esc(b.store) : ''}</small></div><span class="pill ${bs.replace(' ', '')}">${stLabel(bs)}</span></button>`; }).join('');
+  }
+  function sheetBatchPick() {
+    openSheet(`<h3>${t('bp.title')}</h3>
+      <div class="oqbar"><span aria-hidden="true">🔍</span><input class="bq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"><span class="muted small" id="bp-n">${t('bp.n', { n: state.batches.length })}</span></div>
+      <div class="bpl" id="bpl">${bpRows('')}</div>`, null, 'sheet');
+    $('#sheet').classList.add('pick');
+    const cur = $('#bpl .bprow.on'); if (cur) cur.scrollIntoView({ block: 'center' });
+  }
+  function sheetBatchInfo(id) {
+    const b = state.batches.find((x) => x.id === id); if (!b) return;
+    const st = L.batchStats(state, b), bs = bStatus(b), its = state.items.filter((i) => i.batchId === b.id), ps = L.photoStats(state, b.id);
+    const n = (s) => its.filter((i) => i.status === s).length, tot = Math.max(1, its.length), seg = (s, c) => `<i style="width:${n(s) / tot * 100}%;background:${c}"></i>`;
+    const lg = (s, c) => `<span><b style="background:${c}"></b>${n(s)} ${stLabel(s).toLowerCase()}</span>`;
+    const sc = storeCfg(), ln = (a, v) => `<div class="ln"><span>${a}</span><b>${v}</b></div>`;
+    openSheet(`<h3>${esc(bl(b.id))} <span class="pill ${bs.replace(' ', '')}">${stLabel(bs)}</span></h3><p class="muted small bi-sub">${esc(b.store)}${b.store ? ' · ' : ''}${t('batch.ordered')} ${day(b.datePurchased)}</p>
+      <div class="bi-kp"><div><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('home.profitWord')}</small><b class="ok">${money(st.profit)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div><small>${t('batch.clearingPaid')}</small><b>${money(b.clearingPaid)}</b><small>${(st.clearingPct * 100).toFixed(0)}%</small></div></div>
+      <div class="bi-card"><div class="bi-bar">${seg('Paid', '#66bb6a')}${seg('Owing', '#ffb74d')}${seg('Available', '#5c6bc0')}${seg('In Transit', '#4fc3f7')}</div><div class="bi-lg">${lg('Paid', '#66bb6a')}${lg('Owing', '#ffb74d')}${lg('Available', '#5c6bc0')}${lg('In Transit', '#4fc3f7')}</div></div>
+      <div class="bi-card">${ln(t('bi.items'), its.length + ' · ' + t('bi.withPhotos', { n: ps.withPhoto }))}${ln(t('batch.cost'), b.totalCost.toFixed(2) + ' ' + b.currency + ' @ ' + b.rate.toFixed(4))}${ln(t('bi.margin'), (Number(b.margin) || 0) + '%')}${b.dateReceived ? ln(t('bi.received'), day(b.dateReceived)) : ''}${ln(b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase'), transitText(b))}${b.dateLastPayment ? ln(t('batch.lastClearing'), day(b.dateLastPayment)) : ''}${sc.id ? ln(t('bi.inStore'), sc.batches.includes(b.id) ? t('bi.on') : t('bi.off')) : ''}</div>
+      <div class="btns"><button class="btn primary" data-act="batch" data-id="${b.id}">${t('bi.open')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, 'sheet');
+  }
   function sheetBatch(id) {
     const b = state.batches.find((x) => x.id === id); if (!b) return;
     enterPage('batch', id, () => sheetBatch(id));
@@ -1993,6 +2020,9 @@
       case 'split-group': { const it = state.items.find((x) => x.id === id); if (it) { L.splitFromGroup(state, id); save(); closeSheet(); render(); toast(t('grp.splitDone')); } return; }
       case 'goto-sell': go({ tab: 'sell', moreView: 'invoice' }); window.scrollTo(0, 0); return render();
       case 'pick-batch': stockBatch = id; return render();
+      case 'batch-pick': return sheetBatchPick();
+      case 'batch-pick-do': stockBatch = id; stockFilter = 'All'; closeSheet(); window.scrollTo(0, 0); return render();
+      case 'batch-info': return sheetBatchInfo(id);
       case 'pick-filter': stockFilter = id; return render();
       case 'edit-item': return sheetItem(id);
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return setSale(it, !it.saleOn, null); }
@@ -2127,6 +2157,7 @@
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
     if (el.id === 'client' || el.id === 'paying') { invForm[el.name] = el.value; $('#prev').innerHTML = previewBox(); renderActionBar(); if (el.id === 'client') { const l = $('#combolist'); if (l) l.innerHTML = chipRows(el.value); const bt = document.querySelector('.combo-btn span'); if (bt) bt.textContent = L.cleanName(el.value) || t('sell.customerPick'); } }
+    else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }
     else if (el.id === 'w-q') { wordQ = el.value; wordsRefresh(); }
     else if (el.id === 'w-try') tryName();

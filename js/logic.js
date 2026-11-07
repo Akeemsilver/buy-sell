@@ -460,6 +460,18 @@
     const d = raw.replace(/\D/g, ''); if (d.length >= 3 && String(o.phone || '').replace(/\D/g, '').includes(d)) return { kind: 'phone', text: o.phone };
     return null;
   };
+  // Batch picker search: no text lists every batch, newest first. Digits match the end of the batch number first (7 and 007 find BATCH-007),
+  // then batches that contain them (07 also finds 070..079). Words match the store name. "batch-007" works too.
+  L.batchSearch = (batches, q) => {
+    const sorted = batches.slice().sort((a, b) => b.num - a.num), raw = String(q == null ? '' : q).trim().toLowerCase();
+    if (!raw) return sorted.map((b) => ({ b, kind: 'all' }));
+    const d = raw.replace(/\D/g, '');
+    if (d) {
+      const digits = (b) => String(b.id).replace(/\D/g, '');
+      return sorted.filter((b) => digits(b).endsWith(d)).map((b) => ({ b, kind: 'ends' })).concat(sorted.filter((b) => !digits(b).endsWith(d) && digits(b).includes(d)).map((b) => ({ b, kind: 'has' })));
+    }
+    const w = raw.replace(/^batch-?/, '').trim(); return w ? sorted.filter((b) => String(b.store || '').toLowerCase().includes(w)).map((b) => ({ b, kind: 'store' })) : sorted.map((b) => ({ b, kind: 'all' }));
+  };
   L.deliveryOwing = (s, v) => { if (!v || v.updatedBy) return 0; const itemOwing = s.items.filter((i) => i.invoice === v.no).reduce((t, i) => t + num(i.owing), 0); return r2(Math.max(0, num(v.balance) - itemOwing)); };
   L.customerStats = (s) => {
     const names = new Set(s.customers);

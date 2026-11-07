@@ -1418,7 +1418,7 @@
   const isPaidInFull = (v) => v.total > 0 && v.balance <= 0;
   const stampDate = (v) => new Date(v.date).toLocaleDateString(I.locale(invoiceLang()), { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase();
   // Which stamp an invoice carries: red handwriting while the order's items have not been handed over, green PAID IN FULL, or green DELIVERED / COLLECTED when handed over with money still owing
-  const stampKind = (v) => { const o = v && v.no ? orderOfInvoice(v.no) : null; if (o && o.status === 'confirmed') return o.option === 'delivery' ? 'notDel' : 'notCol'; if (isPaidInFull(v)) return 'paid'; if (o && o.status === 'done') return o.option === 'delivery' ? 'del' : 'col'; return ''; };
+  const stampKind = (v) => { const o = v && v.no ? orderOfInvoice(v.no) : null; if (isPaidInFull(v)) return 'paid'; if (o && o.status === 'confirmed') return o.option === 'delivery' ? 'notDel' : 'notCol'; if (o && o.status === 'done') return o.option === 'delivery' ? 'del' : 'col'; return ''; };
   const STAMP_KEY = { notDel: 'doc.stampNotDel', notCol: 'doc.stampNotCol', paid: 'doc.stamp', del: 'doc.stampDel', col: 'doc.stampCol' };
   const stampCanvasFor = (v) => { const k = stampKind(v); return stampCanvas(v.no, stampDate(v), ti(STAMP_KEY[k] || 'doc.stamp'), k === 'notDel' || k === 'notCol' ? 'pending' : 'ok'); };
   function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang() + '|' + stampKind(v); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }

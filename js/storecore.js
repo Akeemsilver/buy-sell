@@ -5,7 +5,7 @@
   const L = root.Logic || (typeof require !== 'undefined' ? require('./logic.js') : null);
   const W = () => root.Words || (typeof require !== 'undefined' ? require('./words.js') : null);
   const num = (v) => Number(v) || 0, r2 = (n) => Math.round(n * 100) / 100;
-  const PER_DOC = 20;   // items per catalogue document (each carries a small picture; a document may be up to 1 MB)
+  const PER_DOC = 6;   // items per catalogue document (each carries a picture of up to about 130 KB as text; a document may be up to 1 MB)
 
   const newId = (n) => { const a = 'abcdefghijkmnpqrstuvwxyz23456789'; let s = ''; const c = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(n || 20)) : null; for (let i = 0; i < (n || 20); i++) s += a[(c ? c[i] : Math.floor(Math.random() * 256)) % a.length]; return s; };
 

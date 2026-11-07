@@ -16,9 +16,9 @@
   async function smallPicture(id) {
     if (pics.has(id)) return pics.get(id);
     const rec = await PS.get(id).catch(() => null), blob = rec && (rec.full || rec.thumb); if (!blob) return '';
-    const bmp = await createImageBitmap(blob), k = Math.min(1, 360 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+    const bmp = await createImageBitmap(blob), k = Math.min(1, 640 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k)); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    const url = c.toDataURL('image/jpeg', 0.72); pics.set(id, url); return url;
+    const url = c.toDataURL('image/jpeg', 0.8); pics.set(id, url); return url;
   }
 
   // Sharp pictures (cloud storage): the checked 900 px photo, about 60 to 80 KB, kept while the item is for sale and deleted by the same rule as the saved
@@ -55,7 +55,7 @@
       const list = SC.shown(A.state(), c), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
       const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null; try { if (storage) { storage.setMaxUploadRetryTime(8000); storage.setMaxOperationRetryTime(8000); } } catch (e) { /* older SDK */ }
       const retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
-      const sig = SC.hash({ head, list, retry }), key = 'buy-sell-store-sig:' + c.id;
+      const sig = SC.hash({ head, list, retry, pv: 2 }), key = 'buy-sell-store-sig:' + c.id;
       if (!force && localStorage.getItem(key) === sig) { info.at = info.at || Date.now(); info.count = list.length; if (storage) cleanPictures(c.id, storage).catch(() => {}); return false; }
       const map = readMap(c.id); let sharpOk = !!storage, sharpN = 0, picErr = 0; const items = [];
       for (const p of list) {

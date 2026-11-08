@@ -247,6 +247,8 @@
     db: () => db, storage: () => (root.firebase && root.firebase.storage ? root.firebase.storage() : null), uid: () => (user ? user.uid : null), workspace: () => wid, stamp: () => root.firebase.firestore.FieldValue.serverTimestamp(), ready: () => !!(db && user && wid),
     signInGoogle: () => need().then((a) => { const p = new root.firebase.auth.GoogleAuthProvider(), n = root.navigator || {}; const ios = /iPhone|iPad|iPod/.test(n.userAgent || '') || (n.platform === 'MacIntel' && n.maxTouchPoints > 1); return ios ? a.signInWithRedirect(p) : a.signInWithPopup(p); }),   // iPhone and iPad: the pop-up does not work in an installed app, so the whole page goes to Google and comes back
     redirectError: () => redirectErr,
+    hasPassword: () => !!user && (user.providerData || []).some((p) => p.providerId === 'password'),
+    addPassword: (pw) => need().then(() => { if (!user) throw Object.assign(new Error('x'), { code: 'auth/no-user' }); return user.linkWithCredential(root.firebase.auth.EmailAuthProvider.credential(user.email, pw)); }),   // gives a Google account a password too: same account, same business
     signIn: (email, pw) => need().then((a) => a.signInWithEmailAndPassword(email, pw)),
     signUp: (email, pw) => need().then((a) => a.createUserWithEmailAndPassword(email, pw)),
     reset: (email) => need().then((a) => a.sendPasswordResetEmail(email)),

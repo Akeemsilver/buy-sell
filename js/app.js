@@ -1355,8 +1355,11 @@
   const invoiceLang = () => invLangSession || (invLangAuto === true ? I.getLang() : custLang());
   // The language each customer reads, remembered from earlier sends (store orders already carry the language the customer used)
   const clientKey = (n) => String(n || '').trim().toLowerCase();
-  const rememberLang = (name, lang) => { if (!clientKey(name) || (lang !== 'en' && lang !== 'es')) return; if ((state.settings.clientLang || {})[clientKey(name)] === lang) return; state.settings.clientLang = Object.assign({}, state.settings.clientLang, { [clientKey(name)]: lang }); save(); };
-  const knownLang = (no, name) => { const o = no ? orderOfInvoice(no) : null; if (o && (o.lang === 'en' || o.lang === 'es')) return o.lang; const m = (state.settings.clientLang || {})[clientKey(name)]; return m === 'en' || m === 'es' ? m : null; };
+  const savedLang = (name) => { const m = (state.settings.clientLang || {})[clientKey(name)]; return m === 'en' || m === 'es' ? m : ''; };
+  const setClientLang = (name, lang) => { if (!clientKey(name)) return; const cur = Object.assign({}, state.settings.clientLang); if (lang === 'en' || lang === 'es') cur[clientKey(name)] = lang; else delete cur[clientKey(name)]; state.settings.clientLang = cur; save(); };
+  const rememberLang = (name, lang) => { if ((lang === 'en' || lang === 'es') && savedLang(name) !== lang) setClientLang(name, lang); };
+  const orderLangOf = (name) => { const o = Store.orders().filter((x) => clientKey(x.name) === clientKey(name) && (x.lang === 'en' || x.lang === 'es')).sort((a, b) => (Store.when(b) || 0) - (Store.when(a) || 0))[0]; return o ? o.lang : ''; };
+  const knownLang = (no, name) => { const m = savedLang(name); if (m) return m; const o = no ? orderOfInvoice(no) : null; if (o && (o.lang === 'en' || o.lang === 'es')) return o.lang; return orderLangOf(name) || null; };
   const langFor = (v) => (autoActive() ? knownLang(v.no, v.client) : invoiceLang());   // null = Auto does not know yet: ask
   const underLang = (lang, fn) => { if (!lang) return fn(); const prev = invLangSession; invLangSession = lang; try { return fn(); } finally { invLangSession = prev; } };
   const ti = (key, vars) => t(key, vars, invoiceLang());
@@ -1633,11 +1636,14 @@
   }
 
   // Edit a customer: name (changes it everywhere) and where they are from.
+  let clName = '', ceLang = '';
   function sheetCustEdit(name) {
+    ceLang = savedLang(name);
     enterPage('custedit', name, () => sheetCustEdit(name));
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('cust.editTitle')}</b><small>${esc(name)}</small></div></div>
       <div style="height:8px"></div><label for="ce-name">${t('cust.name')}</label><input id="ce-name" value="${esc(name)}" autocomplete="off" enterkeyhint="done">
       <label for="ce-loc">📍 ${t('cust.location')}</label><input id="ce-loc" value="${esc(L.place(state, name))}" placeholder="${t('cust.placePh')}" autocomplete="off" enterkeyhint="done">
+      <div class="lg-field"><label>🗣️ ${t('cl.field')}</label><div class="lg-seg"><button type="button" class="${ceLang === '' ? 'on' : ''}" data-act="ce-lang" data-id="">${t('inv.auto')}</button><button type="button" class="${ceLang === 'en' ? 'on' : ''}" data-act="ce-lang" data-id="en">EN</button><button type="button" class="${ceLang === 'es' ? 'on' : ''}" data-act="ce-lang" data-id="es">ES</button></div></div>
       <p class="muted small" style="margin:10px 2px">${t('cust.renameNote')}</p>
       <div class="btns"><button class="btn primary" data-act="cust-save" data-id="${esc(name)}">${t('btn.save')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, null, true);
   }
@@ -1662,11 +1668,13 @@
         ${due ? `<div class="c2-bar"><i style="width:${pct}%"></i></div>` : ''}${pinRow(orderOfInvoice(v.no))}</div>`;
     };
     openSheet(`<div class="cpage"><div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
-      <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><small>${invs.length ? lastCap : since}</small><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button></div><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div>
+      <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><div class="lastrow"><small>${invs.length ? lastCap : since}</small><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div><div class="locrow"><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button><button class="lg-chip" data-act="cust-lang" data-id="${esc(name)}" aria-label="${t('cl.field')}"><i>🗣️</i>${(() => { const k = savedLang(name) || orderLangOf(name); return k ? k.toUpperCase() : t('cl.chipAuto'); })()}</button></div></div></div>
       <div class="cp-tiles"><div class="tile ${owing ? 'bad' : ''}"><small>${t('cust.owingLabel')}</small><b>${moneyBare(c.owing)}</b></div><div class="tile"><small>${t('cust.totalSales')}</small><b>${moneyBare(c.sales)}</b></div>
         <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile"><small>${t('cust.profit')}</small><b>${moneyBare(c.profit)}</b></div></div>
       <h2>${t('cust.invoices')} <span class="muted" style="float:right;text-transform:none;letter-spacing:0">${invs.length}</span></h2>${invs.map(card).join('') || `<div class="muted">${t('cust.none')}</div>`}
       <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p></div>`, null, true);
+    const nmEl = document.querySelector('#sheet .cp-hero .nm');   // a long name gets smaller type first, then a second line, so nothing is cut off
+    if (nmEl) { const base = parseFloat(getComputedStyle(nmEl).fontSize); let f = base; while (nmEl.scrollWidth > nmEl.clientWidth && f > base * 0.7) { f -= 1; nmEl.style.fontSize = f + 'px'; } if (nmEl.scrollWidth > nmEl.clientWidth) nmEl.classList.add('wrap'); }
   }
 
   /* ---------- online store: settings, orders ---------- */
@@ -2347,10 +2355,13 @@
         setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
       case 'customer': return sheetCustomer(id);
       case 'cust-edit': return sheetCustEdit(id);
+      case 'cust-lang': { clName = id; return sheetChoice(t('cl.popTitle', { who: esc(id) }), 'cl-set', savedLang(id) || 'auto', [['auto', t('cl.optAuto')], ['en', I.LANGS.en['lang.name'] + ' · EN'], ['es', I.LANGS.es['lang.name'] + ' · ES']], t('cl.popNote', { who: esc(id) })); }
+      case 'cl-set': { setClientLang(clName, id === 'auto' ? '' : id); closeSheet(); return; }
+      case 'ce-lang': { ceLang = id; document.querySelectorAll('#sheet .lg-seg button').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); return; }
       case 'cust-save': {
         const to = $('#ce-name').value, loc = $('#ce-loc').value;
         const save2 = () => { try {
-          const final = L.renameCustomer(state, id, to); L.setPlace(state, final, loc); save(); tidyPhotos();
+          const final = L.renameCustomer(state, id, to); L.setPlace(state, final, loc); if (clientKey(id) !== clientKey(final)) setClientLang(id, ''); setClientLang(final, ceLang); save(); tidyPhotos();
           pageStack = pageStack.filter((p) => p.key !== 'custedit|' + id && p.key !== 'customer|' + id); toast(t('cust.saved')); render(); return sheetCustomer(final);
         } catch (e) { return toast('⚠️ ' + errMsg(e)); } };
         if (L.cleanName(to).toLowerCase() !== id.toLowerCase() && L.otherCustomerNamed(state, id, to)) return askCard(t('cust.mergeAsk', { name: L.canonicalName(state, to), old: id }), { ok: t('cust.mergeOk') }).then((y) => { if (y) save2(); });

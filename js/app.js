@@ -190,7 +190,7 @@
 
   /* ---------- welcome / create account / sign in / business setup (neutral look, not the business's colors) ---------- */
 
-  let gateJoin = false, reqRank = {}, gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null }, gateForced = false;   // gateForced: opened on purpose from the app (Settings, the Home banner)
+  let gateForgot = false, gateJoin = false, reqRank = {}, gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null }, gateForced = false;   // gateForced: opened on purpose from the app (Settings, the Home banner)
   const GOOGLE_G = '<svg class="glogo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.2 5.6c4.3-3.9 7.1-9.7 7.1-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.2-5.6c-2 1.4-4.6 2.3-8.7 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
   const hasData = () => window.Sync.hasData(state);
   function wantedGate() {
@@ -200,6 +200,7 @@
       if (state.settings.setupDone || hasData()) return null;
       return /synced|syncing/.test(cloud.status) ? 'setup' : 'wait';
     }
+    if (gateForgot && cloud.status === 'signedOut') return 'forgot';
     if (gateForced) return 'auth';
     if (cloud.status === 'signedOut' && !hasData() && !pref('gateSkipped', false)) return gateView === 'auth' ? 'auth' : 'welcome';
     return null;
@@ -222,6 +223,10 @@
       <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
       ${IOS ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosHint')}</p>${form}${or}${gbtn}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
     }
+    if (v === 'forgot') return `<div class="g-wrap"><button class="g-link" data-act="gate-forgotback">‹ ${t('gate.back')}</button><h1 style="font-size:24px">${t('fp.title')}</h1><p class="g-mute">${t('fp.sub')}</p>
+      <form id="f-forgot"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" value="${esc(lastEmail())}" required>
+      <div id="g-err" class="g-err" hidden></div><button class="g-btn primary" style="margin-top:18px">${t('fp.send')}</button></form>
+      <p class="g-small" style="margin-top:14px">${t('fp.spam')}</p><p class="g-small">${t('fp.google')}</p></div>`;
     if (v === 'choose') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.chooseTitle')}</h1><p class="g-mute">${t('gate.chooseSub')}</p>
       <button class="g-btn primary" data-act="gate-newbiz">${t('gate.newBiz')}</button><button class="g-btn" data-act="gate-joinbiz">${t('gate.joinBiz')}</button>
       <div id="g-err" class="g-err" hidden></div><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;
@@ -258,7 +263,7 @@
     if (!want) { el.hidden = true; el.innerHTML = ''; document.body.style.overflow = ''; return; }
     el.innerHTML = gateHTML(want); el.hidden = false; el.scrollTop = 0; document.body.style.overflow = 'hidden';
   }
-  const gateErr = (m) => { const e = $('#g-err'); if (e) { e.textContent = m; e.hidden = !m; } };
+  const gateErr = (m) => { const e = $('#g-err'); if (e) { e.textContent = m; e.hidden = !m; e.classList.remove('ok'); } };
   document.addEventListener('focusin', (e) => { if (e.target.closest && e.target.closest('#gate') && /INPUT/.test(e.target.tagName)) setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); });
   /* Number boxes (prices, costs, amounts, phone numbers) show a tick on the keyboard, and the tick just closes the keyboard: the page stays
      where it is (it does not jump to the next box and it does not submit anything). */
@@ -2343,12 +2348,12 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'gate-cancelreq': return Cloud.cancelJoin();
       case 'gate-tryagain': return Cloud.cancelJoin().then(() => { gateJoin = true; gateView = null; updateGate(); });
       case 'gate-removed-ok': gateJoin = false; return Cloud.cancelJoin();
-      case 'gate-forgot': { const em = ($('#f-gate [name=email]') || {}).value; if (!em) return gateErr(t('acct.needEmail')); return Cloud.reset(em).then(() => gateErr(t('acct.resetSent', { email: em })), (e) => gateErr(acctErr(e))); }
+      case 'gate-forgot': case 'acct-forgot': { const em = ($('#f-gate [name=email]') || $('#f-acct [name=email]') || {}).value; if (em) rememberEmail(em.trim()); closeSheet(); gateForgot = true; gateView = null; updateGate(); return; }
+      case 'gate-forgotback': gateForgot = false; gateMode = 'in'; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-color': gateDraft.palette = id; regate(); return;
       case 'acct-open': if (cloud.signedIn) return sheetAccount(); closeSheet(); gateForced = true; gateMode = hasData() ? 'in' : 'create'; gateView = null; updateGate(); return;
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
       case 'acct-google': return acctDone(Cloud.signInGoogle());
-      case 'acct-forgot': { const em = ($('#f-acct [name=email]') || {}).value; if (!em) return acctShow(t('acct.needEmail')); return Cloud.reset(em).then(() => acctShow(t('acct.resetSent', { email: em })), (e) => acctShow(acctErr(e))); }
       case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); gateJoin = false; gateForced = true; gateMode = 'in'; gateView = null; updateGate(); toast(t('acct.signedOut')); });
       case 'conflict': { const f = window.__conflict; if (f) f(id); closeSheet(); return; }          // answer first: closing the pop-up counts as 'cancel'
       case 'bell': notifTab = 'all'; return sheetNotifs();
@@ -2603,6 +2608,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
     if (f.id === 'f-addpw') { acctShow(''); return Cloud.addPassword(d.password).then(() => { toast(t('acct.pwAdded')); sheetAccount(); }).catch((e) => acctShow(/requires-recent-login/.test((e && e.code) || '') ? t('acct.pwRecent') : /provider-already-linked|credential-already-in-use|email-already-in-use/.test((e && e.code) || '') ? t('acct.pwHave') : acctErr(e))); }
+    if (f.id === 'f-forgot') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return Cloud.reset(em).then(() => { const e = $('#g-err'); if (e) { e.textContent = t('fp.sent', { email: em }); e.hidden = false; e.classList.add('ok'); } }, (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-join') { gateErr(''); return Cloud.joinByCode(d.code).catch((e) => gateErr(e && e.code === 'join/invalid' ? t('join.invalid') : e && e.code === 'join/short' ? t('join.short') : t('gate.err', { m: (e && e.message) || '' }))); }
     if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }

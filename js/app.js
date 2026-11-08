@@ -1996,7 +1996,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     const names = (inv ? state.items.filter((i) => i.invoice === inv.no) : []).map((i) => (lang === 'es' ? esName(i) : i.desc) + (i.size ? ' (' + i.size + ')' : '')).join(', ') || tn('notif.items', (o.items || []).length, {}, lang);
     let where = (o.option === 'delivery' ? t('store.delivery', {}, lang) : t('store.pickup', {}, lang)) + ' · ' + o.location;
     const pin = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null; if (pin) where += ' 📍 ' + SCore.mapLinks(pin.lat, pin.lng).view + ' ';   // the space keeps the full stop out of the link
-    const msg = t(key, { name: o.name, code: o.code || SCore.orderCode(o.id), items: names, where, total: plain(o.total), how: t(o.option === 'delivery' ? 'ord.howDel' : 'ord.howPick', {}, lang), store: storeCfg().name || bizName() }, lang);
+    const lines = (inv ? state.items.filter((i) => i.invoice === inv.no) : []).map((i) => '• ' + (lang === 'es' ? esName(i) : i.desc) + (i.size ? ' (' + i.size + ')' : '') + ' · ' + (itemArriving({ id: i.id }) ? '⏳ ' + t('wa.soon', {}, lang) : t('wa.ready', {}, lang))).join('\n') || names;
+    const tot = plain(inv ? inv.total : o.total), fees = o.option === 'delivery' && Number(o.deliveryPrice) > 0 ? t('wa.feesDel', { fee: plain(o.deliveryPrice), total: tot }, lang) : o.option === 'delivery' ? t('wa.feesTotal', { total: tot }, lang) : t('wa.feesPick', { total: tot }, lang);
+    const msg = t(key, { name: o.name, code: o.code || SCore.orderCode(o.id), items: names, list: lines, fees, where, total: tot, how: t(o.option === 'delivery' ? 'ord.howDel' : 'ord.howPick', {}, lang), store: storeCfg().name || bizName() }, lang);
     const w = window.open(SCore.waLink(o.phone, msg), '_blank'); if (!w) toast(t('ord.waBlocked'));
   }
   function orderCancel(id) {

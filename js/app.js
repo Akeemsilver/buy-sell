@@ -163,9 +163,9 @@
   function sheetAccount() {
     if (cloud.signedIn) return openSheet(`<h3>${t('acct.title')}</h3>${acctCard()}${addPwHTML()}<div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
     openSheet(`<h3>${t('acct.title')}</h3><p class="muted small">${t('acct.signInSub')}</p>
-      <button class="btn g-google" data-act="acct-google" style="margin-top:12px">${GOOGLE_G}<span>${t('acct.google')}</span></button>
+      ${IOS ? '' : `<button class="btn g-google" data-act="acct-google" style="margin-top:12px">${GOOGLE_G}<span>${t('acct.google')}</span></button>
       <p class="muted small" style="text-align:center;margin:8px 4px 0">${t('acct.googleNote')}</p>
-      <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>
+      <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>`}
       <form id="f-acct"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
       <label>${t('acct.password')}</label><span class="pwbox"><input name="password" type="password" autocomplete="current-password" minlength="6"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span>
       <div id="acct-err" class="err" hidden></div>
@@ -223,7 +223,7 @@
       const or = `<p class="g-small" style="text-align:center;margin:14px 0">${t('acct.or')}</p>`;
       return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
       <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
-      ${IOS && gateMode === 'create' ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosCreate')}</p>${form}` : IOS ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosHint')}</p>${form}${or}${gbtn}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
+      ${IOS ? `<p class="g-small" style="margin:14px 2px 0">${t(gateMode === 'create' ? 'gate.iosCreate' : 'gate.iosHint')}</p>${form}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
     }
     if (v === 'forgot') return `<div class="g-wrap"><button class="g-link" data-act="gate-forgotback">‹ ${t('gate.back')}</button><h1 style="font-size:24px">${t('fp.title')}</h1><p class="g-mute">${t('fp.sub')}</p>
       <form id="f-forgot"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" value="${esc(lastEmail())}" required>

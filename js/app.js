@@ -41,7 +41,7 @@
 
   const PUI = window.PhotoUI;
   let state = load();
-  let tab = 'home', moreView = null;
+  let tab = 'home', moreView = null, homeAfterSignIn = false;   // set when someone signs in on purpose: they land on Home, not wherever they were
   /* ---------- Back works like on an Android phone: it returns to the place you came from, and never loops ----------
      places: the screens you moved through (tabs, More and Settings screens). pageStack: full-screen pages opened one from another
      (customer -> invoice -> item ...). Going to a place or page that is already in its stack cuts the stack back to it, so Back never
@@ -2344,7 +2344,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'gate-back': if (gateForced) { gateForced = false; updateGate(); return; } gateView = 'welcome'; $('#gate').innerHTML = gateHTML('welcome'); return;
       case 'gate-tab': gateMode = id; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-skip': setPref('gateSkipped', true); return updateGate();
-      case 'gate-google': return Cloud.signInGoogle().then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e)));
+      case 'gate-google': homeAfterSignIn = true; return Cloud.signInGoogle().then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e)));
       case 'gate-newbiz': return Cloud.createBusiness('').catch((e) => gateErr(t('gate.err', { m: (e && e.message) || '' })));
       case 'pw-eye': { const i = t_.parentNode.querySelector('input'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; t_.textContent = show ? '🙈' : '👁'; t_.setAttribute('aria-label', t(show ? 'acct.hidePw' : 'acct.showPw')); return; }
       case 'gate-joinbiz': gateJoin = true; gateView = null; return updateGate();
@@ -2357,7 +2357,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'gate-color': gateDraft.palette = id; regate(); return;
       case 'acct-open': if (cloud.signedIn) return sheetAccount(); closeSheet(); gateForced = true; gateMode = hasData() ? 'in' : 'create'; gateView = null; updateGate(); return;
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
-      case 'acct-google': return acctDone(Cloud.signInGoogle());
+      case 'acct-google': homeAfterSignIn = true; return acctDone(Cloud.signInGoogle());
       case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); gateJoin = false; gateForced = true; gateMode = 'in'; gateView = null; updateGate(); toast(t('acct.signedOut')); });
       case 'conflict': { const f = window.__conflict; if (f) f(id); closeSheet(); return; }          // answer first: closing the pop-up counts as 'cancel'
       case 'bell': notifTab = 'all'; return sheetNotifs();
@@ -2614,10 +2614,10 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (f.id === 'f-chpw') { acctShow(''); return Cloud.changePassword(d.cur, d.password).then(() => { toast(t('acct.pwChanged')); f.reset(); }).catch((e) => acctShow(/wrong-password|invalid-credential/.test((e && e.code) || '') ? t('acct.err.curPw') : acctErr(e))); }
     if (f.id === 'f-addpw') { acctShow(''); return Cloud.addPassword(d.password).then(() => { toast(t('acct.pwAdded')); closeSheet(); render(); }).catch((e) => acctShow(/requires-recent-login/.test((e && e.code) || '') ? t('acct.pwRecent') : /provider-already-linked|credential-already-in-use|email-already-in-use/.test((e && e.code) || '') ? t('acct.pwHave') : acctErr(e))); }
     if (f.id === 'f-forgot') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return Cloud.reset(em).then(() => { const e = $('#g-err'); if (e) { e.textContent = t('fp.sent', { email: em }); e.hidden = false; e.classList.add('ok'); } }, (e) => gateErr(acctErr(e))); }
-    if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
+    if (f.id === 'f-gate') { gateErr(''); homeAfterSignIn = true; const em = d.email.trim(); rememberEmail(em); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-join') { gateErr(''); return Cloud.joinByCode(d.code).catch((e) => gateErr(e && e.code === 'join/invalid' ? t('join.invalid') : e && e.code === 'join/short' ? t('join.short') : t('gate.err', { m: (e && e.message) || '' }))); }
     if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
-    if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); rememberEmail(em); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
+    if (f.id === 'f-acct') { acctShow(t('acct.working')); homeAfterSignIn = true; const em = d.email.trim(); rememberEmail(em); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; const sc = storeCfg(); if (sc.id && sc.autoNew && !sc.batches.includes(b.id)) storeSet({ batches: sc.batches.concat(b.id) }); } }
     if (f.id === 'f-clear') { let failed = false; const wasOpen = clearOpen.has(d.batch); clearOpen.delete(d.batch); run(() => { try { return L.payClearing(state, d.batch, d.amount); } catch (err2) { failed = true; throw err2; } }, t('clear.recorded', { id: bl(d.batch) }), true); if (!failed) sheetBatch(d.batch); else if (wasOpen) clearOpen.add(d.batch); }
     if (f.id === 'f-receive') return askReceived(d.batch);
@@ -2849,7 +2849,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     onTeam: (tm) => { team = tm; try { if (tm) localStorage.setItem('buy-sell-team', JSON.stringify({ uid: cloud.uid, rank: tm.rank, perms: tm.perms })); else localStorage.removeItem('buy-sell-team'); } catch (e) { /* ignore */ } updateGate(); render(); refreshTeamSheets(); },
     onRequests: (list) => { joinReqs = list; renderTools(); refreshTeamSheets(); },
     onRequestsError: (code) => { reqErr = code || ''; refreshTeamSheets(); },
-    onStatus: (i) => { const was = cloud.signedIn; cloud = i; if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
+    onStatus: (i) => { const was = cloud.signedIn; cloud = i; if (i.signedIn && !was && homeAfterSignIn) { homeAfterSignIn = false; closeSheet(); tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; pageStack = []; render(); } if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
     onRemote: () => { L.migrate(state); wordList(); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });
   setTimeout(() => { const e = Cloud.redirectError && Cloud.redirectError(); if (e) toast(acctErr(e)); }, 4000);   // a Google sign-in that came back from Google's page with an error

@@ -1083,6 +1083,6 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 /* iPhone installed app: newer iPhones fade and blur the very top edge under the clock, so every top bar starts a little lower and its words sit below that blur.
    One number to tune: --iosdrop. Browsers, Android and computers are not affected. */
 :root{--iosdrop:0px}
-@media (display-mode:standalone){@supports (-webkit-touch-callout:none){:root{--iosdrop:16px}}}
+@media (display-mode:standalone){@supports (-webkit-touch-callout:none){:root{--iosdrop:24px}}}
 :root{--sat:calc(env(safe-area-inset-top,0px) + var(--iosdrop))}
 .mp-sbar{top:calc(12px + var(--sat))}.mp-res{top:calc(66px + var(--sat))}

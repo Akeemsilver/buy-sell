@@ -6,7 +6,7 @@
   const CONFIG = { apiKey: 'AIzaSyAfAEJ1Yy8DtQg0LDS_bkTFLgHx0d3ym8g', authDomain: 'b-ruiz.firebaseapp.com', projectId: 'b-ruiz', storageBucket: 'b-ruiz.firebasestorage.app', messagingSenderId: '252946775951', appId: '1:252946775951:web:735af0ffbe69d9966a15fa' };   // public by design; the Firestore rules protect the data
   const FILES = ['vendor/firebase/firebase-app-compat.js', 'vendor/firebase/firebase-auth-compat.js', 'vendor/firebase/firebase-firestore-compat.js', 'vendor/firebase/firebase-storage-compat.js'];
   const COLS = ['batches', 'items', 'invoices', 'meta'];
-  let hooks = null, auth = null, db = null, user = null, wid = null, last = null, unsubs = [], ready = false, pushTimer = null, runId = 0, team = null, reqUnsub = null, ensuring = false;
+  let hooks = null, auth = null, db = null, user = null, wid = null, last = null, unsubs = [], ready = false, pushTimer = null, runId = 0, team = null, reqUnsub = null, ensuring = false, pendingDoc = '';
   const st = { status: 'loading', error: '' };
   let readyRes; const sdkReady = new Promise((r) => { readyRes = r; });     // resolves once the sign-in code has loaded (or failed to)
   const set = (status, error) => { st.status = status; st.error = error || ''; if (hooks && hooks.onStatus) hooks.onStatus(info()); };
@@ -44,6 +44,7 @@
     const cache = 'buy-sell-cloud-ws:' + user.uid, c = lsGet(cache); if (c) return c;
     const snap = await db.collection('users').doc(user.uid).get();
     if (snap.exists && snap.data().workspaceId) { lsSet(cache, snap.data().workspaceId); return snap.data().workspaceId; }
+    pendingDoc = (snap.exists && snap.data().pendingWs) || '';   // asked to join from another phone: still waiting
     return null;      // no business yet: the person creates one or asks to join one
   }
   const joinKey = () => 'buy-sell-join:' + user.uid;
@@ -58,7 +59,7 @@
     unsubs.push(ref.onSnapshot((snap) => {
       if (my !== runId) return;
       const d = snap.exists ? snap.data() : null;
-      if (!d) { lsSet(joinKey(), null); return set('choose'); }                 // cancelled
+      if (!d) { lsSet(joinKey(), null); clearPending(); return set('choose'); }   // cancelled
       if (d.status === 'approved') { adopt(wsId, ref).catch((e) => set('error', e && e.message)); return; }
       set(d.status === 'declined' ? 'declined' : 'pending');
     }, (e) => set('error', e && e.message)));
@@ -69,7 +70,8 @@
     reqRef.delete().catch(() => { /* tidy-up only */ });
     teardown(); await start();
   }
-  function awaiting(my) { const j = lsGet(joinKey()); if (j && j.ws) { watchJoin(j.ws, my); set('pending'); } else set('choose'); }
+  const clearPending = () => db.collection('users').doc(user.uid).set({ pendingWs: FV().delete() }, { merge: true }).catch(() => { /* tidy-up only */ });
+  function awaiting(my) { const j = lsGet(joinKey()) || (pendingDoc ? { ws: pendingDoc } : null); if (j && j.ws) { watchJoin(j.ws, my); set('pending'); } else set('choose'); }
 
   // Create a business of your own (the person who creates it is its Owner)
   async function createBusiness(name) {
@@ -93,12 +95,13 @@
     const wsId = c.data().ws, ref = db.collection('workspaces').doc(wsId).collection('joinRequests').doc(user.uid);
     await ref.delete().catch(() => { /* none yet */ });
     await ref.set({ name: me().name, email: me().email, status: 'pending', createdAt: FV().serverTimestamp() });
+    await db.collection('users').doc(user.uid).set({ email: user.email || '', pendingWs: wsId }, { merge: true }).catch(() => { /* the request itself is the important part */ });
     lsSet(joinKey(), { ws: wsId, code }); teardown(); const my = runId; watchJoin(wsId, my); set('pending');
   }
   async function cancelJoin() {
     const j = lsGet(joinKey()); lsSet(joinKey(), null);
     if (j && j.ws) await db.collection('workspaces').doc(j.ws).collection('joinRequests').doc(user.uid).delete().catch(() => {});
-    teardown(); set('choose');
+    clearPending(); pendingDoc = ''; teardown(); set('choose');
   }
   function removedFromBusiness(my) {
     if (my !== runId) return;

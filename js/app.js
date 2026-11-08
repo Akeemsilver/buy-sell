@@ -1583,6 +1583,14 @@
         <div class="btns" style="margin-top:12px">${Object.keys(I.LANGS).map((l) => `<button class="btn primary" data-act="cl-pick" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}<button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card', () => finish(null));
     });
   }
+// After the confirmation message goes out on WhatsApp, offer to send the invoice PDF too (a WhatsApp link can carry text but not a file)
+  let pdfPrompt = null, pdfPromptTimer = 0;
+  function showPdfPrompt() {
+    const no = pdfPrompt; if (!no) return; pdfPrompt = null; clearTimeout(pdfPromptTimer);
+    const v = state.invoices.find((x) => x.no === no); if (!v) return;
+    askCard(t('ord.pdfAsk', { name: v.client || '' }), { title: t('ord.pdfTitle'), ok: t('ord.pdfOk'), no: t('ord.pdfNo') }).then((y) => { if (y) shareInvoicePdf(no, false); });
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && pdfPrompt) setTimeout(showPdfPrompt, 400); });
   function shareInvoicePdf(no, download) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
     const explicit = invLangSession != null && !autoActive(), lang0 = langFor(v);
@@ -2356,7 +2364,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
       case 'make-invoice': return run(() => L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying, allowZero: !!pendingOrder }), (inv) => {
         const po = pendingOrder && Store.orders().find((x) => x.id === pendingOrder); selected = new Set(); invForm = { client: '', paying: '' }; pendingOrder = null; custLock = false; go({ tab: 'sell', moreView: null });
-        if (po) { Store.setStatus(po.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError'))); waOpen(po, 'ord.waConfirm', inv); }
+        if (po) { Store.setStatus(po.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError'))); waOpen(po, 'ord.waConfirm', inv); pdfPrompt = inv.no; clearTimeout(pdfPromptTimer); pdfPromptTimer = setTimeout(() => { if (document.visibilityState === 'visible') showPdfPrompt(); }, 3500); }
         setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
       case 'customer': return sheetCustomer(id);
       case 'cust-edit': return sheetCustEdit(id);

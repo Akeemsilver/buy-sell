@@ -1079,3 +1079,10 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .pwbox{position:relative;display:block}.pwbox input{padding-right:48px;width:100%}.pwbox .eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;min-height:0;padding:0;border:0;background:none;font-size:20px;opacity:.8}
 
 .g-err.ok{color:#2e9e5b;background:rgba(46,158,91,.12);border-color:rgba(46,158,91,.4)}
+
+/* iPhone installed app: newer iPhones fade and blur the very top edge under the clock, so every top bar starts a little lower and its words sit below that blur.
+   One number to tune: --iosdrop. Browsers, Android and computers are not affected. */
+:root{--iosdrop:0px}
+@media (display-mode:standalone){@supports (-webkit-touch-callout:none){:root{--iosdrop:16px}}}
+:root{--sat:calc(env(safe-area-inset-top,0px) + var(--iosdrop))}
+.mp-sbar{top:calc(12px + var(--sat))}.mp-res{top:calc(66px + var(--sat))}

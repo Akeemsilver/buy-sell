@@ -1572,7 +1572,7 @@
     pdfBusy = { key, p }; return p;
   }
   const prefetchPdf = (no) => { const v = state.invoices.find((x) => x.no === no); if (v) readyPdf(v, langFor(v) || undefined).catch(() => { /* built again when Share is tapped */ }); };
-  const sharePdfFile = (v, file, lang) => navigator.share({ files: [file], title: v.no, text: underLang(lang, () => ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) })) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+  const sharePdfFile = (v, file, lang) => navigator.share({ files: [file], title: v.no, text: underLang(lang, () => ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) })) }).then(() => true).catch((e) => { if (e && e.name !== 'AbortError') throw e; return false; });
   const savePdfFile = (file) => { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); };
   // Auto does not know which language this customer reads yet: ask once (the answer is remembered)
   function askClientLang(name) {
@@ -1600,17 +1600,18 @@
   }
   function sendPdf(v, lang, download) {
     const canShare = (f) => !download && navigator.canShare && navigator.canShare({ files: [f] });
+    const ord = orderOfInvoice(v.no), done = (pr) => pr.then((sent) => { if (sent && ord) markInvSent(ord, v.no); });   // sharing an order's invoice ticks 'Invoice sent' on the order
     if (pdfCache && pdfCache.key === underLang(lang, () => pdfKey(v))) {   // already built: answer the tap straight away
       const f = pdfCache.file;
-      if (canShare(f)) return sharePdfFile(v, f, lang).catch((e) => toast('⚠️ ' + errMsg(e)));
+      if (canShare(f)) return done(sharePdfFile(v, f, lang)).catch((e) => toast('⚠️ ' + errMsg(e)));
       savePdfFile(f); return toast(download ? t('doc.saved') : t('doc.noSharePdf'));
     }
     toast(t('doc.preparingPdf'));
     readyPdf(v, lang).then((f) => {
       if (!canShare(f)) { savePdfFile(f); return toast(download ? t('doc.saved') : t('doc.noSharePdf')); }
       // the phone may let the tap expire while the PDF is drawn: try, and if it refuses ask for one more tap
-      return sharePdfFile(v, f, lang).catch((e) => {
-        if (e && e.name === 'NotAllowedError') return askCard(t('doc.pdfReady'), { ok: t('invUI.shareBtn'), title: t('doc.pdfReadyTitle') }).then((y) => (y ? sharePdfFile(v, f, lang).catch((er) => toast('⚠️ ' + errMsg(er))) : undefined));
+      return done(sharePdfFile(v, f, lang)).catch((e) => {
+        if (e && e.name === 'NotAllowedError') return askCard(t('doc.pdfReady'), { ok: t('invUI.shareBtn'), title: t('doc.pdfReadyTitle') }).then((y) => (y ? done(sharePdfFile(v, f, lang)).catch((er) => toast('⚠️ ' + errMsg(er))) : undefined));
         throw e;
       });
     }).catch((e) => toast('⚠️ ' + errMsg(e)));
@@ -2039,7 +2040,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     const nav = sib.length > 1 ? `<div class="fnav"><button data-act="order-nav" data-id="${sib[(at - 1 + sib.length) % sib.length].id}" aria-label="${t('flow.prev')}">‹</button><button data-act="order-nav" data-id="${sib[(at + 1) % sib.length].id}" aria-label="${t('flow.next')}">›</button></div>` : '';
     const stepBar = o.status === 'declined' ? '' : `<div class="fstep">${ORD_TABS.map((k, n) => `<span class="${n < ORD_TABS.indexOf(stage) ? 'dn' : n === ORD_TABS.indexOf(stage) ? 'on' : ''}">${n < ORD_TABS.indexOf(stage) ? '✓ ' : ''}${t('flow.' + k)}</span>`).join('')}</div>`;
     const owingNow = pay && pay.owing > 0 ? pay.owing : 0;
-    const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="fdone"><i>✓</i><div>${t('flow.accepted')}${inv ? '<br>' + (owingNow > 0 ? t('flow.invOwing', { no: inv.no || inv, amount: '<b>' + money(owingNow) + '</b>' }) : t('flow.invPaid', { no: inv.no || inv })) : ''}</div></div>`;
+    const lat = latestInvOf(o), canAct = stage === 'confirmed' || stage === 'handed', sentLatest = lat && o.invSentNo === lat.no;
+    const ckRow = (ok, title, sub, btn) => `<div class="r ${ok ? 'ok' : 'todo'}"><i>${ok ? '✓' : '○'}</i><span class="tx">${title}${sub ? `<small>${sub}</small>` : ''}</span>${btn || ''}</div>`;
+    const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="cklist">${ckRow(true, t('ck.confirmed'), tsAt(o.confirmedAt) ? fullWhen(tsAt(o.confirmedAt)) : '')}${lat ? ckRow(true, t('ck.inv', { no: lat.no }), pay ? (pay.owing > 0 ? (pay.paid > 0 ? t('ck.paidOwing', { paid: money(pay.paid), owing: money(pay.owing) }) : t('ck.owingOnly', { owing: money(pay.owing) })) : t('ck.paidFull')) : '') : ''}${lat ? (sentLatest ? ckRow(true, t('ck.sent'), o.invSentAt ? fullWhen(new Date(o.invSentAt)) : '') : ckRow(false, t(o.invSentNo ? 'ck.updNotSent' : 'ck.notSent'), o.invSentNo ? t('ck.sentEarlier', { no: o.invSentNo }) : '', canAct ? `<button class="sendbtn ${o.invSentNo ? 'soft' : ''}" data-act="ord-send-inv" data-id="${o.id}">${t(o.invSentNo ? 'ck.sendUpd' : 'ck.send')}</button>` : '')) : ''}</div>`;
     const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + dlvCard(o);   // last on the page, after the items, payment and timeline
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
       <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' && o.status !== 'confirmed' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
@@ -2060,14 +2063,35 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
         : o.status === 'confirmed' ? `<div class="fnext">${owingNow > 0 ? `<button class="pbtn" data-act="pay-inv" data-id="${inv}" data-ord="${o.id}">${t('flow.take')}</button><button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`}${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
         : o.status === 'done' && inv ? `<div class="btnrow"><button class="gbtn" data-act="view-inv" data-id="${inv}" style="flex:1">${t('ord.viewInv')}</button>${(L.purchaseOf(state, inv) || { items: [] }).items.length ? `<button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1">↩ ${t('ret.btn')}</button>` : ''}</div>` : ''}</div>`, null, true);
   }
+  const orderItemsLeft = (o) => (o.items || []).map((i) => state.items.find((x) => x.id === i.id)).filter((it) => it && !L.isSold(it));
+  // Delivery orders: look at the place first (and open it in a map app); pickups confirm straight away
   function confirmOrder(o) {
-    const its = (o.items || []).map((i) => state.items.find((x) => x.id === i.id)).filter((it) => it && !L.isSold(it)), missing = (o.items || []).length - its.length;
+    const its = orderItemsLeft(o), missing = (o.items || []).length - its.length;
     if (!its.length) return toast(t('ord.noneLeft'));
-    selected = new Set(); its.forEach((it) => selected.add(it.id)); invForm.client = o.name; invForm.paying = '0'; pendingOrder = o.id; custLock = true;   // they usually pay when they collect or receive it: 0 now, change it if they paid
-    if (o.option === 'delivery' && o.deliveryPrice > 0) its[0].delivery = o.deliveryPrice;
-    save();   // the order is confirmed by the last button on the invoice page, not before
-    closeSheet(); go({ tab: 'sell', moreView: 'invoice' }); window.scrollTo(0, 0); render(); toast(missing ? t('ord.someGone', { n: missing }) : t('ord.opened'));
+    if (o.option !== 'delivery') return doConfirmOrder(o);
+    const gp = orderPin(o), km = kmNum(o), place = o.spot || o.location || '';
+    openSmall(`<h3>${t('loc.title')}</h3><p><b>${esc(place)}</b>${o.spot && o.location ? '<br>' + esc(o.location) : ''}${km != null ? '<br>' + t('loc.km', { km: km.toFixed(1) }) : ''}${missing ? '<br><br>⚠️ ' + t('ord.someGone', { n: missing }) : ''}<br><br>${t('loc.ask')}</p>
+      <div class="btns">${gp ? `<a class="btn navopen" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener">🧭 ${t('loc.open')}</a>` : ''}<button class="btn primary" data-act="loc-yes" data-id="${o.id}">${t('loc.yes')}</button><button class="btn rs" data-act="loc-no" data-id="${o.id}">${t('loc.no')}</button><button class="btn" data-act="close">${t('loc.later')}</button></div>`, 'card');
   }
+  // Confirms the order, makes its invoice (nothing paid yet) and opens WhatsApp with the confirmation message
+  function doConfirmOrder(o) {
+    const its = orderItemsLeft(o); if (!its.length) return toast(t('ord.noneLeft'));
+    try {
+      if (o.option === 'delivery' && o.deliveryPrice > 0) its[0].delivery = o.deliveryPrice;
+      const inv = L.createInvoice(state, { itemIds: its.map((x) => x.id), client: o.name, paying: '0', allowZero: true });
+      save(); tidyPhotos();
+      Store.setStatus(o.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError')));
+      waOpen(o, 'ord.waConfirm', inv);
+      toast(t('inv.created', { no: inv.no, amount: money(inv.balance) })); render();
+      setTimeout(() => { if (pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + o.id) sheetOrder(o.id, true); }, 600);
+    } catch (e) { toast('⚠️ ' + errMsg(e)); }
+  }
+  function declineOrder(id) {
+    return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) { const o = Store.orders().find((x) => x.id === id); Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); if (o) waOpen(o, 'ord.waDeclined'); }).catch(() => toast(t('store.pubError'))); } });
+  }
+  // The newest invoice of an order (a payment makes a new invoice number) and whether it has been sent
+  const latestInvOf = (o) => { const first = orderInvoice(o); if (!first) return null; const ch = L.invoiceForward(state, first); return ch.length ? ch[ch.length - 1] : state.invoices.find((x) => x.no === first) || null; };
+  function markInvSent(o, no) { Store.patch(o.id, { invSentNo: no, invSentAt: Date.now() }).then(() => { toast(t('ck.sentToast')); setTimeout(() => { if (pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + o.id) sheetOrder(o.id, true); }, 500); }).catch(() => toast(t('store.pubError'))); }
 
   /* ---------- top-bar tools ---------- */
 
@@ -2354,7 +2378,10 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'order-open': return sheetOrder(id);
       case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
       case 'order-cancel': return orderCancel(id);
-      case 'order-decline': return askCard(t('ord.declineAsk'), { danger: true, ok: t('ord.decline') }).then((y) => { if (y) { const o = Store.orders().find((x) => x.id === id); Store.setStatus(id, 'declined').then(() => { toast(t('ord.declined')); dropPages('order|' + id); if (o) waOpen(o, 'ord.waDeclined'); }).catch(() => toast(t('store.pubError'))); } });
+      case 'order-decline': return declineOrder(id);
+      case 'loc-yes': { closeSheet(); const o = Store.orders().find((x) => x.id === id); return o && doConfirmOrder(o); }
+      case 'loc-no': { closeSheet(); return declineOrder(id); }
+      case 'ord-send-inv': { const o = Store.orders().find((x) => x.id === id), lat = o && latestInvOf(o); return lat && shareInvoicePdf(lat.no, false); }
       case 'ord-more': ordLimit += 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = ordLimit; }); return refreshOrders();
       case 'ord-q-clear': ordQ = ''; document.querySelectorAll('.oq').forEach((e) => { e.value = ''; }); return refreshOrders();
       case 'order-done': return markHanded(id);

@@ -57,13 +57,16 @@
       const list = SC.shown(A.state(), c, reserved()), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
       const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null; try { if (storage) { storage.setMaxUploadRetryTime(8000); storage.setMaxOperationRetryTime(8000); } } catch (e) { /* older SDK */ }
       const retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
-      const sig = SC.hash({ head, list, retry, pv: 2 }), key = 'buy-sell-store-sig:' + c.id;
+      const sig = SC.hash({ head, list, retry, pv: 3 }), key = 'buy-sell-store-sig:' + c.id;
       if (!force && localStorage.getItem(key) === sig) { info.at = info.at || Date.now(); info.count = list.length; if (storage) cleanPictures(c.id, storage).catch(() => {}); return false; }
+      // the pictures already published: a phone that does not hold a photo itself must never blank the picture another phone published
+      const old = {}; try { const cs = await withTimeout(Cloud.db().collection('stores').doc(c.id).collection('catalog').get(), TUNE.pic); cs.forEach((d) => (d.data().items || []).forEach((it) => { if (it && it.img) old[it.id] = it.img; })); } catch (e) { /* no earlier copy to fall back on */ }
       const map = readMap(c.id); let sharpOk = !!storage, sharpN = 0, picErr = 0; const items = [];
       for (const p of list) {
         let img = '';
         if (p.photo && sharpOk) { try { img = await withTimeout(sharpUrl(p, c.id, map, storage), TUNE.pic); if (img) sharpN++; } catch (e) { picErr++; if (picErr >= 2 || (e && /unauthorized|unauthenticated|no-default-bucket|project-not-found|quota|timeout/.test(e.code || ''))) sharpOk = false; } }
         if (p.photo && !img) img = await withTimeout(smallPicture(p.photo), TUNE.pic).catch(() => '');
+        if (p.photo && !img && old[p.id]) img = old[p.id];
         items.push(Object.assign({ id: p.id, name: p.name, nameEs: p.nameEs, sizes: p.sizes, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img }, p.details ? { details: p.details } : {}, p.detailsEs ? { detailsEs: p.detailsEs } : {}));
       }
       writeMap(c.id, map); info.sharp = sharpN > 0; try { localStorage.setItem('buy-sell-store-mode', sharpN > 0 || !list.some((p) => p.photo) ? 'sharp' : 'small'); } catch (e) { /* ignore */ }

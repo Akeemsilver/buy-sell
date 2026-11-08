@@ -159,6 +159,7 @@
     if (cloud.signedIn) return openSheet(`<h3>${t('acct.title')}</h3>${acctCard()}<div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
     openSheet(`<h3>${t('acct.title')}</h3><p class="muted small">${t('acct.signInSub')}</p>
       <button class="btn g-google" data-act="acct-google" style="margin-top:12px">${GOOGLE_G}<span>${t('acct.google')}</span></button>
+      <p class="muted small" style="text-align:center;margin:8px 4px 0">${t('acct.googleNote')}</p>
       <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>
       <form id="f-acct"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
       <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="current-password" minlength="6">
@@ -208,7 +209,7 @@
       <p class="g-small">${t('gate.note')}</p><button class="g-link" data-act="gate-skip">${t('gate.skip')}</button><p class="g-small">${t('gate.skipNote')}</p></div>`;
     if (v === 'auth') return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
       <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
-      <button class="g-btn g-google" data-act="gate-google" style="margin-top:16px">${GOOGLE_G}<span>${t('acct.google')}</span></button><p class="g-small" style="text-align:center">${t('acct.or')}</p>
+      <button class="g-btn g-google" data-act="gate-google" style="margin-top:16px">${GOOGLE_G}<span>${t('acct.google')}</span></button><p class="g-small" style="text-align:center;margin-top:8px">${t('acct.googleNote')}</p><p class="g-small" style="text-align:center">${t('acct.or')}</p>
       <form id="f-gate"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
       <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="${gateMode === 'create' ? 'new-password' : 'current-password'}" minlength="6" required>
       <div id="g-err" class="g-err" hidden></div>

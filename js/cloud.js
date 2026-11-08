@@ -188,7 +188,7 @@
           const choice = await hooks.askConflict();
           if (choice === 'cloud') { S.clearData(state); S.adoptMeta(state, last); }
           else if (choice === 'phone') { for (const c of COLS) last[c] = toMap(await col(c).get({ source: 'server' })); }   // the cloud copy is brought in line with this phone
-          else { await auth.signOut(); return; }                       // closed without choosing: change nothing
+          else { setTimeout(() => { if (my === runId && user) start().catch(() => {}); }, 500); return; }                       // closed without choosing: stay signed in and ask again (it must never sign the person out by itself)
         }
       }
       if (my !== runId) return;
@@ -245,7 +245,11 @@
     init, changed, info, push, usage, checkRules, createBusiness, joinByCode, cancelJoin, refreshRequests, checkSharing, team: () => team, approve, decline, setRank, removeMember, setPerms, newCode, transfer,
     // handles the online store uses (the same signed-in Firestore connection)
     db: () => db, storage: () => (root.firebase && root.firebase.storage ? root.firebase.storage() : null), uid: () => (user ? user.uid : null), workspace: () => wid, stamp: () => root.firebase.firestore.FieldValue.serverTimestamp(), ready: () => !!(db && user && wid),
-    signInGoogle: () => need().then((a) => { const p = new root.firebase.auth.GoogleAuthProvider(), n = root.navigator || {}; const ios = /iPhone|iPad|iPod/.test(n.userAgent || '') || (n.platform === 'MacIntel' && n.maxTouchPoints > 1); return ios ? a.signInWithRedirect(p) : a.signInWithPopup(p); }),   // iPhone and iPad: the pop-up does not work in an installed app, so the whole page goes to Google and comes back
+    // Google opens as a pop-up for everyone, started straight from the tap (iPhone blocks a pop-up that opens after a wait). Only if the phone refuses the pop-up does the whole page go to Google and come back.
+    signInGoogle: () => {
+      const go = (a) => { const p = new root.firebase.auth.GoogleAuthProvider(); return Promise.resolve(a.signInWithPopup(p)).catch((e) => { const k = (e && e.code) || ''; if (/popup-blocked|operation-not-supported|web-storage-unsupported/.test(k)) return a.signInWithRedirect(p); throw e; }); };
+      return auth ? go(auth) : need().then(go);
+    },
     redirectError: () => redirectErr,
     hasPassword: () => !!user && (user.providerData || []).some((p) => p.providerId === 'password'),
     addPassword: (pw) => need().then(() => { if (!user) throw Object.assign(new Error('x'), { code: 'auth/no-user' }); return user.linkWithCredential(root.firebase.auth.EmailAuthProvider.credential(user.email, pw)); }),   // gives a Google account a password too: same account, same business

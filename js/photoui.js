@@ -16,7 +16,9 @@
     const k = id + ':' + kind;
     if (urls.has(k)) return Promise.resolve(urls.get(k));
     if (pending.has(k)) return pending.get(k);
-    const p = S.get(id).then((rec) => { const b = rec && rec[kind]; if (!b) return null; const u = URL.createObjectURL(b); urls.set(k, u); return u; }).catch(() => null).then((u) => { pending.delete(k); return u; });
+    const p = S.get(id).then((rec) => { const b = rec && rec[kind]; if (!b) return null; const u = URL.createObjectURL(b); urls.set(k, u); return u; }).catch(() => null)
+      .then((u) => u || (root.PhotoSync ? PhotoSync.url(id, kind).then((c) => { if (c) urls.set(k, c); return c; }).catch(() => null) : null))   // not on this phone: show it from the cloud
+      .then((u) => { pending.delete(k); return u; });
     pending.set(k, p); return p;
   }
   function forget(id) { ['thumb', 'full'].forEach((kind) => { const k = id + ':' + kind; if (urls.has(k)) { URL.revokeObjectURL(urls.get(k)); urls.delete(k); } }); }
@@ -28,6 +30,8 @@
       urlFor(img.dataset.ph, img.dataset.kind || 'thumb').then((u) => { if (u) img.src = u; else img.closest('.ph, .photo-big') && img.closest('.ph, .photo-big').classList.add('miss'); });
     });
   }
+  // pictures that were missing (not on this phone, cloud not ready or not uploaded yet) get another go
+  function retry() { document.querySelectorAll('.miss img[data-ph]').forEach((img) => { img.dataset.done = ''; const m = img.closest('.miss'); if (m) m.classList.remove('miss'); }); hydrate(); }
   const noTile = () => `<span class="ph none"><i>${t('photo.noPhoto')}</i></span>`;
   function thumb(it) {
     if (!it.photo) return noTile();
@@ -61,7 +65,7 @@
   async function createPhoto(file) {
     const c = await P.loadCanvas(file, 3000), area = P.findPhotoArea(P.pixels(c)), cr = P.crop(c, area), id = S.newId();
     const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(cr, 200), 0.8), P.toBlob(P.scaled(cr, 900), 0.84)]);
-    await S.put({ id, thumb: thumbB, full: fullB, orig: file });
+    await S.put({ id, thumb: thumbB, full: fullB, orig: file }); if (root.PhotoSync) PhotoSync.soon();
     return id;
   }
   let busy = 0;                                    // photos being added: do not tidy the store meanwhile
@@ -391,7 +395,7 @@
       const [thumbB, fullB] = await Promise.all([P.toBlob(P.thumb(out, 200), 0.8), P.toBlob(P.scaled(out, 900), 0.84)]);
       rec.thumb = thumbB; rec.full = fullB;
       rec.edit = { rot: ed.rot || 0, frame: ed.frame, ratio: ed.ratio || 0, mode: ed.mode, marks: ed.marks.map((m) => ({ text: m.text, ticked: m.ticked, box: m.box, auto: m.auto, mode: m.mode })) };   // so Check or edit photo reopens exactly this
-      await S.put(rec);
+      await S.put(rec); if (root.PhotoSync) PhotoSync.soon();
       const it = item(ed.itemId); if (it && it.photo && it.photo.id === ed.photoId) { mates(it).concat(it).forEach((x) => { if (x.photo && x.photo.id === ed.photoId) { x.photo.checked = true; x.photo.savedAt = Date.now(); } }); }
       forget(ed.photoId); A.save(); next();
     } catch (e) { A.toast('⚠️ ' + t('photo.saveFail')); if (btn) { btn.disabled = false; btn.textContent = t('ed.save'); } }
@@ -457,7 +461,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer, sweep, freeOriginals, removeOldThumbs,
+    hydrate, retry, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer, sweep, freeOriginals, removeOldThumbs,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

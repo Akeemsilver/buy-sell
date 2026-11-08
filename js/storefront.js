@@ -66,6 +66,7 @@
         let img = '';
         if (p.photo && sharpOk) { try { img = await withTimeout(sharpUrl(p, c.id, map, storage), TUNE.pic); if (img) sharpN++; } catch (e) { picErr++; if (picErr >= 2 || (e && /unauthorized|unauthenticated|no-default-bucket|project-not-found|quota|timeout/.test(e.code || ''))) sharpOk = false; } }
         if (p.photo && !img) img = await withTimeout(smallPicture(p.photo), TUNE.pic).catch(() => '');
+        if (p.photo && !img && root.PhotoSync) img = await withTimeout(PhotoSync.url(p.photo, 'full'), TUNE.pic).catch(() => '') || '';   // not on this phone: the business's cloud copy of the picture
         if (p.photo && !img && old[p.id]) img = old[p.id];
         items.push(Object.assign({ id: p.id, name: p.name, nameEs: p.nameEs, sizes: p.sizes, price: p.price, sale: p.sale, pct: p.pct, transit: p.transit, img }, p.details ? { details: p.details } : {}, p.detailsEs ? { detailsEs: p.detailsEs } : {}));
       }

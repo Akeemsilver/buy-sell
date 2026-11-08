@@ -128,11 +128,29 @@
     if (reqUnsub) return;
     const un = wsRef().collection('joinRequests').where('status', '==', 'pending').onSnapshot((snap) => {
       if (my !== runId) return; const list = []; snap.forEach((d) => list.push(Object.assign({ uid: d.id }, d.data())));
+      if (hooks.onRequestsError) hooks.onRequestsError(null);
       if (hooks.onRequests) hooks.onRequests(list);
-    }, () => { /* no access: nothing to show */ });
+    }, (e) => { if (hooks.onRequestsError) hooks.onRequestsError((e && e.code) || 'error'); });
     reqUnsub = un; unsubs.push(() => { un(); reqUnsub = null; });
   }
   function stopRequests() { if (reqUnsub) { reqUnsub(); reqUnsub = null; if (hooks.onRequests) hooks.onRequests([]); } }
+  // Owner: fetch the waiting requests from the server right now (the live list can be late), and test the pieces sharing depends on
+  async function refreshRequests() {
+    const snap = await wsRef().collection('joinRequests').where('status', '==', 'pending').get({ source: 'server' });
+    const list = []; snap.forEach((d) => list.push(Object.assign({ uid: d.id }, d.data())));
+    if (hooks.onRequestsError) hooks.onRequestsError(null); if (hooks.onRequests) hooks.onRequests(list); return list;
+  }
+  async function checkSharing() {
+    const out = { team: 'ok', code: 'ok', requests: 'ok' }, why = (e) => (e && e.code) || 'error';
+    try {
+      const d = await wsRef().get({ source: 'server' });
+      if (!d.exists) out.team = 'missing';
+      else if (!d.data().code) out.code = 'nocode';
+      else { try { const k = await db.collection('codes').doc(d.data().code).get({ source: 'server' }); out.code = k.exists && k.data().ws === wid ? 'ok' : 'missing'; } catch (e) { out.code = why(e); } }
+    } catch (e) { out.team = why(e); }
+    try { await wsRef().collection('joinRequests').where('status', '==', 'pending').get({ source: 'server' }); } catch (e) { out.requests = why(e); }
+    return out;
+  }
   // Owner actions
   const approve = (uid, rank, name) => { const b = db.batch(); b.update(wsRef(), { ['members.' + uid]: rank, ['names.' + uid]: name || '' }); b.update(wsRef().collection('joinRequests').doc(uid), { status: 'approved', rank }); return b.commit(); };
   const decline = (uid) => wsRef().collection('joinRequests').doc(uid).update({ status: 'declined' });
@@ -221,7 +239,7 @@
   // Sign-in calls wait (up to 10 s) for the sign-in code to finish loading, so a very early tap still works.
   const need = () => Promise.race([sdkReady, new Promise((r) => setTimeout(r, 10000))]).then(() => { if (!auth) throw Object.assign(new Error('unavailable'), { code: 'app/unavailable' }); return auth; });
   const api = {
-    init, changed, info, push, usage, checkRules, createBusiness, joinByCode, cancelJoin, team: () => team, approve, decline, setRank, removeMember, setPerms, newCode, transfer,
+    init, changed, info, push, usage, checkRules, createBusiness, joinByCode, cancelJoin, refreshRequests, checkSharing, team: () => team, approve, decline, setRank, removeMember, setPerms, newCode, transfer,
     // handles the online store uses (the same signed-in Firestore connection)
     db: () => db, storage: () => (root.firebase && root.firebase.storage ? root.firebase.storage() : null), uid: () => (user ? user.uid : null), workspace: () => wid, stamp: () => root.firebase.firestore.FieldValue.serverTimestamp(), ready: () => !!(db && user && wid),
     signInGoogle: () => need().then((a) => a.signInWithPopup(new root.firebase.auth.GoogleAuthProvider())),

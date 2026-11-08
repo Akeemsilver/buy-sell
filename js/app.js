@@ -122,7 +122,7 @@
 
   let cloud = { status: 'loading', error: '', email: '', signedIn: false, uid: '' };
   // Team: my rank in the shared business and what that rank may do (kept on the phone so the app knows it before the cloud answers)
-  let team = null, joinReqs = [];
+  let team = null, joinReqs = [], reqErr = '';
   const teamCache = () => { try { const c = JSON.parse(localStorage.getItem('buy-sell-team')); return c && (!cloud.uid || c.uid === cloud.uid) ? c : null; } catch (e) { return null; } };
   const myRank = () => { if (team) return team.rank; const c = teamCache(); if (c) return c.rank; return cloud.signedIn && cloud.status !== 'signedOut' && !(state.settings.setupDone || hasData()) ? 'seller' : 'owner'; };   // alone on this phone, or an existing business that has not heard from the cloud yet: everything; a brand-new person who has not been placed yet: the lowest rank
   const teamPerms = () => (team ? team.perms : (teamCache() || {}).perms) || null;
@@ -1785,7 +1785,7 @@
   const ACT_NEEDS = {};
   Object.entries({
     sell: ['make-invoice', 'pay-inv', 'pay-save', 'pay-full', 'pay-full-amt', 'pay-clearing'],
-    orders: ['order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
+    orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
@@ -1793,10 +1793,13 @@
   }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
   /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
   const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
-  function refreshTeamSheets() { const k = teamTop(); if ($('#sheet') && !$('#sheet').hidden && !$('#sheet').classList.contains('small')) { if (k === 'team|') sheetTeam(); else if (k === 'perms|') sheetPerms(); } }
+  function refreshTeamSheets() { const k = teamTop(); if ($('#sheet') && !$('#sheet').hidden && !$('#sheet').classList.contains('small')) { if (k === 'team|') sheetTeam(); else if (k === 'perms|') sheetPerms(); else if (k === 'notif|') sheetNotifs(); } }
+  let reqFetched = 0;
+  const fetchRequests = () => { if (can('team') && Cloud.refreshRequests && Date.now() - reqFetched > 4000) { reqFetched = Date.now(); Cloud.refreshRequests().catch((e) => { reqErr = (e && e.code) || 'error'; }); } };
   function sheetTeam() {
     if (!can('team') || !team) return;
     enterPage('team', '', () => sheetTeam());
+    fetchRequests();
     const ppl = Team.people(team.members, team.names);
     const reqs = joinReqs.map((r) => `<div class="card treq"><div class="rw"><div class="t"><b>${esc(r.name || r.email || '')}</b><small>${esc(r.email || '')} · ${t('team.wantsToJoin')}</small></div></div>
         <div class="rkpick">${['seller', 'supervisor', 'manager'].map((k) => `<button class="chip ${(reqRank[r.uid] || 'seller') === k ? 'on' : ''}" data-act="team-reqrank" data-id="${esc(r.uid)}" data-rank="${k}">${rankName(k)}</button>`).join('')}</div>
@@ -1804,11 +1807,13 @@
     const rows = ppl.map((p) => { const nm = p.name || t('team.unnamed'), you = p.uid === cloud.uid, tap = !you && p.rank !== 'owner';
       return `<${tap ? 'button class="row tap"' : 'div class="row"'} ${tap ? `data-act="team-person" data-id="${esc(p.uid)}"` : ''}><div class="grow"><b>${esc(nm)}${you ? ' · ' + t('team.you') : ''}</b></div><span class="pill rk-${p.rank}">${rankName(p.rank)}</span>${tap ? '<span class="chev">›</span>' : ''}</${tap ? 'button' : 'div'}>`; }).join('');
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('team.title')}</b><small>${esc(bizName())}</small></div></div><div class="ap">
+      ${reqErr ? `<div class="card treq"><div class="rw"><div class="t"><b>⚠️ ${t('team.reqError')}</b><small>${esc(reqErr)} · ${t('team.reqErrorHint')}</small></div></div></div>` : ''}
       ${joinReqs.length ? `<h4><span>${t('team.requests')}</span></h4>${reqs}` : ''}
       <h4><span>${t('team.people')}</span></h4><div class="list">${rows}</div>
       <h4><span>${t('team.code')}</span></h4><div class="card codecard"><div class="cin"><div class="codebig" aria-label="${t('team.code')}">${esc(team.code || '······')}</div><p class="muted small" style="margin:6px 0 10px">${t('team.codeNote')}</p>
         <div class="tbtns"><button class="btn" data-act="team-copy">${t('team.copy')}</button><button class="btn" data-act="team-newcode">${t('team.newCode')}</button></div></div></div>
       <div class="list" style="margin-top:14px">${trow('🔑', t('perm.row'), t('perm.sub'), 'data-act="perm-open"')}</div>
+      <div class="tbtns" style="margin-top:14px"><button class="btn" data-act="team-check">${t('team.check')}</button><button class="btn" data-act="team-refresh">${t('team.refresh')}</button></div>
       <div class="tbtns" style="margin-top:18px"><button class="btn rs" data-act="xfer-open">${t('xfer.btn')}</button></div><p class="muted small" style="margin:8px 2px 24px">${t('xfer.note')}</p></div>`, null, true);
   }
   const PERM_ROWS = ['sell', 'orders', 'stock', 'refunds', 'storeSettings', 'costs'];
@@ -1853,8 +1858,9 @@
   function notifList() {
     const out = [], now = Date.now(), c = storeCfg();
     const add = (n) => out.push(n);
-    if (can('team')) joinReqs.forEach((r) => add({ key: 'join:' + r.uid, grp: 'team', ic: '👥', always: true, title: t('notif.join', { name: esc(r.name || r.email || '') }), sub: t('notif.joinSub'), go: ['team-open', ''] }));
+    if (can('team')) joinReqs.forEach((r) => add({ key: 'join:' + r.uid, grp: 'attn', ic: '👥', always: true, title: t('notif.join', { name: esc(r.name || r.email || '') }), sub: t('notif.joinSub'), go: ['team-open', ''] }));
     if (window.Store) {
+      Store.orders().filter((o) => o.status === 'confirmed').forEach((o) => { const lat = latestInvOf(o), cf = tsAt(o.confirmedAt); if (lat && o.invSentNo !== lat.no && cf && cf.getTime() > INV_FROM && Date.now() - cf.getTime() > 5 * 60000) add({ key: 'send:' + o.id + ':' + lat.no, grp: 'attn', ic: '📤', always: true, title: t('notif.sendInv', { name: esc(o.name) }), sub: t('notif.sendInvSub', { code: esc(o.code || SCore.orderCode(o.id)), no: lat.no }), go: ['order-open', o.id] }); });
       Store.orders().filter((o) => o.status === 'new' || (Store.ageMs(o) > 0 && Store.ageMs(o) < 7 * DAY && o.status !== 'declined')).forEach((o) => add({ key: 'order:' + o.id, grp: 'orders', ic: '🛍️', always: o.status === 'new', title: t('notif.order', { code: esc(o.code || SCore.orderCode(o.id)), name: esc(o.name) }), sub: tn('notif.items', (o.items || []).length) + ' · ' + (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + money(o.total), when: Store.when(o) ? ago(Store.when(o)) : '', go: ['order-open', o.id] }));
     }
     state.batches.filter((b) => bStatus(b) !== 'Closed').forEach((b) => {
@@ -1873,15 +1879,25 @@
     return out;
   }
   const notifUnread = (n, seen) => n.always || !seen[n.key];
+  const INV_FROM = window.__invFrom || 1794158226039;   // invoice reminders only for orders confirmed after the update that introduced them
+  // the bell's tabs
+  const NOTIF_TABS = [['orders', 'notif.tOrders'], ['invoices', 'notif.tInvoices'], ['team', 'notif.tTeam'], ['stock', 'notif.tStock'], ['store', 'notif.tStore'], ['other', 'notif.tOther']];
+  const notifCat = (n) => { const k = String(n.key || ''); return k.startsWith('order:') ? 'orders' : /^(send|owes):/.test(k) ? 'invoices' : k.startsWith('join:') ? 'team' : /^(size|photos|nis|transit):/.test(k) ? 'stock' : /^store/.test(k) ? 'store' : 'other'; };
+  let notifTab = 'all';
   const notifCount = () => { try { const seen = seenNotifs(); return notifList().filter((n) => notifUnread(n, seen)).length; } catch (e) { return 0; } };
   function notifMarkSeen() { const seen = {}; notifList().forEach((n) => { seen[n.key] = 1; }); setPref('notifSeen', seen); }
   function sheetNotifs() {
     enterPage('notif', '', () => sheetNotifs());
+    fetchRequests();
     const list = notifList(), seen = seenNotifs(), unread = list.filter((n) => notifUnread(n, seen)).length; notifCache = list;
     const row = (n) => `<button class="it2 ${notifUnread(n, seen) ? 'new' : ''}" data-act="notif-go" data-id="${list.indexOf(n)}">${notifUnread(n, seen) ? '<i class="dotn"></i>' : ''}<span class="ic2">${n.ic}</span><span class="tx2"><b>${n.title}</b><small>${n.sub}</small></span><span class="ago">${esc(n.when || '')}</span></button>`;
     const grp = (k, label) => { const g = list.filter((n) => n.grp === k); return g.length ? `<h4><span>${t(label)}</span></h4><div class="card">${g.map(row).join('')}</div>` : ''; };
+    const cats = NOTIF_TABS.filter(([c]) => list.some((n) => notifCat(n) === c)); if (notifTab !== 'all' && !cats.some(([c]) => c === notifTab)) notifTab = 'all';
+    const nb = (c) => { const k = list.filter((n) => (c === 'all' || notifCat(n) === c) && notifUnread(n, seen)).length; return k ? `<span class="nb">${k}</span>` : ''; };
+    const tabs = cats.length > 1 ? `<div class="bt" role="tablist"><button class="${notifTab === 'all' ? 'on' : ''}" role="tab" data-act="notif-tab" data-id="all">${t('notif.tAll')}${nb('all')}</button>${cats.map(([c, l]) => `<button class="${notifTab === c ? 'on' : ''}" role="tab" data-act="notif-tab" data-id="${c}">${t(l)}${nb(c)}</button>`).join('')}</div>` : '';
+    const body = notifTab === 'all' ? `${grp('attn', 'notif.gAttn')}${grp('orders', 'notif.gOrders')}${grp('remind', 'notif.gRemind')}` : `<div class="card">${list.filter((n) => notifCat(n) === notifTab).map(row).join('')}</div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('notif.title')}</b><small>${unread ? tn('notif.newN', unread) : t('notif.none')}</small></div></div>
-      <div class="bn">${unread ? `<button class="chip on" data-act="notif-read" style="margin:6px 0 0">${t('notif.readAll')}</button>` : ''}${grp('team', 'notif.gTeam')}${grp('orders', 'notif.gOrders')}${grp('attn', 'notif.gAttn')}${grp('remind', 'notif.gRemind')}${list.length ? '' : `<div class="empty"><b>${t('notif.none')}</b>${t('notif.noneText')}</div>`}</div>`, () => { notifMarkSeen(); render(); }, true);
+      <div class="bn">${tabs}${unread ? `<button class="chip on" data-act="notif-read" style="margin:6px 0 0">${t('notif.readAll')}</button>` : ''}${body}${list.length ? '' : `<div class="empty"><b>${t('notif.none')}</b>${t('notif.noneText')}</div>`}</div>`, () => { notifMarkSeen(); render(); }, true);
   }
   // Tapping a line closes the page and goes to the thing it is about (the same screens the rest of the app opens).
   function notifGo(i) {
@@ -2133,7 +2149,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     const owingNow = pay && pay.owing > 0 ? pay.owing : 0;
     const lat = latestInvOf(o), canAct = stage === 'confirmed' || stage === 'handed', sentLatest = lat && o.invSentNo === lat.no;
     const ckRow = (ok, title, sub, btn) => `<div class="r ${ok ? 'ok' : 'todo'}"><i>${ok ? '✓' : '○'}</i><span class="tx">${title}${sub ? `<small>${sub}</small>` : ''}</span>${btn || ''}</div>`;
-    const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="cklist">${ckRow(true, t('ck.confirmed'), tsAt(o.confirmedAt) ? fullWhen(tsAt(o.confirmedAt)) : '')}${lat ? ckRow(true, t('ck.inv', { no: lat.no }), pay ? (pay.owing > 0 ? (pay.paid > 0 ? t('ck.paidOwing', { paid: money(pay.paid), owing: money(pay.owing) }) : t('ck.owingOnly', { owing: money(pay.owing) })) : t('ck.paidFull')) : '') : ''}${lat ? (sentLatest ? ckRow(true, t('ck.sent'), o.invSentAt ? fullWhen(new Date(o.invSentAt)) : '') : ckRow(false, t(o.invSentNo ? 'ck.updNotSent' : 'ck.notSent'), o.invSentNo ? t('ck.sentEarlier', { no: o.invSentNo }) : '', canAct ? `<button class="sendbtn ${o.invSentNo ? 'soft' : ''}" data-act="ord-send-inv" data-id="${o.id}">${t(o.invSentNo ? 'ck.sendUpd' : 'ck.send')}</button>` : '')) : ''}</div>`;
+    const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="cklist">${ckRow(true, t('ck.confirmed'), tsAt(o.confirmedAt) ? fullWhen(tsAt(o.confirmedAt)) : '')}${lat ? ckRow(true, t('ck.inv', { no: lat.no }), pay ? (pay.owing > 0 ? (pay.paid > 0 ? t('ck.paidOwing', { paid: money(pay.paid), owing: money(pay.owing) }) : t('ck.owingOnly', { owing: money(pay.owing) })) : t('ck.paidFull')) : '') : ''}${lat ? (sentLatest ? ckRow(true, t('ck.sent'), o.invSentAt ? fullWhen(new Date(o.invSentAt)) : '') : ckRow(false, t(o.invSentNo ? 'ck.updNotSent' : 'ck.notSent'), o.invSentNo ? t('ck.sentEarlier', { no: o.invSentNo }) : '', canAct ? `<span class="sbtns"><button class="sendbtn ${o.invSentNo ? 'soft' : ''}" data-act="ord-send-inv" data-id="${o.id}">${t(o.invSentNo ? 'ck.sendUpd' : 'ck.send')}</button><button class="alink" data-act="ord-sent-mark" data-id="${o.id}">${t('ck.already')}</button></span>` : '')) : ''}</div>`;
     const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + dlvCard(o);   // last on the page, after the items, payment and timeline
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
       <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' && o.status !== 'confirmed' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
@@ -2265,6 +2281,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'team-approve': { const r = joinReqs.find((x) => x.uid === id); return r && Cloud.approve(id, reqRank[id] || 'seller', r.name || r.email || '').then(() => { delete reqRank[id]; toast(t('team.approved', { name: r.name || r.email || '' })); }).catch(() => toast(t('store.pubError'))); }
       case 'team-decline': return Cloud.decline(id).then(() => toast(t('team.declined'))).catch(() => toast(t('store.pubError')));
       case 'team-person': return sheetPerson(id);
+      case 'team-refresh': reqFetched = 0; toast(t('team.checking')); return Cloud.refreshRequests().then((l) => toast(l.length ? t('team.found', { n: l.length }) : t('team.noneWaiting'))).catch((e) => { reqErr = (e && e.code) || 'error'; sheetTeam(); toast(t('team.reqError')); });
+      case 'team-check': toast(t('team.checking')); return Cloud.checkSharing().then((r) => { const word = (v) => (v === 'ok' ? t('team.chk.ok') : v === 'nocode' ? t('team.chk.nocode') : v === 'missing' ? t('team.chk.missing') : t('team.chk.fail', { code: v })); askCard(t('team.chk.team') + ': ' + word(r.team) + ' · ' + t('team.chk.code') + ': ' + word(r.code) + ' · ' + t('team.chk.requests') + ': ' + word(r.requests), { title: t('team.check'), ok: t('btn.close'), no: t('btn.cancel') }); }).catch(() => toast(t('store.pubError')));
       case 'team-setrank': return Cloud.setRank(teamPick, id).then(() => { closeSheet(); toast(t('team.rankSet')); }).catch(() => toast(t('store.pubError')));
       case 'team-remove': { const uid = teamPick, nm = (team.names && team.names[uid]) || t('team.unnamed'); closeSheet(); return askCard(t('team.removeAsk', { name: nm }), { danger: true, ok: t('team.remove') }).then((y) => { if (y) Cloud.removeMember(uid).then(() => toast(t('team.removed'))).catch(() => toast(t('store.pubError'))); }); }
       case 'team-copy': return (navigator.clipboard ? navigator.clipboard.writeText(team.code) : Promise.reject()).then(() => toast(t('team.copied')), () => toast(team.code));
@@ -2307,7 +2325,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'acct-forgot': { const em = ($('#f-acct [name=email]') || {}).value; if (!em) return acctShow(t('acct.needEmail')); return Cloud.reset(em).then(() => acctShow(t('acct.resetSent', { email: em })), (e) => acctShow(acctErr(e))); }
       case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); toast(t('acct.signedOut')); });
       case 'conflict': { const f = window.__conflict; if (f) f(id); closeSheet(); return; }          // answer first: closing the pop-up counts as 'cancel'
-      case 'bell': return sheetNotifs();
+      case 'bell': notifTab = 'all'; return sheetNotifs();
+      case 'notif-tab': notifTab = id; return sheetNotifs();
       case 'notif-read': notifMarkSeen(); return sheetNotifs();
       case 'notif-go': return notifGo(Number(id));
       case 'filter': return sheetFilter();
@@ -2496,6 +2515,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'order-decline': return declineOrder(id);
       case 'loc-yes': { closeSheet(); const o = Store.orders().find((x) => x.id === id); return o && doConfirmOrder(o); }
       case 'loc-no': { closeSheet(); return declineOrder(id); }
+      case 'ord-sent-mark': { const o = Store.orders().find((x) => x.id === id), lat = o && latestInvOf(o); return lat && markInvSent(o, lat.no); }
       case 'ord-send-inv': { const o = Store.orders().find((x) => x.id === id), lat = o && latestInvOf(o); return lat && shareInvoicePdf(lat.no, false); }
       case 'ord-more': ordLimit += 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = ordLimit; }); return refreshOrders();
       case 'ord-q-clear': ordQ = ''; document.querySelectorAll('.oq').forEach((e) => { e.value = ''; }); return refreshOrders();
@@ -2790,9 +2810,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     askConflict,
     onTeam: (tm) => { team = tm; try { if (tm) localStorage.setItem('buy-sell-team', JSON.stringify({ uid: cloud.uid, rank: tm.rank, perms: tm.perms })); else localStorage.removeItem('buy-sell-team'); } catch (e) { /* ignore */ } updateGate(); render(); refreshTeamSheets(); },
     onRequests: (list) => { joinReqs = list; renderTools(); refreshTeamSheets(); },
+    onRequestsError: (code) => { reqErr = code || ''; refreshTeamSheets(); },
     onStatus: (i) => { const was = cloud.signedIn; cloud = i; if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
     onRemote: () => { L.migrate(state); wordList(); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });
+  setInterval(() => { if (!document.hidden) renderTools(); }, 60000);   // an invoice reminder appears 5 minutes after confirming, even if nothing else redraws the bell
   save();   // write back anything repaired while loading (e.g. names with stray spaces)
   applyStaticText();
   if (state.settings.palette) Theme.apply(state.settings.palette);

@@ -1063,3 +1063,10 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 
 /* ranks that may not see costs and profit */
 .nocosts .costonly{display:none!important}
+
+/* the bell's tabs */
+.bt{display:flex;gap:8px;overflow-x:auto;padding:4px 0 10px;margin:0 -2px;scrollbar-width:none}.bt::-webkit-scrollbar{display:none}
+.bt button{flex:none;display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-size:14px;min-height:0;width:auto}
+.bt button .nb{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center}
+.bt button.on{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}.bt button.on .nb{background:#fff;color:var(--brand)}
+.cklist .sbtns{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}.cklist .alink{background:none;border:0;padding:2px 4px;min-height:0;width:auto;font-size:12px;color:var(--mute);text-decoration:underline}

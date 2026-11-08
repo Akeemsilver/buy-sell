@@ -2,15 +2,15 @@
    phone's own copy when offline or signed out; the cloud copy is kept in step through the rules in sync.js.
    Data lives in a "workspace" (workspaces/{id}) that people are members of, so one project can serve many businesses later. */
 (function (root) {
-  const S = root.Sync;
+  const S = root.Sync, T = root.Team;
   const CONFIG = { apiKey: 'AIzaSyAfAEJ1Yy8DtQg0LDS_bkTFLgHx0d3ym8g', authDomain: 'b-ruiz.firebaseapp.com', projectId: 'b-ruiz', storageBucket: 'b-ruiz.firebasestorage.app', messagingSenderId: '252946775951', appId: '1:252946775951:web:735af0ffbe69d9966a15fa' };   // public by design; the Firestore rules protect the data
   const FILES = ['vendor/firebase/firebase-app-compat.js', 'vendor/firebase/firebase-auth-compat.js', 'vendor/firebase/firebase-firestore-compat.js', 'vendor/firebase/firebase-storage-compat.js'];
   const COLS = ['batches', 'items', 'invoices', 'meta'];
-  let hooks = null, auth = null, db = null, user = null, wid = null, last = null, unsubs = [], ready = false, pushTimer = null, runId = 0;
+  let hooks = null, auth = null, db = null, user = null, wid = null, last = null, unsubs = [], ready = false, pushTimer = null, runId = 0, team = null, reqUnsub = null, ensuring = false;
   const st = { status: 'loading', error: '' };
   let readyRes; const sdkReady = new Promise((r) => { readyRes = r; });     // resolves once the sign-in code has loaded (or failed to)
   const set = (status, error) => { st.status = status; st.error = error || ''; if (hooks && hooks.onStatus) hooks.onStatus(info()); };
-  const info = () => ({ status: st.status, error: st.error, email: user ? user.email || user.displayName || '' : '', signedIn: !!user });
+  const info = () => ({ status: st.status, error: st.error, email: user ? user.email || user.displayName || '' : '', signedIn: !!user, uid: user ? user.uid : '' });
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full: sync state is rebuilt next time */ } };
   // Rough tally of what THIS phone used today against the free daily limits (the real total is in the Firebase console).
@@ -38,23 +38,124 @@
     window.addEventListener('offline', () => { if (user) set('offline'); });
   }
 
-  function teardown() { runId++; unsubs.forEach((u) => { try { u(); } catch (e) { /* ignore */ } }); unsubs = []; ready = false; wid = null; last = null; clearTimeout(pushTimer); }
+  function teardown() { runId++; unsubs.forEach((u) => { try { u(); } catch (e) { /* ignore */ } }); unsubs = []; reqUnsub = null; team = null; ready = false; wid = null; last = null; clearTimeout(pushTimer); }
 
   async function resolveWorkspace() {
     const cache = 'buy-sell-cloud-ws:' + user.uid, c = lsGet(cache); if (c) return c;
-    const ref = db.collection('users').doc(user.uid), snap = await ref.get();
+    const snap = await db.collection('users').doc(user.uid).get();
     if (snap.exists && snap.data().workspaceId) { lsSet(cache, snap.data().workspaceId); return snap.data().workspaceId; }
-    const ws = db.collection('workspaces').doc(), b = db.batch();
-    b.set(ws, { name: 'B-RUIZ', ownerUid: user.uid, members: { [user.uid]: 'owner' }, createdAt: root.firebase.firestore.FieldValue.serverTimestamp() });
-    b.set(ref, { workspaceId: ws.id, email: user.email || '' });
-    await b.commit(); lsSet(cache, ws.id); return ws.id;
+    return null;      // no business yet: the person creates one or asks to join one
   }
+  const joinKey = () => 'buy-sell-join:' + user.uid;
+  const me = () => ({ name: (user && (user.displayName || (user.email || '').split('@')[0])) || '', email: (user && user.email) || '' });
+  const FV = () => root.firebase.firestore.FieldValue;
+  const wsRef = () => db.collection('workspaces').doc(wid);
+  const coded = (code, msg) => Object.assign(new Error(msg || code), { code });
+
+  // Waiting for the owner to answer a request to join
+  function watchJoin(wsId, my) {
+    const ref = db.collection('workspaces').doc(wsId).collection('joinRequests').doc(user.uid);
+    unsubs.push(ref.onSnapshot((snap) => {
+      if (my !== runId) return;
+      const d = snap.exists ? snap.data() : null;
+      if (!d) { lsSet(joinKey(), null); return set('choose'); }                 // cancelled
+      if (d.status === 'approved') { adopt(wsId, ref).catch((e) => set('error', e && e.message)); return; }
+      set(d.status === 'declined' ? 'declined' : 'pending');
+    }, (e) => set('error', e && e.message)));
+  }
+  async function adopt(wsId, reqRef) {
+    await db.collection('users').doc(user.uid).set({ workspaceId: wsId, email: user.email || '' });
+    lsSet('buy-sell-cloud-ws:' + user.uid, wsId); lsSet(joinKey(), null);
+    reqRef.delete().catch(() => { /* tidy-up only */ });
+    teardown(); await start();
+  }
+  function awaiting(my) { const j = lsGet(joinKey()); if (j && j.ws) { watchJoin(j.ws, my); set('pending'); } else set('choose'); }
+
+  // Create a business of your own (the person who creates it is its Owner)
+  async function createBusiness(name) {
+    if (!user) throw coded('auth/none');
+    const ref = db.collection('users').doc(user.uid);
+    for (let n = 0; n < 4; n++) {
+      const code = T.genCode(), ws = db.collection('workspaces').doc(), b = db.batch();
+      b.set(ws, { name: name || 'My business', ownerUid: user.uid, members: { [user.uid]: 'owner' }, names: { [user.uid]: me().name || me().email }, perms: T.defaults(), code, createdAt: FV().serverTimestamp() });
+      b.set(db.collection('codes').doc(code), { ws: ws.id });
+      b.set(ref, { workspaceId: ws.id, email: user.email || '' });
+      try { await b.commit(); lsSet('buy-sell-cloud-ws:' + user.uid, ws.id); lsSet(joinKey(), null); teardown(); await start(); return; }
+      catch (e) { if (n === 3 || !(e && e.code === 'permission-denied')) throw e; }   // a code that already exists looks like a refused write: try another one
+    }
+  }
+  // Ask to join a business with its code; the Owner answers
+  async function joinByCode(raw) {
+    if (!user) throw coded('auth/none');
+    const code = T.normCode(raw); if (code.length < 6) throw coded('join/short');
+    const c = await db.collection('codes').doc(code).get({ source: 'server' }).catch(() => null);
+    if (!c || !c.exists) throw coded('join/invalid');
+    const wsId = c.data().ws, ref = db.collection('workspaces').doc(wsId).collection('joinRequests').doc(user.uid);
+    await ref.delete().catch(() => { /* none yet */ });
+    await ref.set({ name: me().name, email: me().email, status: 'pending', createdAt: FV().serverTimestamp() });
+    lsSet(joinKey(), { ws: wsId, code }); teardown(); const my = runId; watchJoin(wsId, my); set('pending');
+  }
+  async function cancelJoin() {
+    const j = lsGet(joinKey()); lsSet(joinKey(), null);
+    if (j && j.ws) await db.collection('workspaces').doc(j.ws).collection('joinRequests').doc(user.uid).delete().catch(() => {});
+    teardown(); set('choose');
+  }
+  function removedFromBusiness(my) {
+    if (my !== runId) return;
+    lsSet('buy-sell-cloud-ws:' + user.uid, null);
+    db.collection('users').doc(user.uid).set({ email: user.email || '' }).catch(() => {});
+    teardown(); if (hooks.onTeam) hooks.onTeam(null); set('removed');
+  }
+  // The business's team document: who is in it, their ranks, what each rank may do, the business code
+  function watchTeam(my) {
+    unsubs.push(wsRef().onSnapshot((snap) => {
+      if (my !== runId || !snap.exists) return;
+      const d = snap.data(), rank = (d.members || {})[user.uid];
+      if (!rank) return removedFromBusiness(my);
+      team = { wid, name: d.name || '', rank, members: d.members || {}, names: d.names || {}, perms: d.perms || null, code: d.code || '', ownerUid: d.ownerUid || '' };
+      if (hooks.onTeam) hooks.onTeam(team);
+      if (rank === 'owner') { ensureOwnerDoc(d); watchRequests(my); } else stopRequests();
+    }, () => { /* the data listeners report permission problems */ }));
+  }
+  function ensureOwnerDoc(d) {
+    if (ensuring) return; const upd = {};
+    if (!d.names || !d.names[user.uid]) upd['names.' + user.uid] = me().name || me().email;
+    if (!d.perms) upd.perms = T.defaults();
+    ensuring = true;
+    (d.code ? Promise.resolve() : newCode()).then(() => (Object.keys(upd).length ? wsRef().update(upd) : null)).catch(() => {}).then(() => { ensuring = false; });
+  }
+  function watchRequests(my) {
+    if (reqUnsub) return;
+    const un = wsRef().collection('joinRequests').where('status', '==', 'pending').onSnapshot((snap) => {
+      if (my !== runId) return; const list = []; snap.forEach((d) => list.push(Object.assign({ uid: d.id }, d.data())));
+      if (hooks.onRequests) hooks.onRequests(list);
+    }, () => { /* no access: nothing to show */ });
+    reqUnsub = un; unsubs.push(() => { un(); reqUnsub = null; });
+  }
+  function stopRequests() { if (reqUnsub) { reqUnsub(); reqUnsub = null; if (hooks.onRequests) hooks.onRequests([]); } }
+  // Owner actions
+  const approve = (uid, rank, name) => { const b = db.batch(); b.update(wsRef(), { ['members.' + uid]: rank, ['names.' + uid]: name || '' }); b.update(wsRef().collection('joinRequests').doc(uid), { status: 'approved', rank }); return b.commit(); };
+  const decline = (uid) => wsRef().collection('joinRequests').doc(uid).update({ status: 'declined' });
+  const setRank = (uid, rank) => wsRef().update({ ['members.' + uid]: rank });
+  const removeMember = (uid) => wsRef().update({ ['members.' + uid]: FV().delete(), ['names.' + uid]: FV().delete() });
+  const setPerms = (perms) => wsRef().update({ perms });
+  async function newCode() {
+    const old = team && team.code;
+    for (let n = 0; n < 4; n++) {
+      const code = T.genCode(), b = db.batch();
+      b.set(db.collection('codes').doc(code), { ws: wid }); b.update(wsRef(), { code }); if (old) b.delete(db.collection('codes').doc(old));
+      try { await b.commit(); return code; } catch (e) { if (n === 3 || !(e && e.code === 'permission-denied')) throw e; }
+    }
+  }
+  const transfer = (toUid) => wsRef().update({ ['members.' + toUid]: 'owner', ['members.' + user.uid]: 'manager', ownerUid: toUid });
   const col = (c) => db.collection('workspaces').doc(wid).collection(c);
   const toMap = (snap) => { const m = {}; snap.forEach((d) => { const j = d.data().j; if (typeof j === 'string') m[d.id] = j; }); return m; };
 
   async function start() {
     const my = ++runId; set('connecting');
     wid = await resolveWorkspace(); if (my !== runId) return;
+    if (!wid) return awaiting(my);
+    watchTeam(my);
     const state = hooks.getState();
     last = lsGet(lastKey());
     if (!last) {                                                    // first time this phone meets this workspace
@@ -120,7 +221,7 @@
   // Sign-in calls wait (up to 10 s) for the sign-in code to finish loading, so a very early tap still works.
   const need = () => Promise.race([sdkReady, new Promise((r) => setTimeout(r, 10000))]).then(() => { if (!auth) throw Object.assign(new Error('unavailable'), { code: 'app/unavailable' }); return auth; });
   const api = {
-    init, changed, info, push, usage, checkRules,
+    init, changed, info, push, usage, checkRules, createBusiness, joinByCode, cancelJoin, team: () => team, approve, decline, setRank, removeMember, setPerms, newCode, transfer,
     // handles the online store uses (the same signed-in Firestore connection)
     db: () => db, storage: () => (root.firebase && root.firebase.storage ? root.firebase.storage() : null), uid: () => (user ? user.uid : null), workspace: () => wid, stamp: () => root.firebase.firestore.FieldValue.serverTimestamp(), ready: () => !!(db && user && wid),
     signInGoogle: () => need().then((a) => a.signInWithPopup(new root.firebase.auth.GoogleAuthProvider())),

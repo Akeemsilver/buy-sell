@@ -1793,7 +1793,7 @@
   }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
   /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
   const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
-  function refreshTeamSheets() { const k = teamTop(); if ($('#sheet') && !$('#sheet').hidden && !$('#sheet').classList.contains('small')) { if (k === 'team|') sheetTeam(); else if (k === 'perms|') sheetPerms(); else if (k === 'notif|') sheetNotifs(); } }
+  function refreshTeamSheets() { const k = teamTop(); if ($('#sheet') && !$('#sheet').hidden && !$('#sheet').classList.contains('small')) { if (k === 'team|') sheetTeam(); else if (k === 'perms|') sheetPerms(); else if (k === 'notif|') sheetNotifs(); else if (k.startsWith('req|')) sheetRequest(k.slice(4)); } }
   let reqFetched = 0;
   const fetchRequests = () => { if (can('team') && Cloud.refreshRequests && Date.now() - reqFetched > 4000) { reqFetched = Date.now(); Cloud.refreshRequests().catch((e) => { reqErr = (e && e.code) || 'error'; }); } };
   function sheetTeam() {
@@ -1801,9 +1801,7 @@
     enterPage('team', '', () => sheetTeam());
     fetchRequests();
     const ppl = Team.people(team.members, team.names);
-    const reqs = joinReqs.map((r) => `<div class="card treq"><div class="rw"><div class="t"><b>${esc(r.name || r.email || '')}</b><small>${esc(r.email || '')} · ${t('team.wantsToJoin')}</small></div></div>
-        <div class="rkpick">${['seller', 'supervisor', 'manager'].map((k) => `<button class="chip ${(reqRank[r.uid] || 'seller') === k ? 'on' : ''}" data-act="team-reqrank" data-id="${esc(r.uid)}" data-rank="${k}">${rankName(k)}</button>`).join('')}</div>
-        <div class="tbtns"><button class="btn primary" data-act="team-approve" data-id="${esc(r.uid)}">${t('team.approve')}</button><button class="btn" data-act="team-decline" data-id="${esc(r.uid)}">${t('team.decline')}</button></div></div>`).join('');
+    const reqs = joinReqs.map((r) => { const when = r.createdAt && r.createdAt.toMillis ? ago(new Date(r.createdAt.toMillis())) : ''; return `<button class="rqrow" data-act="req-open" data-id="${esc(r.uid)}"><span class="av">${esc((r.name || r.email || '?').trim().charAt(0).toUpperCase())}</span><div class="t"><b>${esc(r.name || r.email || '')}</b><small>${esc(r.email || '')}${when ? ' · ' + t('req.asked', { ago: when }) : ''}</small></div><span class="nw">${t('team.review')}</span></button>`; }).join('');
     const rows = ppl.map((p) => { const nm = p.name || t('team.unnamed'), you = p.uid === cloud.uid, tap = !you && p.rank !== 'owner';
       return `<${tap ? 'button class="row tap"' : 'div class="row"'} ${tap ? `data-act="team-person" data-id="${esc(p.uid)}"` : ''}><div class="grow"><b>${esc(nm)}${you ? ' · ' + t('team.you') : ''}</b></div><span class="pill rk-${p.rank}">${rankName(p.rank)}</span>${tap ? '<span class="chev">›</span>' : ''}</${tap ? 'button' : 'div'}>`; }).join('');
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('team.title')}</b><small>${esc(bizName())}</small></div></div><div class="ap">
@@ -1815,6 +1813,21 @@
       <div class="list" style="margin-top:14px">${trow('🔑', t('perm.row'), t('perm.sub'), 'data-act="perm-open"')}</div>
       <div class="tbtns" style="margin-top:14px"><button class="btn" data-act="team-check">${t('team.check')}</button><button class="btn" data-act="team-refresh">${t('team.refresh')}</button></div>
       <div class="tbtns" style="margin-top:18px"><button class="btn rs" data-act="xfer-open">${t('xfer.btn')}</button></div><p class="muted small" style="margin:8px 2px 24px">${t('xfer.note')}</p></div>`, null, true);
+  }
+  const CAP_WORDS = ['sell', 'orders', 'stock', 'refunds', 'storeSettings', 'costs'];
+  const rankSummary = (rank) => { const P = Team.fill(team && team.perms)[rank] || {}, w = CAP_WORDS.filter((c) => P[c]).map((c) => t('req.cap.' + c)); const x = w.length ? w.join(', ') : t('req.cap.none'); return x.charAt(0).toUpperCase() + x.slice(1) + '.'; };
+  function sheetRequest(uid) {
+    if (!can('team') || !team) return;
+    const r = joinReqs.find((x) => x.uid === uid); if (!r) return dropPages('req|' + uid);
+    enterPage('req', uid, () => sheetRequest(uid));
+    const rk = reqRank[uid] || 'seller', when = r.createdAt && r.createdAt.toMillis ? ago(new Date(r.createdAt.toMillis())) : '', nm = r.name || r.email || '';
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('req.title')}</b><small>${esc(bizName())}</small></div></div><div class="ap">
+      <div class="rqbig"><span class="av">${esc(nm.trim().charAt(0).toUpperCase() || '?')}</span><div><b>${esc(nm)}</b><small>${esc(r.email || '')}</small>${when ? `<small>${t('req.askedFull', { ago: when })}</small>` : ''}</div></div>
+      <h4><span>${t('req.choose')}</span></h4>
+      ${['seller', 'supervisor', 'manager'].map((k) => `<button class="rkc ${rk === k ? 'on' : ''}" data-act="req-rank" data-id="${esc(uid)}" data-rank="${k}"><span class="dot"></span><div><b>${rankName(k)}</b><small>${esc(rankSummary(k))}</small></div></button>`).join('')}
+      <p class="muted small" style="margin:6px 2px 12px">${t('req.later')}</p>
+      <button class="btn primary" style="width:100%;margin-top:6px" data-act="req-approve" data-id="${esc(uid)}">${t('req.letIn', { rank: rankName(rk) })}</button>
+      <button class="btn rs" style="width:100%;margin-top:10px" data-act="req-decline" data-id="${esc(uid)}">${t('team.decline')}</button></div>`, null, true);
   }
   const PERM_ROWS = ['sell', 'orders', 'stock', 'refunds', 'storeSettings', 'costs'];
   function sheetPerms() {
@@ -1858,7 +1871,7 @@
   function notifList() {
     const out = [], now = Date.now(), c = storeCfg();
     const add = (n) => out.push(n);
-    if (can('team')) joinReqs.forEach((r) => add({ key: 'join:' + r.uid, grp: 'attn', ic: '👥', always: true, title: t('notif.join', { name: esc(r.name || r.email || '') }), sub: t('notif.joinSub'), go: ['team-open', ''] }));
+    if (can('team')) joinReqs.forEach((r) => add({ key: 'join:' + r.uid, grp: 'attn', ic: '👥', always: true, title: t('notif.join', { name: esc(r.name || r.email || '') }), sub: t('notif.joinSub'), go: ['req-open', r.uid] }));
     if (window.Store) {
       Store.orders().filter((o) => o.status === 'confirmed').forEach((o) => { const lat = latestInvOf(o), cf = tsAt(o.confirmedAt); if (lat && o.invSentNo !== lat.no && cf && cf.getTime() > INV_FROM && Date.now() - cf.getTime() > 5 * 60000) add({ key: 'send:' + o.id + ':' + lat.no, grp: 'attn', ic: '📤', always: true, title: t('notif.sendInv', { name: esc(o.name) }), sub: t('notif.sendInvSub', { code: esc(o.code || SCore.orderCode(o.id)), no: lat.no }), go: ['order-open', o.id] }); });
       Store.orders().filter((o) => o.status === 'new' || (Store.ageMs(o) > 0 && Store.ageMs(o) < 7 * DAY && o.status !== 'declined')).forEach((o) => add({ key: 'order:' + o.id, grp: 'orders', ic: '🛍️', always: o.status === 'new', title: t('notif.order', { code: esc(o.code || SCore.orderCode(o.id)), name: esc(o.name) }), sub: tn('notif.items', (o.items || []).length) + ' · ' + (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + money(o.total), when: Store.when(o) ? ago(Store.when(o)) : '', go: ['order-open', o.id] }));
@@ -2273,9 +2286,13 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     if (t_.dataset.tab) { themeDraft = null; if (!$('#sheet').hidden) closeSheet(); go({ tab: t_.dataset.tab, moreView: null }); window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
     if (/^(photo|ed|viewer)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
-    { const a = t_.dataset.act, need = a === 'more' && /^(set-business|set-invdesign)$/.test(id || '') ? 'storeSettings' : ACT_NEEDS[a]; if (/^(team|perm|xfer)-/.test(a) || a === 'reset' ? !can('team') : need && !can(need)) return toast(t('team.noAccess')); }
+    { const a = t_.dataset.act, need = a === 'more' && /^(set-business|set-invdesign)$/.test(id || '') ? 'storeSettings' : ACT_NEEDS[a]; if (/^(team|perm|xfer|req)-/.test(a) || a === 'reset' ? !can('team') : need && !can(need)) return toast(t('team.noAccess')); }
     switch (t_.dataset.act) {
       case 'team-open': return sheetTeam();
+      case 'req-open': return sheetRequest(id);
+      case 'req-rank': reqRank[id] = t_.dataset.rank; return sheetRequest(id);
+      case 'req-approve': { const r = joinReqs.find((x) => x.uid === id); return r && Cloud.approve(id, reqRank[id] || 'seller', r.name || r.email || '').then(() => { delete reqRank[id]; dropPages('req|' + id); toast(t('team.approved', { name: r.name || r.email || '' })); }).catch(() => toast(t('store.pubError'))); }
+      case 'req-decline': return Cloud.decline(id).then(() => { dropPages('req|' + id); toast(t('team.declined')); }).catch(() => toast(t('store.pubError')));
       case 'perm-open': return sheetPerms();
       case 'team-reqrank': reqRank[id] = t_.dataset.rank; return sheetTeam();
       case 'team-approve': { const r = joinReqs.find((x) => x.uid === id); return r && Cloud.approve(id, reqRank[id] || 'seller', r.name || r.email || '').then(() => { delete reqRank[id]; toast(t('team.approved', { name: r.name || r.email || '' })); }).catch(() => toast(t('store.pubError'))); }

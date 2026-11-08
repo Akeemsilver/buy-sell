@@ -221,12 +221,12 @@
       const or = `<p class="g-small" style="text-align:center;margin:14px 0">${t('acct.or')}</p>`;
       return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
       <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
-      ${IOS ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosHint')}</p>${form}${or}${gbtn}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
+      ${IOS && gateMode === 'create' ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosCreate')}</p>${form}` : IOS ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosHint')}</p>${form}${or}${gbtn}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
     }
     if (v === 'forgot') return `<div class="g-wrap"><button class="g-link" data-act="gate-forgotback">‹ ${t('gate.back')}</button><h1 style="font-size:24px">${t('fp.title')}</h1><p class="g-mute">${t('fp.sub')}</p>
       <form id="f-forgot"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" value="${esc(lastEmail())}" required>
       <div id="g-err" class="g-err" hidden></div><button class="g-btn primary" style="margin-top:18px">${t('fp.send')}</button></form>
-      <p class="g-small" style="margin-top:14px">${t('fp.spam')}</p><p class="g-small">${t('fp.google')}</p></div>`;
+      <p class="g-small" style="margin-top:14px">${t('fp.spam')}</p><p class="g-small">${t('fp.link')}</p><p class="g-small">${t('fp.google')}</p></div>`;
     if (v === 'choose') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.chooseTitle')}</h1><p class="g-mute">${t('gate.chooseSub')}</p>
       <button class="g-btn primary" data-act="gate-newbiz">${t('gate.newBiz')}</button><button class="g-btn" data-act="gate-joinbiz">${t('gate.joinBiz')}</button>
       <div id="g-err" class="g-err" hidden></div><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;

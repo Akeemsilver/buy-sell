@@ -68,7 +68,8 @@
       }
       writeMap(c.id, map); info.sharp = sharpN > 0; try { localStorage.setItem('buy-sell-store-mode', sharpN > 0 || !list.some((p) => p.photo) ? 'sharp' : 'small'); } catch (e) { /* ignore */ }
       const db = Cloud.db(), sref = db.collection('stores').doc(c.id), chunks = SC.chunk(items), b = db.batch();
-      b.set(sref, Object.assign({ workspace: Cloud.workspace(), ownerUid: Cloud.uid(), chunks: chunks.length, count: items.length, updatedAt: Cloud.stamp() }, head), { merge: true });   // merge: keeps the 'reserved' list the Firebase function keeps
+      const ex = await sref.get().catch(() => null), owner = (ex && ex.exists && ex.data().ownerUid) || Cloud.uid();   // whoever created the store stays its owner, even when another member of the business publishes
+      b.set(sref, Object.assign({ workspace: Cloud.workspace(), ownerUid: owner, chunks: chunks.length, count: items.length, updatedAt: Cloud.stamp() }, head), { merge: true });   // merge: keeps the 'reserved' list the Firebase function keeps
       chunks.forEach((part, i) => b.set(sref.collection('catalog').doc('c' + i), { i, items: part }));
       await withTimeout(b.commit(), TUNE.commit);
       try { localStorage.setItem(key, sig); } catch (e) { /* published again next time */ }

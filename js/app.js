@@ -14,7 +14,7 @@
   const bizName = () => state.settings.businessName || 'B-RUIZ';
   const initials = (n) => String(n).trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toUpperCase() || '·';
   // Versions shown in Settings > About. APP_VERSION goes up by 0.01 with each release; RULES_VERSION must match the header of firestore.rules (a test checks).
-  const APP_VERSION = '1.00', RULES_VERSION = '1.04', CLOUD_LIMIT = 1073741824;
+  const APP_VERSION = '1.00', RULES_VERSION = '1.05', CLOUD_LIMIT = 1073741824;
   const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
@@ -120,7 +120,16 @@
 
   /* ---------- account (Firebase sign-in, cloud copy) ---------- */
 
-  let cloud = { status: 'loading', error: '', email: '', signedIn: false };
+  let cloud = { status: 'loading', error: '', email: '', signedIn: false, uid: '' };
+  // Team: my rank in the shared business and what that rank may do (kept on the phone so the app knows it before the cloud answers)
+  let team = null, joinReqs = [];
+  const teamCache = () => { try { const c = JSON.parse(localStorage.getItem('buy-sell-team')); return c && (!cloud.uid || c.uid === cloud.uid) ? c : null; } catch (e) { return null; } };
+  const myRank = () => { if (team) return team.rank; const c = teamCache(); if (c) return c.rank; return cloud.signedIn && cloud.status !== 'signedOut' && !(state.settings.setupDone || hasData()) ? 'seller' : 'owner'; };   // alone on this phone, or an existing business that has not heard from the cloud yet: everything; a brand-new person who has not been placed yet: the lowest rank
+  const teamPerms = () => (team ? team.perms : (teamCache() || {}).perms) || null;
+  const can = (cap) => Team.can(teamPerms(), myRank(), cap);
+  const myName = () => (team && team.names && team.names[cloud.uid]) || (cloud.email || '').split('@')[0];
+  const rankName = (r) => t('rank.' + r);
+  const sharedBusiness = () => !!(team && Object.keys(team.members || {}).length > 1);
   function signInBanner() {
     if (cloud.signedIn || cloud.status === 'loading' || cloud.status === 'unavailable' || Date.now() - pref('signinDismissed', 0) < WEEK) return '';
     return `<div class="install"><div class="grow"><b>${t('acct.banner.title')}</b><small>${t('acct.banner.sub')}</small></div>
@@ -177,10 +186,11 @@
 
   /* ---------- welcome / create account / sign in / business setup (neutral look, not the business's colors) ---------- */
 
-  let gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null }, gateForced = false;   // gateForced: opened on purpose from the app (Settings, the Home banner)
+  let gateJoin = false, reqRank = {}, gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null }, gateForced = false;   // gateForced: opened on purpose from the app (Settings, the Home banner)
   const GOOGLE_G = '<svg class="glogo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.2 5.6c4.3-3.9 7.1-9.7 7.1-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.2-5.6c-2 1.4-4.6 2.3-8.7 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
   const hasData = () => window.Sync.hasData(state);
   function wantedGate() {
+    if (cloud.signedIn && /^(choose|pending|declined|removed)$/.test(cloud.status)) { gateForced = false; return cloud.status === 'choose' ? (gateJoin ? 'join' : 'choose') : cloud.status; }
     if (cloud.signedIn) {
       gateForced = false;
       if (state.settings.setupDone || hasData()) return null;
@@ -204,6 +214,18 @@
       <div id="g-err" class="g-err" hidden></div>
       <button class="g-btn primary" style="margin-top:18px">${gateMode === 'create' ? t('acct.create') : t('acct.signIn')}</button>
       ${gateMode === 'in' ? `<button type="button" class="g-link" data-act="gate-forgot">${t('acct.forgot')}</button>` : ''}</form></div>`;
+    if (v === 'choose') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.chooseTitle')}</h1><p class="g-mute">${t('gate.chooseSub')}</p>
+      <button class="g-btn primary" data-act="gate-newbiz">${t('gate.newBiz')}</button><button class="g-btn" data-act="gate-joinbiz">${t('gate.joinBiz')}</button>
+      <div id="g-err" class="g-err" hidden></div><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;
+    if (v === 'join') return `<div class="g-wrap"><button class="g-link" data-act="gate-joinback">‹ ${t('gate.back')}</button><h1 style="font-size:24px">${t('gate.joinTitle')}</h1><p class="g-mute">${t('gate.joinSub')}</p>
+      <form id="f-join"><label>${t('gate.codeLabel')}</label><input name="code" class="g-code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="ABCDEF" required>
+      <div id="g-err" class="g-err" hidden></div><button class="g-btn primary" style="margin-top:18px">${t('gate.requestJoin')}</button></form></div>`;
+    if (v === 'pending') return `<div class="g-wrap g-center"><div class="g-logo">⏳</div><h1>${t('gate.pendingTitle')}</h1><p class="g-mute">${t('gate.pendingSub')}</p>
+      <button class="g-btn" data-act="gate-cancelreq">${t('gate.cancelReq')}</button><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;
+    if (v === 'declined') return `<div class="g-wrap g-center"><div class="g-logo">✋</div><h1>${t('gate.declinedTitle')}</h1><p class="g-mute">${t('gate.declinedSub')}</p>
+      <button class="g-btn primary" data-act="gate-tryagain">${t('gate.tryAgain')}</button><button class="g-btn" data-act="gate-removed-ok">${t('gate.newBiz')}</button><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;
+    if (v === 'removed') return `<div class="g-wrap g-center"><div class="g-logo">👋</div><h1>${t('gate.removedTitle')}</h1><p class="g-mute">${t('gate.removedSub')}</p>
+      <button class="g-btn primary" data-act="gate-removed-ok">${t('gate.continue')}</button><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;
     if (v === 'setup') {
       const cur = gateDraft.palette || Theme.current();
       return `<div class="g-wrap"><h1 style="font-size:24px">${t('gate.setup.title')}</h1><p class="g-mute">${t('gate.setup.sub')}</p>
@@ -284,7 +306,7 @@
     $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     renderTools();
-    document.body.classList.toggle('hide-amounts', hideAmounts);
+    document.body.classList.toggle('hide-amounts', hideAmounts); document.body.classList.toggle('nocosts', !can('costs'));
     $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, more: More }[tab]();
     renderActionBar();
     syncHistory();
@@ -322,10 +344,10 @@
     if (!state.batches.length) return `<div class="empty"><b>${t('home.welcome')}</b>${t('home.welcomeText')}</div>
       <div class="list"><button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button><button class="btn" data-act="import-xlsx">${t('btn.importXlsx')}</button></div>`;
     return `${filtered() ? `<button class="row tap" data-act="filter" style="margin-bottom:10px;background:var(--tint)"><div class="grow"><b>${t('home.filtered', { label: esc(filterLabel()) })}</b><small>${t('home.filteredHint')}</small></div><span class="chev">›</span></button>` : ''}<div class="stats">
-      <div class="stat hero"><span>${t('home.profit')}</span><b>${money(tot.profit)}</b><button class="eyeb" data-act="view" aria-label="${hideAmounts ? t('tool.show') : t('tool.hide')}"><svg viewBox="0 0 24 24">${ICONS[hideAmounts ? 'eyeoff' : 'eye']}</svg></button></div>
-      <div class="stat"><span>${t('home.sales')}</span><b>${money(tot.sales)}</b></div>
+      <div class="stat hero"><span>${t(can('costs') ? 'home.profit' : 'home.sales')}</span><b>${money(can('costs') ? tot.profit : tot.sales)}</b><button class="eyeb" data-act="view" aria-label="${hideAmounts ? t('tool.show') : t('tool.hide')}"><svg viewBox="0 0 24 24">${ICONS[hideAmounts ? 'eyeoff' : 'eye']}</svg></button></div>
+      <div class="stat costonly"><span>${t('home.sales')}</span><b>${money(tot.sales)}</b></div>
       <div class="stat"><span>${t('home.owing')}</span><b>${money(tot.owing)}</b></div>
-      <div class="stat"><span>${t('home.expenses')}</span><b>${money(tot.expense)}</b></div>
+      <div class="stat costonly"><span>${t('home.expenses')}</span><b>${money(tot.expense)}</b></div>
       <div class="stat"><span>${t('home.avail')}</span><b>${tot.available} · ${tot.inTransit}</b></div></div>
     <h2>${t('home.quick')}</h2>
     <div class="quick">
@@ -337,7 +359,7 @@
       const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0;
       return `<button class="row tap" data-act="batch" data-id="${b.id}" style="${bStatus(b) === 'Closed' ? 'opacity:.6' : ''}"><div class="grow"><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b>
         <small>${esc(b.store)} · ${day(b.datePurchased)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div></div>
-        <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="chev">›</span></button>`; }).join('')}</div>
+        <div class="end costonly"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="chev">›</span></button>`; }).join('')}</div>
     ${owing.length ? `<h2>${t('home.whoOwes')}</h2><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${tn('home.itemsOwing', c.itemsOwing)}</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
     ${recent.length ? `<h2>${t('home.recent')}</h2><div class="list">${recent.map(invoiceRow).join('')}</div>` : ''}`;
   }
@@ -364,7 +386,7 @@
     const chips = (arr, cur, act, label) => arr.map((x) => `<button class="chip ${x === cur ? 'on' : ''}" data-act="${act}" data-id="${esc(x)}">${esc(label ? label(x) : x)}</button>`).join('');
     return `<div class="bpk"><button class="drop" data-act="batch-pick" aria-label="${t('bp.title')}">${esc(bl(b.id))} <span aria-hidden="true">▾</span></button><div class="chips">${chips(open.filter((x) => x.id !== stockBatch).map((x) => x.id), stockBatch, 'pick-batch', bl)}<button class="chip" data-act="new-batch">${t('stock.addBatch')}</button></div></div>
       <div class="row tap" role="button" tabindex="0" data-act="batch-info" data-id="${b.id}" style="margin-bottom:10px"><div class="grow"><b>${t('stock.invested', { status: stLabel(bStatus(b)), amount: money(st.investment) })}</b><small>${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</small></div>
-        <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="go" aria-hidden="true">›</span></div>
+        <div class="end costonly"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="go" aria-hidden="true">›</span></div>
       <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>
         ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button><button class="chip" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.short')}</button></div>
       ${(() => { const sc = storeCfg(); return sc.id && !sc.batches.includes(b.id) && all.some((i) => i.status === 'Available' && String(i.desc || '').trim()) ? `<div class="row" style="margin-bottom:10px;flex-wrap:wrap;background:#fff4e0;border-color:#f1d4a0"><div class="grow"><b>${t('store.notIn')}</b><small>${t('store.notInSub')}</small></div><button class="chip on" data-act="store-addbatch" data-id="${b.id}">${t('store.addBatch')}</button></div>` : ''; })()}
@@ -524,7 +546,7 @@
       <div class="t"><span>${t('prev.owingAfter')}</span><span>${money(p.balance)}</span></div>
       ${p.tip ? `<div class="good"><span>${t('prev.tip')}</span><span>${money(p.tip)}</span></div>` : ''}
       ${p.loss ? `<div class="bad"><span>${t('prev.loss')}</span><span>${money(p.loss)}</span></div>` : ''}</div>
-      <div class="profit"><span>🔒 ${t('sell.profitPrivate')}</span><b>${money(p.profit)}</b></div>
+      <div class="profit costonly"><span>🔒 ${t('sell.profitPrivate')}</span><b>${money(p.profit)}</b></div>
       ${p.errors.length ? `<div class="err">${esc(t('err.' + p.errors[0]))}</div>` : `<div class="muted small" style="margin-top:8px">${t('prev.ready')}</div>`}`;
   }
 
@@ -554,8 +576,8 @@
     if (moreView && moreView.startsWith('set-')) return SettingsPage();
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     const act = (a, icon, label, sub, bad) => `<button class="row tap" data-act="${a}"><span style="font-size:22px">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
-    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${go('deliveries', '🚚', t('more.deliveries'), t('more.deliveriesSub', { n: window.Store ? Store.orders().filter((o) => o.status === 'confirmed' && o.option === 'delivery').length : 0 }))}${go('orders', '🛍️', t('more.orders'), t('more.ordersSub', { n: window.Store ? Store.orders().length : 0 }))}${go('batches', '📦', t('more.batches'), t('more.batchesSub', { n: state.batches.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
-      ${go('summary', '📈', t('more.summary'), t('more.summarySub'))}${act('words-open', '🔤', t('words.title'), t('words.sub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
+    return `<div class="list">${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${can('orders') ? go('deliveries', '🚚', t('more.deliveries'), t('more.deliveriesSub', { n: window.Store ? Store.orders().filter((o) => o.status === 'confirmed' && o.option === 'delivery').length : 0 })) : ''}${can('orders') ? go('orders', '🛍️', t('more.orders'), t('more.ordersSub', { n: window.Store ? Store.orders().length : 0 })) : ''}${go('batches', '📦', t('more.batches'), t('more.batchesSub', { n: state.batches.length }))}${go('items', '📋', t('more.items'), t('more.itemsSub', { n: state.items.length }))}
+      ${can('costs') ? go('summary', '📈', t('more.summary'), t('more.summarySub')) : ''}${act('words-open', '🔤', t('words.title'), t('words.sub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
       ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>${t('more.install')}</b><small>${isIOS ? t('more.installIOS') : t('more.installOther')}</small></div><span class="chev">›</span></button></div>`}
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
   }
@@ -566,7 +588,7 @@
     return res.map(({ b }) => { const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0, bs = bStatus(b);
       return `<button class="row tap" data-act="batch" data-id="${b.id}" style="${bs === 'Closed' ? 'opacity:.6' : ''}"><div class="grow"><b>${esc(bl(b.id))} <span class="pill ${bs.replace(' ', '')}">${stLabel(bs)}</span></b>
         <small>${esc(b.store)} · ${day(b.datePurchased)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div></div>
-        <div class="end"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="chev">›</span></button>`; }).join('');
+        <div class="end costonly"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="chev">›</span></button>`; }).join('');
   }
   function BatchLog() {
     const by = (s) => state.batches.filter((b) => bStatus(b) === s).length;
@@ -618,6 +640,7 @@
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
         ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}
         <div class="row srow"><span class="tile">🛍️</span><div class="grow"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div>
+      ${cloud.signedIn && team ? (can('team') ? `<h2>${t('team.sec')}</h2><div class="list grp">${trow('👥', t('team.row'), t('team.rowSub', { n: Object.keys(team.members || {}).length }) + (joinReqs.length ? ' · ' + t('team.waiting', { n: joinReqs.length }) : ''), 'data-act="team-open"')}${trow('🔑', t('perm.row'), t('perm.sub'), 'data-act="perm-open"')}</div>` : `<h2>${t('team.sec')}</h2><div class="list grp"><div class="row srow"><span class="tile">🏷️</span><div class="grow"><b>${t('team.mine')}</b><small>${rankName(team.rank)}</small></div></div></div>`) : ''}
       <h2>${t('set.sec.data')}</h2><div class="list grp">
         ${trow('🖼️', t('set.keepRow'), t('keep.' + photoKeep()), 'data-act="pick-keep"')}
         ${trow('💾', t('set.backupRow'), t('set.backupSub'), nav('set-backup'))}
@@ -885,9 +908,9 @@
     const lg = (s, c) => `<span><b style="background:${c}"></b>${n(s)} ${stLabel(s).toLowerCase()}</span>`;
     const sc = storeCfg(), ln = (a, v) => `<div class="ln"><span>${a}</span><b>${v}</b></div>`;
     openSheet(`<h3>${esc(bl(b.id))} <span class="pill ${bs.replace(' ', '')}">${stLabel(bs)}</span></h3><p class="muted small bi-sub">${esc(b.store)}${b.store ? ' · ' : ''}${t('batch.ordered')} ${day(b.datePurchased)}</p>
-      <div class="bi-kp"><div><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('home.profitWord')}</small><b class="ok">${money(st.profit)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div><small>${t('batch.clearingPaid')}</small><b>${money(b.clearingPaid)}</b><small>${(st.clearingPct * 100).toFixed(0)}%</small></div></div>
+      <div class="bi-kp costonly"><div><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('home.profitWord')}</small><b class="ok">${money(st.profit)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div><small>${t('batch.clearingPaid')}</small><b>${money(b.clearingPaid)}</b><small>${(st.clearingPct * 100).toFixed(0)}%</small></div></div>
       <div class="bi-card"><div class="bi-bar">${seg('Paid', '#66bb6a')}${seg('Owing', '#ffb74d')}${seg('Available', '#5c6bc0')}${seg('In Transit', '#4fc3f7')}</div><div class="bi-lg">${lg('Paid', '#66bb6a')}${lg('Owing', '#ffb74d')}${lg('Available', '#5c6bc0')}${lg('In Transit', '#4fc3f7')}</div></div>
-      <div class="bi-card">${ln(t('bi.items'), its.length + ' · ' + t('bi.withPhotos', { n: ps.withPhoto }))}${ln(t('batch.cost'), b.totalCost.toFixed(2) + ' ' + b.currency + ' @ ' + b.rate.toFixed(4))}${ln(t('bi.margin'), (Number(b.margin) || 0) + '%')}${b.dateReceived ? ln(t('bi.received'), day(b.dateReceived)) : ''}${ln(b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase'), transitText(b))}${b.dateLastPayment ? ln(t('batch.lastClearing'), day(b.dateLastPayment)) : ''}${sc.id ? ln(t('bi.inStore'), sc.batches.includes(b.id) ? t('bi.on') : t('bi.off')) : ''}</div>
+      <div class="bi-card">${ln(t('bi.items'), its.length + ' · ' + t('bi.withPhotos', { n: ps.withPhoto }))}${can('costs') ? ln(t('batch.cost'), b.totalCost.toFixed(2) + ' ' + b.currency + ' @ ' + b.rate.toFixed(4)) : ''}${ln(t('bi.margin'), (Number(b.margin) || 0) + '%')}${b.dateReceived ? ln(t('bi.received'), day(b.dateReceived)) : ''}${ln(b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase'), transitText(b))}${b.dateLastPayment ? ln(t('batch.lastClearing'), day(b.dateLastPayment)) : ''}${sc.id ? ln(t('bi.inStore'), sc.batches.includes(b.id) ? t('bi.on') : t('bi.off')) : ''}</div>
       <div class="btns"><button class="btn primary" data-act="batch" data-id="${b.id}">${t('bi.open')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, 'sheet');
     $('#sheet').classList.add('hdr');
   }
@@ -897,10 +920,10 @@
     const st = L.batchStats(state, b), inTransit = bStatus(b) === 'In Transit', showClear = inTransit || clearOpen.has(b.id);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b></div>${inTransit ? '' : `<button class="dots" data-act="batch-more" data-id="${b.id}" aria-label="${t('batch.more')}">⋮</button>`}</div><div class="ap">
       <div class="sumbox"><div><span>${t('batch.store')}</span><span>${esc(b.store)}</span></div><div><span>${t('batch.ordered')}</span><span>${day(b.datePurchased)}</span></div>
-      <div><span>${t('batch.cost')}</span><span>${b.totalCost.toFixed(2)} ${b.currency} @ ${b.rate.toFixed(4)}</span></div>
+      <div class="costonly"><span>${t('batch.cost')}</span><span>${b.totalCost.toFixed(2)} ${b.currency} @ ${b.rate.toFixed(4)}</span></div>
       <div><span>${t('batch.clearingPaid')}</span><span>${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%)</span></div>
-      <div><span>${t('batch.invested')}</span><span>${money(st.investment)}</span></div><div><span>${t('batch.sales')}</span><span>${money(st.sales)}</span></div>
-      <div><span>${t('batch.profit')}</span><span>${money(st.profit)}</span></div>
+      <div class="costonly"><span>${t('batch.invested')}</span><span>${money(st.investment)}</span></div><div><span>${t('batch.sales')}</span><span>${money(st.sales)}</span></div>
+      <div class="costonly"><span>${t('batch.profit')}</span><span>${money(st.profit)}</span></div>
       <div><span>${b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase')}</span><span>${transitText(b)}</span></div>
       ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
       ${showClear ? `${bStatus(b) === 'In Transit' ? '' : `<div class="note2">${t('clear.reopened')}</div>`}      <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
@@ -1238,9 +1261,9 @@
       ${ord ? `<div class="lockbar">🔒 <div><b>${t('item.orderedLock')}</b><small>${t('item.orderedNote')}</small>${ordr ? `<button class="pay-btn" data-act="order-open" data-id="${ordr.id}">${t('item.viewOrder')}</button>` : ''}</div></div>` : ''}
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
-      <fieldset class="lockset" ${lock ? 'disabled' : ''}>
+      <fieldset class="lockset" ${lock || !can('stock') ? 'disabled' : ''}>
       <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${lock ? '' : szSection(i, true, false)}${lock ? '' : grpNote(i, true)}
-      <label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}">
+      <div class="costonly"><label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}"></div>
       <div class="mrow" id="pricerow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
       <div id="saleblock">${saleHTML(i)}</div>
       <label>${t('item.details')}</label><textarea class="dta" data-f="details" rows="3" maxlength="600" placeholder="${t('item.detailsPh')}">${esc(i.details || '')}</textarea>
@@ -1249,7 +1272,7 @@
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="text" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
       <div><label>${t('item.delivery')}</label><input data-f="delivery" type="text" inputmode="decimal" step="0.01" min="0" value="${i.delivery || ''}"></div></div>
-      <div class="sumbox" id="calc"></div>
+      <div class="sumbox costonly" id="calc"></div>
       <label>${t('item.status')}</label><select data-f="status">${STATUSES.map((s) => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${stLabel(s)}</option>`).join('')}</select>
       </fieldset>
       ${(sold || ord) ? pinRow(orderOfItem(i.id)) : ''}
@@ -1272,11 +1295,11 @@
       <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
       <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
       <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}${esBtn(i)}</div>
-      <div class="mrow"><div><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label>${t('qty.label')}</label>${qtyHtml(i)}</div></div>
+      <div class="mrow"><div class="costonly"><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label>${t('qty.label')}</label>${qtyHtml(i)}</div></div>
       <div class="mrow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
       ${szSection(i, false, true)}${grpNote(i)}
       <div id="saleblock" style="margin-top:6px">${saleHTML(i)}</div>
-      <div class="sumbox" id="calc"></div></div>
+      <div class="sumbox costonly" id="calc"></div></div>
       <div class="qgo"><button class="sk" data-act="qe-next" data-id="${i.id}" data-skip="1">${t('qe.skip')}</button><button class="pr ${blocked ? 'blocked' : ''}" data-act="qe-next" data-id="${i.id}">${n < ids.length - 1 ? t('qe.saveNext') : t('qe.saveDone')}</button></div></div>`, render, true);
     $('#sheet').dataset.item = id; updateSale(i); scrollSize();
     const cur = $('#qstrip .qt.on'); if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -1386,7 +1409,7 @@
   const invMoney = (n) => 'TT$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const invDate = (d) => new Date(d).toLocaleDateString('en-GB');
   const esName = (it) => { const sp = Wd.spanish(it, wordList()); return sp.es || it.desc; };   // the Spanish name of an item (the saved one, or the word list's best translation)
-  const lineName = (l) => { if (invoiceLang() !== 'es') return l.desc; const m = String(l.desc).split(' · '), base = m[0].trim(), it = state.items.find((x) => String(x.desc || '').trim() === base); return it ? esName(it) + (m.length > 1 ? ' · ' + m.slice(1).join(' · ') : '') : l.desc; };
+  const lineName = (l, lg) => { if ((lg || invoiceLang()) !== 'es') return l.desc; const m = String(l.desc).split(' · '), base = m[0].trim(), it = state.items.find((x) => String(x.desc || '').trim() === base); return it ? esName(it) + (m.length > 1 ? ' · ' + m.slice(1).join(' · ') : '') : l.desc; };
   const invLines = (v) => (v.lines && v.lines.length ? v.lines : [{ desc: v.desc, qty: v.qty, price: v.total - v.delivery }]);
 
   // "PAID IN FULL" rubber stamp: double border, tilted, worn ink. Seeded by invoice number so it never changes.
@@ -1427,13 +1450,13 @@
     return ink;
   }
   const isPaidInFull = (v) => v.total > 0 && v.balance <= 0;
-  const stampDate = (v) => new Date(v.date).toLocaleDateString(I.locale(invoiceLang()), { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase();
+  const stampDate = (v, lg) => new Date(v.date).toLocaleDateString(I.locale(lg || invoiceLang()), { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase();
   // Which stamp an invoice carries: green PAID IN FULL once paid; amber DELIVERED / COLLECTED + BALANCE DUE when handed over with money still owing; none otherwise
   const stampKind = (v) => { if (!v || v.void) return ''; if (isPaidInFull(v)) return 'paid'; const o = v.no ? orderOfInvoice(v.no) : null; if (o && o.status === 'done') return o.option === 'delivery' ? 'del' : 'col'; return ''; };
   const STAMP_KEY = { paid: 'doc.stamp', del: 'doc.stampDel', col: 'doc.stampCol' };
-  const stampCanvasFor = (v) => { const k = stampKind(v), due = k === 'del' || k === 'col'; return stampCanvas(v.no, stampDate(v), due ? ti(STAMP_KEY[k]) + '\n' + ti('doc.stampDue') : ti('doc.stamp'), due ? 'due' : 'ok'); };
+  const stampCanvasFor = (v, lg) => { const k = stampKind(v), due = k === 'del' || k === 'col', tl = (key) => t(key, {}, lg || invoiceLang()); return stampCanvas(v.no, stampDate(v, lg), due ? tl(STAMP_KEY[k]) + '\n' + tl('doc.stampDue') : tl('doc.stamp'), due ? 'due' : 'ok'); };
   // The small two-line note under the balance while money is owing and the order is still to be handed over: "To be delivered / Payment due on delivery"
-  const invNote = (v) => { if (!v || v.void || isPaidInFull(v)) return null; const o = v.no ? orderOfInvoice(v.no) : null; if (!o || o.status !== 'confirmed') return null;
+  const invNote = (v, lg) => { const tl = (key) => t(key, {}, lg || invoiceLang()); if (!v || v.void || isPaidInFull(v)) return null; const o = v.no ? orderOfInvoice(v.no) : null; if (!o || o.status !== 'confirmed') return null;
     const del = o.option === 'delivery', soon = (o.items || []).some(itemArriving), part = (Number(v.amountPaid) || 0) + (Number(v.previouslyPaid) || 0) > 0;
     return [ti(soon ? 'inv.ln.soon' : del ? 'inv.ln.deliver' : 'inv.ln.pickup'), ti(part ? (del ? 'inv.ln.balDel' : 'inv.ln.balPick') : (del ? 'inv.ln.payDel' : 'inv.ln.payPick'))]; };
   function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang() + '|' + stampKind(v); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
@@ -1465,7 +1488,7 @@
         <div class="inv-sum">${stampKind(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
           <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div>${(() => { const nt = invNote(v); return nt ? `<div class="inv-note"><b>${esc(nt[0])}</b><span>${esc(nt[1])}</span></div>` : ''; })()}</div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
-      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
+      <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.by ? ` · ${t('inv.by', { name: esc(v.by) })}` : ''}${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? `<span class="costonly"> · ${t('invUI.profit')} ${money(v.profit)}</span>` : ''}${!v0.void && v.loss ? `<span class="costonly"> · ${t('invUI.loss')} ${money(v.loss)}</span>` : ''}${!v0.void && v.tip ? `<span class="costonly"> · ${t('invUI.tip')} ${money(v.tip)}</span>` : ''}</div>
       ${hist}${thumbs}${spotRow}
       ${(() => { const who = esc(v.client || ''), k = autoActive() ? knownLang(v.no, v.client) : invoiceLang(); return `<p class="muted small sendnote">${autoActive() ? (k ? t('inv.sendAuto', { lang: I.LANGS[k]['lang.name'], who }) : t('inv.sendAsk', { who })) : t('inv.sendFixed', { lang: I.LANGS[k]['lang.name'] })}</p>`; })()}<div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
       ${(() => { const rr = isLatest && !v0.void && state.items.some((x) => x.invoice === v.no), cc = isLatest && !v0.void; return (rr ? `<button class="btn rs ${cc ? '' : 'span2'}" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : '') + (cc ? `<button class="btn rs ${rr ? '' : 'span2'}" data-act="del-inv" data-id="${v.no}">${t('invUI.cancel')}</button>` : ''); })()}<button class="btn slim span2" data-act="close">${t('btn.close')}</button></div>`, null, true);
@@ -1487,7 +1510,8 @@
     g.save(); path(); g.clip(); g.drawImage(card, M, M); g.restore();
     return o;
   }
-  function invoiceCanvas(v, type, frame, scale, quality) {
+  function invoiceCanvas(v, type, frame, scale, quality, lang) {
+    const LG = lang || invoiceLang(), ti = (key, vars) => t(key, vars, LG);   // this drawing speaks LG all the way through (it loads the banner first, so the screen may change in between)
     return new Promise((ok, fail) => {
       const img = new Image(); img.onerror = () => fail(new Error(ti('doc.loadErr')));
       img.onload = () => {
@@ -1515,7 +1539,7 @@
         lines.forEach((l, li) => {
           if (D.tint && li % 2) { x.fillStyle = D.tint; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), rowH); }
           F('400', 16); x.fillStyle = '#000'; x.textAlign = 'left';
-          const ld = lineName(l); let d = String(ld); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(ld)) d = d.trim() + '…';
+          const ld = lineName(l, LG); let d = String(ld); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(ld)) d = d.trim() + '…';
           x.fillText(d, L0, y + 24);
           x.textAlign = 'right'; x.fillText(String(l.qty), R0 - 250, y + 24); x.fillText(invMoney(l.price), R0 - 130, y + 24); x.fillText(invMoney(l.qty * l.price), R0, y + 24);
           y += rowH;
@@ -1529,9 +1553,9 @@
         F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ti('doc.balance'), R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
         if (stampKind(v) && !v.void) {
           x.save(); x.globalCompositeOperation = 'multiply';
-          x.drawImage(stampCanvasFor(v), W - L0 - 350, y + 34, 340, 152); x.restore();
+          x.drawImage(stampCanvasFor(v, LG), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
-        const nt = invNote(v); if (nt) { x.textAlign = 'right'; F('700', 17); x.fillStyle = '#222'; x.fillText(nt[0], R0, y + 104); F('400', 14); x.fillStyle = '#555'; x.fillText(nt[1], R0, y + 126); }
+        const nt = invNote(v, LG); if (nt) { x.textAlign = 'right'; F('700', 17); x.fillStyle = '#222'; x.fillText(nt[0], R0, y + 104); F('400', 14); x.fillStyle = '#555'; x.fillText(nt[1], R0, y + 126); }
         y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
         F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
         F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
@@ -1539,7 +1563,7 @@
         const out = frame && invFrame() !== 'none' ? framedCanvas(c, invFrame(), S, Theme.brand()) : c;
         out.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', quality || 0.92);
       };
-      img.src = invDesignId() === 'classic' ? bannerSrc() : 'icons/logo.png';
+      img.src = invDesignId() === 'classic' ? (LG === 'es' ? 'icons/invoice-banner-es.jpg' : 'icons/invoice-banner.jpg') : 'icons/logo.png';
     });
   }
   // The PDF page is US Letter, white, with the invoice as a smaller sheet in the middle and a soft shadow so its edges show.
@@ -1556,8 +1580,8 @@
   // the phone only allows its share sheet right after a tap, and drawing the sheet takes a few seconds.
   const pdfFiles = new Map(), pdfBusy = new Map(); let pdfQueue = Promise.resolve();   // finished PDFs and PDFs being drawn, kept in the phone's memory only (one per invoice and language); drawn one at a time
   const pdfKey = (v) => JSON.stringify([v, Object.assign({}, state.settings, { clientLang: 0 }), invoiceLang(), invDesignId(), stampKind(v), invNote(v), state.items.length]);
-  async function buildInvoicePdf(v) {
-    const blob = await invoiceCanvas(v, 'image/png', false, 2.6);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
+  async function buildInvoicePdf(v, lang) {
+    const blob = await invoiceCanvas(v, 'image/png', false, 2.6, undefined, lang);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
     const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
     const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
     return new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
@@ -1566,10 +1590,8 @@
     const key = underLang(lang, () => pdfKey(v));
     if (pdfFiles.has(key)) return Promise.resolve(pdfFiles.get(key));
     if (pdfBusy.has(key)) return pdfBusy.get(key);
-    const p = pdfQueue.catch(() => {}).then(() => {
-      const prev = invLangSession; if (lang) invLangSession = lang;
-      return buildInvoicePdf(v).finally(() => { if (lang && invLangSession === lang) invLangSession = prev; });
-    }).then((file) => { pdfFiles.set(key, file); while (pdfFiles.size > 6) pdfFiles.delete(pdfFiles.keys().next().value); return file; }).finally(() => { pdfBusy.delete(key); });
+    const lg = lang || invoiceLang();
+    const p = pdfQueue.catch(() => {}).then(() => buildInvoicePdf(v, lg)).then((file) => { pdfFiles.set(key, file); while (pdfFiles.size > 6) pdfFiles.delete(pdfFiles.keys().next().value); return file; }).finally(() => { pdfBusy.delete(key); });
     pdfQueue = p; pdfBusy.set(key, p); return p;
   }
   // Draw ahead: the customer's language first, and (both = true) the other language too, since it costs nothing but a few seconds of the phone's time
@@ -1682,7 +1704,7 @@
     openSheet(`<div class="cpage"><div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
       <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><div class="lastrow"><small>${invs.length ? lastCap : since}</small><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div><div class="locrow"><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button><button class="lg-chip" data-act="cust-lang" data-id="${esc(name)}" aria-label="${t('cl.field')}"><i>🗣️</i>${(() => { const k = savedLang(name) || orderLangOf(name); return k ? k.toUpperCase() : t('cl.chipAuto'); })()}</button></div></div></div>
       <div class="cp-tiles"><div class="tile ${owing ? 'bad' : ''}"><small>${t('cust.owingLabel')}</small><b>${moneyBare(c.owing)}</b></div><div class="tile"><small>${t('cust.totalSales')}</small><b>${moneyBare(c.sales)}</b></div>
-        <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile"><small>${t('cust.profit')}</small><b>${moneyBare(c.profit)}</b></div></div>
+        <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile costonly"><small>${t('cust.profit')}</small><b>${moneyBare(c.profit)}</b></div></div>
       <h2>${t('cust.invoices')} <span class="muted" style="float:right;text-transform:none;letter-spacing:0">${invs.length}</span></h2>${invs.map(card).join('') || `<div class="muted">${t('cust.none')}</div>`}
       <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p></div>`, null, true);
     const nmEl = document.querySelector('#sheet .cp-hero .nm');   // a long name gets smaller type first, then a second line, so nothing is cut off
@@ -1759,6 +1781,69 @@
   const ordWhen = (o) => ago(Store.when(o));
   const optText = (o) => `${o.option === 'delivery' ? t('store.delivery') : t('store.pickup')} · ${esc(o.location)}`;
   const stBadge = (o) => { const st = stageOf(o); return st === 'handed' ? `<span class="obadge confirmed">${t('ord.stHanded')}</span>` : `<span class="obadge ${o.status}">${t(o.status === 'confirmed' ? (o.option === 'delivery' ? 'ord.toDeliver' : 'ord.toCollect') : 'ord.' + o.status)}</span>`; };
+  // The actions each permission covers (the click handler refuses them when your rank does not allow it)
+  const ACT_NEEDS = {};
+  Object.entries({
+    sell: ['make-invoice', 'pay-inv', 'pay-save', 'pay-full', 'pay-full-amt', 'pay-clearing'],
+    orders: ['order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
+    stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
+    costs: ['csv', 'export-json'],
+    refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
+    storeSettings: ['store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
+  }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
+  /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
+  const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
+  function refreshTeamSheets() { const k = teamTop(); if ($('#sheet') && !$('#sheet').hidden && !$('#sheet').classList.contains('small')) { if (k === 'team|') sheetTeam(); else if (k === 'perms|') sheetPerms(); } }
+  function sheetTeam() {
+    if (!can('team') || !team) return;
+    enterPage('team', '', () => sheetTeam());
+    const ppl = Team.people(team.members, team.names);
+    const reqs = joinReqs.map((r) => `<div class="card treq"><div class="rw"><div class="t"><b>${esc(r.name || r.email || '')}</b><small>${esc(r.email || '')} · ${t('team.wantsToJoin')}</small></div></div>
+        <div class="rkpick">${['seller', 'supervisor', 'manager'].map((k) => `<button class="chip ${(reqRank[r.uid] || 'seller') === k ? 'on' : ''}" data-act="team-reqrank" data-id="${esc(r.uid)}" data-rank="${k}">${rankName(k)}</button>`).join('')}</div>
+        <div class="tbtns"><button class="btn primary" data-act="team-approve" data-id="${esc(r.uid)}">${t('team.approve')}</button><button class="btn" data-act="team-decline" data-id="${esc(r.uid)}">${t('team.decline')}</button></div></div>`).join('');
+    const rows = ppl.map((p) => { const nm = p.name || t('team.unnamed'), you = p.uid === cloud.uid, tap = !you && p.rank !== 'owner';
+      return `<${tap ? 'button class="row tap"' : 'div class="row"'} ${tap ? `data-act="team-person" data-id="${esc(p.uid)}"` : ''}><div class="grow"><b>${esc(nm)}${you ? ' · ' + t('team.you') : ''}</b></div><span class="pill rk-${p.rank}">${rankName(p.rank)}</span>${tap ? '<span class="chev">›</span>' : ''}</${tap ? 'button' : 'div'}>`; }).join('');
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('team.title')}</b><small>${esc(bizName())}</small></div></div><div class="ap">
+      ${joinReqs.length ? `<h4><span>${t('team.requests')}</span></h4>${reqs}` : ''}
+      <h4><span>${t('team.people')}</span></h4><div class="list">${rows}</div>
+      <h4><span>${t('team.code')}</span></h4><div class="card codecard"><div class="cin"><div class="codebig" aria-label="${t('team.code')}">${esc(team.code || '······')}</div><p class="muted small" style="margin:6px 0 10px">${t('team.codeNote')}</p>
+        <div class="tbtns"><button class="btn" data-act="team-copy">${t('team.copy')}</button><button class="btn" data-act="team-newcode">${t('team.newCode')}</button></div></div></div>
+      <div class="list" style="margin-top:14px">${trow('🔑', t('perm.row'), t('perm.sub'), 'data-act="perm-open"')}</div>
+      <div class="tbtns" style="margin-top:18px"><button class="btn rs" data-act="xfer-open">${t('xfer.btn')}</button></div><p class="muted small" style="margin:8px 2px 24px">${t('xfer.note')}</p></div>`, null, true);
+  }
+  const PERM_ROWS = ['sell', 'orders', 'stock', 'refunds', 'storeSettings', 'costs'];
+  function sheetPerms() {
+    if (!can('team') || !team) return;
+    enterPage('perms', '', () => sheetPerms());
+    const P = Team.fill(team.perms), ranks = ['seller', 'supervisor', 'manager'];
+    const row = (c) => `<div class="prow"><div class="pl"><b>${t('perm.' + c)}</b><small>${t('perm.' + c + 'Sub')}</small></div>${ranks.map((r) => `<button class="tg ${P[r][c] ? 'on' : ''}" role="switch" aria-checked="${P[r][c]}" aria-label="${rankName(r)}" data-act="perm-toggle" data-id="${r}:${c}"></button>`).join('')}</div>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('perm.title')}</b><small>${t('perm.sub')}</small></div></div><div class="ap">
+      <div class="prow phead"><div class="pl"></div>${ranks.map((r) => `<span>${rankName(r)}</span>`).join('')}</div>${PERM_ROWS.map(row).join('')}
+      <div class="prow fixed"><div class="pl"><b>${t('perm.team')}</b><small>${t('perm.teamSub')}</small></div><span class="ownonly">${t('rank.owner')}</span></div>
+      <p class="muted small" style="margin:12px 2px 24px">${t('perm.note')}</p></div>`, null, true);
+  }
+  const savePerms = (P) => { team.perms = P; try { localStorage.setItem('buy-sell-team', JSON.stringify({ uid: cloud.uid, rank: team.rank, perms: P })); } catch (e) { /* ignore */ } return Cloud.setPerms(P); };
+  let teamPick = '', xferTo = '';
+  function sheetPerson(uid) {
+    const nm = (team.names && team.names[uid]) || t('team.unnamed'), cur = team.members[uid]; teamPick = uid;
+    openSmall(`<h3>${esc(nm)}</h3><p class="muted small">${t('team.rankNote')}</p><div class="list" style="margin-top:10px">${['seller', 'supervisor', 'manager'].map((k) => `<button class="row tap" data-act="team-setrank" data-id="${k}"><div class="grow"><b>${rankName(k)}</b></div><span style="font-weight:900;color:var(--brand)">${cur === k ? '✓' : ''}</span></button>`).join('')}</div>
+      <div class="btns"><button class="btn rs" data-act="team-remove">${t('team.remove')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, 'card');
+  }
+  // handing the business to someone else: pick the person, then three pop-ups, the last one asks you to type TRANSFER
+  function xferStart() {
+    const others = Team.people(team.members, team.names).filter((p) => p.uid !== cloud.uid);
+    if (!others.length) return toast(t('xfer.nobody'));
+    openSmall(`<h3>${t('xfer.pick')}</h3><div class="list" style="margin-top:10px">${others.map((p) => `<button class="row tap" data-act="xfer-pick" data-id="${esc(p.uid)}"><div class="grow"><b>${esc(p.name || t('team.unnamed'))}</b></div><span class="pill rk-${p.rank}">${rankName(p.rank)}</span></button>`).join('')}</div><div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card');
+  }
+  function xferSteps(uid) {
+    xferTo = uid; const nm = (team.names && team.names[uid]) || t('team.unnamed');
+    askCard(t('xfer.q1', { name: nm }), { title: t('xfer.t1'), ok: t('xfer.next'), no: t('btn.cancel') }).then((y1) => { if (!y1) return;
+      askCard(t('xfer.q2', { name: nm }), { title: t('xfer.t2'), danger: true, ok: t('xfer.next'), no: t('btn.cancel') }).then((y2) => { if (!y2) return;
+        openSmall(`<h3>${t('xfer.t3')}</h3><p>${esc(t('xfer.q3', { name: nm }))}</p><input id="xfer-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="TRANSFER" style="margin-top:6px">
+          <div class="btns"><button class="btn dsolid" id="xfer-go" data-act="xfer-go" disabled>${t('xfer.go')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card'); }); });
+  }
+  document.addEventListener('input', (e) => { if (e.target.id === 'xfer-in') { const b = $('#xfer-go'); if (b) b.disabled = e.target.value.trim().toUpperCase() !== 'TRANSFER'; } });
+
   /* ---------- notifications (the bell) ---------- */
   // Built from what the app knows, each time: new store orders, things that need attention, and reminders. "New" = not yet seen on the
   // bell page (the page marks everything seen when it is closed); a new order stays new until it is dealt with.
@@ -1768,6 +1853,7 @@
   function notifList() {
     const out = [], now = Date.now(), c = storeCfg();
     const add = (n) => out.push(n);
+    if (can('team')) joinReqs.forEach((r) => add({ key: 'join:' + r.uid, grp: 'team', ic: '👥', always: true, title: t('notif.join', { name: esc(r.name || r.email || '') }), sub: t('notif.joinSub'), go: ['team-open', ''] }));
     if (window.Store) {
       Store.orders().filter((o) => o.status === 'new' || (Store.ageMs(o) > 0 && Store.ageMs(o) < 7 * DAY && o.status !== 'declined')).forEach((o) => add({ key: 'order:' + o.id, grp: 'orders', ic: '🛍️', always: o.status === 'new', title: t('notif.order', { code: esc(o.code || SCore.orderCode(o.id)), name: esc(o.name) }), sub: tn('notif.items', (o.items || []).length) + ' · ' + (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + money(o.total), when: Store.when(o) ? ago(Store.when(o)) : '', go: ['order-open', o.id] }));
     }
@@ -1795,7 +1881,7 @@
     const row = (n) => `<button class="it2 ${notifUnread(n, seen) ? 'new' : ''}" data-act="notif-go" data-id="${list.indexOf(n)}">${notifUnread(n, seen) ? '<i class="dotn"></i>' : ''}<span class="ic2">${n.ic}</span><span class="tx2"><b>${n.title}</b><small>${n.sub}</small></span><span class="ago">${esc(n.when || '')}</span></button>`;
     const grp = (k, label) => { const g = list.filter((n) => n.grp === k); return g.length ? `<h4><span>${t(label)}</span></h4><div class="card">${g.map(row).join('')}</div>` : ''; };
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('notif.title')}</b><small>${unread ? tn('notif.newN', unread) : t('notif.none')}</small></div></div>
-      <div class="bn">${unread ? `<button class="chip on" data-act="notif-read" style="margin:6px 0 0">${t('notif.readAll')}</button>` : ''}${grp('orders', 'notif.gOrders')}${grp('attn', 'notif.gAttn')}${grp('remind', 'notif.gRemind')}${list.length ? '' : `<div class="empty"><b>${t('notif.none')}</b>${t('notif.noneText')}</div>`}</div>`, () => { notifMarkSeen(); render(); }, true);
+      <div class="bn">${unread ? `<button class="chip on" data-act="notif-read" style="margin:6px 0 0">${t('notif.readAll')}</button>` : ''}${grp('team', 'notif.gTeam')}${grp('orders', 'notif.gOrders')}${grp('attn', 'notif.gAttn')}${grp('remind', 'notif.gRemind')}${list.length ? '' : `<div class="empty"><b>${t('notif.none')}</b>${t('notif.noneText')}</div>`}</div>`, () => { notifMarkSeen(); render(); }, true);
   }
   // Tapping a line closes the page and goes to the thing it is about (the same screens the rest of the app opens).
   function notifGo(i) {
@@ -1834,7 +1920,7 @@
     const rate = isDel && km != null && d.showRate ? SCore.rateFee(d, km) : null, cost = isDel && km != null ? SCore.tripCost(km, d.costKm) : null, fee = Number(o.deliveryPrice) || 0, prof = cost != null ? Math.round((fee - cost) * 100) / 100 : null;
     const pill = o.status === 'done' ? `<span class="dpl d">${t(isDel ? 'ord.delivered' : 'ord.collected')}${w ? ' ' + dlvTime(w) : ''}</span>` : `<span class="dpl t">${t(isDel ? 'ord.toDeliver' : 'ord.toCollect')}</span>${o.planDay ? `<span class="dpl p">📅 ${esc(planLabel(o.planDay))}</span>` : ''}`;
     const area = [esc(o.location || ''), o.spot ? esc(o.spot) : ''].filter(Boolean).join(' · ');
-    const sub = [money(fee)].concat(rate != null ? [t('dlv.yourRate', { amount: plain(money(rate)) })] : []).concat(prof != null ? [`<span class="${prof < 0 ? 'loss' : 'gain'}">${t(prof < 0 ? 'dlv.loss' : 'dlv.profit', { amount: plain(money(Math.abs(prof))) })}</span>`] : []).join(' · ');
+    const sub = [money(fee)].concat(rate != null ? [t('dlv.yourRate', { amount: plain(money(rate)) })] : []).concat(prof != null ? [`<span class="${prof < 0 ? 'loss' : 'gain'} costonly">${t(prof < 0 ? 'dlv.loss' : 'dlv.profit', { amount: plain(money(Math.abs(prof))) })}</span>`] : []).join(' · ');
     const end = isDel ? `<b>${esc(kmText(o))}</b>${km != null ? `<small>${t('dlv.roundTrip', { km: (km * 2).toFixed(1) })}</small>` : ''}<small>${sub}</small>` : `<b>${money(o.total)}</b><small>${tn('notif.items', (o.items || []).length)}</small>`;
     const chips = pending ? `<div class="dchips">${isDel ? `<button class="dchip" data-act="dlv-way" data-id="${o.id}">📲 ${t('dlv.onWay')}</button><button class="dchip" data-act="dlv-plan" data-id="${o.id}">📅 ${t(o.planDay ? 'dlv.change' : 'dlv.plan')}</button>` : ''}<button class="dchip go" data-act="dlv-done" data-id="${o.id}">✅ ${t(isDel ? 'ord.delivered' : 'ord.collected')}</button></div>` : (isDel ? `<div class="dchips"><button class="dchip" data-act="dlv-thanks" data-id="${o.id}">💬 ${t('dlv.thanks')}</button></div>` : '');
     return `<div class="dcard2"><button class="dr" data-act="order-open" data-id="${o.id}"><span class="ic">${o.status === 'done' ? '✅' : isDel ? '🚚' : '🛍️'}</span><div class="m"><b>${esc(o.name)} · ${esc(o.code || SCore.orderCode(o.id))}${gp ? ' <span class="pinm">📍</span>' : ''}</b><small>${area || esc(t(isDel ? 'store.delivery' : 'store.pickup'))}</small>${pill}</div><div class="e">${end}</div></button>
@@ -2085,6 +2171,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     try {
       if (o.option === 'delivery' && o.deliveryPrice > 0) its[0].delivery = o.deliveryPrice;
       const inv = L.createInvoice(state, { itemIds: its.map((x) => x.id), client: o.name, paying: '0', allowZero: true });
+      if (sharedBusiness()) inv.by = myName();   // who made it, once there is more than one person in the business
       save(); tidyPhotos();
       Store.setStatus(o.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError')));
       waOpen(o, 'ord.waConfirm', inv);
@@ -2170,7 +2257,22 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     if (t_.dataset.tab) { themeDraft = null; if (!$('#sheet').hidden) closeSheet(); go({ tab: t_.dataset.tab, moreView: null }); window.scrollTo(0, 0); return render(); }
     const id = t_.dataset.id;
     if (/^(photo|ed|viewer)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
+    { const a = t_.dataset.act, need = a === 'more' && /^(set-business|set-invdesign)$/.test(id || '') ? 'storeSettings' : ACT_NEEDS[a]; if (/^(team|perm|xfer)-/.test(a) || a === 'reset' ? !can('team') : need && !can(need)) return toast(t('team.noAccess')); }
     switch (t_.dataset.act) {
+      case 'team-open': return sheetTeam();
+      case 'perm-open': return sheetPerms();
+      case 'team-reqrank': reqRank[id] = t_.dataset.rank; return sheetTeam();
+      case 'team-approve': { const r = joinReqs.find((x) => x.uid === id); return r && Cloud.approve(id, reqRank[id] || 'seller', r.name || r.email || '').then(() => { delete reqRank[id]; toast(t('team.approved', { name: r.name || r.email || '' })); }).catch(() => toast(t('store.pubError'))); }
+      case 'team-decline': return Cloud.decline(id).then(() => toast(t('team.declined'))).catch(() => toast(t('store.pubError')));
+      case 'team-person': return sheetPerson(id);
+      case 'team-setrank': return Cloud.setRank(teamPick, id).then(() => { closeSheet(); toast(t('team.rankSet')); }).catch(() => toast(t('store.pubError')));
+      case 'team-remove': { const uid = teamPick, nm = (team.names && team.names[uid]) || t('team.unnamed'); closeSheet(); return askCard(t('team.removeAsk', { name: nm }), { danger: true, ok: t('team.remove') }).then((y) => { if (y) Cloud.removeMember(uid).then(() => toast(t('team.removed'))).catch(() => toast(t('store.pubError'))); }); }
+      case 'team-copy': return (navigator.clipboard ? navigator.clipboard.writeText(team.code) : Promise.reject()).then(() => toast(t('team.copied')), () => toast(team.code));
+      case 'team-newcode': return askCard(t('team.newCodeAsk'), { ok: t('team.newCode') }).then((y) => { if (y) Cloud.newCode().then(() => toast(t('team.newCodeDone'))).catch(() => toast(t('store.pubError'))); });
+      case 'perm-toggle': { const [r, c] = id.split(':'), P = Team.fill(team.perms); P[r][c] = !P[r][c]; savePerms(P).catch(() => toast(t('store.pubError'))); sheetPerms(); return render(); }
+      case 'xfer-open': return xferStart();
+      case 'xfer-pick': closeSheet(); return xferSteps(id);
+      case 'xfer-go': { const to = xferTo; closeSheet(); return Cloud.transfer(to).then(() => { dropPages('team|'); toast(t('xfer.done')); }).catch(() => toast(t('store.pubError'))); }
       case 'close': return pageBack();
       case 'view': hideAmounts = !hideAmounts; setPref('hideAmounts', hideAmounts); return render();
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); closeSheet(); return render();
@@ -2191,6 +2293,12 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'gate-tab': gateMode = id; $('#gate').innerHTML = gateHTML('auth'); return;
       case 'gate-skip': setPref('gateSkipped', true); return updateGate();
       case 'gate-google': return Cloud.signInGoogle().then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e)));
+      case 'gate-newbiz': return Cloud.createBusiness('').catch((e) => gateErr(t('gate.err', { m: (e && e.message) || '' })));
+      case 'gate-joinbiz': gateJoin = true; gateView = null; return updateGate();
+      case 'gate-joinback': gateJoin = false; gateView = null; return updateGate();
+      case 'gate-cancelreq': return Cloud.cancelJoin();
+      case 'gate-tryagain': return Cloud.cancelJoin().then(() => { gateJoin = true; gateView = null; updateGate(); });
+      case 'gate-removed-ok': gateJoin = false; return Cloud.cancelJoin();
       case 'gate-forgot': { const em = ($('#f-gate [name=email]') || {}).value; if (!em) return gateErr(t('acct.needEmail')); return Cloud.reset(em).then(() => gateErr(t('acct.resetSent', { email: em })), (e) => gateErr(acctErr(e))); }
       case 'gate-color': gateDraft.palette = id; regate(); return;
       case 'acct-open': if (cloud.signedIn) return sheetAccount(); closeSheet(); gateForced = true; gateMode = hasData() ? 'in' : 'create'; gateView = null; updateGate(); return;
@@ -2230,7 +2338,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'pay-full-amt': { if (payInv) { $('#pay-amt').value = String(payInv.balance); payUpdate(); } return; }
       case 'pay-save': {
         const amt = parseAmt($('#pay-amt').value), dv = $('#pay-date').value, date = dv ? new Date(dv + 'T12:00:00') : new Date();
-        try { const inv = L.recordPayment(state, id, amt, date); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); if (payOrd && Store.orders().some((x) => x.id === payOrd)) { const back = payOrd; payOrd = ''; return sheetOrder(back); } return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
+        try { const inv = L.recordPayment(state, id, amt, date); if (sharedBusiness()) inv.by = myName(); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); if (payOrd && Store.orders().some((x) => x.id === payOrd)) { const back = payOrd; payOrd = ''; return sheetOrder(back); } return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
       }
       case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.thumbsAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
       case 'free-space': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.freeAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
@@ -2396,7 +2504,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
       case 'combo-new': comboOpen = false; return render();
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
-      case 'make-invoice': return run(() => L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying, allowZero: !!pendingOrder }), (inv) => {
+      case 'make-invoice': return run(() => { const nv = L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying, allowZero: !!pendingOrder }); if (sharedBusiness()) nv.by = myName(); return nv; }, (inv) => {
         const po = pendingOrder && Store.orders().find((x) => x.id === pendingOrder); selected = new Set(); invForm = { client: '', paying: '' }; pendingOrder = null; custLock = false; go({ tab: 'sell', moreView: null });
         if (po) { Store.setStatus(po.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError'))); waOpen(po, 'ord.waConfirm', inv); pdfPrompt = inv.no; clearTimeout(pdfPromptTimer); pdfPromptTimer = setTimeout(() => { if (document.visibilityState === 'visible') showPdfPrompt(); }, 3500); }
         setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
@@ -2449,6 +2557,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
     if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
+    if (f.id === 'f-join') { gateErr(''); return Cloud.joinByCode(d.code).catch((e) => gateErr(e && e.code === 'join/invalid' ? t('join.invalid') : e && e.code === 'join/short' ? t('join.short') : t('gate.err', { m: (e && e.message) || '' }))); }
     if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
     if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; const sc = storeCfg(); if (sc.id && sc.autoNew && !sc.batches.includes(b.id)) storeSet({ batches: sc.batches.concat(b.id) }); } }
@@ -2679,6 +2788,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
   Cloud.init({
     getState: () => state,
     askConflict,
+    onTeam: (tm) => { team = tm; try { if (tm) localStorage.setItem('buy-sell-team', JSON.stringify({ uid: cloud.uid, rank: tm.rank, perms: tm.perms })); else localStorage.removeItem('buy-sell-team'); } catch (e) { /* ignore */ } updateGate(); render(); refreshTeamSheets(); },
+    onRequests: (list) => { joinReqs = list; renderTools(); refreshTeamSheets(); },
     onStatus: (i) => { const was = cloud.signedIn; cloud = i; if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
     onRemote: () => { L.migrate(state); wordList(); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });

@@ -125,12 +125,12 @@ When a customer sends an order, the items in it are held back from the store unt
 2. In GitHub, Settings, Secrets and variables, Actions, add a secret named `FIREBASE_SERVICE_ACCOUNT` with the whole JSON.
 3. Re-run the workflow "Deploy functions". Without the secret it skips itself.
 
-Firestore rules **1.04** (adds the customer's language `lang`, the delivery map pin `lat`, `lng`, `spot` and the delivery notes `note` to an order) must also be published in the Firebase console. The About page shows the rules version the app expects.
+Firestore rules **1.05** (1.04 added the delivery notes `note` to an order; 1.05 adds business codes, requests to join and lets every member of a business read and change its online store) must also be published in the Firebase console, together with Storage rules **1.02**. The About page shows the rules version the app expects.
 
 ## Before the app goes live (do these when the owner says "I'm ready for the app to go live")
 1. **Firebase plan:** upgrade the `b-ruiz` project to Blaze (card on file). Then set a budget alert of about US$1 in the Google Cloud console (alerts email; they do not stop charges).
 2. **Cloud Storage:** Firebase console → Build → Storage → Get started, pick a US location.
-3. **Storage rules:** paste `storage.rules` ("B Ruiz Storage rules 1.01") into Storage → Rules and publish. Approve the permission it asks for to read the workspace list. 1.01 also lets the store keep its sharp pictures (stores/{id}/) — the store uses them automatically once Storage is on, and deletes each one a week after the item sells (same rule as the saved photo).
+3. **Storage rules:** paste `storage.rules` ("B Ruiz Storage rules 1.02") into Storage → Rules and publish. Approve the permission it asks for to read the workspace list. 1.01 also lets the store keep its sharp pictures (stores/{id}/) — the store uses them automatically once Storage is on, and deletes each one a week after the item sells (same rule as the saved photo).
 4. **Build cloud photos** (not built yet): upload only the 900 px photo and the 200 px thumbnail, delete the full photo in the cloud 7 days after the sale, keep thumbnails, optional Wi-Fi-only switch (off by default).
 5. **Workspace sharing** (not built yet): invite code (7 days), Owner/Seller roles, per-person "can see costs and profit", who made each sale, duplicate invoice-number protection, Firestore rules 1.01.
 6. Re-check the free limits on the Firebase pricing page before relying on them.
@@ -141,3 +141,13 @@ Firestore rules **1.04** (adds the customer's language `lang`, the delivery map 
 - **Parked ideas:** payment reminders for people who owe, warnings for items with missing costs, an expenses section.
 - **Cloud photos:** needs the Firebase steps in "Before the app goes live" above.
 - **Online store (built; needs Firestore rules 1.01 published and a real end-to-end test before sharing the link):** a public store page (`store.html`, same GitHub Pages site) showing only public fields (name, price, sale price, photo; never costs) of the batches the owner publishes, with an optional "arriving soon" for in-transit items. Customers pick items, choose a location (the owner's list of locations, each with pickup/delivery and a delivery price), enter name and phone, and send an order. Orders arrive in an Orders screen in the app; Confirm opens Sell with the items and customer ready. Needs: a public catalogue document and a create-only orders collection in Firestore (rules 1.01+), small photos (either small pictures stored in Firestore, free, or Cloud Storage, sharper but needs Blaze), and optional App Check against spam. Orders are requests: the owner confirms, so two people can ask for the same item.
+
+
+## Sharing a business (ranks)
+
+- **Sign up:** a new account chooses **Create my business** or **Join a business**. Joining takes the business's 6-letter code (More → Settings → Team shows it; **New code** replaces it). The Owner is told in the bell and in Team, and lets the person in with a rank.
+- **Ranks, bottom up:** Seller, Supervisor, Manager, Owner. **Access and permissions** (Owner only) switches six things on or off for the three lower ranks: sell/invoices/payments, store orders and deliveries, add and edit stock, returns and cancelling, store and delivery settings, and seeing costs and profit. Defaults: Seller sells and handles orders; Supervisor also edits stock and does returns; Manager also has the store settings and costs. The Owner always has everything and alone manages the team, erases data and transfers ownership.
+- **Hiding is done in the app** (screens, buttons and exports). The data is the same for everyone in the business in Firestore, so someone with access to the Firebase project can still read it.
+- **Transfer ownership:** Team → Transfer ownership: pick a member, two confirmations, then type TRANSFER. The new person becomes Owner, the old Owner a Manager.
+- **Data:** `workspaces/{w}` holds `members {uid: rank}`, `names`, `perms` and `code`; `codes/{CODE}` points to the workspace; `workspaces/{w}/joinRequests/{uid}` holds a request until the Owner answers. Invoices record who made them (`by`) once more than one person is in the business.
+- **Not built yet:** protection against two phones making the same invoice number at the very same moment.

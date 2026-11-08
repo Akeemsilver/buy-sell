@@ -1,11 +1,12 @@
 rules_version = '2';
-// B Ruiz Firestore rules 1.04
+// B Ruiz Firestore rules 1.05
 // Paste this into Firebase console > Firestore Database > Rules > Publish.
 // Only signed-in people can touch data, only their own user record, and only workspaces they are a member of.
 // 1.01 adds the online store: anyone with the store's link can read the published catalogue and send an order; only the owner can read orders or change the store.
 // 1.02 lets an order carry the customer's language (en or es), so the WhatsApp message can be written in it.
 // 1.03 lets a delivery order carry a map pin (lat, lng, and a short place name), so the seller can open it in Google Maps or Waze.
 // 1.04 lets a delivery order carry short delivery notes (gate colour, house number, a landmark).
+// 1.05 shares a business between people: a business code (codes/{CODE}) that anyone signed in can look up one at a time, requests to join (workspaces/{w}/joinRequests/{uid}) that only the Owner can answer, and the online store can be read and changed by every member of the business (not only the person who created it).
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -16,7 +17,7 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
     // ---- online store (rules 1.01) ----
-    function storeOwner(sid) { return signedIn() && get(/databases/$(database)/documents/stores/$(sid)).data.ownerUid == request.auth.uid; }
+    function storeOwner(sid) { return signedIn() && (get(/databases/$(database)/documents/stores/$(sid)).data.ownerUid == request.auth.uid || ('workspace' in get(/databases/$(database)/documents/stores/$(sid)).data && isMember(get(/databases/$(database)/documents/stores/$(sid)).data.workspace))); }
     function validOrder(sid) {
       let d = request.resource.data;
       return d.keys().hasOnly(['code', 'items', 'location', 'option', 'deliveryPrice', 'name', 'phone', 'total', 'status', 'createdAt', 'lang', 'lat', 'lng', 'spot', 'note'])
@@ -37,7 +38,8 @@ service cloud.firestore {
     match /stores/{sid} {
       allow get: if true;
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid && isOwner(request.resource.data.workspace);
-      allow update, delete: if signedIn() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn() && (resource.data.ownerUid == request.auth.uid || ('workspace' in resource.data && isMember(resource.data.workspace))) && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
       match /catalog/{c} {
         allow get: if true;
         allow write: if storeOwner(sid);
@@ -47,7 +49,23 @@ service cloud.firestore {
         allow read, update, delete: if storeOwner(sid);
       }
     }
+    // ---- sharing a business (rules 1.05) ----
+    // A business code points to its workspace. Anyone signed in can look one code up (never list them); only the Owner creates, replaces or removes it.
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['ws']) && getAfter(/databases/$(database)/documents/workspaces/$(request.resource.data.ws)).data.members[request.auth.uid] == 'owner';
+      allow update: if signedIn() && isOwner(resource.data.ws) && request.resource.data.ws == resource.data.ws;
+      allow delete: if signedIn() && isOwner(resource.data.ws);
+    }
     match /workspaces/{w} {
+      // a person asks to join with the code; only the Owner reads the list and answers; the person can read and withdraw their own request
+      match /joinRequests/{uid} {
+        allow create: if signedIn() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['name', 'email', 'status', 'createdAt']) && request.resource.data.status == 'pending' && request.resource.data.createdAt == request.time;
+        allow get: if signedIn() && (request.auth.uid == uid || isOwner(w));
+        allow list: if signedIn() && isOwner(w);
+        allow update: if signedIn() && isOwner(w);
+        allow delete: if signedIn() && (request.auth.uid == uid || isOwner(w));
+      }
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.members[request.auth.uid] == 'owner';
       allow read: if isMember(w);
       allow update, delete: if isOwner(w);

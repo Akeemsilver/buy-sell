@@ -152,6 +152,7 @@
   const lastEmail = () => { try { return localStorage.getItem('buy-sell-last-email') || ''; } catch (e) { return ''; } };
   const rememberEmail = (em) => { try { if (em) localStorage.setItem('buy-sell-last-email', em); } catch (e) { /* private mode */ } };
   const acctStatus = () => t('acct.st.' + cloud.status);
+  const chPwHTML = () => (Cloud.hasPassword && cloud.signedIn && Cloud.hasPassword() ? `<form id="f-chpw" class="card" style="padding:14px;margin-top:14px"><b>${t('acct.chPw')}</b><span class="pwbox" style="margin-top:10px"><input name="cur" type="password" autocomplete="current-password" required placeholder="${t('acct.curPw')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><span class="pwbox" style="margin-top:10px"><input name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="${t('acct.newPw')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><div id="acct-err" class="err" hidden></div><button class="btn primary" style="margin-top:10px;width:100%">${t('acct.chPwBtn')}</button></form>` : '');
   const addPwHTML = () => (Cloud.hasPassword && cloud.signedIn && !Cloud.hasPassword() ? `<form id="f-addpw" class="card" style="padding:14px;margin-top:14px"><b>${t('acct.addPw')}</b><p class="muted small">${t('acct.addPwSub')}</p><span class="pwbox"><input name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="${t('acct.password')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><div id="acct-err" class="err" hidden></div><button class="btn primary" style="margin-top:10px;width:100%">${t('acct.addPwBtn')}</button></form>` : '');
   function acctCard() {
     return cloud.signedIn
@@ -162,9 +163,9 @@
   function sheetAccount() {
     if (cloud.signedIn) return openSheet(`<h3>${t('acct.title')}</h3>${acctCard()}${addPwHTML()}<div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
     openSheet(`<h3>${t('acct.title')}</h3><p class="muted small">${t('acct.signInSub')}</p>
-      <button class="btn g-google" data-act="acct-google" style="margin-top:12px">${GOOGLE_G}<span>${t('acct.google')}</span></button>
+      ${IOS ? '' : `<button class="btn g-google" data-act="acct-google" style="margin-top:12px">${GOOGLE_G}<span>${t('acct.google')}</span></button>
       <p class="muted small" style="text-align:center;margin:8px 4px 0">${t('acct.googleNote')}</p>
-      <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>
+      <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>`}
       <form id="f-acct"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
       <label>${t('acct.password')}</label><span class="pwbox"><input name="password" type="password" autocomplete="current-password" minlength="6"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span>
       <div id="acct-err" class="err" hidden></div>
@@ -222,7 +223,7 @@
       const or = `<p class="g-small" style="text-align:center;margin:14px 0">${t('acct.or')}</p>`;
       return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
       <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
-      ${IOS && gateMode === 'create' ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosCreate')}</p>${form}` : IOS ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosHint')}</p>${form}${or}${gbtn}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
+      ${IOS ? `<p class="g-small" style="margin:14px 2px 0">${t(gateMode === 'create' ? 'gate.iosCreate' : 'gate.iosHint')}</p>${form}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
     }
     if (v === 'forgot') return `<div class="g-wrap"><button class="g-link" data-act="gate-forgotback">‹ ${t('gate.back')}</button><h1 style="font-size:24px">${t('fp.title')}</h1><p class="g-mute">${t('fp.sub')}</p>
       <form id="f-forgot"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" value="${esc(lastEmail())}" required>
@@ -313,7 +314,7 @@
   function render() {
     cleanSelected();
     const moreTitles = { deliveries: 'more.deliveries', orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
@@ -650,7 +651,8 @@
         ${trow('🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'], 'data-act="pick-lang"')}
         ${trow('🌓', t('set.appearance'), themeName, 'data-act="pick-appearance"')}
         ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
-        ${trow('🗣️', t('set.custLang'), { auto: t('cust.auto'), ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}</div>
+        ${trow('🗣️', t('set.custLang'), { auto: t('cust.auto'), ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}
+        ${cloud.signedIn && Cloud.hasPassword && Cloud.hasPassword() ? trow('🔑', t('acct.chPw'), t('set.pwSub'), nav('set-password')) : ''}</div>
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
         ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}
         <div class="row srow"><span class="tile">🛍️</span><div class="grow"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div>
@@ -803,6 +805,7 @@
   }
   function SettingsPage() {
     const s = state.settings, cur = I.getLang();
+    if (moreView === 'set-password') return chPwHTML() || '<p class="muted">' + t('set.pwNone') + '</p>';
     if (moreView === 'set-about') return AboutPage();
     if (moreView === 'set-backup') return BackupPage();
     if (moreView === 'set-invdesign') return InvDesignPage();
@@ -2608,6 +2611,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
+    if (f.id === 'f-chpw') { acctShow(''); return Cloud.changePassword(d.cur, d.password).then(() => { toast(t('acct.pwChanged')); f.reset(); }).catch((e) => acctShow(/wrong-password|invalid-credential/.test((e && e.code) || '') ? t('acct.err.curPw') : acctErr(e))); }
     if (f.id === 'f-addpw') { acctShow(''); return Cloud.addPassword(d.password).then(() => { toast(t('acct.pwAdded')); closeSheet(); render(); }).catch((e) => acctShow(/requires-recent-login/.test((e && e.code) || '') ? t('acct.pwRecent') : /provider-already-linked|credential-already-in-use|email-already-in-use/.test((e && e.code) || '') ? t('acct.pwHave') : acctErr(e))); }
     if (f.id === 'f-forgot') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return Cloud.reset(em).then(() => { const e = $('#g-err'); if (e) { e.textContent = t('fp.sent', { email: em }); e.hidden = false; e.classList.add('ok'); } }, (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }

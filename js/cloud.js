@@ -251,6 +251,7 @@
       return auth ? go(auth) : need().then(go);
     },
     redirectError: () => redirectErr,
+    changePassword: (cur, pw) => need().then(() => { if (!user) throw Object.assign(new Error('x'), { code: 'auth/no-user' }); return user.reauthenticateWithCredential(root.firebase.auth.EmailAuthProvider.credential(user.email, cur)).then(() => user.updatePassword(pw)); }),   // checks the current password first, then sets the new one
     hasPassword: () => !!user && (user.providerData || []).some((p) => p.providerId === 'password'),
     addPassword: (pw) => need().then(() => { if (!user) throw Object.assign(new Error('x'), { code: 'auth/no-user' }); return user.linkWithCredential(root.firebase.auth.EmailAuthProvider.credential(user.email, pw)); }),   // gives a Google account a password too: same account, same business
     signIn: (email, pw) => need().then((a) => a.signInWithEmailAndPassword(email, pw)),

@@ -162,7 +162,7 @@
       <p class="muted small" style="text-align:center;margin:8px 4px 0">${t('acct.googleNote')}</p>
       <p class="muted small" style="text-align:center;margin:14px 0 0">${t('acct.or')}</p>
       <form id="f-acct"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
-      <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="current-password" minlength="6">
+      <label>${t('acct.password')}</label><span class="pwbox"><input name="password" type="password" autocomplete="current-password" minlength="6"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span>
       <div id="acct-err" class="err" hidden></div>
       <div class="btns"><button class="btn primary" name="mode" value="in">${t('acct.signIn')}</button><button class="btn" name="mode" value="up">${t('acct.create')}</button>
       <button type="button" class="btn" data-act="acct-forgot">${t('acct.forgot')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
@@ -211,7 +211,7 @@
       <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
       <button class="g-btn g-google" data-act="gate-google" style="margin-top:16px">${GOOGLE_G}<span>${t('acct.google')}</span></button><p class="g-small" style="text-align:center;margin-top:8px">${t('acct.googleNote')}</p><p class="g-small" style="text-align:center">${t('acct.or')}</p>
       <form id="f-gate"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
-      <label>${t('acct.password')}</label><input name="password" type="password" autocomplete="${gateMode === 'create' ? 'new-password' : 'current-password'}" minlength="6" required>
+      <label>${t('acct.password')}</label><span class="pwbox"><input name="password" type="password" autocomplete="${gateMode === 'create' ? 'new-password' : 'current-password'}" minlength="6" required><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span>
       <div id="g-err" class="g-err" hidden></div>
       <button class="g-btn primary" style="margin-top:18px">${gateMode === 'create' ? t('acct.create') : t('acct.signIn')}</button>
       ${gateMode === 'in' ? `<button type="button" class="g-link" data-act="gate-forgot">${t('acct.forgot')}</button>` : ''}</form></div>`;
@@ -2330,6 +2330,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       case 'gate-skip': setPref('gateSkipped', true); return updateGate();
       case 'gate-google': return Cloud.signInGoogle().then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e)));
       case 'gate-newbiz': return Cloud.createBusiness('').catch((e) => gateErr(t('gate.err', { m: (e && e.message) || '' })));
+      case 'pw-eye': { const i = t_.parentNode.querySelector('input'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; t_.textContent = show ? '🙈' : '👁'; t_.setAttribute('aria-label', t(show ? 'acct.hidePw' : 'acct.showPw')); return; }
       case 'gate-joinbiz': gateJoin = true; gateView = null; return updateGate();
       case 'gate-joinback': gateJoin = false; gateView = null; return updateGate();
       case 'gate-cancelreq': return Cloud.cancelJoin();

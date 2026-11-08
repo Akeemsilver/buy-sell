@@ -251,7 +251,7 @@
     addPassword: (pw) => need().then(() => { if (!user) throw Object.assign(new Error('x'), { code: 'auth/no-user' }); return user.linkWithCredential(root.firebase.auth.EmailAuthProvider.credential(user.email, pw)); }),   // gives a Google account a password too: same account, same business
     signIn: (email, pw) => need().then((a) => a.signInWithEmailAndPassword(email, pw)),
     signUp: (email, pw) => need().then((a) => a.createUserWithEmailAndPassword(email, pw)),
-    reset: (email) => need().then((a) => a.sendPasswordResetEmail(email)),
+    reset: (email) => need().then((a) => a.sendPasswordResetEmail(email, { url: root.location.origin + root.location.pathname })),   // after saving the new password, Firebase shows a Continue link back to the app
     signOut: () => need().then((a) => a.signOut()),
   };
   root.Cloud = api;

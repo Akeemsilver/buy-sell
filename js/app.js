@@ -1554,24 +1554,26 @@
   }
   // The invoice PDF is built ahead of time, as soon as the invoice screen is open, so Share can answer the tap at once:
   // the phone only allows its share sheet right after a tap, and drawing the sheet takes a few seconds.
-  let pdfCache = null, pdfBusy = null;
-  const pdfKey = (v) => JSON.stringify([v, Object.assign({}, state.settings, { clientLang: 0 }), invLangSession, invDesignId(), stampKind(v), invNote(v), state.items.length]);
+  const pdfFiles = new Map(), pdfBusy = new Map(); let pdfQueue = Promise.resolve();   // finished PDFs and PDFs being drawn, kept in the phone's memory only (one per invoice and language); drawn one at a time
+  const pdfKey = (v) => JSON.stringify([v, Object.assign({}, state.settings, { clientLang: 0 }), invoiceLang(), invDesignId(), stampKind(v), invNote(v), state.items.length]);
   async function buildInvoicePdf(v) {
     const blob = await invoiceCanvas(v, 'image/png', false, 2.6);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
     const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
     const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
     return new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
   }
-  function readyPdf(v, lang) {   // a promise for this invoice's PDF (in the customer's language when given): the finished one, the one being built, or a new one
+  function readyPdf(v, lang) {   // a promise for this invoice's PDF (in the given language, or the one on screen): the finished one, the one being drawn, or a new one
     const key = underLang(lang, () => pdfKey(v));
-    if (pdfCache && pdfCache.key === key) return Promise.resolve(pdfCache.file);
-    if (pdfBusy && pdfBusy.key === key) return pdfBusy.p;
-    const prev = invLangSession; if (lang) invLangSession = lang;
-    let bp; try { bp = buildInvoicePdf(v); } catch (e) { if (lang && invLangSession === lang) invLangSession = prev; throw e; }
-    const p = bp.then((file) => { pdfCache = { key, file }; return file; }).finally(() => { if (lang && invLangSession === lang) invLangSession = prev; if (pdfBusy && pdfBusy.key === key) pdfBusy = null; });
-    pdfBusy = { key, p }; return p;
+    if (pdfFiles.has(key)) return Promise.resolve(pdfFiles.get(key));
+    if (pdfBusy.has(key)) return pdfBusy.get(key);
+    const p = pdfQueue.catch(() => {}).then(() => {
+      const prev = invLangSession; if (lang) invLangSession = lang;
+      return buildInvoicePdf(v).finally(() => { if (lang && invLangSession === lang) invLangSession = prev; });
+    }).then((file) => { pdfFiles.set(key, file); while (pdfFiles.size > 6) pdfFiles.delete(pdfFiles.keys().next().value); return file; }).finally(() => { pdfBusy.delete(key); });
+    pdfQueue = p; pdfBusy.set(key, p); return p;
   }
-  const prefetchPdf = (no) => { const v = state.invoices.find((x) => x.no === no); if (v) readyPdf(v, langFor(v) || undefined).catch(() => { /* built again when Share is tapped */ }); };
+  // Draw ahead: the customer's language first, and (both = true) the other language too, since it costs nothing but a few seconds of the phone's time
+  const prefetchPdf = (no, both) => { const v = state.invoices.find((x) => x.no === no); if (!v) return; const first = langFor(v) || invoiceLang(); (both ? [first, first === 'en' ? 'es' : 'en'] : [first]).forEach((l) => readyPdf(v, l).catch(() => { /* drawn again when Share is tapped */ })); };
   const sharePdfFile = (v, file, lang) => navigator.share({ files: [file], title: v.no, text: underLang(lang, () => ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) })) }).then(() => true).catch((e) => { if (e && e.name !== 'AbortError') throw e; return false; });
   const savePdfFile = (file) => { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); };
   // Auto does not know which language this customer reads yet: ask once (the answer is remembered)
@@ -1601,8 +1603,9 @@
   function sendPdf(v, lang, download) {
     const canShare = (f) => !download && navigator.canShare && navigator.canShare({ files: [f] });
     const ord = orderOfInvoice(v.no), done = (pr) => pr.then((sent) => { if (sent && ord) markInvSent(ord, v.no); });   // sharing an order's invoice ticks 'Invoice sent' on the order
-    if (pdfCache && pdfCache.key === underLang(lang, () => pdfKey(v))) {   // already built: answer the tap straight away
-      const f = pdfCache.file;
+    const cachedKey = underLang(lang, () => pdfKey(v));
+    if (pdfFiles.has(cachedKey)) {   // already drawn: answer the tap straight away
+      const f = pdfFiles.get(cachedKey);
       if (canShare(f)) return done(sharePdfFile(v, f, lang)).catch((e) => toast('⚠️ ' + errMsg(e)));
       savePdfFile(f); return toast(download ? t('doc.saved') : t('doc.noSharePdf'));
     }
@@ -2062,6 +2065,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('flow.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
         : o.status === 'confirmed' ? `<div class="fnext">${owingNow > 0 ? `<button class="pbtn" data-act="pay-inv" data-id="${inv}" data-ord="${o.id}">${t('flow.take')}</button><button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`}${inv ? `<button class="gbtn" data-act="view-inv" data-id="${inv}">${t('ord.viewInv')}</button>` : ''}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
         : o.status === 'done' && inv ? `<div class="btnrow"><button class="gbtn" data-act="view-inv" data-id="${inv}" style="flex:1">${t('ord.viewInv')}</button>${(L.purchaseOf(state, inv) || { items: [] }).items.length ? `<button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1">↩ ${t('ret.btn')}</button>` : ''}</div>` : ''}</div>`, null, true);
+    if (lat && !sentLatest && canAct) setTimeout(() => { if (pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id) prefetchPdf(lat.no, true); }, 800);
   }
   const orderItemsLeft = (o) => (o.items || []).map((i) => state.items.find((x) => x.id === i.id)).filter((it) => it && !L.isSold(it));
   // Delivery orders: look at the place first (and open it in a map app); pickups confirm straight away
@@ -2083,6 +2087,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
       Store.setStatus(o.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError')));
       waOpen(o, 'ord.waConfirm', inv);
       toast(t('inv.created', { no: inv.no, amount: money(inv.balance) })); render();
+      setTimeout(() => prefetchPdf(inv.no, true), 700); setTimeout(() => prefetchPdf(inv.no, true), 2500);
       setTimeout(() => { if (pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + o.id) sheetOrder(o.id, true); }, 600);
     } catch (e) { toast('⚠️ ' + errMsg(e)); }
   }

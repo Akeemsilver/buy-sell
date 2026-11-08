@@ -1722,7 +1722,7 @@
     const c = storeCfg(), nm = c.name || bizName();
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.contact')}</b><small>${t('ct.sub')}</small></div></div>
       <div class="pd"><div class="fld"><label for="ct-name">${t('store.name')}</label><input id="ct-name" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"><small>${t('ct.nameSub')}</small></div>
-      <div class="fld"><label for="ct-wa">${t('store.whatsapp')}</label><input id="ct-wa" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="1 868 555 0100" autocomplete="off" enterkeyhint="done"><small>${t('ct.waSub')}</small></div>
+      <div class="fld"><label for="ct-wa">${t('store.whatsapp')}</label><input id="ct-wa" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="${t('ex.label')} 1 868 555 0100" autocomplete="off" enterkeyhint="done"><small>${t('ct.waSub')}</small></div>
       <div class="pvw"><div class="cap">${t('ct.how')}</div><div class="top"><span class="lg" id="ct-pl">${esc((nm.trim().charAt(0) || '?').toUpperCase())}</span><span id="ct-pn">${esc(nm)}</span></div><div class="wab">${t('ct.wa')}</div></div>
       <p class="lead" style="margin-top:14px">${t('ct.saves')}</p></div>`, null, true);
   }

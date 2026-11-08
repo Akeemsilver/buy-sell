@@ -130,3 +130,5 @@ a{color:inherit;cursor:pointer}
 .mp-bot{position:absolute;left:0;right:0;bottom:0;z-index:600;background:#fff;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 20px rgba(0,0,0,.15);border-radius:18px 18px 0 0}.mp-bot small{display:block;color:var(--mute);margin-bottom:10px;font-size:13px;min-height:16px}.mp-bot .big-btn{width:100%}
 .mp-cancel{display:block;width:100%;margin-top:8px;border:0;background:none;color:var(--mute);font-weight:700;padding:8px}
 .leaflet-container{font-family:inherit}.mp .leaflet-control-attribution{font-size:10px;margin-bottom:0}
+/* hints inside empty fields are clearly fainter than typed text */
+input::placeholder,textarea::placeholder{color:currentColor;opacity:.4}

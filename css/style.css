@@ -1033,3 +1033,5 @@ a.ic:active,.ap .rw .ibtn:active{transform:translateY(1px) scale(.97);box-shadow
 :root[data-theme=dark] .btn.rs{color:#ff9a9a;border-color:rgba(255,154,154,.45)}
 .b22 .btn.slim{min-height:44px;height:44px;font-size:15px;font-weight:700}
 .b22 .btn.primary{font-size:15px}
+/* hints inside empty fields are clearly fainter than typed text */
+input::placeholder,textarea::placeholder{color:currentColor;opacity:.4}

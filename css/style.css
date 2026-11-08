@@ -1033,3 +1033,11 @@ a.ic:active,.ap .rw .ibtn:active{transform:translateY(1px) scale(.97);box-shadow
 :root[data-theme=dark] .btn.rs{color:#ff9a9a;border-color:rgba(255,154,154,.45)}
 .b22 .btn.slim{min-height:44px;height:44px;font-size:15px;font-weight:700}
 .b22 .btn.primary{font-size:15px}
+/* hints inside empty fields are clearly fainter than typed text */
+input::placeholder,textarea::placeholder{color:currentColor;opacity:.4}
+
+/* customer page: Owes on the Last bought row, language chip bottom right, name across the full width */
+.cpage .cp-hero .who .nm{white-space:nowrap;overflow:hidden;text-overflow:clip}.cpage .cp-hero .who .nm.wrap{white-space:normal;line-height:1.12;overflow:visible}
+.cp-hero .lastrow,.cp-hero .locrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.cp-hero .lastrow small{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cp-hero .lastrow .pill{flex:none;margin:0}.cp-hero .locrow .cp-loc{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:999px;background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.28);color:#fff;font-weight:900;font-size:13px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.35);white-space:nowrap;flex:none;position:relative;top:9px;width:auto;min-height:0;height:auto}.lg-chip i{font-style:normal;font-size:15px}.lg-chip:active{transform:scale(.96)}
+.lg-field{margin-top:14px}.lg-field label{display:block;font-size:13px;margin-bottom:6px}.lg-seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.lg-seg button{text-align:center;padding:13px 0;min-height:0;border-radius:12px;border:1px solid var(--line);font-weight:800;color:var(--mute);background:var(--card)}.lg-seg button.on{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}

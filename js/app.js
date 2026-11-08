@@ -614,7 +614,7 @@
         ${trow('🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'], 'data-act="pick-lang"')}
         ${trow('🌓', t('set.appearance'), themeName, 'data-act="pick-appearance"')}
         ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
-        ${trow('🗣️', t('set.custLang'), { ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}</div>
+        ${trow('🗣️', t('set.custLang'), { auto: t('cust.auto'), ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}</div>
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
         ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}
         <div class="row srow"><span class="tile">🛍️</span><div class="grow"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div>
@@ -638,7 +638,7 @@
     if (custMode() !== 'ask') return Promise.resolve(custLang());
     return new Promise((ok) => {
       let done = false; const finish = (v) => { if (!done) { done = true; ok(v); } };
-      window.__shareLang = (lang) => { const ck = $('#sl-never'); if (ck && ck.checked) { setPref('custLang', lang); } finish(lang); };      // 'don't ask again' = from now on always this language
+      window.__shareLang = (lang) => { const ck = $('#sl-never'); if (ck && ck.checked) { setPref('custLangV2', lang); } finish(lang); };      // 'don't ask again' = from now on always this language
       openSmall(`<h3>${t('share.langTitle')}</h3><p class="muted small">${t('share.langSub')}</p>
         <div class="btns" style="margin-top:12px">${Object.keys(I.LANGS).map((l) => `<button class="btn primary" data-act="share-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
         <label class="chkrow"><input type="checkbox" id="sl-never"><span>${t('share.dontAsk')}</span></label>
@@ -840,7 +840,7 @@
     if ($('#sheet').hidden) return;
     voiceStop();
     pageStack = [];
-    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small', 'pick', 'hdr'); document.body.classList.remove('page-open'); invLangSession = null; document.body.style.overflow = '';
+    $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small', 'pick', 'hdr'); document.body.classList.remove('page-open'); invLangSession = null; invLangAuto = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
     syncKeyboard();
@@ -1347,11 +1347,21 @@
   const INV = { mauve: '#cea8bd', band: '#e6d2db', grey: '#767676', mid: '#545454' };
   // "Language for customers" (Settings) decides invoices and the caption of shared photos: same as the app, English or Spanish.
   // The English | Español switch on an invoice only changes that invoice while it is open.
-  let invLangSession = null, invLangAuto = false;   // Auto = the language the customer chose on the store page
-  // custMode: 'ask' (the default: ask when sharing), 'app' (same as the app), 'en' or 'es'. Older saved choices carry over.
-  const custMode = () => { const v = pref('custLang', null); if (v === 'ask' || v === 'app' || v === 'en' || v === 'es') return v; return pref('askShareLang', true) ? 'ask' : 'app'; };
+  let invLangSession = null, invLangAuto = null;   // an English / Español pick for the invoice on screen; invLangAuto true/false once Auto was tapped / left
+  // custMode: 'auto' (the default: the invoice shows in the app's language, and what is sent goes out in the customer's), 'app', 'en', 'es' or 'ask' (photo captions only). Saved under a new key, so everyone starts on Auto.
+  const custMode = () => { const v = pref('custLangV2', null); return v === 'auto' || v === 'ask' || v === 'app' || v === 'en' || v === 'es' ? v : 'auto'; };
   const custLang = () => { const m = custMode(); return m === 'en' || m === 'es' ? m : I.getLang(); };
-  const invoiceLang = () => invLangSession || custLang();
+  const autoActive = () => invLangSession == null && (invLangAuto !== null ? invLangAuto : custMode() === 'auto');
+  const invoiceLang = () => invLangSession || (invLangAuto === true ? I.getLang() : custLang());
+  // The language each customer reads, remembered from earlier sends (store orders already carry the language the customer used)
+  const clientKey = (n) => String(n || '').trim().toLowerCase();
+  const savedLang = (name) => { const m = (state.settings.clientLang || {})[clientKey(name)]; return m === 'en' || m === 'es' ? m : ''; };
+  const setClientLang = (name, lang) => { if (!clientKey(name)) return; const cur = Object.assign({}, state.settings.clientLang); if (lang === 'en' || lang === 'es') cur[clientKey(name)] = lang; else delete cur[clientKey(name)]; state.settings.clientLang = cur; save(); };
+  const rememberLang = (name, lang) => { if ((lang === 'en' || lang === 'es') && savedLang(name) !== lang) setClientLang(name, lang); };
+  const orderLangOf = (name) => { const o = Store.orders().filter((x) => clientKey(x.name) === clientKey(name) && (x.lang === 'en' || x.lang === 'es')).sort((a, b) => (Store.when(b) || 0) - (Store.when(a) || 0))[0]; return o ? o.lang : ''; };
+  const knownLang = (no, name) => { const m = savedLang(name); if (m) return m; const o = no ? orderOfInvoice(no) : null; if (o && (o.lang === 'en' || o.lang === 'es')) return o.lang; return orderLangOf(name) || null; };
+  const langFor = (v) => (autoActive() ? knownLang(v.no, v.client) : invoiceLang());   // null = Auto does not know yet: ask
+  const underLang = (lang, fn) => { if (!lang) return fn(); const prev = invLangSession; invLangSession = lang; try { return fn(); } finally { invLangSession = prev; } };
   const ti = (key, vars) => t(key, vars, invoiceLang());
   const bannerSrc = () => (invoiceLang() === 'es' ? 'icons/invoice-banner-es.jpg' : 'icons/invoice-banner.jpg');
   // Invoice design (Settings): the picture at the top and the colours of the table. 'classic' is the flower picture; the others are drawn here.
@@ -1445,7 +1455,7 @@
     const hist = chain.length > 1 ? `<div class="hist"><h4>${t('inv.history')}</h4>${chain.slice().reverse().map((h) => `<button class="hrow ${h.no === v.no ? 'now' : ''}" data-act="inv-swap" data-id="${h.no}"><span class="hl"><b>${h.no}</b><small>${dShort(h.date)}${h.no === v.no ? ' · ' + t('inv.histNow') : ''}</small></span><span class="hr"><b>${t('inv.histPaid', { amt: money(h.amountPaid) })}</b><small class="${h.balance > 0 ? 'bad' : 'good'}">${h.balance > 0 ? t('inv.histOwes', { amt: money(h.balance) }) : t('inv.histFull')}</small></span></button>`).join('')}</div>` : '';
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
     const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(x.desc || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${offStrip(x)}${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(x.desc || x.id)}</span></button>`; }).join('')}</div></div>` : '';
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}${v0.returnNote.fee > 0 ? ' · ' + t('inv.feeIn', { amount: money(v0.returnNote.fee) }) : ''}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg three small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px">${Object.keys(I.LANGS).map((l) => `<button class="${lg === l && !invLangAuto ? 'on' : ''}" role="radio" aria-checked="${lg === l && !invLangAuto}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}<button class="${invLangAuto ? 'on' : ''}" role="radio" aria-checked="${invLangAuto}" data-act="inv-lang" data-id="auto" data-no="${v.no}">${t('inv.auto')}</button></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}${v0.returnNote.fee > 0 ? ' · ' + t('inv.feeIn', { amount: money(v0.returnNote.fee) }) : ''}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg three small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px"><button class="${autoActive() ? 'on' : ''}" role="radio" aria-checked="${autoActive()}" data-act="inv-lang" data-id="auto" data-no="${v.no}">${t('inv.auto')}</button>${Object.keys(I.LANGS).map((l) => `<button class="${lg === l && !autoActive() ? 'on' : ''}" role="radio" aria-checked="${lg === l && !autoActive()}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
         <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
@@ -1457,7 +1467,7 @@
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? ` · ${t('invUI.profit')} ${money(v.profit)}` : ''}${!v0.void && v.loss ? ` · ${t('invUI.loss')} ${money(v.loss)}` : ''}${!v0.void && v.tip ? ` · ${t('invUI.tip')} ${money(v.tip)}` : ''}</div>
       ${hist}${thumbs}${spotRow}
-      <div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
+      ${(() => { const who = esc(v.client || ''), k = autoActive() ? knownLang(v.no, v.client) : invoiceLang(); return `<p class="muted small sendnote">${autoActive() ? (k ? t('inv.sendAuto', { lang: I.LANGS[k]['lang.name'], who }) : t('inv.sendAsk', { who })) : t('inv.sendFixed', { lang: I.LANGS[k]['lang.name'] })}</p>`; })()}<div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
       ${(() => { const rr = isLatest && !v0.void && state.items.some((x) => x.invoice === v.no), cc = isLatest && !v0.void; return (rr ? `<button class="btn rs ${cc ? '' : 'span2'}" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : '') + (cc ? `<button class="btn rs ${rr ? '' : 'span2'}" data-act="del-inv" data-id="${v.no}">${t('invUI.cancel')}</button>` : ''); })()}<button class="btn slim span2" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
     setTimeout(() => { if (!$('#sheet').hidden && $('#sheet .inv')) prefetchPdf(v.no); }, 600);   // build the PDF now, so Share answers the tap at once
@@ -1545,37 +1555,54 @@
   // The invoice PDF is built ahead of time, as soon as the invoice screen is open, so Share can answer the tap at once:
   // the phone only allows its share sheet right after a tap, and drawing the sheet takes a few seconds.
   let pdfCache = null, pdfBusy = null;
-  const pdfKey = (v) => JSON.stringify([v, state.settings, invLangSession, invDesignId(), stampKind(v), invNote(v), state.items.length]);
+  const pdfKey = (v) => JSON.stringify([v, Object.assign({}, state.settings, { clientLang: 0 }), invLangSession, invDesignId(), stampKind(v), invNote(v), state.items.length]);
   async function buildInvoicePdf(v) {
     const blob = await invoiceCanvas(v, 'image/png', false, 2.6);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
     const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
     const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
     return new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
   }
-  function readyPdf(v) {   // a promise for this invoice's PDF: the finished one, the one being built, or a new one
-    const key = pdfKey(v);
+  function readyPdf(v, lang) {   // a promise for this invoice's PDF (in the customer's language when given): the finished one, the one being built, or a new one
+    const key = underLang(lang, () => pdfKey(v));
     if (pdfCache && pdfCache.key === key) return Promise.resolve(pdfCache.file);
     if (pdfBusy && pdfBusy.key === key) return pdfBusy.p;
-    const p = buildInvoicePdf(v).then((file) => { pdfCache = { key, file }; return file; }).finally(() => { if (pdfBusy && pdfBusy.key === key) pdfBusy = null; });
+    const prev = invLangSession; if (lang) invLangSession = lang;
+    let bp; try { bp = buildInvoicePdf(v); } catch (e) { if (lang && invLangSession === lang) invLangSession = prev; throw e; }
+    const p = bp.then((file) => { pdfCache = { key, file }; return file; }).finally(() => { if (lang && invLangSession === lang) invLangSession = prev; if (pdfBusy && pdfBusy.key === key) pdfBusy = null; });
     pdfBusy = { key, p }; return p;
   }
-  const prefetchPdf = (no) => { const v = state.invoices.find((x) => x.no === no); if (v) readyPdf(v).catch(() => { /* built again when Share is tapped */ }); };
-  const sharePdfFile = (v, file) => navigator.share({ files: [file], title: v.no, text: ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) }) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+  const prefetchPdf = (no) => { const v = state.invoices.find((x) => x.no === no); if (v) readyPdf(v, langFor(v) || undefined).catch(() => { /* built again when Share is tapped */ }); };
+  const sharePdfFile = (v, file, lang) => navigator.share({ files: [file], title: v.no, text: underLang(lang, () => ti('doc.shareText', { no: v.no, amount: invMoney(v.balance) })) }).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
   const savePdfFile = (file) => { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); };
+  // Auto does not know which language this customer reads yet: ask once (the answer is remembered)
+  function askClientLang(name) {
+    return new Promise((ok) => {
+      let done = false; const finish = (v) => { if (!done) { done = true; ok(v); } };
+      window.__clLang = finish;
+      openSmall(`<h3>${t('cl.title', { who: esc(name || '') })}</h3><p class="muted small">${t('cl.sub')}</p>
+        <div class="btns" style="margin-top:12px">${Object.keys(I.LANGS).map((l) => `<button class="btn primary" data-act="cl-pick" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}<button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card', () => finish(null));
+    });
+  }
   function shareInvoicePdf(no, download) {
     const v = state.invoices.find((x) => x.no === no); if (!v) return;
+    const explicit = invLangSession != null && !autoActive(), lang0 = langFor(v);
+    if (lang0 === null) return askClientLang(v.client).then((l) => { if (!l) return; rememberLang(v.client, l); return sendPdf(v, l, download); });
+    if (explicit) rememberLang(v.client, lang0);
+    return sendPdf(v, lang0, download);
+  }
+  function sendPdf(v, lang, download) {
     const canShare = (f) => !download && navigator.canShare && navigator.canShare({ files: [f] });
-    if (pdfCache && pdfCache.key === pdfKey(v)) {   // already built: answer the tap straight away
+    if (pdfCache && pdfCache.key === underLang(lang, () => pdfKey(v))) {   // already built: answer the tap straight away
       const f = pdfCache.file;
-      if (canShare(f)) return sharePdfFile(v, f).catch((e) => toast('⚠️ ' + errMsg(e)));
+      if (canShare(f)) return sharePdfFile(v, f, lang).catch((e) => toast('⚠️ ' + errMsg(e)));
       savePdfFile(f); return toast(download ? t('doc.saved') : t('doc.noSharePdf'));
     }
     toast(t('doc.preparingPdf'));
-    readyPdf(v).then((f) => {
+    readyPdf(v, lang).then((f) => {
       if (!canShare(f)) { savePdfFile(f); return toast(download ? t('doc.saved') : t('doc.noSharePdf')); }
       // the phone may let the tap expire while the PDF is drawn: try, and if it refuses ask for one more tap
-      return sharePdfFile(v, f).catch((e) => {
-        if (e && e.name === 'NotAllowedError') return askCard(t('doc.pdfReady'), { ok: t('invUI.shareBtn'), title: t('doc.pdfReadyTitle') }).then((y) => (y ? sharePdfFile(v, f).catch((er) => toast('⚠️ ' + errMsg(er))) : undefined));
+      return sharePdfFile(v, f, lang).catch((e) => {
+        if (e && e.name === 'NotAllowedError') return askCard(t('doc.pdfReady'), { ok: t('invUI.shareBtn'), title: t('doc.pdfReadyTitle') }).then((y) => (y ? sharePdfFile(v, f, lang).catch((er) => toast('⚠️ ' + errMsg(er))) : undefined));
         throw e;
       });
     }).catch((e) => toast('⚠️ ' + errMsg(e)));
@@ -1609,11 +1636,14 @@
   }
 
   // Edit a customer: name (changes it everywhere) and where they are from.
+  let clName = '', ceLang = '';
   function sheetCustEdit(name) {
+    ceLang = savedLang(name);
     enterPage('custedit', name, () => sheetCustEdit(name));
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('cust.editTitle')}</b><small>${esc(name)}</small></div></div>
       <div style="height:8px"></div><label for="ce-name">${t('cust.name')}</label><input id="ce-name" value="${esc(name)}" autocomplete="off" enterkeyhint="done">
       <label for="ce-loc">📍 ${t('cust.location')}</label><input id="ce-loc" value="${esc(L.place(state, name))}" placeholder="${t('cust.placePh')}" autocomplete="off" enterkeyhint="done">
+      <div class="lg-field"><label>🗣️ ${t('cl.field')}</label><div class="lg-seg"><button type="button" class="${ceLang === '' ? 'on' : ''}" data-act="ce-lang" data-id="">${t('inv.auto')}</button><button type="button" class="${ceLang === 'en' ? 'on' : ''}" data-act="ce-lang" data-id="en">EN</button><button type="button" class="${ceLang === 'es' ? 'on' : ''}" data-act="ce-lang" data-id="es">ES</button></div></div>
       <p class="muted small" style="margin:10px 2px">${t('cust.renameNote')}</p>
       <div class="btns"><button class="btn primary" data-act="cust-save" data-id="${esc(name)}">${t('btn.save')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, null, true);
   }
@@ -1638,11 +1668,13 @@
         ${due ? `<div class="c2-bar"><i style="width:${pct}%"></i></div>` : ''}${pinRow(orderOfInvoice(v.no))}</div>`;
     };
     openSheet(`<div class="cpage"><div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
-      <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><small>${invs.length ? lastCap : since}</small><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button></div><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div>
+      <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><div class="lastrow"><small>${invs.length ? lastCap : since}</small><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div><div class="locrow"><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button><button class="lg-chip" data-act="cust-lang" data-id="${esc(name)}" aria-label="${t('cl.field')}"><i>🗣️</i>${(() => { const k = savedLang(name) || orderLangOf(name); return k ? k.toUpperCase() : t('cl.chipAuto'); })()}</button></div></div></div>
       <div class="cp-tiles"><div class="tile ${owing ? 'bad' : ''}"><small>${t('cust.owingLabel')}</small><b>${moneyBare(c.owing)}</b></div><div class="tile"><small>${t('cust.totalSales')}</small><b>${moneyBare(c.sales)}</b></div>
         <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile"><small>${t('cust.profit')}</small><b>${moneyBare(c.profit)}</b></div></div>
       <h2>${t('cust.invoices')} <span class="muted" style="float:right;text-transform:none;letter-spacing:0">${invs.length}</span></h2>${invs.map(card).join('') || `<div class="muted">${t('cust.none')}</div>`}
       <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p></div>`, null, true);
+    const nmEl = document.querySelector('#sheet .cp-hero .nm');   // a long name gets smaller type first, then a second line, so nothing is cut off
+    if (nmEl) { const base = parseFloat(getComputedStyle(nmEl).fontSize); let f = base; while (nmEl.scrollWidth > nmEl.clientWidth && f > base * 0.7) { f -= 1; nmEl.style.fontSize = f + 'px'; } if (nmEl.scrollWidth > nmEl.clientWidth) nmEl.classList.add('wrap'); }
   }
 
   /* ---------- online store: settings, orders ---------- */
@@ -1698,7 +1730,7 @@
     const c = storeCfg(), nm = c.name || bizName();
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.contact')}</b><small>${t('ct.sub')}</small></div></div>
       <div class="pd"><div class="fld"><label for="ct-name">${t('store.name')}</label><input id="ct-name" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"><small>${t('ct.nameSub')}</small></div>
-      <div class="fld"><label for="ct-wa">${t('store.whatsapp')}</label><input id="ct-wa" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="1 868 555 0100" autocomplete="off" enterkeyhint="done"><small>${t('ct.waSub')}</small></div>
+      <div class="fld"><label for="ct-wa">${t('store.whatsapp')}</label><input id="ct-wa" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="${t('ex.label')} 1 868 555 0100" autocomplete="off" enterkeyhint="done"><small>${t('ct.waSub')}</small></div>
       <div class="pvw"><div class="cap">${t('ct.how')}</div><div class="top"><span class="lg" id="ct-pl">${esc((nm.trim().charAt(0) || '?').toUpperCase())}</span><span id="ct-pn">${esc(nm)}</span></div><div class="wab">${t('ct.wa')}</div></div>
       <p class="lead" style="margin-top:14px">${t('ct.saves')}</p></div>`, null, true);
   }
@@ -1943,7 +1975,7 @@
   }
   // Opens WhatsApp to the customer with the message already written (the owner taps Send). In the customer's own language when the order carries it.
   function waOpen(o, key, inv) {
-    const lang = o.lang === 'es' || o.lang === 'en' ? o.lang : undefined, plain = (n) => 'TT$ ' + (Number(n) || 0).toFixed(2);
+    const lang = o.lang === 'es' || o.lang === 'en' ? o.lang : (knownLang('', o.name) || undefined), plain = (n) => 'TT$ ' + (Number(n) || 0).toFixed(2);
     const names = (inv ? state.items.filter((i) => i.invoice === inv.no) : []).map((i) => (lang === 'es' ? esName(i) : i.desc) + (i.size ? ' (' + i.size + ')' : '')).join(', ') || tn('notif.items', (o.items || []).length, {}, lang);
     let where = (o.option === 'delivery' ? t('store.delivery', {}, lang) : t('store.pickup', {}, lang)) + ' · ' + o.location;
     const pin = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null; if (pin) where += ' 📍 ' + SCore.mapLinks(pin.lat, pin.lng).view + ' ';   // the space keeps the full stop out of the link
@@ -2100,7 +2132,8 @@
       case 'set-theme': theme = id; setPref('theme', theme); applyTheme(); closeSheet(); return render();
       case 'set-lang': I.setLang(id, true); applyStaticText(); closeSheet(); return render();
       case 'inv-swap': return sheetInvoice(id, true);
-      case 'inv-lang': { invLangAuto = id === 'auto'; if (invLangAuto) { const ao = orderOfInvoice(t_.dataset.no); invLangSession = ao && (ao.lang === 'en' || ao.lang === 'es') ? ao.lang : null; } else invLangSession = id; return sheetInvoice(t_.dataset.no); }
+      case 'inv-lang': { if (id === 'auto') { invLangSession = null; invLangAuto = true; } else { invLangSession = id; invLangAuto = false; } return sheetInvoice(t_.dataset.no); }
+      case 'cl-pick': { const f = window.__clLang; if (f) f(id); closeSheet(); return; }
       case 'install':
         if (installEvt) { const ev = installEvt; installEvt = null; render(); ev.prompt(); return ev.userChoice.then((r) => { if (r.outcome === 'accepted') setPref('installed', true); }).catch(() => {}); }
         return sheetInstallHelp();
@@ -2134,7 +2167,7 @@
       case 'pick-lang': return sheetChoice(t('set.language'), 'set-lang', I.getLang(), Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]));
       case 'pick-appearance': return sheetChoice(t('set.appearance'), 'set-theme', theme, [['light', t('set.light')], ['dark', t('set.dark')], ['auto', t('set.auto')]]);
       case 'share-lang': { const f = window.__shareLang; if (f) f(id); closeSheet(); return; }     // answer first: closing the pop-up counts as 'cancel'
-      case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
+      case 'pick-custlang': return sheetChoice(t('set.custLang'), 'set-custlang', custMode(), [['auto', t('cust.auto')], ...Object.keys(I.LANGS).map((l) => [l, I.LANGS[l]['lang.name']]), ['app', t('cust.same')], ['ask', t('cust.ask')]], t('cust.note'));
       case 'pick-keep': return sheetChoice(t('set.keepRow'), 'set-keep', photoKeep(), ['1', '2', '7', 'sold'].map((k) => [k, t('keep.' + k)]), t('keep.note'));
       case 'set-keep': state.settings.photoKeep = id; save(); closeSheet(); PUI.sweep(photoKeep()); return render();
       case 'return-open': { const ro = t_.dataset.ord || ''; return askCard(t('ret.popDesc'), { title: t('ret.popTitle'), ok: t('ret.popOk'), no: t('ret.popNo') }).then((y) => { if (y) sheetReturn(id, ro); }); }
@@ -2157,7 +2190,7 @@
       }
       case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.thumbsAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
       case 'free-space': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.freeAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
-      case 'set-custlang': setPref('custLang', id); closeSheet(); return render();
+      case 'set-custlang': setPref('custLangV2', id); closeSheet(); return render();
       case 'check-update': return checkUpdate();
       case 'check-rules': return checkRules();
       case 'draft-palette': themeDraft = id; return render();
@@ -2322,10 +2355,13 @@
         setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
       case 'customer': return sheetCustomer(id);
       case 'cust-edit': return sheetCustEdit(id);
+      case 'cust-lang': { clName = id; return sheetChoice(t('cl.popTitle', { who: esc(id) }), 'cl-set', savedLang(id) || 'auto', [['auto', t('cl.optAuto')], ['en', I.LANGS.en['lang.name'] + ' · EN'], ['es', I.LANGS.es['lang.name'] + ' · ES']], t('cl.popNote', { who: esc(id) })); }
+      case 'cl-set': { setClientLang(clName, id === 'auto' ? '' : id); closeSheet(); return; }
+      case 'ce-lang': { ceLang = id; document.querySelectorAll('#sheet .lg-seg button').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); return; }
       case 'cust-save': {
         const to = $('#ce-name').value, loc = $('#ce-loc').value;
         const save2 = () => { try {
-          const final = L.renameCustomer(state, id, to); L.setPlace(state, final, loc); save(); tidyPhotos();
+          const final = L.renameCustomer(state, id, to); L.setPlace(state, final, loc); if (clientKey(id) !== clientKey(final)) setClientLang(id, ''); setClientLang(final, ceLang); save(); tidyPhotos();
           pageStack = pageStack.filter((p) => p.key !== 'custedit|' + id && p.key !== 'customer|' + id); toast(t('cust.saved')); render(); return sheetCustomer(final);
         } catch (e) { return toast('⚠️ ' + errMsg(e)); } };
         if (L.cleanName(to).toLowerCase() !== id.toLowerCase() && L.otherCustomerNamed(state, id, to)) return askCard(t('cust.mergeAsk', { name: L.canonicalName(state, to), old: id }), { ok: t('cust.mergeOk') }).then((y) => { if (y) save2(); });

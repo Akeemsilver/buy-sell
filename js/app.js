@@ -148,6 +148,9 @@
     if (/unavailable/.test(c)) return t('acct.err.unavailable');
     return t('acct.err.generic');
   };
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const lastEmail = () => { try { return localStorage.getItem('buy-sell-last-email') || ''; } catch (e) { return ''; } };
+  const rememberEmail = (em) => { try { if (em) localStorage.setItem('buy-sell-last-email', em); } catch (e) { /* private mode */ } };
   const acctStatus = () => t('acct.st.' + cloud.status);
   function acctCard() {
     return cloud.signedIn
@@ -156,7 +159,7 @@
       : `<div class="row tap" data-act="acct-open" role="button"><div class="grow"><b>${t('acct.notSignedIn')}</b><small>${t('acct.signInSub')}</small></div><span class="chev">›</span></div>`;
   }
   function sheetAccount() {
-    if (cloud.signedIn) return openSheet(`<h3>${t('acct.title')}</h3>${acctCard()}<div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
+    if (cloud.signedIn) return openSheet(`<h3>${t('acct.title')}</h3>${acctCard()}${Cloud.hasPassword && !Cloud.hasPassword() ? `<form id="f-addpw" class="card" style="padding:14px;margin-top:14px"><b>${t('acct.addPw')}</b><p class="muted small">${t('acct.addPwSub')}</p><span class="pwbox"><input name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="${t('acct.password')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><div id="acct-err" class="err" hidden></div><button class="btn primary" style="margin-top:10px;width:100%">${t('acct.addPwBtn')}</button></form>` : ''}<div class="btns"><button class="btn" data-act="close">${t('btn.close')}</button></div>`);
     openSheet(`<h3>${t('acct.title')}</h3><p class="muted small">${t('acct.signInSub')}</p>
       <button class="btn g-google" data-act="acct-google" style="margin-top:12px">${GOOGLE_G}<span>${t('acct.google')}</span></button>
       <p class="muted small" style="text-align:center;margin:8px 4px 0">${t('acct.googleNote')}</p>
@@ -207,14 +210,18 @@
     if (v === 'welcome') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.welcome')}</h1><p class="g-mute">${t('gate.tag')}</p>
       <button class="g-btn primary" data-act="gate-create">${t('gate.create')}</button><button class="g-btn" data-act="gate-have">${t('gate.have')}</button>
       <p class="g-small">${t('gate.note')}</p><button class="g-link" data-act="gate-skip">${t('gate.skip')}</button><p class="g-small">${t('gate.skipNote')}</p></div>`;
-    if (v === 'auth') return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
-      <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
-      <button class="g-btn g-google" data-act="gate-google" style="margin-top:16px">${GOOGLE_G}<span>${t('acct.google')}</span></button><p class="g-small" style="text-align:center;margin-top:8px">${t('acct.googleNote')}</p><p class="g-small" style="text-align:center">${t('acct.or')}</p>
-      <form id="f-gate"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" required>
+    if (v === 'auth') {
+      const gbtn = `<button class="g-btn g-google" data-act="gate-google">${GOOGLE_G}<span>${t('acct.google')}</span></button><p class="g-small" style="text-align:center;margin-top:8px">${t('acct.googleNote')}</p>`;
+      const form = `<form id="f-gate"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" value="${gateMode === 'in' ? esc(lastEmail()) : ''}" required>
       <label>${t('acct.password')}</label><span class="pwbox"><input name="password" type="password" autocomplete="${gateMode === 'create' ? 'new-password' : 'current-password'}" minlength="6" required><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span>
       <div id="g-err" class="g-err" hidden></div>
       <button class="g-btn primary" style="margin-top:18px">${gateMode === 'create' ? t('acct.create') : t('acct.signIn')}</button>
-      ${gateMode === 'in' ? `<button type="button" class="g-link" data-act="gate-forgot">${t('acct.forgot')}</button>` : ''}</form></div>`;
+      ${gateMode === 'in' ? `<button type="button" class="g-link" data-act="gate-forgot">${t('acct.forgot')}</button>` : ''}</form>`;
+      const or = `<p class="g-small" style="text-align:center;margin:14px 0">${t('acct.or')}</p>`;
+      return `<div class="g-wrap"><button class="g-link" data-act="gate-back">‹ ${t('gate.back')}</button>
+      <div class="g-tabs" role="tablist"><button class="${gateMode === 'create' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="create">${t('gate.tabCreate')}</button><button class="${gateMode === 'in' ? 'on' : ''}" role="tab" data-act="gate-tab" data-id="in">${t('gate.tabSignIn')}</button></div>
+      ${IOS ? `<p class="g-small" style="margin:14px 2px 0">${t('gate.iosHint')}</p>${form}${or}${gbtn}` : `<div style="margin-top:16px">${gbtn}</div>${or}${form}`}</div>`;
+    }
     if (v === 'choose') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.chooseTitle')}</h1><p class="g-mute">${t('gate.chooseSub')}</p>
       <button class="g-btn primary" data-act="gate-newbiz">${t('gate.newBiz')}</button><button class="g-btn" data-act="gate-joinbiz">${t('gate.joinBiz')}</button>
       <div id="g-err" class="g-err" hidden></div><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;
@@ -2595,10 +2602,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
-    if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
+    if (f.id === 'f-addpw') { acctShow(''); return Cloud.addPassword(d.password).then(() => { toast(t('acct.pwAdded')); sheetAccount(); }).catch((e) => acctShow(/requires-recent-login/.test((e && e.code) || '') ? t('acct.pwRecent') : /provider-already-linked|credential-already-in-use|email-already-in-use/.test((e && e.code) || '') ? t('acct.pwHave') : acctErr(e))); }
+    if (f.id === 'f-gate') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-join') { gateErr(''); return Cloud.joinByCode(d.code).catch((e) => gateErr(e && e.code === 'join/invalid' ? t('join.invalid') : e && e.code === 'join/short' ? t('join.short') : t('gate.err', { m: (e && e.message) || '' }))); }
     if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
-    if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
+    if (f.id === 'f-acct') { acctShow(t('acct.working')); const em = d.email.trim(); rememberEmail(em); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; const sc = storeCfg(); if (sc.id && sc.autoNew && !sc.batches.includes(b.id)) storeSet({ batches: sc.batches.concat(b.id) }); } }
     if (f.id === 'f-clear') { let failed = false; const wasOpen = clearOpen.has(d.batch); clearOpen.delete(d.batch); run(() => { try { return L.payClearing(state, d.batch, d.amount); } catch (err2) { failed = true; throw err2; } }, t('clear.recorded', { id: bl(d.batch) }), true); if (!failed) sheetBatch(d.batch); else if (wasOpen) clearOpen.add(d.batch); }
     if (f.id === 'f-receive') return askReceived(d.batch);

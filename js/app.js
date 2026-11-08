@@ -1435,14 +1435,14 @@
     if (lbl.length > 1) {   // two lines, same bold lettering as PAID IN FULL, one size for both lines and both languages
       let hs = 32; const hf = (z) => `900 ${z}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`, wd = (l, z) => { x.font = hf(z); return x.measureText(l).width + (l.length - 1) * 3; };
       while (Math.max(...lbl.map((l) => wd(l, hs))) > 395 && hs > 20) hs -= 2; x.font = hf(hs);
-      spaced(lbl[0], W / 2, 104, 3); spaced(lbl[1], W / 2, 104 + hs + 12, 3); x.fillRect(82, 104 + hs + 24, 396, 2.5);
+      spaced(lbl[0], W / 2, 94, 3); spaced(lbl[1], W / 2, 94 + hs + 10, 3); x.fillRect(82, 94 + hs + 22, 396, 2.5);
     } else {
     let size = 74; const face = (s) => `900 ${s}px Roboto, "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     x.font = face(size); while (x.measureText(label).width + (label.length - 1) * 5 > 395 && size > 26) { size -= 2; x.font = face(size); }
     spaced(label, W / 2, 128, 5);
     x.fillRect(82, 145, 396, 2.5);
     }
-    x.font = `700 21px Roboto, "Helvetica Neue", Arial, sans-serif`; spaced(`B-RUIZ  •  ${dateText}`, W / 2, 177, 3);
+    x.font = `700 21px Roboto, "Helvetica Neue", Arial, sans-serif`; spaced(`B-RUIZ  •  ${dateText}`, W / 2, lbl.length > 1 ? 182 : 177, 3);
     // worn ink: speckles and a few rough patches knocked out, deterministic per invoice
     x.shadowBlur = 0; x.globalCompositeOperation = 'destination-out';
     for (let i = 0; i < 2600; i++) { x.fillStyle = `rgba(0,0,0,${0.35 + rnd() * 0.65})`; x.beginPath(); x.arc(rnd() * W, rnd() * H, 0.35 + rnd() * rnd() * 1.7, 0, 7); x.fill(); }
@@ -1925,7 +1925,7 @@
   const orderPin = (o) => (o && o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null);
   const orderOfInvoice = (no) => Store.orders().find((o) => o.invoice && L.invoiceForward(state, o.invoice).some((x) => x.no === no));
   const orderOfItem = (id) => Store.orders().filter((o) => o.status !== 'declined' && (o.items || []).some((i) => i.id === id)).sort((a, b) => (Store.when(b) || 0) - (Store.when(a) || 0))[0];
-  const pinRow = (o) => { const gp = orderPin(o); return gp ? `<div class="dspot-c"><span class="dp" aria-hidden="true">📍</span><span class="dt">${esc(o.spot || t('spot.h'))}</span>${spotBtns(gp)}</div>` : ''; };   // one slim row: the pin, the place, and the Google Maps and Waze icons
+  const pinRow = (o) => { const gp = orderPin(o); return gp ? `<div class="dspot-c"><span class="dp" aria-hidden="true">📍</span><span class="dt">${esc(o.spot || t('spot.h'))}</span><a class="navbtn" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener" aria-label="${t('km.navigate')}" title="${t('km.navigate')}">${NAV_ICON}</a></div>` : ''; };   // one slim row: the pin, the place, and the Google Maps and Waze icons
   const ICON_GMAPS = '<img src="icons/gmaps.png" alt="" width="40" height="40">', ICON_WAZE = '<img src="icons/waze.png" alt="" width="40" height="40">';   // the Google Maps and Waze app icons (copied from the seller's own phone)
   const spotBtns = (gp) => { const ml = SCore.mapLinks(gp.lat, gp.lng); return `<a class="ic" data-act="pin-open" href="${ml.google}" target="_blank" rel="noopener" aria-label="Google Maps" title="Google Maps">${ICON_GMAPS}</a><a class="ic" data-act="pin-open" href="${ml.waze}" target="_blank" rel="noopener" aria-label="Waze" title="Waze">${ICON_WAZE}</a>`; };   // each icon with its name under it is one tap target
   // Delivered / Collected: asks first (a tap by mistake must not move the order on) and says where the order will go
@@ -2036,7 +2036,7 @@
       <div class="stackrow"><input id="km-in" type="text" inputmode="decimal" autocomplete="off" value="${o.km != null ? esc(Number(o.km).toFixed(1)) : ''}" placeholder="0.0"><button class="btn primary" data-act="km-save" data-id="${id}">${t('km.save')}</button></div>
       ${dset().home && SCore.geo(o.lat, o.lng) ? `<div class="btns" style="margin-top:10px"><button class="btn" data-act="km-reset" data-id="${id}">${t('km.reset')}</button></div>` : ''}`, 'card');
   }
-const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z" fill="currentColor" stroke="none"/></svg>';
+const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z" fill="currentColor" stroke="none"/></svg>';
   const navHref = (gp, label) => (/Android/i.test(navigator.userAgent) ? 'geo:' + gp.lat + ',' + gp.lng + '?q=' + gp.lat + ',' + gp.lng + '(' + encodeURIComponent(label || '') + ')' : SCore.mapLinks(gp.lat, gp.lng).google);   // geo: makes an Android phone list every map app it has
   const dlvCard = (o) => { if (o.option !== 'delivery') return ''; const gp = orderPin(o), km = kmNum(o); if (!gp && km == null) return '';
     const dist = km == null ? (dset().home ? t('km.measuring') : `<a data-act="dlv-home">${t('km.noHome')}</a>`) : (o.kmSrc === 'line' ? t('km.line2', { km: km.toFixed(1) }) : t('km.line', { km: km.toFixed(1) }) + (o.kmSrc === 'manual' ? ' · ' + t('km.manual') : '')) + ' · ' + t('dlv.roundTrip', { km: (km * 2).toFixed(1) });
@@ -2561,7 +2561,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" st
         if (L.cleanName(to).toLowerCase() !== id.toLowerCase() && L.otherCustomerNamed(state, id, to)) return askCard(t('cust.mergeAsk', { name: L.canonicalName(state, to), old: id }), { ok: t('cust.mergeOk') }).then((y) => { if (y) save2(); });
         return save2();
       }
-      case 'view-inv': return sheetInvoice(id);
+      case 'view-inv': { let n = state.invoices.find((x) => x.no === id), g = 0; while (n && n.updatedBy && g++ < 50) { const nx = state.invoices.find((x) => x.no === n.updatedBy); if (!nx || nx === n) break; n = nx; } return sheetInvoice(n ? n.no : id); }   // always opens the latest invoice; older ones are in its history
       case 'return-inv': return sheetReturn(id, '');
       case 'return-item': return askCard(t('item.returnItemAsk', { id }), { danger: true, ok: t('item.returnItem') }).then((y) => { if (y) { closeSheet(); run(() => L.returnItem(state, id), t('item.returned')); } });
       case 'del-inv': return askCard(t('inv.cancelDesc'), { title: t('inv.cancelTitle'), danger: true, ok: t('invUI.cancel'), no: t('inv.keep') }).then((y) => { if (!y) return; try { const pu = L.purchaseOf(state, id); if (pu && pu.items.length) L.returnItems(state, id, pu.items.map((x) => x.id), new Date(), 'cancelled'); save(); tidyPhotos(); toast(t('inv.cancelled', { id })); } catch (e) { return toast('⚠️ ' + errMsg(e)); } dropPages('invoice|' + id); render(); });

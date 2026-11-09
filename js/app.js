@@ -62,8 +62,11 @@
     if (places.length < 2) return false;
     places.pop(); const p = places[places.length - 1]; tab = p.tab; moreView = p.moreView; restoreY = p.y || 0; return true;
   }
+  // Coming back to a page opens it again from the top, so each page remembers how far it was scrolled when you left it.
+  function restoreSheetY(y) { if (!y) return; const sh = $('#sheet'), go = () => { sh.scrollTop = y; }; go(); requestAnimationFrame(go); setTimeout(go, 150); }
   function enterPage(kind, arg, open, swap) {   // every full-screen page calls this when it opens. swap: replace the page on top (no new step on the Back trail)
     if (reopening) return;
+    if (!swap) { const cur = pageStack[pageStack.length - 1], sh = $('#sheet'); if (cur && !sh.hidden && !sh.classList.contains('small')) cur.y = sh.scrollTop; }
     const key = kind + '|' + arg;
     if (swap && pageStack.length) { pageStack[pageStack.length - 1] = { key, open }; return; }
     const i = pageStack.findIndex((p) => p.key === key);
@@ -72,13 +75,13 @@
   }
   function pageBack() {   // one step back from a full-screen page: the page it was opened from, or close
     if ($('#sheet').classList.contains('small')) return closeSheet();   // a pop-up on top: just dismiss it
-    if (pageStack.length > 1) { pageStack.pop(); const prev = pageStack[pageStack.length - 1]; reopening = true; try { prev.open(); } finally { reopening = false; } render(); }
+    if (pageStack.length > 1) { pageStack.pop(); const prev = pageStack[pageStack.length - 1]; reopening = true; try { prev.open(); } finally { reopening = false; } render(); restoreSheetY(prev.y); }
     else closeSheet();
   }
   function dropPages(key) {   // forget pages that no longer exist (e.g. a deleted invoice), then show the one now on top
     pageStack = pageStack.filter((p) => p.key !== key);
     if (!pageStack.length) return closeSheet();
-    reopening = true; try { pageStack[pageStack.length - 1].open(); } finally { reopening = false; } render();
+    reopening = true; try { pageStack[pageStack.length - 1].open(); } finally { reopening = false; } render(); restoreSheetY(pageStack[pageStack.length - 1].y);
   }
   let stockBatch = null, stockFilter = 'All';
   let selected = new Set();
@@ -889,7 +892,7 @@
   const removeGhost = () => { if (ghost) { ghost.remove(); ghost = null; } };
   function openSmall(html, kind, onClose) {
     const sh = $('#sheet');
-    if (!sh.hidden && !sh.classList.contains('small') && pageStack.length) smallPrev = { stack: pageStack.slice(), open: pageStack[pageStack.length - 1].open };
+    if (!sh.hidden && !sh.classList.contains('small') && pageStack.length) smallPrev = { stack: pageStack.slice(), open: pageStack[pageStack.length - 1].open, y: sh.scrollTop };
     if (!sh.hidden && sh.classList.contains('full') && !sh.classList.contains('small')) {
       removeGhost(); ghost = document.createElement('div'); ghost.className = 'sheet full ghost'; ghost.setAttribute('aria-hidden', 'true');
       ghost.innerHTML = sh.innerHTML.replace(/\sid="/g, ' data-gid="'); document.body.appendChild(ghost); ghost.scrollTop = sh.scrollTop; keepGhost = true;
@@ -897,7 +900,7 @@
     openSheet(html, () => {
       removeGhost();
       const p = smallPrev; smallPrev = null; if (onClose) onClose();
-      if (p) { reopening = true; try { p.open(); } finally { reopening = false; } pageStack = p.stack; }
+      if (p) { reopening = true; try { p.open(); } finally { reopening = false; } pageStack = p.stack; restoreSheetY(p.y); }
     }, kind);
   }
   // A question with Yes / Cancel in the same card style (replaces the phone's plain confirm box). Resolves true or false.

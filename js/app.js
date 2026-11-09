@@ -928,6 +928,7 @@
     syncHistory();
     PUI.hydrate();
   }
+  let ordDirty = false;   // an order changed while a page was open on top of the Store list: redraw the list when that page closes
   function closeSheet() {
     if ($('#sheet').hidden) return;
     voiceStop();
@@ -935,6 +936,7 @@
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small', 'pick', 'hdr'); document.body.classList.remove('page-open'); invLangSession = null; invLangAuto = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
     $('#sheet').style.transform = ''; $('#sheet').style.transition = ''; $('#scrim').style.opacity = ''; $('#scrim').style.transition = '';
+    if (ordDirty) { ordDirty = false; render(); }
     syncKeyboard();
     syncHistory();
     const cb = sheetClose; sheetClose = null; if (cb) cb();
@@ -2052,7 +2054,7 @@
     const po = Store.orders().find((x) => x.id === id); if (!po) return;
     const dl = po.option === 'delivery', ow = (L.orderPay(state, orderInvoice(po)) || {}).owing || 0, how = dl ? t('ord.delivered') : t('ord.collected');
     return askCard(t(dl ? 'ord.askDelivered' : 'ord.askCollected') + ' ' + (ow > 0 ? t('ord.askOwing', { amount: plain(money(ow)) }) : t('ord.askPaid')), { title: t(dl ? 'ord.askTitleDel' : 'ord.askTitleCol'), ok: t(dl ? 'ord.yesDelivered' : 'ord.yesCollected'), no: t('ord.no') }).then((y) => {
-      if (y) Store.setStatus(id, 'done').then(() => { toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); const here = pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id; if (here) setTimeout(() => { sheetOrder(id, true); if (ow <= 0 && pageStack.length > 1) pageStack = pageStack.slice(-1); }, 450); else dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
+      if (y) Store.setStatus(id, 'done').then(() => { ordDirty = true; toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); const here = pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id; if (here) setTimeout(() => { sheetOrder(id, true); if (ow <= 0 && pageStack.length > 1) pageStack = pageStack.slice(-1); }, 450); else dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
   }
   /* ---------- delivery log: every delivery and pickup, by day, with the distance driven ---------- */
   let dlvTab = 'deliveries', dlvView = 'list', dlvQ = '', dlvDay = '', dlvMonth = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })(), dlvLink = false;
@@ -2963,7 +2965,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   const tidyPhotos = debounce(() => { PUI.cleanup(); PUI.sweep(photoKeep()); }, 2500);
   wordList();
   Store.init({ state: () => state, bizName, refresh: () => { const top = pageStack[pageStack.length - 1]; if (top && top.key === 'store' && !$('#sheet').hidden) { const sc = $('#sheet').scrollTop; reopening = true; try { top.open(); } finally { reopening = false; } $('#sheet').scrollTop = sc; } },
-    onOrders: () => { renderTools(); try { const h = dset().home; if (h && window.Store) Store.measure(h); } catch (e) { /* later */ } const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && top.key.startsWith('order|')) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && (tab === 'sell' || (tab === 'more' && (moreView === 'orders' || moreView === 'deliveries')))) render(); } });
+    onOrders: () => { renderTools(); try { const h = dset().home; if (h && window.Store) Store.measure(h); } catch (e) { /* later */ } const top = pageStack[pageStack.length - 1]; if (!$('#sheet').hidden && top && top.key.startsWith('order|')) { reopening = true; try { top.open(); } finally { reopening = false; } } else if ($('#sheet').hidden && (tab === 'sell' || (tab === 'more' && (moreView === 'orders' || moreView === 'deliveries')))) render(); else if (!$('#sheet').hidden) ordDirty = true; } });
   if (window.PhotoSync) PhotoSync.init({ state: () => state });
   PUI.init({ state: () => state, save, render, toast, esc, bl, openSheet, openSmall, closeSheet, confirm: (m) => window.confirm(m), sync: () => syncHistory(), invMoney: (n) => invMoney(n), invoiceLang: () => invoiceLang(), shareLang, tagHTML });
   Cloud.init({

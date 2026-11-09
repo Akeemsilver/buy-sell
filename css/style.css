@@ -1099,3 +1099,17 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .ap .rw.itm .rgo{grid-column:3;grid-row:2;height:19px;display:flex;align-items:center;justify-self:end;color:var(--brand)}
 .ap .rw.itm .rp{grid-column:3;grid-row:3/5;align-self:center;justify-self:end}
 .ap .rw.itm.go{cursor:pointer}.ap .rw.itm.go:active{background:var(--tint)}
+
+/* Store page: the folded "What customers see" */
+.sth h4 .foldb,.sth h4 .foldt{background:none;border:0;min-height:0;width:auto;padding:4px 2px;color:var(--brand);display:inline-flex;align-items:center;gap:8px;font:inherit;letter-spacing:inherit;text-transform:inherit}.sth h4 .foldt{color:inherit}.sth .rw2 .foldc{color:var(--mute);flex:none}
+/* Batch Log */
+.blhero{border-radius:22px;padding:16px 18px;margin:4px 0 12px;background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--brand) 45%,#000));color:#fff;display:flex;align-items:center;justify-content:space-between;box-shadow:0 10px 26px rgba(0,0,0,.28)}
+.blhero small{display:block;opacity:.85;font-size:12.5px}.blhero b{font-size:28px;line-height:1.1;display:block}.blhero .sa{display:flex;flex-direction:column;align-items:flex-end;gap:6px;font-size:12px;font-weight:700}
+.blseg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:3px;margin:10px 0 12px}.blseg button{flex:1;min-height:0;border:0;background:none;box-shadow:none;padding:8px 0;border-radius:11px;font-size:13px;font-weight:700;color:var(--mute)}.blseg .on{background:var(--tint);color:var(--brand)}
+.blr{position:relative;display:flex;align-items:center;gap:12px;padding:11px 12px 11px 18px;background:var(--card);border:1px solid var(--line);border-radius:18px;margin-bottom:8px;overflow:hidden;cursor:pointer;text-align:left}.blr.cl{opacity:.85}.blr:active{background:var(--tint)}
+.blr .stripe{position:absolute;left:0;top:0;bottom:0;width:6px}
+.blr .ring{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;flex:none}.blr .ring b{width:36px;height:36px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:11px;font-weight:900}
+.blr .mid{flex:1;min-width:0}.blr .nm{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap}.blr .sub{color:var(--mute);font-size:12.5px;margin-top:2px}.blr .sub b{color:var(--ink)}
+.blr .chip2{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:99px;background:color-mix(in srgb,currentColor 16%,transparent)}.blr .chip2 i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.blr .rt{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:64px}.blr .rt small{font-size:12px;font-weight:800}
+.blr .swl{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:800;color:var(--mute)}.blr .swl.on{color:var(--brand)}

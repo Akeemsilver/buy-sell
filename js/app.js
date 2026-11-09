@@ -512,10 +512,12 @@
     return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><div class="live ${c.open ? '' : 'off'}"><i></i>${c.open ? t('hub.open2') : t('hub.closed')}</div><small>${esc(c.open ? t('hub.liveSub', { n: live }) : t('store.openSub'))}</small></div>${swt('store-toggle', 'open', c.open)}</div>
       <div class="lnk">${link('store-link', '🔗', t('store.copy') + ' ' + t('hub.link'))}${link('store-share', '📤', t('hub.share'))}${link('store-preview', '👁', t('hub.preview'))}</div></div>
       <h4><span>${t('store.orders')}</span><span class="ha">${toDeliver().length ? `<a data-act="deliveries-open">🚚 ${t('dv.btn')} (${toDeliver().length})</a>` : ''}<a data-act="orders-open">${t('hub.seeAll')}</a></span></h4>
-      ${ordHead()}
+      ${ordHead(true)}
       <div class="ordp" data-lim="5">${ordPanel(5)}</div>
-      <h4><span>${t('hub.see')}</span>${state.batches.length ? `<span class="allsw">${t('store.selAll')} ${swt('store-batch-all', 'all', state.batches.every((b) => c.batches.includes(b.id)))}</span>` : ''}</h4>
-      <div class="box">${state.batches.slice().sort((a, b) => b.num - a.num).map(batchRow).join('') || `<div class="rw2"><div class="t"><small>${t('stock.none')}</small></div></div>`}</div>
+      ${(() => { const open = pref('hubBatchesOpen', false), all = state.batches.slice().sort((a, b) => b.num - a.num), shownN = all.filter((b) => c.batches.includes(b.id)).length, chv = `<svg viewBox="0 0 14 8" width="14" height="8" aria-hidden="true" style="transition:transform .2s;transform:rotate(${open ? 180 : 0}deg)"><path d="M1 1l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        if (!open) return `<h4 style="align-items:center"><span>${t('hub.see')}</span><button class="foldb" data-act="batches-fold" aria-label="${t('hub.seeOpen')}" aria-expanded="false">${chv}</button></h4><div class="box"><button class="rw2 tap" data-act="batches-fold"><div class="t"><b>${t('hub.batchesShown', { n: shownN })}</b><small>${t('hub.liveSub', { n: live })} · ${t('hub.tapChoose')}</small></div><span class="foldc">${chv}</span></button></div>`;
+        return `<h4 style="align-items:center"><button class="foldt" data-act="batches-fold" aria-expanded="true"><span>${t('hub.see')}</span>${chv}</button>${all.length ? `<span class="allsw">${t('store.selAll')} ${swt('store-batch-all', 'all', all.every((b) => c.batches.includes(b.id)))}</span>` : ''}</h4>
+          <div class="box">${all.slice(0, 5).map(batchRow).join('') || `<div class="rw2"><div class="t"><small>${t('stock.none')}</small></div></div>`}${all.length ? `<button class="rw2 tap" data-act="batches-log" style="justify-content:space-between;color:var(--brand);font-weight:800"><span>${t('hub.openBatchLog')} · ${all.length}</span><span>›</span></button>` : ''}</div>`; })()}
       ${hid0 ? `<div class="warn"><span style="font-size:20px">⚠️</span><div><b>${tn('hub.hidden', hidden.length)}</b><br><small>${t('hub.hiddenSub')}</small></div><button class="fx" data-act="open-stock" data-id="${hid0.batchId}">${t('hub.fix')}</button></div>` : ''}
       <h4><span>${t('hub.settings')}</span></h4>
       <div class="box"><button class="rw2 tap" data-act="pickup-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
@@ -597,19 +599,24 @@
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
   }
 
-  // Batch log: every batch ever bought, newest first, with a search box (same matching as the picker on the Stock tab)
+  // Batch Log: every batch ever bought, newest first, with a search box, a filter and the store switch on each row
+  let blFilter = 'all';
+  const BL_COL = { 'In Transit': '#f0b34a', Received: '#4fc27a', Closed: '#8c7f91' };
   function batchLogRows(q) {
-    const res = L.batchSearch(state.batches, q); if (!res.length) return `<div class="empty">${t('bp.none', { q: esc(String(q || '').trim()) })}</div>`;
-    return res.map(({ b }) => { const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0, bs = bStatus(b);
-      return `<button class="row tap" data-act="batch" data-id="${b.id}" style="${bs === 'Closed' ? 'opacity:.6' : ''}"><div class="grow"><b>${esc(bl(b.id))} <span class="pill ${bs.replace(' ', '')}">${stLabel(bs)}</span></b>
-        <small>${esc(b.store)} · ${day(b.datePurchased)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div></div>
-        <div class="end costonly"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="chev">›</span></button>`; }).join('');
+    const c = storeCfg(), res = L.batchSearch(state.batches, q).filter(({ b }) => blFilter === 'all' || (blFilter === 'in') === c.batches.includes(b.id));
+    if (!res.length) return `<div class="empty">${t('bp.none', { q: esc(String(q || '').trim()) })}</div>`;
+    return res.map(({ b }) => { const st = L.batchStats(state, b), pc = st.count ? Math.round(st.sold / st.count * 100) : 0, bs = bStatus(b), col = BL_COL[bs] || BL_COL.Closed, on = c.batches.includes(b.id);
+      return `<div class="blr${bs === 'Closed' ? ' cl' : ''}" role="button" tabindex="0" data-act="batch" data-id="${b.id}"><i class="stripe" style="background:${col}"></i>
+        <span class="ring" style="background:conic-gradient(${col} ${pc * 3.6}deg,color-mix(in srgb,var(--line) 80%,transparent) 0)"><b>${pc}%</b></span>
+        <div class="mid"><div class="nm">${esc(bl(b.id))}<span class="chip2" style="color:${col}"><i></i>${stLabel(bs)}</span></div><div class="sub">${esc(b.store)} · ${day(b.datePurchased)} · <b>${st.sold}</b> ${t('bl.ofSold', { n: st.count })}</div></div>
+        <div class="rt"><div class="swl ${on ? 'on' : ''}">${swt('store-batch', b.id, on)}<span>${t(on ? 'bl.inStore' : 'bl.hidden')}</span></div><small class="costonly">${money(st.profit)}</small></div></div>`; }).join('');
   }
   function BatchLog() {
-    const by = (s) => state.batches.filter((b) => bStatus(b) === s).length;
-    return `<div class="stats"><div class="stat"><span>${t('bl.all')}</span><b>${state.batches.length}</b></div><div class="stat"><span>${stLabel('In Transit')}</span><b>${by('In Transit')}</b></div><div class="stat"><span>${stLabel('Received')}</span><b>${by('Received')}</b></div><div class="stat"><span>${stLabel('Closed')}</span><b>${by('Closed')}</b></div></div>
-      <div class="oqbar" style="margin-top:12px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
-      <div class="list" id="blog">${batchLogRows('')}</div>`;
+    const c = storeCfg(), n = state.batches.length, inN = state.batches.filter((b) => c.batches.includes(b.id)).length;
+    return `<div class="blhero"><div><small>${t('bl.customersSee')}</small><b>${t('bl.xOfY', { x: inN, y: n })}</b></div>${n ? `<div class="sa">${t('store.selAll')}${swt('store-batch-all', 'all', n > 0 && inN === n)}</div>` : ''}</div>
+      <div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
+      <div class="blseg">${[['all', 'bl.f.all'], ['in', 'bl.f.in'], ['out', 'bl.f.out']].map(([k, l]) => `<button class="${blFilter === k ? 'on' : ''}" data-act="bl-filter" data-id="${k}">${t(l)}</button>`).join('')}</div>
+      <div id="blog">${batchLogRows('')}</div>`;
   }
 
   function ItemLog() {
@@ -2082,12 +2089,12 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     return `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div class="mid"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}${o.option === 'delivery' && SCore.geo(o.lat, o.lng) ? ' <span class="pinm" title="' + t('spot.h') + '">📍</span>' : ''}</b><small>${n} · ${when}</small>${match ? `<small class="omatch">${esc(t('ord.m.' + match.kind, { text: match.text }))}</small>` : ''}</div><div class="end"><b>${money(o.total)}</b>${orderPill(o, stageOf(o) === 'handed')}</div></button>`;
   }
   let ordLimit = 20, ordQ = '';
-  const ORD_TABS = ['new', 'confirmed', 'handed', 'done'];
+  const ORD_TABS = ['new', 'confirmed', 'handed', 'done'], HUB_TABS = ['new', 'confirmed', 'handed'];   // the Store page lists orders still in progress; completed ones live in the Order Log
   const stageOf = (o) => L.orderStage(o, L.orderPay(state, orderInvoice(o)));
   // search box + the four tabs (the tabs step aside while searching)
-  const ordHead = () => { const cnt = {}; ORD_TABS.forEach((f) => { cnt[f] = 0; }); Store.orders().forEach((o) => { cnt[stageOf(o)]++; });
+  const ordHead = (hub) => { const tabs = hub ? HUB_TABS : ORD_TABS, cur = hub && ordFilter === 'done' ? 'new' : ordFilter, cnt = {}; ORD_TABS.forEach((f) => { cnt[f] = 0; }); Store.orders().forEach((o) => { cnt[stageOf(o)]++; });
     return `<div class="oqbar"><span aria-hidden="true">🔍</span><input class="oq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('ord.search'))}" value="${esc(ordQ)}" aria-label="${esc(t('ord.search'))}"><button class="oqx" data-act="ord-q-clear" aria-label="${t('ord.clear')}" ${ordQ ? '' : 'hidden'}>✕</button></div>
-      <div class="seg ordseg" ${ordQ.trim() ? 'hidden' : ''}>${ORD_TABS.map((f) => `<button class="${ordFilter === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt[f]}</button>`).join('')}</div>`; };
+      <div class="seg ordseg" ${ordQ.trim() ? 'hidden' : ''}>${tabs.map((f) => `<button class="${cur === f ? 'on' : ''}" data-act="ord-filter" data-id="${f}">${t('ord.f.' + f)} ${cnt[f]}</button>`).join('')}</div>`; };
   // newest first: the moment of the latest thing that happened to the order
   const ordKey = (o) => { const c = Store.when(o), t0 = (v) => (tsAt(v) ? tsAt(v).getTime() : 0), c0 = c ? c.getTime() : 0;
     return Math.max(c0, o.status === 'done' ? t0(o.doneAt) : o.status === 'confirmed' ? t0(o.confirmedAt) : o.status === 'declined' ? t0(o.declinedAt) : 0); };
@@ -2104,9 +2111,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       const body = ORD_TABS.map((st) => { const g = shown.filter((x) => x.st === st); return g.length ? `<div class="ostage">${t('ord.f.' + st).toUpperCase()} · ${hits.filter((x) => x.st === st).length}</div>${g.map((x) => ordRow(x.o, x.m)).join('')}` : ''; }).join('');
       return hub ? panel(body + (hits.length > lim ? logBtn(hits.length) : '')) : body + more(hits.length, lim);
     }
-    const list = all.filter((o) => stageOf(o) === ordFilter), owed = ordFilter === 'handed' ? list.reduce((n, o) => n + ((L.orderPay(state, orderInvoice(o)) || {}).owing || 0), 0) : 0;
+    const flt = hub && ordFilter === 'done' ? 'new' : ordFilter, list = all.filter((o) => stageOf(o) === flt), owed = flt === 'handed' ? list.reduce((n, o) => n + ((L.orderPay(state, orderInvoice(o)) || {}).owing || 0), 0) : 0;
     const tot = owed > 0 ? `<div class="otot">${tn('ord.nOrders', list.length)} · <b>${t('ord.stillToCollect', { amount: money(owed) })}</b></div>` : '';
-    if (!list.length) return hub ? panel(`<div class="oempty"><span class="em">🛍️</span><span>${t('ord.empty.' + ordFilter)}</span><small>${t('ord.emptyHint.' + ordFilter)}</small></div>`) : `<div class="none">${t('hub.noOrders')}</div>`;
+    if (!list.length) return hub ? panel(`<div class="oempty"><span class="em">🛍️</span><span>${t('ord.empty.' + flt)}</span><small>${t('ord.emptyHint.' + flt)}</small></div>`) : `<div class="none">${t('hub.noOrders')}</div>`;
     const rows = list.slice(0, limit).map((o) => ordRow(o)).join('');
     return hub ? panel(tot + rows + logBtn(list.length)) : tot + rows + more(list.length, limit);
   }
@@ -2498,8 +2505,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
-      case 'store-batch-all': { const c = storeCfg(), all = state.batches.map((b) => b.id), on = all.every((x) => c.batches.includes(x)); storeSet({ batches: on ? [] : all }); return hubOpen() ? render() : sheetStore(); }   // all on -> turn every batch off; otherwise turn every batch on
-      case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return hubOpen() ? render() : sheetStore(); }
+      case 'bl-filter': blFilter = id; return render();
+      case 'batches-fold': setPref('hubBatchesOpen', !pref('hubBatchesOpen', false)); return render();
+      case 'batches-log': go({ tab: 'more', moreView: 'batches' }); window.scrollTo(0, 0); return render();
+      case 'store-batch-all': { const c = storeCfg(), all = state.batches.map((b) => b.id), on = all.every((x) => c.batches.includes(x)); storeSet({ batches: on ? [] : all }); return hubOpen() || (tab === 'more' && moreView === 'batches') ? render() : sheetStore(); }   // all on -> turn every batch off; otherwise turn every batch on
+      case 'store-batch': { const c = storeCfg(); storeSet({ batches: c.batches.includes(id) ? c.batches.filter((x) => x !== id) : c.batches.concat(id) }); return hubOpen() || (tab === 'more' && moreView === 'batches') ? render() : sheetStore(); }
       case 'store-publish': toast(t('store.publishing')); Store.publish(true).then((ran) => { const inf = Store.info(); toast(inf.error === 'permission-denied' ? t('store.needRules') : inf.error === 'timeout' ? t('store.pubSlow') : inf.error ? t('store.pubError') : !ran && inf.busy ? t('store.stillPub') : !ran ? t('store.notRan') : t('store.donePub', { n: inf.count })); }); return;
       case 'store-loc': return sheetLocation(id);
       case 'sl-flag': { const on = !t_.classList.contains('on'); t_.classList.toggle('on', on); t_.setAttribute('aria-checked', on); return; }

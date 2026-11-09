@@ -276,7 +276,8 @@
       if (i.status === 'Available') left++;
     });
     const costTTD = b.totalCost * b.rate;
-    return { count: items.length, sold, left, sales, profit, costTTD, investment: costTTD + b.clearingPaid,
+    const investment = costTTD + b.clearingPaid, net = r2(sales - investment);   // net: what sales have earned over what was invested (negative until the investment is back); profit: the expected profit if every item sells at its price
+    return { count: items.length, sold, left, sales, profit, net, netPct: investment > 0 ? Math.round(net / investment * 100) : 0, costTTD, investment,
       clearingPct: costTTD > 0 ? b.clearingPaid / costTTD : 0 };
   };
 

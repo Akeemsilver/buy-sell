@@ -1124,3 +1124,6 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .bpg .bact{padding:12px;display:grid;gap:10px}.bpg .bact:empty{display:none}
 .bpg .btn.brecv{border:1.5px solid #4fc27a;color:#4fc27a;background:color-mix(in srgb,#4fc27a 10%,transparent)}
 .bpg .bdz{border:1px dashed color-mix(in srgb,#e5484d 55%,var(--line));border-radius:16px;padding:10px 12px}.bpg .bdz .brow{margin:0}.bpg .bdz p{margin:8px 2px 0}
+
+.bpg .bkeys .pl.neg b,.blr .rt small.neg{color:#ff7b7b}.bpg .bexp{margin:-4px 6px 12px;font-size:12px}
+.bpg .bkeys>div{padding-left:14px;padding-right:8px}.bpg .bkeys b{font-size:14.5px;white-space:nowrap}.bpg .bkeys .pl{flex:1.35}.bpg .bkeys small{white-space:nowrap}

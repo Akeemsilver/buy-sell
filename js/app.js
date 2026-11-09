@@ -599,6 +599,7 @@
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
   }
 
+  const dayLong = (d) => { const v = new Date(d); if (isNaN(v)) return ''; const m = v.toLocaleDateString(I.locale(I.getLang()), { month: 'short' }).replace(/\./g, ''); return String(v.getDate()).padStart(2, '0') + ' ' + m.charAt(0).toUpperCase() + m.slice(1) + ' ' + v.getFullYear(); };   // 12 Oct 2026: three letters, capital first letter
   // Batch Log: every batch ever bought, newest first, with a search box, a filter and the store switch on each row
   let blFilter = 'all';
   const BL_COL = { 'In Transit': '#f0b34a', Received: '#4fc27a', Closed: '#8c7f91' };
@@ -608,7 +609,7 @@
     return res.map(({ b }) => { const st = L.batchStats(state, b), pc = st.count ? Math.round(st.sold / st.count * 100) : 0, bs = bStatus(b), col = BL_COL[bs] || BL_COL.Closed, on = c.batches.includes(b.id);
       return `<div class="blr${bs === 'Closed' ? ' cl' : ''}" role="button" tabindex="0" data-act="batch" data-id="${b.id}"><i class="stripe" style="background:${col}"></i>
         <span class="ring" style="background:conic-gradient(${col} ${pc * 3.6}deg,color-mix(in srgb,var(--line) 80%,transparent) 0)"><b>${pc}%</b></span>
-        <div class="mid"><div class="nm">${esc(bl(b.id))}<span class="chip2" style="color:${col}"><i></i>${stLabel(bs)}</span></div><div class="sub">${esc(b.store)} · ${day(b.datePurchased)} · <b>${st.sold}</b> ${t('bl.ofSold', { n: st.count })}</div></div>
+        <div class="mid"><div class="nm">${esc(bl(b.id))}<span class="chip2" style="color:${col}"><i></i>${stLabel(bs)}</span></div><div class="sub">${esc(b.store)} · ${dayLong(b.datePurchased)}</div><div class="sub"><b>${st.sold}</b> ${t('bl.ofSold', { n: st.count })}</div></div>
         <div class="rt"><div class="swl ${on ? 'on' : ''}">${swt('store-batch', b.id, on)}<span>${t(on ? 'bl.inStore' : 'bl.hidden')}</span></div><small class="costonly">${money(st.profit)}</small></div></div>`; }).join('');
   }
   function BatchLog() {

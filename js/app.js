@@ -8,6 +8,7 @@
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const moneyText = (n) => 'TT$ ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const moneyBare = (n) => `<span class="amt">${'$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;   // short form with just $ (no TT): for tight spots (the customer strip)
+  const cur$ = (c) => (c === 'USD' ? 'US$' : c);   // US$ 50.00, like TT$ 347.47; other currencies keep their code in front
   const money = (n) => `<span class="amt">${moneyText(n)}</span>`;   // wrapped so the eye button can blur amounts
   const plain = (html) => String(html).replace(/<[^>]+>/g, '');
   const day = (d) => (d ? new Date(d).toLocaleDateString(I.locale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '');
@@ -935,7 +936,7 @@
     openSheet(`<h3>${esc(bl(b.id))} <span class="pill ${bs.replace(' ', '')}">${stLabel(bs)}</span></h3><p class="muted small bi-sub">${esc(b.store)}${b.store ? ' · ' : ''}${t('batch.ordered')} ${day(b.datePurchased)}</p>
       <div class="bi-kp costonly"><div><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('home.profitWord')}</small><b class="ok">${money(st.profit)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div><small>${t('batch.clearingPaid')}</small><b>${money(b.clearingPaid)}</b><small>${(st.clearingPct * 100).toFixed(0)}%</small></div></div>
       <div class="bi-card"><div class="bi-bar">${seg('Paid', '#66bb6a')}${seg('Owing', '#ffb74d')}${seg('Available', '#5c6bc0')}${seg('In Transit', '#4fc3f7')}</div><div class="bi-lg">${lg('Paid', '#66bb6a')}${lg('Owing', '#ffb74d')}${lg('Available', '#5c6bc0')}${lg('In Transit', '#4fc3f7')}</div></div>
-      <div class="bi-card">${ln(t('bi.items'), its.length + ' · ' + t('bi.withPhotos', { n: ps.withPhoto }))}${can('costs') ? ln(t('batch.cost'), b.totalCost.toFixed(2) + ' ' + b.currency + ' @ ' + b.rate.toFixed(4)) : ''}${ln(t('bi.margin'), (Number(b.margin) || 0) + '%')}${b.dateReceived ? ln(t('bi.received'), day(b.dateReceived)) : ''}${ln(b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase'), transitText(b))}${b.dateLastPayment ? ln(t('batch.lastClearing'), day(b.dateLastPayment)) : ''}${sc.id ? ln(t('bi.inStore'), sc.batches.includes(b.id) ? t('bi.on') : t('bi.off')) : ''}</div>
+      <div class="bi-card">${ln(t('bi.items'), its.length + ' · ' + t('bi.withPhotos', { n: ps.withPhoto }))}${can('costs') ? ln(t('batch.cost'), cur$(b.currency) + ' ' + b.totalCost.toFixed(2) + ' @ ' + b.rate.toFixed(4)) : ''}${ln(t('bi.margin'), (Number(b.margin) || 0) + '%')}${b.dateReceived ? ln(t('bi.received'), day(b.dateReceived)) : ''}${ln(b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase'), transitText(b))}${b.dateLastPayment ? ln(t('batch.lastClearing'), day(b.dateLastPayment)) : ''}${sc.id ? ln(t('bi.inStore'), sc.batches.includes(b.id) ? t('bi.on') : t('bi.off')) : ''}</div>
       <div class="btns"><button class="btn primary" data-act="batch" data-id="${b.id}">${t('bi.open')}</button><button class="btn" data-act="close">${t('btn.close')}</button></div>`, null, 'sheet');
     $('#sheet').classList.add('hdr');
   }
@@ -943,25 +944,38 @@
     const b = state.batches.find((x) => x.id === id); if (!b) return;
     enterPage('batch', id, () => sheetBatch(id));
     const st = L.batchStats(state, b), inTransit = bStatus(b) === 'In Transit', showClear = inTransit || clearOpen.has(b.id);
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b></div>${inTransit ? '' : `<button class="dots" data-act="batch-more" data-id="${b.id}" aria-label="${t('batch.more')}">⋮</button>`}</div><div class="ap">
-      <div class="sumbox"><div><span>${t('batch.store')}</span><span>${esc(b.store)}</span></div><div><span>${t('batch.ordered')}</span><span>${day(b.datePurchased)}</span></div>
-      <div class="costonly"><span>${t('batch.cost')}</span><span>${b.totalCost.toFixed(2)} ${b.currency} @ ${b.rate.toFixed(4)}</span></div>
-      <div><span>${t('batch.clearingPaid')}</span><span>${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%)</span></div>
-      <div class="costonly"><span>${t('batch.invested')}</span><span>${money(st.investment)}</span></div><div><span>${t('batch.sales')}</span><span>${money(st.sales)}</span></div>
-      <div class="costonly"><span>${t('batch.profit')}</span><span>${money(st.profit)}</span></div>
-      <div><span>${b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase')}</span><span>${transitText(b)}</span></div>
-      ${b.dateLastPayment ? `<div><span>${t('batch.lastClearing')}</span><span>${day(b.dateLastPayment)}</span></div>` : ''}</div>
-      ${showClear ? `${bStatus(b) === 'In Transit' ? '' : `<div class="note2">${t('clear.reopened')}</div>`}      <form id="f-clear"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
+    const pctNum = st.investment > 0 ? Math.round(st.profit / st.investment * 100) : 0;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b></div>${inTransit ? '' : `<button class="dots" data-act="batch-more" data-id="${b.id}" aria-label="${t('batch.more')}">⋮</button>`}</div><div class="ap bpg">
+      <div class="bkeys"><div class="costonly"><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div class="costonly pl"><small>${t('batch.profit')} · ${pctNum}%</small><b>${money(st.profit)}</b></div></div>
+      <div class="bsec">
+        <h6>${t('batch.secMoney')}</h6>
+        <div class="ln costonly"><span>${t('batch.purchaseCost')}</span><b>${cur$(b.currency)} ${b.totalCost.toFixed(2)}</b></div>
+        <div class="ln costonly"><span>${t('batch.rate')}</span><b>${b.rate.toFixed(4)}</b></div>
+        <div class="ln costonly"><span>${t('batch.costTTD')}</span><b>${money(st.costTTD)}</b></div>
+        <div class="ln"><span>${t('batch.clearingPaid')}</span><b>${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%)</b></div>
+        <h6>${t('batch.secItems')}</h6>
+        <div class="ln"><span>${t('batch.store')}</span><b>${esc(b.store) || '—'}</b></div>
+        <div class="ln"><span>${t('batch.itemsTotal')}</span><b>${st.count}</b></div>
+        <div class="ln"><span>${t('batch.itemsSold')}</span><b>${st.sold}</b></div>
+        <div class="ln"><span>${t('batch.itemsLeft')}</span><b>${st.left}</b></div>
+        <h6>${t('batch.secDates')}</h6>
+        <div class="ln"><span>${t('batch.dateBought')}</span><b>${day(b.datePurchased)}</b></div>
+        ${b.dateReceived ? `<div class="ln"><span>${t('batch.dateReceived')}</span><b>${day(b.dateReceived)}</b></div>` : ''}
+        <div class="ln"><span>${b.dateLastPayment ? t('batch.transitLast') : t('batch.sincePurchase')}</span><b>${transitText(b)}</b></div>
+        ${b.dateLastPayment ? `<div class="ln"><span>${t('batch.lastClearing')}</span><b>${day(b.dateLastPayment)}</b></div>` : ''}
+      </div>
+      ${showClear ? `${bStatus(b) === 'In Transit' ? '' : `<div class="note2">${t('clear.reopened')}</div>`}<form id="f-clear" class="bsec bpay"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
+      <div class="bbar"><i style="width:${Math.min(100, Math.round(st.clearingPct * 100))}%"></i></div>
       <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>` : ''}
-      <div class="btns bbtns"><h5 class="gh">${t('batch.groupItems')}</h5>
-      <button class="btn primary" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.btn')}</button>
+      <h5 class="gh">${t('batch.groupItems')}</h5>
+      <div class="bsec bact"><button class="btn primary" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.btn')}</button>
       <div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
-      <button class="btn tw" data-act="open-stock" data-id="${b.id}"><span>${t('batch.viewItems')}</span></button></div>
+      <button class="btn tw" data-act="open-stock" data-id="${b.id}"><span>${t('batch.viewItems')}</span></button></div></div>
       <h5 class="gh">${t('batch.groupBatch')}</h5>
-      ${bStatus(b) === 'In Transit' ? `<button class="btn" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
-      <div class="brow">${bStatus(b) !== 'Closed' ? `<button class="btn danger tw" data-act="close-batch" data-id="${b.id}"><span>${t('batch.close')}</span></button>` : ''}
-      ${st.sold === 0 ? `<button class="btn danger tw" data-act="del-batch" data-id="${b.id}"><span>${t('batch.deleteShort')}</span><small>${t('batch.deleteSmall')}</small></button>` : ''}</div></div>
-      ${bStatus(b) !== 'Closed' ? `<p class="muted small">${t('batch.closeNote')}</p>` : ''}</div>`, null, true);
+      <div class="bsec bact">${bStatus(b) === 'In Transit' ? `<button class="btn brecv" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
+      ${bStatus(b) !== 'Closed' || st.sold === 0 ? `<div class="bdz"><div class="brow">${bStatus(b) !== 'Closed' ? `<button class="btn danger tw" data-act="close-batch" data-id="${b.id}"><span>${t('batch.close')}</span></button>` : ''}
+      ${st.sold === 0 ? `<button class="btn danger tw" data-act="del-batch" data-id="${b.id}"><span>${t('batch.deleteShort')}</span><small>${t('batch.deleteSmall')}</small></button>` : ''}</div>
+      ${bStatus(b) !== 'Closed' ? `<p class="muted small">${t('batch.closeNote')}</p>` : ''}</div>` : ''}</div></div>`, null, true);
   }
 
   function sheetPayClearing() {

@@ -947,7 +947,7 @@
     const st = L.batchStats(state, b), inTransit = bStatus(b) === 'In Transit', showClear = inTransit || clearOpen.has(b.id);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b></div>${inTransit ? '' : `<button class="dots" data-act="batch-more" data-id="${b.id}" aria-label="${t('batch.more')}">⋮</button>`}</div><div class="ap bpg">
       <div class="bkeys"><div class="costonly"><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div class="costonly pl"><small>${t('batch.profit')} · ${Math.max(0, st.netPct)}%</small><b>${money(Math.max(0, st.net))}</b></div></div>
-      <p class="muted small costonly bexp">${t('batch.expected')}: ${money(st.profit)}</p>
+      <div class="bexp"><span class="muted small costonly">${t('batch.expected')}: ${money(st.profit)}</span><button class="ed" type="button" data-act="batch-edit-jump">${t('batch.editJump')} ↓</button></div>
       <div class="bsec">
         <h6>${t('batch.secMoney')}</h6>
         <div class="ln costonly"><span>${t('batch.purchaseCost')}</span><b>${cur$(b.currency)} ${b.totalCost.toFixed(2)}</b></div>
@@ -970,7 +970,7 @@
       ${showClear ? `${bStatus(b) === 'In Transit' ? '' : `<div class="note2">${t('clear.reopened')}</div>`}<form id="f-clear" class="bsec bpay"><input type="hidden" name="batch" value="${b.id}"><label>${t('batch.payClearing')}</label>
       <div class="bbar"><i style="width:${Math.min(100, Math.round(st.clearingPct * 100))}%"></i></div>
       <div class="grid2"><input name="amount" type="text" inputmode="decimal" step="0.01" min="0" placeholder="0.00"><button class="btn primary">${t('batch.recordPayment')}</button></div></form>` : ''}
-      <h5 class="gh">${t('batch.groupItems')}</h5>
+      <h5 class="gh" id="bpg-items">${t('batch.groupItems')}</h5>
       <div class="bsec bact"><button class="btn primary" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.btn')}</button>
       <div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
       <button class="btn tw" data-act="open-stock" data-id="${b.id}"><span>${t('batch.viewItems')}</span></button></div></div>
@@ -2523,6 +2523,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
+      case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-filter': blFilter = id; return render();
       case 'batches-fold': setPref('hubBatchesOpen', !pref('hubBatchesOpen', false)); return render();
       case 'batches-log': go({ tab: 'more', moreView: 'batches' }); window.scrollTo(0, 0); return render();

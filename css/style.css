@@ -1164,3 +1164,9 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 /* order page: View on the invoice row of the checklist (a soft pill, quieter than Send) */
 .cklist .ckview{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px;border:0;background:var(--tint);color:var(--brand);font-weight:800;font-size:13px;border-radius:99px;padding:7px 14px;min-height:0;width:auto;height:auto;box-shadow:none}
 .cklist .r.tap{cursor:pointer}.cklist .r.tap:active{background:var(--tint)}
+
+/* order page: a slim strip under the header, shown once the full tracker has scrolled out of view */
+.stk{position:sticky;top:calc(60px + var(--sat));z-index:3;display:flex;align-items:center;gap:12px;margin:0 -16px 8px;padding:7px 16px;background:var(--bg);border-bottom:1px solid var(--line);box-shadow:0 6px 12px -8px rgba(0,0,0,.6)}.stk[hidden]{display:none}
+.stk .dots{display:flex;align-items:center;flex:1}.stk .dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:var(--card);box-sizing:border-box;flex:none;display:grid;place-items:center;color:#fff;font-size:8px;font-style:normal;font-weight:900}
+.stk .dots b{flex:1;height:2px;background:var(--line)}.stk .dots b.dn{background:#2e9e5b}.stk .dots i.dn{background:#2e9e5b;border-color:#2e9e5b}.stk .dots i.on{background:var(--brand,#d6264a);border-color:var(--brand,#d6264a);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#d6264a) 25%,transparent)}
+.stk .lab{flex:none;font-weight:800;font-size:13.5px}.stk .lab small{color:var(--mute);font-weight:600;font-size:11.5px;margin-left:6px}

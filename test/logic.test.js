@@ -429,3 +429,12 @@ console.log('sale price tests passed');
     const r = L.returnItems(s, a.no, [s.items[0].id], new Date(), 'cancelled', 40); assert.strictEqual(r.fee, 0); assert.strictEqual(r.refund, 140);
   }
 }
+
+// ---- batch profit: sales minus what was invested (negative until the investment is back)
+{
+  const L3 = require('../js/logic.js');
+  const b = { id: 'B1', totalCost: 100, rate: 5, clearingPaid: 0, currency: 'USD', margin: 40 };   // 500 TTD invested
+  const mk = (sold) => ({ batches: [b], items: [{ id: 'B1-1', batchId: 'B1', cost: 100, sold, price: 1000, status: sold > 0 ? 'Paid' : 'Available' }] });
+  [[200, -300, -60], [500, 0, 0], [1000, 500, 100]].forEach(([sales, net, pct]) => { const st = L3.batchStats(mk(sales), b); assert.strictEqual(st.net, net, 'net at ' + sales); assert.strictEqual(st.netPct, pct, 'net % at ' + sales); });
+  const none = L3.batchStats(mk(0), b); assert.strictEqual(none.net, -500, 'nothing sold yet: all of it is still to earn back'); assert.ok(none.profit > 0, 'the expected profit is still there');
+}

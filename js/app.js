@@ -1476,7 +1476,7 @@
   // The small two-line note under the balance while money is owing and the order is still to be handed over: "To be delivered / Payment due on delivery"
   const invNote = (v, lg) => { const tl = (key) => t(key, {}, lg || invoiceLang()); if (!v || v.void || isPaidInFull(v)) return null; const o = v.no ? orderOfInvoice(v.no) : null; if (!o || o.status !== 'confirmed') return null;
     const del = o.option === 'delivery', soon = (o.items || []).some(itemArriving), part = (Number(v.amountPaid) || 0) + (Number(v.previouslyPaid) || 0) > 0;
-    return [ti(soon ? 'inv.ln.soon' : del ? 'inv.ln.deliver' : 'inv.ln.pickup'), ti(part ? (del ? 'inv.ln.balDel' : 'inv.ln.balPick') : (del ? 'inv.ln.payDel' : 'inv.ln.payPick'))]; };
+    return [tl(soon ? 'inv.ln.soon' : del ? 'inv.ln.deliver' : 'inv.ln.pickup'), tl(part ? (del ? 'inv.ln.balDel' : 'inv.ln.balPick') : (del ? 'inv.ln.payDel' : 'inv.ln.payPick'))]; };   // in the language this invoice is being drawn in, not the phone's
   function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang() + '|' + stampKind(v); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
 
   // "Returned on 8 Nov · 2 items back in stock · TT$ 200 had been paid" — shown on a returned or cancelled invoice

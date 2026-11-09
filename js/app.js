@@ -612,7 +612,7 @@
       return `<div class="blr${bs === 'Closed' ? ' cl' : ''}" role="button" tabindex="0" data-act="batch" data-id="${b.id}"><i class="stripe" style="background:${col}"></i>
         <span class="ring" style="background:conic-gradient(${col} ${pc * 3.6}deg,color-mix(in srgb,var(--line) 80%,transparent) 0)"><b>${pc}%</b></span>
         <div class="mid"><div class="nm">${esc(bl(b.id))}<span class="chip2" style="color:${col}"><i></i>${stLabel(bs)}</span></div><div class="sub">${esc(b.store)} · ${dayLong(b.datePurchased)}</div><div class="sub"><b>${st.sold}</b> ${t('bl.ofSold', { n: st.count })}</div></div>
-        <div class="rt"><div class="swl ${on ? 'on' : ''}">${swt('store-batch', b.id, on)}<span>${t(on ? 'bl.inStore' : 'bl.hidden')}</span></div><small class="costonly ${st.net < 0 ? 'neg' : ''}">${signed(st.net)}</small></div></div>`; }).join('');
+        <div class="rt"><div class="swl ${on ? 'on' : ''}">${swt('store-batch', b.id, on)}<span>${t(on ? 'bl.inStore' : 'bl.hidden')}</span></div><small class="costonly">${money(st.investment)}<span class="invl">${t('bl.invested')}</span></small></div></div>`; }).join('');
   }
   function BatchLog() {
     const c = storeCfg(), n = state.batches.length, inN = state.batches.filter((b) => c.batches.includes(b.id)).length;
@@ -946,7 +946,7 @@
     enterPage('batch', id, () => sheetBatch(id));
     const st = L.batchStats(state, b), inTransit = bStatus(b) === 'In Transit', showClear = inTransit || clearOpen.has(b.id);
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b></div>${inTransit ? '' : `<button class="dots" data-act="batch-more" data-id="${b.id}" aria-label="${t('batch.more')}">⋮</button>`}</div><div class="ap bpg">
-      <div class="bkeys"><div class="costonly"><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div class="costonly pl ${st.net < 0 ? 'neg' : ''}"><small>${t('batch.profit')} · ${st.netPct}%</small><b>${signed(st.net)}</b></div></div>
+      <div class="bkeys"><div class="costonly"><small>${t('batch.invested')}</small><b>${money(st.investment)}</b></div><div><small>${t('batch.sales')}</small><b>${money(st.sales)}</b></div><div class="costonly pl"><small>${t('batch.profit')} · ${Math.max(0, st.netPct)}%</small><b>${money(Math.max(0, st.net))}</b></div></div>
       <p class="muted small costonly bexp">${t('batch.expected')}: ${money(st.profit)}</p>
       <div class="bsec">
         <h6>${t('batch.secMoney')}</h6>
@@ -954,6 +954,8 @@
         <div class="ln costonly"><span>${t('batch.rate')}</span><b>${b.rate.toFixed(4)}</b></div>
         <div class="ln costonly"><span>${t('batch.costTTD')}</span><b>${money(st.costTTD)}</b></div>
         <div class="ln"><span>${t('batch.clearingPaid')}</span><b>${money(b.clearingPaid)} (${(st.clearingPct * 100).toFixed(0)}%)</b></div>
+        <div class="ln costonly net"><span>${t('batch.profitLoss')}</span><b class="${st.net < 0 ? 'neg' : 'pos'}">${signed(st.net)}</b></div>
+        ${st.net < 0 ? `<div class="ln costonly"><span>${t('batch.toEarnBack')}</span><b>${money(-st.net)}</b></div>` : ''}
         <h6>${t('batch.secItems')}</h6>
         <div class="ln"><span>${t('batch.store')}</span><b>${esc(b.store) || '—'}</b></div>
         <div class="ln"><span>${t('batch.itemsTotal')}</span><b>${st.count}</b></div>

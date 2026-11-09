@@ -202,7 +202,7 @@
 
   /* ---------- groups: one design, several pieces (each piece is its own item with its own size) ---------- */
   const byId = (a, b) => a.id.localeCompare(b.id);
-  L.GROUP_FIELDS = ['desc', 'cost', 'price', 'saleOn', 'discount', 'nameEs', 'esSet', 'esFor', 'details', 'detailsEs'];
+  L.GROUP_FIELDS = ['desc', 'cost', 'price', 'saleOn', 'discount', 'nameEs', 'esSet', 'esFor', 'enSet', 'enFor', 'details', 'detailsEs'];
   L.newGroupId = (() => { let n = 0; return () => 'G' + Date.now().toString(36) + (++n).toString(36) + Math.floor(Math.random() * 1296).toString(36); })();
   // An item inside an order the owner has not answered yet is held: locked for editing like a sold one (the app fills orderHold from the store orders).
   L.orderHold = new Set();
@@ -280,6 +280,21 @@
     return { count: items.length, sold, left, sales, profit, net, netPct: investment > 0 ? Math.round(net / investment * 100) : 0, costTTD, investment,
       clearingPct: costTTD > 0 ? b.clearingPaid / costTTD : 0 };
   };
+
+  // What customers still owe for items sold out of these batches: the amount, how many items, how many different people, and how many days
+  // the oldest unpaid sale has been waiting (counted from its invoice).
+  L.owingFor = (s, batches, now) => {
+    const ids = new Set((batches || []).map((b) => b.id)), t = (now || new Date()).getTime(), who = new Set(); let owing = 0, items = 0, oldest = null;
+    s.items.forEach((i) => {
+      if (!ids.has(i.batchId) || i.status !== 'Owing') return;
+      const o = Math.max(0, num(i.sold) - num(i.paid)); if (o <= 0.004) return;
+      owing += o; items++; const who1 = String(i.customer || '').trim().toLowerCase(); if (who1) who.add(who1);
+      const inv = i.invoice ? (s.invoices || []).find((v) => v.no === i.invoice) : null, d = inv && inv.date ? new Date(inv.date).getTime() : NaN;
+      if (!isNaN(d) && (oldest === null || d < oldest)) oldest = d;
+    });
+    return { owing: r2(owing), items, people: who.size, oldestDays: oldest === null ? null : Math.max(0, Math.floor((t - oldest) / 86400000)) };
+  };
+  L.batchOwing = (s, b, now) => L.owingFor(s, [b], now);
 
   // Months/weeks/days between the purchase and the last clearing payment (or today); the app formats it in the chosen language.
   L.transitParts = (b, now) => {

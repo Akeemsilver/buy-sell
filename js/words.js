@@ -253,6 +253,94 @@
     return out;
   };
 
-  const api = { norm, STARTER, TYPES, typeOf, translate, spanish, publishable, put, drop, seed };
+  // ---- Spanish → English (the English name of an item that was typed or spoken in Spanish) ---------------------------------------------
+  // The same list read backwards. Spanish puts the thing first and what describes it after; English puts the describing words first.
+  const fold = (s) => norm(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const enPlural = (w) => { const a = String(w).split(' '), l = a[a.length - 1]; a[a.length - 1] = /(s|x|z|ch|sh)$/i.test(l) ? l + 'es' : /[^aeiou]y$/i.test(l) ? l.slice(0, -1) + 'ies' : l + 's'; return a.join(' '); };
+  const NUMEN = {}; Object.keys(NUM).forEach((k) => { NUMEN[fold(NUM[k])] = k; });
+  const revCache = new WeakMap();
+  const reverse = (words) => {
+    const arr = words || []; if (revCache.has(arr)) return revCache.get(arr);
+    const m = new Map(); let max = 1;
+    const add = (form, rec) => { const k = fold(form); if (!k) return; if (!m.has(k)) m.set(k, rec); max = Math.max(max, k.split(' ').length); };
+    arr.forEach((x) => {
+      const es = String(x.es || '').trim(), en = String(x.en || '').trim(); if (!es || !en || ['de', 'y', 'o'].includes(fold(es))) return; const kind = kindOf(x);   // "de", "y", "o" are handled by the rules below
+      if (kind === 'n') { add(es, { w: x, kind: 'n', pl: false }); if (!x.pl) add(x.pe || pluralPhrase(es), { w: x, kind: 'n', pl: true }); }
+      else if (kind === 'a') { add(es, { w: x, kind: 'a' }); if (x.inv !== 'all') [['m', true], ['f', false], ['f', true]].forEach(([g, pl]) => add(agree(x, g, pl), { w: x, kind: 'a' })); }
+      else add(es, { w: x, kind });
+    });
+    const r = { m, max }; revCache.set(arr, r); return r;
+  };
+  const toEnglish = (desc, words) => {
+    const toks = String(desc || '').trim().split(/\s+/).filter(Boolean), { m, max } = reverse(words), out = [], missing = [];
+    const tailOf = (tk) => (tk.match(/[^\p{L}\p{N}&]+$/u) || [''])[0];
+    for (let i = 0; i < toks.length;) {
+      const c0 = fold(clean(toks[i])); let hit = false;
+      if (/^\d+$/.test(c0)) { out.push({ k: 'q', text: c0, tail: tailOf(toks[i]) }); i++; continue; }
+      if (NUMEN[c0]) { out.push({ k: 'q', text: NUMEN[c0], tail: tailOf(toks[i]) }); i++; continue; }
+      if (c0 === 'un' || c0 === 'una') { out.push({ k: 'q', text: 'one', tail: tailOf(toks[i]) }); i++; continue; }
+      // "de 2 piezas" / "de dos piezas" → "2 piece"; "talla M" → "size M" (after the thing); a lone size (XL, M …) also goes after the thing
+      const pz = (j) => { const c = fold(clean(toks[j] || '')), nx = fold(clean(toks[j + 1] || '')); return /^(\d+|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)$/.test(c) && /^piezas?$/.test(nx) ? (/^\d+$/.test(c) ? c : NUMEN[c]) : null; };
+      let pn = c0 === 'de' ? pz(i + 1) : pz(i), pskip = c0 === 'de' ? 3 : 2;
+      if (pn) { out.push({ k: 'p2', text: pn + ' piece', tail: tailOf(toks[i + pskip - 1]) }); i += pskip; continue; }
+      if (c0 === 'talla' && i + 1 < toks.length) { const sz = clean(toks[i + 1]); out.push({ k: 'post', text: 'size ' + (sz.length <= 4 ? sz.toUpperCase() : sz), tail: tailOf(toks[i + 1]) }); i += 2; continue; }
+      if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|[2-5]xl)$/.test(c0)) { out.push({ k: 'post', text: clean(toks[i]).toUpperCase(), tail: tailOf(toks[i]) }); i++; continue; }
+      for (let n = Math.min(max, toks.length - i); n >= 1 && !hit; n--) {
+        const ph = fold(toks.slice(i, i + n).map(clean).join(' ')), rec = ph && m.get(ph);
+        if (rec) { out.push(Object.assign({ tail: tailOf(toks[i + n - 1]) }, rec)); i += n; hit = true; }
+      }
+      if (hit) continue;
+      if (c0 === 'de' && i + 1 < toks.length) {   // "de lino" (a material) or "de pantalones" (a thing that describes the thing)
+        const rec = m.get(fold(clean(toks[i + 1])));
+        if (rec && (rec.kind === 'm' || rec.kind === 'n' || rec.kind === 'a')) { out.push(Object.assign({ via: 'de', tail: tailOf(toks[i + 1]) }, rec)); i += 2; continue; }
+      }
+      if (c0 === 'y' || c0 === 'o') { out.push({ k: 'c', text: c0 === 'y' ? 'and' : 'or', tail: tailOf(toks[i]) }); i++; continue; }
+      if (!c0 || !/\p{L}/u.test(c0) || /\d/.test(c0)) { out.push({ k: 'l', text: clean(toks[i]) || toks[i], tail: tailOf(toks[i]) }); i++; continue; }
+      if (!missing.includes(c0)) missing.push(c0);
+      out.push({ k: 'u', text: clean(toks[i]), tail: tailOf(toks[i]) }); i++;
+    }
+    // group into things: [count] describing words … the thing
+    const parts = []; let np = null;
+    const fresh = () => ({ q: '', a: [], ac: [], m: [], nm: [], p: [], r: [], post: [], head: null, tail: '' });
+    const flush = () => {
+      if (!np) return; const g = np; np = null;
+      const nounText = g.head ? (g.head.pl && !g.head.w.pl ? enPlural(g.head.w.en) : g.head.w.en) : '';
+      const seq = [g.q, ...g.ac, ...g.a, ...g.m, ...g.nm, ...g.p, ...g.r, nounText].filter(Boolean).join(' ');   // English order: the colour, then the style, the material, what it is made like, the thing
+      if (seq) parts.push([seq, ...g.post].join(' ') + g.tail);
+    };
+    out.forEach((it, j) => {
+      if (!np) np = fresh();
+      if (it.k === 'q') { np.q = it.text; return; }
+      if (it.k === 'c') {
+        const prev = out[j - 1], next = out[j + 1];
+        if (prev && next && prev.kind === 'a' && next.kind === 'a') { np[prev.w.c === 'colours' ? 'ac' : 'a'].push('and'); return; }   // "azul y rojo" → "blue and red"
+        flush(); parts.push(it.text); return;
+      }
+      if (it.k === 'p2') { np.p.push(it.text); np.tail = it.tail; return; }
+      if (it.k === 'post') { np.post.push(it.text); np.tail = it.tail; return; }
+      if (it.k === 'l' || it.k === 'u') { np.r.push(it.text); np.tail = it.tail; return; }
+      if (it.kind === 'n') {
+        if (it.via === 'de' && np.head) { np.nm.push(it.pl && !it.w.pl ? enPlural(it.w.en) : it.w.en); np.tail = it.tail; return; }
+        if (np.head) { flush(); np = fresh(); }
+        np.head = it; np.tail = it.tail; return;
+      }
+      if (it.kind === 'a') { np[it.w.c === 'colours' ? 'ac' : 'a'].push(it.w.en); np.tail = it.tail; return; }
+      if (it.kind === 'm') { np.m.push(it.w.en); np.tail = it.tail; return; }
+      if (it.kind === 'p') { np.p.push(it.w.en); np.tail = it.tail; return; }
+      np.r.push(it.w.en); np.tail = it.tail;
+    });
+    flush();
+    return { en: cap(parts.join(' ').replace(/\s+([,;.])/g, '$1')), missing };
+  };
+  // The English name of an item written in Spanish: the confirmed one, or the library's best reading of the Spanish name.
+  const english = (it, words) => {
+    const es = spanish(it, words).es;
+    if (!es) return { en: '', state: 'none', missing: [] };
+    if (it.enSet && String(it.desc || '').trim() && it.enFor === es) return { en: String(it.desc).trim(), state: 'ok', missing: [] };
+    const r = toEnglish(es, words);
+    return { en: r.en, state: r.missing.length ? 'check' : 'ok', missing: r.missing };
+  };
+
+  const api = { norm, STARTER, TYPES, typeOf, translate, spanish, publishable, put, drop, seed, toEnglish, english };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Words = api;
 })(typeof window !== 'undefined' ? window : globalThis);

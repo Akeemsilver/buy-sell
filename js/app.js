@@ -599,7 +599,7 @@
       <p class="muted small" style="text-align:center;margin-top:20px">${t('more.local')}<br><span id="ver"></span></p>`;
   }
 
-  const dayLong = (d) => { const v = new Date(d); return isNaN(v) ? '' : v.toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'long', year: 'numeric' }); };   // 12 October 2026
+  const dayLong = (d) => { const v = new Date(d); if (isNaN(v)) return ''; const m = v.toLocaleDateString(I.locale(I.getLang()), { month: 'short' }).replace(/\./g, ''); return String(v.getDate()).padStart(2, '0') + ' ' + m.charAt(0).toUpperCase() + m.slice(1) + ' ' + v.getFullYear(); };   // 12 Oct 2026: three letters, capital first letter
   // Batch Log: every batch ever bought, newest first, with a search box, a filter and the store switch on each row
   let blFilter = 'all';
   const BL_COL = { 'In Transit': '#f0b34a', Received: '#4fc27a', Closed: '#8c7f91' };

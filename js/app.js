@@ -1019,7 +1019,7 @@
       <div class="brow"><button class="btn tw" data-act="photo-add" data-id="${b.id}"><span>📷 ${t('photo.add')}</span><small>${t('photo.progress', { n: L.photoStats(state, b.id).withPhoto, total: L.photoStats(state, b.id).total })}</small></button>
       <button class="btn tw" data-act="open-stock" data-id="${b.id}"><span>${t('batch.viewItems')}</span></button></div></div>
       <h5 class="gh">${t('batch.groupBatch')}</h5>
-      <div class="bsec bact">${bStatus(b) === 'In Transit' ? `<button class="btn brecv" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
+      <div class="bsec bact">${bStatus(b) === 'In Transit' ? `<button class="btn brecv" id="bpg-recv" data-act="do-receive" data-id="${b.id}">${t('batch.markReceived')}</button>` : ''}
       ${bStatus(b) !== 'Closed' || st.sold === 0 ? `<div class="bdz"><div class="brow">${bStatus(b) !== 'Closed' ? `<button class="btn danger tw" data-act="close-batch" data-id="${b.id}"><span>${t('batch.close')}</span></button>` : ''}
       ${st.sold === 0 ? `<button class="btn danger tw" data-act="del-batch" data-id="${b.id}"><span>${t('batch.deleteShort')}</span><small>${t('batch.deleteSmall')}</small></button>` : ''}</div>
       ${bStatus(b) !== 'Closed' ? `<p class="muted small">${t('batch.closeNote')}</p>` : ''}</div>` : ''}</div></div>`, null, true);
@@ -1909,7 +1909,7 @@
   const ACT_NEEDS = {};
   Object.entries({
     sell: ['make-invoice', 'pay-inv', 'pay-save', 'pay-full', 'pay-full-amt', 'pay-clearing'],
-    orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'dv-toggle', 'dv-all', 'dv-go', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
+    orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'wait-open', 'wait-batch', 'dv-toggle', 'dv-all', 'dv-go', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
@@ -2057,6 +2057,17 @@
     const dl = po.option === 'delivery', ow = (L.orderPay(state, orderInvoice(po)) || {}).owing || 0, how = dl ? t('ord.delivered') : t('ord.collected');
     return askCard(t(dl ? 'ord.askDelivered' : 'ord.askCollected') + ' ' + (ow > 0 ? t('ord.askOwing', { amount: plain(money(ow)) }) : t('ord.askPaid')), { title: t(dl ? 'ord.askTitleDel' : 'ord.askTitleCol'), ok: t(dl ? 'ord.yesDelivered' : 'ord.yesCollected'), no: t('ord.no') }).then((y) => {
       if (y) Store.setStatus(id, 'done', tripsOf(po).length ? { trips: tripsOf(po).concat({ at: Date.now(), ids: toHand(po).map((i) => i.id) }) } : undefined).then(() => { ordDirty = true; toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); const here = pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id; if (here) setTimeout(() => { sheetOrder(id, true); if (ow <= 0 && pageStack.length > 1) pageStack = pageStack.slice(-1); }, 450); else dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
+  }
+  // From a "Waiting for items to arrive" box: open the batch the late item is in, scrolled to the Mark received button
+  function openBatchToReceive(bid) {
+    sheetBatch(bid);
+    setTimeout(() => { const b = $('#bpg-recv'); if (!b) return; b.scrollIntoView({ behavior: 'auto', block: 'center' }); b.classList.add('pulse'); setTimeout(() => b.classList.remove('pulse'), 2600); }, 380);
+  }
+  function waitOpen(id) {
+    const o = Store.orders().find((x) => x.id === id); if (!o) return;
+    const by = new Map(); toHand(o).filter(itemArriving).forEach((i) => { const it = state.items.find((x) => x.id === i.id); if (it && it.batchId) by.set(it.batchId, (by.get(it.batchId) || 0) + 1); });
+    if (by.size === 1) return openBatchToReceive([...by.keys()][0]);
+    if (by.size > 1) openSmall(`<h3>${t('wo.title')}</h3><p class="muted small" style="margin:0 0 6px">${t('wo.sub')}</p>${[...by].map(([bid, n]) => `<button type="button" class="row tap" data-act="wait-batch" data-id="${esc(bid)}"><div class="grow"><b>${esc((state.batches.find((x) => x.id === bid) || {}).id || bid)}</b><small>${tn('notif.items', n)}</small></div><span class="rgo">›</span></button>`).join('')}<div class="btns"><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
   }
   /* ---------- part deliveries: choose what goes out now; items still on their way cannot be picked ---------- */
   let dvOrd = '', dvSel = null;
@@ -2349,7 +2360,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
       ${payCard}${tlCard}${spotCard}
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('flow.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
-        : o.status === 'confirmed' ? `<div class="fnext">${(() => { const left = toHand(o), wait = left.filter(itemArriving); if (left.length && wait.length === left.length) return `<div class="fwait">⏳ ${tn('ord.waitingN', wait.length)}</div>`; return owingNow > 0 ? `<button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`; })()}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
+        : o.status === 'confirmed' ? `<div class="fnext">${(() => { const left = toHand(o), wait = left.filter(itemArriving); if (left.length && wait.length === left.length) return `<button type="button" class="fwait" data-act="wait-open" data-id="${o.id}">⏳ ${tn('ord.waitingN', wait.length)} ›</button>`; return owingNow > 0 ? `<button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`; })()}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
         : o.status === 'done' && inv && (L.purchaseOf(state, inv) || { items: [] }).items.length ? `<div class="btnrow"><button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1;grid-column:1 / -1">↩ ${t('ret.btn')}</button></div>` : ''}</div>`, null, true);   // the invoice opens from its row in the checklist above
     if (lat && !sentLatest && canAct) setTimeout(() => { if (pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id) prefetchPdf(lat.no, true); }, 800);
   }
@@ -2720,6 +2731,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'ord-send-inv': { const o = Store.orders().find((x) => x.id === id), lat = o && latestInvOf(o); return lat && shareInvoicePdf(lat.no, false); }
       case 'ord-more': ordLimit += 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = ordLimit; }); return refreshOrders();
       case 'ord-q-clear': ordQ = ''; document.querySelectorAll('.oq').forEach((e) => { e.value = ''; }); return refreshOrders();
+      case 'wait-open': return waitOpen(id);
+      case 'wait-batch': closeSheet(); return openBatchToReceive(id);
       case 'dv-toggle': { if (dvSel) { if (dvSel.has(id)) dvSel.delete(id); else dvSel.add(id); } return sheetDeliver(dvOrd, true); }
       case 'dv-all': { const o = Store.orders().find((x) => x.id === dvOrd); if (o) dvSel = new Set(toHand(o).filter((i) => !itemArriving(i)).map((i) => i.id)); return sheetDeliver(dvOrd, true); }
       case 'dv-go': return deliverNow(id);

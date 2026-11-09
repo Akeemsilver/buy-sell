@@ -65,3 +65,26 @@ assert.strictEqual(W.typeOf({ t: 'n', g: 'f', pl: true }), 'npf'); assert.strict
 const older = W.seed(words.filter((w) => !['cocktail dress', 'crossbody bag'].includes(w.en)).map((w) => { const c = Object.assign({}, w); delete c.pe; return c; }));
 assert.ok(older.some((w) => w.en === 'cocktail dress') && older.find((w) => w.en === 'maxi dress').pe === 'vestidos largos', 'an older library gets the new words and plurals');
 console.log('words tests passed: ' + CASES.length + ' example names');
+
+// ---- Spanish → English (the 🇬🇧 button on a Spanish phone): the list read backwards
+{
+  const back = (es) => W.toEnglish(es, words);
+  assert.strictEqual(back('Vestido azul').en, 'Blue dress');
+  assert.strictEqual(back('Falda mini roja').en, 'Red mini skirt', 'the colour comes first in English');
+  assert.strictEqual(back('Dos vestidos rojos').en, 'Two red dresses');
+  assert.strictEqual(back('Conjunto de lino azul').en, 'Blue linen set', '"de lino" is a material, not the word "of"');
+  assert.strictEqual(back('Vestido rayado negro y blanco').en, 'Black and white striped dress');
+  assert.strictEqual(back('Vestido negro XL').en, 'Black dress XL', 'a size goes after the thing');
+  assert.strictEqual(back('Blusa azul talla M').en, 'Blue top size M');
+  assert.strictEqual(back('Conjunto de 2 piezas negro').en, 'Black 2 piece set');
+  const unk = back('Pantalones xyzabc'); assert.ok(unk.missing.includes('xyzabc') && /xyzabc/i.test(unk.en), 'an unknown word is kept and flagged');
+  assert.strictEqual(back('').en, '');
+  // what an English phone saved comes back the same way
+  let same = 0; CASES.forEach(([en]) => { if (back(W.translate(en, words).es).en.toLowerCase() === en.toLowerCase()) same++; });
+  assert.ok(same / CASES.length >= 0.6, 'English → Spanish → English comes back unchanged for most names: ' + same + ' of ' + CASES.length);
+  const it = { desc: 'Blue dress', nameEs: 'Vestido azul', esSet: true, esFor: 'Blue dress' };
+  assert.strictEqual(W.english(it, words).state, 'ok'); assert.strictEqual(W.english(it, words).en, 'Blue dress');
+  assert.strictEqual(W.english({ desc: 'Blue dress', nameEs: 'Vestido xyzabc', esSet: true, esFor: 'Blue dress' }, words).state, 'check');
+  assert.strictEqual(W.english({ desc: 'Mi blusa', enSet: true, enFor: 'Vestido azul', nameEs: 'Vestido azul', esSet: true, esFor: 'Mi blusa' }, words).en, 'Mi blusa', 'an English name you confirmed stays');
+  console.log('Spanish → English: ' + same + ' of ' + CASES.length + ' round trips unchanged');
+}

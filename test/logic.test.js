@@ -438,3 +438,21 @@ console.log('sale price tests passed');
   [[200, -300, -60], [500, 0, 0], [1000, 500, 100]].forEach(([sales, net, pct]) => { const st = L3.batchStats(mk(sales), b); assert.strictEqual(st.net, net, 'net at ' + sales); assert.strictEqual(st.netPct, pct, 'net % at ' + sales); });
   const none = L3.batchStats(mk(0), b); assert.strictEqual(none.net, -500, 'nothing sold yet: all of it is still to earn back'); assert.ok(none.profit > 0, 'the expected profit is still there');
 }
+
+// ---- what customers owe, per batch
+{
+  const L4 = require('../js/logic.js');
+  const now = new Date('2026-11-20T12:00:00Z'), day = (n) => new Date(now.getTime() - n * 86400000).toISOString();
+  const b1 = { id: 'B1' }, b2 = { id: 'B2' };
+  const s = { batches: [b1, b2], invoices: [{ no: 'INV1', date: day(12) }, { no: 'INV2', date: day(4) }, { no: 'INV3', date: day(30) }], items: [
+    { batchId: 'B1', status: 'Owing', sold: 142, paid: 0, customer: 'Rosa', invoice: 'INV1' },
+    { batchId: 'B1', status: 'Owing', sold: 100, paid: 30, customer: 'Anna', invoice: 'INV2' },
+    { batchId: 'B1', status: 'Paid', sold: 90, paid: 90, customer: 'Sam', invoice: 'INV3' },
+    { batchId: 'B1', status: 'Available', sold: 0, paid: 0 },
+    { batchId: 'B2', status: 'Owing', sold: 50, paid: 0, customer: 'rosa ', invoice: 'INV3' },
+  ] };
+  const o1 = L4.batchOwing(s, b1, now); assert.deepStrictEqual(o1, { owing: 212, items: 2, people: 2, oldestDays: 12 }, 'batch 1: 142 + 70 owing, two people, oldest 12 days');
+  const o2 = L4.batchOwing(s, b2, now); assert.strictEqual(o2.owing, 50); assert.strictEqual(o2.oldestDays, 30);
+  const all = L4.owingFor(s, [b1, b2], now); assert.deepStrictEqual(all, { owing: 262, items: 3, people: 2, oldestDays: 30 }, 'the same person owing in two batches counts once');
+  assert.deepStrictEqual(L4.batchOwing({ items: [], invoices: [] }, b1, now), { owing: 0, items: 0, people: 0, oldestDays: null });
+}

@@ -278,7 +278,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || !e.target || !e.target.matches) return;
     if (e.target.matches(NUMSEL)) { e.preventDefault(); e.target.blur(); return; }   // the tick: close the keyboard, stay on this page
-    if (e.target.dataset && e.target.dataset.f === 'desc' && e.target.closest('.qe')) { e.preventDefault(); const nx = $('.qe [data-f=cost]'); if (nx) nx.focus(); }   // Edit items: description, then cost
+    if (e.target.dataset && (e.target.dataset.f === 'desc' || e.target.dataset.f === 'descS') && e.target.closest('.qe')) { e.preventDefault(); const nx = $('.qe [data-f=cost]'); if (nx) nx.focus(); }   // Edit items: description, then cost
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'w-es') { e.preventDefault(); const b = $('[data-act=word-add]'); if (b) b.click(); } });
   document.addEventListener('input', (e) => { if (e.target.name === 'biz' && e.target.form && e.target.form.id === 'f-setup') { gateDraft.name = e.target.value; const n = $('#pv-name'); if (n) n.textContent = e.target.value || t('gate.bizPh'); } });
@@ -310,6 +310,7 @@
     const el = $('#appbar-right'); if (!el) return;
     const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     const n = ($('#back').hidden || isSettings()) ? notifCount() : 0;
+    if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools"><button class="round" data-act="bl-filter-open" aria-label="${t('bl.filterAria')}"><svg viewBox="0 0 24 24">${ICONS.filter}</svg>${k ? `<b class="nb">${k}</b>` : ''}</button></div>`; return; }
     if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools"><button class="round dots3" data-act="dlv-menu" aria-label="${t('batch.more')}">⋮</button></div>`; return; }   // the Delivery log keeps its three dots in the title bar
     el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
   }
@@ -602,12 +603,36 @@
   }
 
   const dayLong = (d) => { const v = new Date(d); if (isNaN(v)) return ''; const m = v.toLocaleDateString(I.locale(I.getLang()), { month: 'short' }).replace(/\./g, ''); return String(v.getDate()).padStart(2, '0') + ' ' + m.charAt(0).toUpperCase() + m.slice(1) + ' ' + v.getFullYear(); };   // 12 Oct 2026: three letters, capital first letter
-  // Batch Log: every batch ever bought, newest first, with a search box, a filter and the store switch on each row
-  let blFilter = 'all';
+  // Batch Log: three tabs (Overview cards, Profit / Loss table, Owing table), a filter with several choices, and the search box
+  let blTab = 'overview', blF = { store: [], status: [], items: [] }, blDraft = null;
   const BL_COL = { 'In Transit': '#f0b34a', Received: '#4fc27a', Closed: '#8c7f91' };
+  const blCount = (f) => f.store.length + f.status.length + f.items.length;
+  const blPass = (b, f) => {
+    const inStore = storeCfg().batches.includes(b.id), bs = bStatus(b), left = L.batchStats(state, b).left > 0, any = (arr, test) => !arr.length || arr.some(test);
+    return any(f.store, (k) => (k === 'in') === inStore) && any(f.status, (k) => ({ transit: 'In Transit', received: 'Received', closed: 'Closed' }[k] === bs)) && any(f.items, (k) => (k === 'avail') === left);
+  };
+  const blList = (q) => L.batchSearch(state.batches, q).filter(({ b }) => blPass(b, blF));
+  const fmt2 = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const signed2 = (n) => (n < 0 ? '−' : '') + fmt2(Math.abs(n));
+  const blShort = (id) => { const x = String(bl(id)), m = x.match(/^([A-Za-zÁÉÍÓÚÑ]+)-?(\d+)$/); return m ? m[1].charAt(0) + m[1].slice(1).toLowerCase() + ' ' + m[2] : x; };
+  const blRow = (b, inner) => `<div class="tr" role="button" tabindex="0" data-act="batch" data-id="${b.id}"><i class="st" style="background:${BL_COL[bStatus(b)] || BL_COL.Closed}"></i><b>${esc(blShort(b.id))}</b>${inner}</div>`;
+  const dash = '<span class="dsh">—</span>';
+  const dayTxt = (n) => t(n === 1 ? 'bl.day1' : 'bl.days', { n });
   function batchLogRows(q) {
-    const c = storeCfg(), res = L.batchSearch(state.batches, q).filter(({ b }) => blFilter === 'all' || (blFilter === 'in') === c.batches.includes(b.id));
-    if (!res.length) return `<div class="empty">${t('bp.none', { q: esc(String(q || '').trim()) })}</div>`;
+    const res = blList(q);
+    if (!res.length) return `<div class="empty">${blCount(blF) && !String(q || '').trim() ? t('bl.noMatch') : t('bp.none', { q: esc(String(q || '').trim()) })}</div>`;
+    const c = storeCfg();
+    if (blTab === 'pl') {
+      let ti = 0, ts = 0;
+      const rows = res.map(({ b }) => { const st = L.batchStats(state, b); ti += st.investment; ts += st.sales; return blRow(b, `<span class="n costonly">${fmt2(st.investment)}</span><span class="n">${fmt2(st.sales)}</span><span class="n costonly ${st.net < 0 ? 'neg' : 'pos'}">${signed2(st.net)}</span>`); }).join('');
+      const tn2 = Math.round((ts - ti) * 100) / 100;
+      return `<div class="bltbl pl"><div class="tr h"><span>${t('bl.h.batch')}</span><span class="n costonly">${t('bl.h.invested')}</span><span class="n">${t('bl.h.sales')}</span><span class="n costonly">${t('bl.h.pl')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n costonly">${fmt2(ti)}</span><span class="n">${fmt2(ts)}</span><span class="n costonly ${tn2 < 0 ? 'neg' : 'pos'}">${signed2(tn2)}</span></div></div><p class="blnote">${t('bl.note.pl')}</p>`;
+    }
+    if (blTab === 'owing') {
+      const rows = res.map(({ b }) => { const o = L.batchOwing(state, b); return blRow(b, `<span class="n">${o.owing > 0 ? `<span class="ow">${fmt2(o.owing)}</span>` : dash}</span><span class="n">${o.people ? o.people : dash}</span><span class="n">${o.oldestDays !== null && o.owing > 0 ? `<span class="${o.oldestDays > 10 ? 'neg' : ''}">${dayTxt(o.oldestDays)}</span>` : dash}</span>`); }).join('');
+      const tot = L.owingFor(state, res.map((x) => x.b));
+      return `<div class="bltbl ow"><div class="tr h"><span>${t('bl.h.batch')}</span><span class="n">${t('bl.h.owing')}</span><span class="n">${t('bl.h.people')}</span><span class="n">${t('bl.h.waiting')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n"><span class="ow">${tot.owing > 0 ? fmt2(tot.owing) : '—'}</span></span><span class="n">${tot.people || '—'}</span><span class="n">${tot.oldestDays !== null && tot.owing > 0 ? dayTxt(tot.oldestDays) : '—'}</span></div></div><p class="blnote">${t('bl.note.owing')}</p>`;
+    }
     return res.map(({ b }) => { const st = L.batchStats(state, b), pc = st.count ? Math.round(st.sold / st.count * 100) : 0, bs = bStatus(b), col = BL_COL[bs] || BL_COL.Closed, on = c.batches.includes(b.id);
       return `<div class="blr${bs === 'Closed' ? ' cl' : ''}" role="button" tabindex="0" data-act="batch" data-id="${b.id}"><i class="stripe" style="background:${col}"></i>
         <span class="ring" style="background:conic-gradient(${col} ${pc * 3.6}deg,color-mix(in srgb,var(--line) 80%,transparent) 0)"><b>${pc}%</b></span>
@@ -616,10 +641,22 @@
   }
   function BatchLog() {
     const c = storeCfg(), n = state.batches.length, inN = state.batches.filter((b) => c.batches.includes(b.id)).length;
-    return `<div class="blhero"><div><small>${t('bl.customersSee')}</small><b>${t('bl.xOfY', { x: inN, y: n })}</b></div>${n ? `<div class="sa">${t('store.selAll')}${swt('store-batch-all', 'all', n > 0 && inN === n)}</div>` : ''}</div>
-      <div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
-      <div class="blseg">${[['all', 'bl.f.all'], ['in', 'bl.f.in'], ['out', 'bl.f.out']].map(([k, l]) => `<button class="${blFilter === k ? 'on' : ''}" data-act="bl-filter" data-id="${k}">${t(l)}</button>`).join('')}</div>
+    const hero = blTab === 'overview' ? `<div class="blhero"><div><small>${t('bl.customersSee')}</small><b>${t('bl.xOfY', { x: inN, y: n })}</b></div>${n ? `<div class="sa">${t('store.selAll')}${swt('store-batch-all', 'all', n > 0 && inN === n)}</div>` : ''}</div>` : '';
+    return `${hero}<div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
+      <div class="blseg">${[['overview', 'bl.tabOverview'], ['pl', 'bl.tabPL'], ['owing', 'bl.tabOwing']].map(([k, l]) => `<button class="${blTab === k ? 'on' : ''}" data-act="bl-tab" data-id="${k}">${t(l)}</button>`).join('')}</div>
       <div id="blog">${batchLogRows('')}</div>`;
+  }
+  // The filter panel: several choices at once; choices in different groups combine
+  function sheetBlFilter() {
+    if (!blDraft) blDraft = { store: blF.store.slice(), status: blF.status.slice(), items: blF.items.slice() };
+    const d = blDraft, chip = (g, k, label) => `<button type="button" class="cp ${d[g].includes(k) ? 'on' : ''}" data-act="bl-chip" data-id="${g}:${k}">${label}</button>`;
+    const n = L.batchSearch(state.batches, '').filter(({ b }) => blPass(b, d)).length;
+    openSmall(`<div class="blf"><div class="blfh"><h3>${t('bl.filter')}</h3><button type="button" class="alink" data-act="bl-clear">${t('bl.clear')}</button></div>
+      <div class="blfg">${t('bl.fg.store')}</div><div class="chips">${chip('store', 'in', t('bl.f.in'))}${chip('store', 'out', t('bl.f.out'))}</div>
+      <div class="blfg">${t('bl.fg.status')}</div><div class="chips">${chip('status', 'transit', stLabel('In Transit'))}${chip('status', 'received', stLabel('Received'))}${chip('status', 'closed', stLabel('Closed'))}</div>
+      <div class="blfg">${t('bl.fg.items')}</div><div class="chips">${chip('items', 'avail', t('bl.avail'))}${chip('items', 'none', t('bl.notAvail'))}</div>
+      <p class="muted small" style="margin:12px 0 0">${t('bl.pickMany')}</p>
+      <div class="btns"><button class="btn primary" data-act="bl-apply">${t(n === 1 ? 'bl.show1' : 'bl.show', { n })}</button><button class="btn" data-act="bl-cancel">${t('btn.cancel')}</button></div></div>`, 'sheet');
   }
 
   function ItemLog() {
@@ -1014,8 +1051,8 @@
   function voiceStop() { const r = rec; rec = null; if (r) { try { r.abort(); } catch (e) { /* already stopped */ } } }
   function voiceToggle(forSpanish) {
     if (rec) { try { rec.stop(); } catch (e) { /* ignore */ } return; }
-    const box = document.querySelector(forSpanish ? '#es-name' : '.dscrow input'); if (!box || !SR) return;
-    const row = box.closest('.dscrow, .esrow'), r = new SR(); r.lang = forSpanish || I.getLang() === 'es' ? 'es-419' : 'en-US'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+    const box = document.querySelector(forSpanish === 'en' ? '#en-name' : forSpanish ? '#es-name' : '.dscrow input'); if (!box || !SR) return;
+    const row = box.closest('.dscrow, .esrow'), r = new SR(); r.lang = forSpanish === 'en' ? 'en-US' : (forSpanish || I.getLang() === 'es') ? 'es-419' : 'en-US'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
     let heard = '', failed = false; rec = r;
     r.onstart = () => voiceUi(true, '', row);
     r.onresult = (e) => { heard = Array.from(e.results).map((x) => x[0].transcript).join(' ').trim(); const l = document.querySelector('.listen span'); if (l && heard) l.textContent = '… ' + heard; };
@@ -1039,8 +1076,42 @@
     return state.settings.words || [];
   }
   const esBadge = (i) => { const sp = Wd.spanish(i, wordList()); return sp.state === 'none' ? '' : `<u class="${sp.state === 'ok' ? 'ok' : ''}">${sp.state === 'ok' ? '✓' : '!'}</u>`; };
-  const esBtn = (i) => `<button type="button" class="fl2" data-act="es-open" data-id="${i.id}" aria-label="${t('es.aria')}">🇪🇸${esBadge(i)}</button>`;
-  function refreshEs(i) { const b = document.querySelector(`.fl2[data-id="${i.id}"]`); if (b) b.innerHTML = '🇪🇸' + esBadge(i); }
+  // On an English phone the description is the English name and 🇪🇸 is the Spanish name; on a Spanish phone it is the other way round.
+  const esMode = () => I.getLang() === 'es';
+  const enBadge = (i) => { const e = Wd.english(i, wordList()); return e.state === 'none' ? '' : `<u class="${e.state === 'ok' ? 'ok' : ''}">${e.state === 'ok' ? '✓' : '!'}</u>`; };
+  const flagInner = (i) => (esMode() ? '🇬🇧' + enBadge(i) : '🇪🇸' + esBadge(i));
+  const descShown = (i) => (esMode() ? Wd.spanish(i, wordList()).es : i.desc);
+  const esBtn = (i) => `<button type="button" class="fl2" data-act="${esMode() ? 'en-open' : 'es-open'}" data-id="${i.id}" aria-label="${t(esMode() ? 'en.aria' : 'es.aria')}">${flagInner(i)}</button>`;
+  function refreshEs(i) { const b = document.querySelector(`.fl2[data-id="${i.id}"]`); if (b) b.innerHTML = flagInner(i); }
+  // a name typed or spoken in Spanish: it is the Spanish name, and the English one is worked out from it (unless you confirmed an English one)
+  function setSpanishName(i, v) {
+    v = String(v || '');
+    if (!v.trim()) { delete i.nameEs; i.esSet = false; delete i.esFor; L.applyToGroup(state, i, ['nameEs', 'esSet', 'esFor']); return; }
+    i.nameEs = v; i.esSet = true;
+    if (!(i.enSet && i.enFor === v)) {
+      const e = Wd.toEnglish(v, wordList());
+      if (!e.missing.length || !String(i.desc || '').trim()) i.desc = e.en;   // never replace a good English name with a half-understood one
+      i.enSet = false; delete i.enFor;
+    }
+    i.esFor = i.desc;
+    L.applyToGroup(state, i, ['desc', 'nameEs', 'esSet', 'esFor', 'enSet', 'enFor']);
+  }
+  function sheetEnglish(id) {
+    const i = state.items.find((x) => x.id === id); if (!i) return;
+    const e = Wd.english(i, wordList());
+    openSmall(`<h3>🇬🇧 ${t('en.label')}</h3><p>${t('en.sub')}</p><label>${t('en.label')}</label>
+      <div class="esrow"><input id="en-name" value="${esc(i.desc || e.en)}" placeholder="${t('en.ph')}" autocomplete="off" enterkeyhint="done">${micBtn('mic-en')}</div>
+      ${e.missing.length ? `<div class="warn">⚠️ <span>${t('en.missing', { words: e.missing.map((w) => '“' + esc(w) + '”').join(', ') })}</span><button type="button" data-act="en-addwords" data-id="${id}">${t('en.add')}</button></div>` : ''}
+      <div class="btns"><button class="btn primary" data-act="en-done" data-id="${id}">${t('es.done')}</button></div>
+      <a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
+  }
+  function sheetAddWordsEn(id) {
+    const i = state.items.find((x) => x.id === id); if (!i) return;
+    const miss = Wd.english(i, wordList()).missing; if (!miss.length) return sheetEnglish(id);
+    openSmall(`<h3>${t('en.addTitle')}</h3><p>${t('en.addSub')}</p>
+      ${miss.map((w) => `<div class="wb"><div class="w"><b>${esc(w)}</b><i>→</i><input data-ws="${esc(w)}" placeholder="${t('en.wordPh')}" autocomplete="off"></div>${typeSelect('', 'a', 'data-wt')}</div>`).join('')}
+      <div class="btns"><button class="btn primary" data-act="en-savewords" data-id="${id}">${t('en.save')}</button></div><a class="lnk" data-act="es-lib">${t('es.openLib')}</a>`, 'sheet');
+  }
   function sheetSpanish(id) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     const sp = Wd.spanish(i, wordList());
@@ -1304,12 +1375,13 @@
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${PUI.photoBox(i)}
       <fieldset class="lockset" ${lock || !can('stock') ? 'disabled' : ''}>
-      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${lock ? '' : szSection(i, true, false)}${lock ? '' : grpNote(i, true)}
+      <label>${t('item.desc')}</label><div class="dscrow"><input data-f="${esMode() ? 'descS' : 'desc'}" value="${esc(descShown(i))}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${lock ? '' : szSection(i, true, false)}${lock ? '' : grpNote(i, true)}
       <div class="costonly"><label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}"></div>
       <div class="mrow" id="pricerow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" step="0.01" min="0" value="${i.price || ''}" placeholder="0.00"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
       <div id="saleblock">${saleHTML(i)}</div>
-      <label>${t('item.details')}</label><textarea class="dta" data-f="details" rows="3" maxlength="600" placeholder="${t('item.detailsPh')}">${esc(i.details || '')}</textarea>
-      <label>${t('item.detailsEs')}</label><textarea class="dta" data-f="detailsEs" rows="3" maxlength="600" placeholder="${t('item.detailsEsPh')}">${esc(i.detailsEs || '')}</textarea>
+      ${esMode() ? `<label>${t('item.details')}</label><textarea class="dta" data-f="detailsEs" rows="3" maxlength="600" placeholder="${t('item.detailsPh')}">${esc(i.detailsEs || '')}</textarea>
+      <label>${t('item.detailsEn')}</label><textarea class="dta" data-f="details" rows="3" maxlength="600" placeholder="${t('item.detailsEnPh')}">${esc(i.details || '')}</textarea>` : `<label>${t('item.details')}</label><textarea class="dta" data-f="details" rows="3" maxlength="600" placeholder="${t('item.detailsPh')}">${esc(i.details || '')}</textarea>
+      <label>${t('item.detailsEs')}</label><textarea class="dta" data-f="detailsEs" rows="3" maxlength="600" placeholder="${t('item.detailsEsPh')}">${esc(i.detailsEs || '')}</textarea>`}
       <p class="muted small">${t('item.detailsNote')}</p>
       <p class="muted small">${t('item.shownNote')}</p>
       <div class="grid2"><div><label>${t('item.sold')}</label><input data-f="sold" type="text" inputmode="decimal" step="0.01" min="0" value="${i.sold || ''}"></div>
@@ -1336,7 +1408,7 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${navArrows(ids, id, 'qe-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
       <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
-      <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="desc" value="${esc(i.desc)}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}${esBtn(i)}</div>
+      <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="${esMode() ? 'descS' : 'desc'}" value="${esc(descShown(i))}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}${esBtn(i)}</div>
       <div class="mrow"><div class="costonly"><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label>${t('qty.label')}</label>${qtyHtml(i)}</div></div>
       <div class="mrow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
       ${szSection(i, false, true)}${grpNote(i)}
@@ -2445,6 +2517,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'del-batch': return askCard(t('confirm.delBatch', { id: bl(id) }), { danger: true, ok: t('batch.deleteShort') }).then((y) => { if (y) run(() => L.deleteBatch(state, id), t('batch.deleted', { id: bl(id) })); });
       case 'mic': return voiceToggle(false);
       case 'mic-es': return voiceToggle(true);
+      case 'mic-en': return voiceToggle('en');
+      case 'en-open': return sheetEnglish(id);
+      case 'en-addwords': return sheetAddWordsEn(id);
+      case 'en-savewords': { let words = wordList(); document.querySelectorAll('#sheet [data-ws]').forEach((inp) => { const en = inp.value.trim(); if (en) words = Wd.put(words, en, inp.dataset.ws, '', (inp.closest('.wb').querySelector('[data-wt]') || {}).value || 'a'); }); state.settings.words = words; save(); return sheetEnglish(id); }
+      case 'en-done': { const i = state.items.find((x) => x.id === id), v = ($('#en-name').value || '').trim(); if (i && v) { const es = Wd.spanish(i, wordList()).es; i.desc = v; i.enSet = true; i.enFor = es; if (i.esSet) i.esFor = i.desc; L.applyToGroup(state, i, ['desc', 'esFor', 'enSet', 'enFor']); save(); refreshEs(i); refreshAfterEdit(i); } return closeSheet(); }
       case 'es-open': return sheetSpanish(id);
       case 'es-addwords': return sheetAddWords(id);
       case 'es-savewords': { document.querySelectorAll('.sheet .wb').forEach((row) => { const inp = row.querySelector('[data-w]'), sel = row.querySelector('[data-wt]'); if (inp.value.trim()) state.settings.words = Wd.put(wordList(), inp.dataset.w, inp.value, '', sel ? sel.value : 'a'); }); save(); toast(t('words.saved')); return closeSheet(); }
@@ -2524,7 +2601,12 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
-      case 'bl-filter': blFilter = id; return render();
+      case 'bl-tab': blTab = id; return render();
+      case 'bl-filter-open': blDraft = null; return sheetBlFilter();
+      case 'bl-chip': { const [g, k] = id.split(':'); if (!blDraft) blDraft = { store: blF.store.slice(), status: blF.status.slice(), items: blF.items.slice() }; blDraft[g] = blDraft[g].includes(k) ? blDraft[g].filter((x) => x !== k) : blDraft[g].concat(k); return sheetBlFilter(); }
+      case 'bl-clear': blDraft = { store: [], status: [], items: [] }; return sheetBlFilter();
+      case 'bl-apply': if (blDraft) blF = blDraft; blDraft = null; closeSheet(); return render();
+      case 'bl-cancel': blDraft = null; return closeSheet();
       case 'batches-fold': setPref('hubBatchesOpen', !pref('hubBatchesOpen', false)); return render();
       case 'batches-log': go({ tab: 'more', moreView: 'batches' }); window.scrollTo(0, 0); return render();
       case 'store-batch-all': { const c = storeCfg(), all = state.batches.map((b) => b.id), on = all.every((x) => c.batches.includes(x)); storeSet({ batches: on ? [] : all }); return hubOpen() || (tab === 'more' && moreView === 'batches') ? render() : sheetStore(); }   // all on -> turn every batch off; otherwise turn every batch on
@@ -2671,6 +2753,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f; if (L.isLocked(i)) return;
       if (f === 'discount') { const pc = parsePct(el.value); el.value = pc ? pc + '%' : ''; if (discOld.id !== i.id) discOld = { id: i.id, v: i.discount }; i.discount = pc; return setSale(i, i.saleOn, pc); }   // "50" becomes "50%"
       if (f === 'price' && !onQuick() && grpOf(i).length > 1) { const nv = Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0), old = i.price; if (nv === old) return; i.price = nv; return setPrice(i, nv, old); }
+      if (f === 'descS') { setSpanishName(i, el.value); save(); updateSale(i); refreshEs(i); return refreshAfterEdit(i); }
       i[f] = NUM_FIELDS.includes(f) ? Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0) : el.value;
       if (L.GROUP_FIELDS.includes(f) && (onQuick() || f !== 'price')) L.applyToGroup(state, i, [f]);
       save(); updateSale(i); if (f === 'desc') refreshEs(i); if (f === 'desc') refreshAfterEdit(i);
@@ -2698,8 +2781,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
       if (f === 'discount') { if (discOld.id !== i.id) discOld = { id: i.id, v: i.discount }; i.discount = parsePct(el.value); if (onQuick()) L.applyToGroup(state, i, ['discount']); updateSale(i); }
+      else if (f === 'descS') { /* a Spanish name is applied when the box is left (see the change handler) */ }
       else if (NUM_FIELDS.includes(f)) { i[f] = Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0); updateSale(i); } else { i[f] = el.value; }
-      save();
+      if (f !== 'descS') save();
     } else if (el.form && el.form.id === 'f-batch') {
       const f = el.form, r = L.effectiveRate(state, f.currency.value), c = parseFloat(String(f.totalCost.value).replace(',', '.')) || 0;
       $('#rate-hint').innerHTML = t('batch.rateHint', { rate: r.toFixed(4), amount: money(c * r) });

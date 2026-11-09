@@ -1147,3 +1147,16 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 /* dark mode: a soft light ring right round the bottom bar */
 :root[data-theme=dark] .tabbar{border:1.5px solid rgba(255,255,255,.30)}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .tabbar{border:1.5px solid rgba(255,255,255,.30)}}
+
+/* Batch Log: tables, filter button and panel */
+.bltbl{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.bltbl .tr{display:grid;gap:6px;align-items:center;padding:11px 14px 11px 18px;border-bottom:1px solid var(--line);font-size:13.5px;position:relative;cursor:pointer;text-align:left}.bltbl .tr:last-child{border-bottom:0}.bltbl .tr:active{background:var(--tint)}
+.bltbl.pl .tr{grid-template-columns:1.25fr 1fr 1fr 1.15fr}.bltbl.ow .tr{grid-template-columns:1.2fr 1fr 1fr 1fr}.nocosts .bltbl.pl .tr{grid-template-columns:1.3fr 1fr}
+.bltbl .tr.h{cursor:default;background:color-mix(in srgb,var(--tint) 60%,var(--card));font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:800;padding-top:9px;padding-bottom:9px}.bltbl .tr.h:active,.bltbl .tr.t:active{background:inherit}
+.bltbl .tr .n{text-align:right;font-variant-numeric:tabular-nums}.bltbl .tr b{font-weight:800}.bltbl .tr i.st{position:absolute;left:0;top:0;bottom:0;width:5px}
+.bltbl .tr.t{cursor:default;background:color-mix(in srgb,var(--tint) 60%,var(--card));font-weight:800}
+.bltbl .neg{color:#ff7b7b}.bltbl .pos{color:#5fd391}.bltbl .ow{color:#ffb74d}.bltbl .dsh{color:var(--mute)}
+.blnote{color:var(--mute);font-size:11.5px;margin:8px 4px;line-height:1.45}
+.blf .blfh{display:flex;justify-content:space-between;align-items:baseline}.blf h3{margin:0 0 2px;font-size:17px}.blf .alink{background:none;border:0;color:var(--brand);font-weight:800;font-size:13px;width:auto;min-height:0;padding:4px}
+.blf .blfg{margin:12px 0 6px;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);font-weight:800}
+.blf .chips{display:flex;flex-wrap:wrap;gap:8px}.blf .cp{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:99px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 40%,var(--card));font-size:13px;font-weight:700;color:var(--ink);width:auto;min-height:0;box-shadow:none}.blf .cp.on{background:var(--tint);border-color:var(--brand);color:var(--brand)}.blf .cp.on::before{content:'✓';font-weight:900}

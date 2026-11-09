@@ -1160,3 +1160,7 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .blf .blfh{display:flex;justify-content:space-between;align-items:baseline}.blf h3{margin:0 0 2px;font-size:17px}.blf .alink{background:none;border:0;color:var(--brand);font-weight:800;font-size:13px;width:auto;min-height:0;padding:4px}
 .blf .blfg{margin:12px 0 6px;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);font-weight:800}
 .blf .chips{display:flex;flex-wrap:wrap;gap:8px}.blf .cp{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:99px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 40%,var(--card));font-size:13px;font-weight:700;color:var(--ink);width:auto;min-height:0;box-shadow:none}.blf .cp.on{background:var(--tint);border-color:var(--brand);color:var(--brand)}.blf .cp.on::before{content:'✓';font-weight:900}
+
+/* order page: View on the invoice row of the checklist (a soft pill, quieter than Send) */
+.cklist .ckview{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px;border:0;background:var(--tint);color:var(--brand);font-weight:800;font-size:13px;border-radius:99px;padding:7px 14px;min-height:0;width:auto;height:auto;box-shadow:none}
+.cklist .r.tap{cursor:pointer}.cklist .r.tap:active{background:var(--tint)}

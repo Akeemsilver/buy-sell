@@ -1176,3 +1176,8 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 :root[data-theme=dark] .row.notin{background:var(--warnbg);border-color:color-mix(in srgb,var(--warn) 35%,transparent);color:var(--warn)}:root[data-theme=dark] .row.notin b{color:var(--warn)}:root[data-theme=dark] .row.notin small{color:var(--ink);opacity:.85}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .row.notin{background:var(--warnbg);border-color:color-mix(in srgb,var(--warn) 35%,transparent);color:var(--warn)}:root:not([data-theme=light]) .row.notin b{color:var(--warn)}:root:not([data-theme=light]) .row.notin small{color:var(--ink);opacity:.85}}
 .row.notin small{white-space:normal;overflow:visible;text-overflow:clip}
+
+/* part deliveries */
+.fnext .fwait{grid-column:1 / -1;text-align:center;padding:14px;border:1.5px dashed color-mix(in srgb,#7cc8ff 45%,var(--line));border-radius:16px;color:#7cc8ff;font-weight:700;background:color-mix(in srgb,#7cc8ff 8%,transparent)}
+.dvp h3{margin:0 0 2px}.dvp .dvall{display:flex;justify-content:flex-end;margin:6px 0 2px}.dvp .dvr{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}.dvp .dvr .t{flex:1;min-width:0}.dvp .dvr .t b{display:block;font-size:15px}.dvp .dvr .t small{color:var(--mute)}
+.dvp .dvc{flex:none;width:26px;height:26px;border-radius:8px;border:2px solid var(--brand);display:grid;place-items:center;color:#fff;font-weight:800}.dvp .dvc.on{background:var(--brand)}.dvp .dvr.wait{opacity:.6}.dvp .dvr.wait .dvc{border-color:transparent;color:var(--mute)}.dvp .dvr .othumb{flex:none}

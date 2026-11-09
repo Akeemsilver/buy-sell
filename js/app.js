@@ -1572,6 +1572,8 @@
     return ink;
   }
   const isPaidInFull = (v) => v.total > 0 && v.balance <= 0;
+  // The money lines above the balance: a Subtotal only when a delivery fee sits between it and the Total, and Previously Paid only when there was an earlier payment
+  const totRows = (v, sub) => { const rows = []; if ((Number(v.delivery) || 0) > 0) rows.push(['doc.subtotal', sub], ['doc.delivery', v.delivery]); rows.push(['doc.total', v.total], ['doc.paid', v.amountPaid]); if ((Number(v.previouslyPaid) || 0) > 0) rows.push(['doc.prevPaid', v.previouslyPaid]); return rows; };
   const stampDate = (v, lg) => new Date(v.date).toLocaleDateString(I.locale(lg || invoiceLang()), { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase();
   // Which stamp an invoice carries: green PAID IN FULL once paid; amber DELIVERED / COLLECTED + BALANCE DUE when handed over with money still owing; none otherwise
   const stampKind = (v) => { if (!v || v.void) return ''; if (isPaidInFull(v)) return 'paid'; const o = v.no ? orderOfInvoice(v.no) : null; if (o && o.status === 'done') return o.option === 'delivery' ? 'del' : 'col'; return ''; };
@@ -1580,6 +1582,7 @@
   // The small two-line note under the balance while money is owing and the order is still to be handed over: "To be delivered / Payment due on delivery"
   const invNote = (v, lg) => { const tl = (key) => t(key, {}, lg || invoiceLang()); if (!v || v.void || isPaidInFull(v)) return null; const o = v.no ? orderOfInvoice(v.no) : null; if (!o || o.status !== 'confirmed') return null;
     const del = o.option === 'delivery', soon = (o.items || []).some(itemArriving), part = (Number(v.amountPaid) || 0) + (Number(v.previouslyPaid) || 0) > 0;
+    if (handedN(o) > 0 && toHand(o).length) return [tl('inv.ln.partial').replace('{n}', handedN(o)).replace('{m}', (o.items || []).length), tl('inv.ln.balRest')];   // some items have gone out, the rest are still to come
     return [tl(soon ? 'inv.ln.soon' : del ? 'inv.ln.deliver' : 'inv.ln.pickup'), tl(part ? (del ? 'inv.ln.balDel' : 'inv.ln.balPick') : (del ? 'inv.ln.payDel' : 'inv.ln.payPick'))]; };   // in the language this invoice is being drawn in, not the phone's
   function stampURL(v) { const k = v.no + '|' + v.date + '|' + invoiceLang() + '|' + stampKind(v); return stampCache[k] || (stampCache[k] = stampCanvasFor(v).toDataURL('image/png')); }
 
@@ -1607,8 +1610,7 @@
           <div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div></div>
         <table class="inv-t"><thead><tr><th>${ti('doc.desc')}</th><th class="r">${ti('doc.qty')}</th><th class="r">${ti('doc.price')}</th><th class="r">${ti('doc.amount')}</th></tr></thead><tbody>
           ${lines.map((l) => `<tr><td>${esc(lineName(l))}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
-        <div class="inv-sum">${stampKind(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot"><div><span>${ti('doc.subtotal')}</span><b>${invMoney(sub)}</b></div><div><span>${ti('doc.delivery')}</span><b>${invMoney(v.delivery)}</b></div><div><span>${ti('doc.total')}</span><b>${invMoney(v.total)}</b></div>
-          <div><span>${ti('doc.paid')}</span><b>${invMoney(v.amountPaid)}</b></div><div><span>${ti('doc.prevPaid')}</span><b>${invMoney(v.previouslyPaid)}</b></div><div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div>${(() => { const nt = invNote(v); return nt ? `<div class="inv-note"><b>${esc(nt[0])}</b><span>${esc(nt[1])}</span></div>` : ''; })()}</div>
+        <div class="inv-sum">${stampKind(v) && !v0.void ? `<img class="stamp" src="${stampURL(v)}" alt="${ti('doc.stampAlt')}">` : ''}<div class="inv-tot">${totRows(v, sub).map(([k, val]) => `<div><span>${ti(k)}</span><b>${invMoney(val)}</b></div>`).join('')}<div class="due"><span>${ti('doc.balance')}</span><b>${invMoney(v.balance)}</b></div></div>${(() => { const nt = invNote(v); return nt ? `<div class="inv-note"><b>${esc(nt[0])}</b><span>${esc(nt[1])}</span></div>` : ''; })()}</div>
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.by ? ` · ${t('inv.by', { name: esc(v.by) })}` : ''}${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? `<span class="costonly"> · ${t('invUI.profit')} ${money(v.profit)}</span>` : ''}${!v0.void && v.loss ? `<span class="costonly"> · ${t('invUI.loss')} ${money(v.loss)}</span>` : ''}${!v0.void && v.tip ? `<span class="costonly"> · ${t('invUI.tip')} ${money(v.tip)}</span>` : ''}</div>
       ${hist}${thumbs}${spotRow}
@@ -1668,7 +1670,7 @@
         });
         x.strokeStyle = '#bdbdbd'; x.lineWidth = 1; x.beginPath(); x.moveTo(L0 - 8, y + 0.5); x.lineTo(W - L0 + 8, y + 0.5); x.stroke();
         y += 34;
-        [[ti('doc.subtotal'), sub], [ti('doc.delivery'), v.delivery], [ti('doc.total'), v.total], [ti('doc.paid'), v.amountPaid], [ti('doc.prevPaid'), v.previouslyPaid]].forEach(([k, val]) => {
+        totRows(v, sub).map(([k, val]) => [ti(k), val]).forEach(([k, val]) => {
           F('400', 16); x.fillStyle = INV.mid; x.textAlign = 'right'; x.fillText(k, R0 - 130, y); x.fillStyle = '#000'; x.fillText(invMoney(val), R0, y); y += 28;
         });
         x.fillStyle = D.head; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
@@ -1907,7 +1909,7 @@
   const ACT_NEEDS = {};
   Object.entries({
     sell: ['make-invoice', 'pay-inv', 'pay-save', 'pay-full', 'pay-full-amt', 'pay-clearing'],
-    orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
+    orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'dv-toggle', 'dv-all', 'dv-go', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
@@ -2054,7 +2056,43 @@
     const po = Store.orders().find((x) => x.id === id); if (!po) return;
     const dl = po.option === 'delivery', ow = (L.orderPay(state, orderInvoice(po)) || {}).owing || 0, how = dl ? t('ord.delivered') : t('ord.collected');
     return askCard(t(dl ? 'ord.askDelivered' : 'ord.askCollected') + ' ' + (ow > 0 ? t('ord.askOwing', { amount: plain(money(ow)) }) : t('ord.askPaid')), { title: t(dl ? 'ord.askTitleDel' : 'ord.askTitleCol'), ok: t(dl ? 'ord.yesDelivered' : 'ord.yesCollected'), no: t('ord.no') }).then((y) => {
-      if (y) Store.setStatus(id, 'done').then(() => { ordDirty = true; toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); const here = pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id; if (here) setTimeout(() => { sheetOrder(id, true); if (ow <= 0 && pageStack.length > 1) pageStack = pageStack.slice(-1); }, 450); else dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
+      if (y) Store.setStatus(id, 'done', tripsOf(po).length ? { trips: tripsOf(po).concat({ at: Date.now(), ids: toHand(po).map((i) => i.id) }) } : undefined).then(() => { ordDirty = true; toast(ow > 0 ? t('ord.toastHanded', { how, amount: plain(money(ow)) }) : t('ord.toastDone', { how })); const here = pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id; if (here) setTimeout(() => { sheetOrder(id, true); if (ow <= 0 && pageStack.length > 1) pageStack = pageStack.slice(-1); }, 450); else dropPages('order|' + id); }).catch(() => toast(t('store.pubError'))); });
+  }
+  /* ---------- part deliveries: choose what goes out now; items still on their way cannot be picked ---------- */
+  let dvOrd = '', dvSel = null;
+  function sheetDeliver(id, keep) {
+    const o = Store.orders().find((x) => x.id === id); if (!o) return;
+    const del = o.option === 'delivery', left = toHand(o), ready = left.filter((i) => !itemArriving(i));
+    if (!keep || dvOrd !== id || !dvSel) { dvOrd = id; dvSel = new Set(ready.map((i) => i.id)); }
+    const row = (i) => { const wait = itemArriving(i), it = state.items.find((x) => x.id === i.id), on = !wait && dvSel.has(i.id);
+      return `<div class="dvr${wait ? ' wait' : ''}"${wait ? '' : ` role="button" tabindex="0" data-act="dv-toggle" data-id="${esc(i.id)}"`}><span class="dvc${on ? ' on' : ''}">${wait ? '–' : on ? '✓' : ''}</span><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(it ? dn(it) : i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small>${esc(i.id)}</small></div>${wait ? opl('arr', '⏳ ' + t('ord.pl.arr')) : `<b>${money(i.price)}</b>`}</div>`; };
+    const n = dvSel.size;
+    openSmall(`<div class="dvp"><h3>${t(del ? 'pdl.title' : 'pdl.titleCol')}</h3><small class="muted">${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}</small>
+      <div class="dvall"><button type="button" class="alink" data-act="dv-all">${t('pdl.all')}</button></div>${left.map(row).join('')}
+      <p class="muted small" style="margin:10px 2px 12px">${t('pdl.foot')}</p>
+      <div class="btns"><button class="btn primary" data-act="dv-go" data-id="${id}"${n ? '' : ' disabled'}>✅ ${del ? tn('pdl.btn', n || 0) : tn('pdl.btnCol', n || 0)} ›</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div></div>`, 'sheet');
+  }
+  // What the customer is told after a handover: what went out today, what is still to come, and what is still owed
+  function waHandover(o, ids) {
+    const lang = o.lang === 'es' || o.lang === 'en' ? o.lang : (knownLang('', o.name) || undefined), plain = (n) => 'TT$ ' + (Number(n) || 0).toFixed(2), del = o.option === 'delivery';
+    const nm = (i) => (lang === 'es' && state.items.find((x) => x.id === i.id) ? esName(state.items.find((x) => x.id === i.id)) : i.name) + (i.size ? ' (' + i.size + ')' : '');
+    const out = (o.items || []).filter((i) => ids.includes(i.id)), rest = (o.items || []).filter((i) => !handedAt(o, i.id) && !ids.includes(i.id));
+    const ow = (L.orderPay(state, orderInvoice(o)) || {}).owing || 0;
+    const msg = [(storeCfg().name || bizName()) + ' · ' + (o.code || SCore.orderCode(o.id)), t(del ? 'wa.h.headDel' : 'wa.h.headPick', { name: o.name }, lang), '',
+      t(del ? 'wa.h.doneDel' : 'wa.h.donePick', { date: dayMon(new Date()) }, lang), out.map((i) => '• ' + nm(i)).join('\n')]
+      .concat(rest.length ? ['', t('wa.h.rest', {}, lang), rest.map((i) => '• ' + nm(i) + (itemArriving(i) ? ' – ' + t('wa.h.arr', {}, lang) : '')).join('\n')] : [])
+      .concat(ow > 0 ? ['', t(rest.length ? 'wa.h.balRest' : 'wa.h.bal', { amount: plain(ow) }, lang)] : []).concat(['', t('wa.h.thanks', {}, lang)]).join('\n');
+    const w = window.open(SCore.waLink(o.phone, msg), '_blank'); if (!w) toast(t('ord.waBlocked'));
+  }
+  function deliverNow(id) {
+    const o = Store.orders().find((x) => x.id === id); if (!o || !dvSel || !dvSel.size) return;
+    const ids = [...dvSel], left = toHand(o), all = ids.length === left.length, trips = tripsOf(o).concat({ at: Date.now(), ids });
+    closeSheet();
+    const job = all ? Store.setStatus(id, 'done', { trips }) : Store.patch(id, { trips });
+    job.then(() => { ordDirty = true; dvSel = null; toast(t('pdl.toast', { n: handedN(Object.assign({}, o, { trips })), m: (o.items || []).length }));
+      const here = pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id; if (here) setTimeout(() => sheetOrder(id, true), 450);
+      askCard(t('pdl.askMsg', { name: o.name }), { title: t('pdl.askTitle'), ok: t('pdl.send'), no: t('pdl.later') }).then((y) => { if (y) waHandover(o, ids); });
+    }).catch(() => toast(t('store.pubError')));
   }
   /* ---------- delivery log: every delivery and pickup, by day, with the distance driven ---------- */
   let dlvTab = 'deliveries', dlvView = 'list', dlvQ = '', dlvDay = '', dlvMonth = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })(), dlvLink = false;
@@ -2081,7 +2119,7 @@
     const all = Store.orders().filter((o) => o.status === 'confirmed' || o.status === 'done'), isDel = (o) => o.option === 'delivery', mine = (o) => (dlvTab === 'deliveries' ? isDel(o) : !isDel(o)), d = dset();
     const pend = all.filter((o) => o.status === 'confirmed'), pd = pend.filter(isDel), pp = pend.filter((o) => !isDel(o)), nItems = (a) => a.reduce((n, o) => n + (o.items || []).length, 0);
     const hit = (o) => SCore.deliveryMatch(o, dlvQ, dlvWhen(o) || Store.when(o)), today = SCore.dayKey(new Date());
-    const pending = pend.filter(mine).filter(hit).sort((a, b) => (a.planDay || '9') < (b.planDay || '9') ? -1 : (a.planDay || '9') > (b.planDay || '9') ? 1 : ordKey(a) - ordKey(b)), done = all.filter((o) => o.status === 'done' && mine(o)).filter(hit);
+    const pending = pend.filter(mine).filter(hit).sort((a, b) => (a.planDay || '9') < (b.planDay || '9') ? -1 : (a.planDay || '9') > (b.planDay || '9') ? 1 : ordKey(a) - ordKey(b)), done = all.flatMap((o) => (tripsOf(o).length ? tripsOf(o).map((tr, n) => Object.assign({}, o, { status: 'done', doneAt: { toMillis: () => tr.at }, items: (o.items || []).filter((i) => (tr.ids || []).includes(i.id)), deliveryPrice: n === 0 ? o.deliveryPrice : 0, total: (o.items || []).filter((i) => (tr.ids || []).includes(i.id)).reduce((m, i) => m + (Number(i.price) || 0), 0) })) : o.status === 'done' ? [o] : [])).filter((o) => mine(o)).filter(hit);   // every trip is its own entry: its own day, items and distance driven
     const byDay = new Map(); done.forEach((o) => { const k = SCore.dayKey(dlvWhen(o) || new Date()); byDay.set(k, (byDay.get(k) || []).concat(o)); });
     const planned = new Map(); pending.filter((o) => o.planDay && isDel(o)).forEach((o) => planned.set(o.planDay, (planned.get(o.planDay) || 0) + 1));
     const driven = (a) => a.reduce((n, o) => n + (Number(o.km) > 0 ? 2 * Number(o.km) : 0), 0);
@@ -2174,10 +2212,15 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   const tsAt = (v) => (v && v.toMillis ? new Date(v.toMillis()) : null);   // a saved moment (the phone shows it in its own time zone)
   const itemArriving = (i) => { const it = state.items.find((x) => x.id === i.id), b = it && state.batches.find((y) => y.id === it.batchId); return !!it && !L.isSold(it) ? it.status === 'In Transit' : !!b && bStatus(b) === 'In Transit'; };
   const opl = (k, label) => `<span class="opl ${k}">${label}</span>`;
+  /* part deliveries: an order can be handed over in trips. o.trips = [{ at, ids }] is the record of what went out and when (an order with no trips and status done was handed over in one go) */
+  const tripsOf = (o) => (Array.isArray(o.trips) ? o.trips : []);
+  const handedAt = (o, id) => { const tr = tripsOf(o).find((x) => (x.ids || []).includes(id)); return tr ? new Date(tr.at) : null; };
+  const toHand = (o) => (o.status === 'done' || o.status === 'declined' ? [] : (o.items || []).filter((i) => !handedAt(o, i.id)));   // still to hand over
+  const handedN = (o) => (o.items || []).length - toHand(o).length;
   // One pill, the most urgent first: arriving soon, then owing, then paid
   function orderPill(o, withAmt) {
     if (o.status === 'declined') return opl('gone', t(o.returned ? 'ord.pl.returned' : o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'));
-    if (o.status !== 'done' && (o.items || []).some(itemArriving)) return opl('arr', t('ord.pl.arr'));   // no hourglass here: the room goes to the date
+    if (o.status !== 'done' && toHand(o).some(itemArriving)) return opl('arr', t('ord.pl.arr'));   // no hourglass here: the room goes to the date
     const pay = L.orderPay(state, orderInvoice(o)); if (!pay) return '';
     return pay.owing > 0 ? opl('owing', withAmt ? t('ord.pl.owingAmt', { amount: money(pay.owing) }) : t('ord.pl.owing')) : opl('paid', '✓ ' + t('ord.pl.paid'));
   }
@@ -2269,7 +2312,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       ${fee > 0 ? `<div class="ln"><span>${t('ret.fee')}</span><b>${money(fee)}</b></div>` : ''}
       ${pv.refund > 0 ? `<div class="ln due"><span>${t('ret.refund')}</span><b>${money(pv.refund)}</b></div>` : ''}${pv.owesFee > 0 ? `<div class="ln due"><span>${t('ret.owesFee')}</span><b>${money(pv.owesFee)}</b></div>` : ''}`;
   }
-  const itemPill = (o, i, it) => { if (o.status === 'declined') return ''; const k = o.status !== 'done' && itemArriving(i) ? opl('arr', '⏳ ' + t('ord.pl.arr')) : it && L.isSold(it) && it.invoice ? (it.status === 'Paid' ? opl('paid', '✓ ' + t('ord.pl.paid')) : opl('owing', t('ord.pl.owing'))) : ''; return k ? `<div class="ipl">${k}</div>` : ''; };
+  const itemPill = (o, i, it) => { if (o.status === 'declined') return ''; const hd = o.status !== 'done' ? handedAt(o, i.id) : null; const k = hd ? opl('paid', '✓ ' + t(o.option === 'delivery' ? 'ord.pl.deliveredOn' : 'ord.pl.collectedOn', { date: dayMon(hd) })) : o.status !== 'done' && itemArriving(i) ? opl('arr', '⏳ ' + t('ord.pl.arr')) : it && L.isSold(it) && it.invoice ? (it.status === 'Paid' ? opl('paid', '✓ ' + t('ord.pl.paid')) : opl('owing', t('ord.pl.owing'))) : ''; return k ? `<div class="ipl">${k}</div>` : ''; };
   function sheetOrder(id, swap) {
     const o = Store.orders().find((x) => x.id === id); if (!o) return;
     enterPage('order', id, () => sheetOrder(id), swap);
@@ -2281,7 +2324,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const gp = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null, ml = gp ? SCore.mapLinks(gp.lat, gp.lng) : null;   // the pin the customer chose on the map
     const stage = stageOf(o), sib = newestFirst(Store.orders().filter((x) => stageOf(x) === stage)), at = sib.findIndex((x) => x.id === id);
     const nav = sib.length > 1 ? `<div class="fnav"><button data-act="order-nav" data-id="${sib[(at - 1 + sib.length) % sib.length].id}" aria-label="${t('flow.prev')}">‹</button><button data-act="order-nav" data-id="${sib[(at + 1) % sib.length].id}" aria-label="${t('flow.next')}">›</button></div>` : '';
-    const stepBar = o.status === 'declined' ? '' : `<div class="fstep">${ORD_TABS.map((k, n) => `<span class="${n < ORD_TABS.indexOf(stage) ? 'dn' : n === ORD_TABS.indexOf(stage) ? 'on' : ''}">${t('flow.' + (k === 'new' ? 'ordered' : k === 'handed' ? (o.option === 'delivery' ? 'delivered' : 'collected') : k))}</span>`).join('')}</div>`;
+    const partN = o.status === 'confirmed' && handedN(o) > 0 ? ' ' + t('ord.nOfM', { n: handedN(o), m: (o.items || []).length }) : '';   // part delivered: "Delivered 1 of 2"
+    const stepBar = o.status === 'declined' ? '' : `<div class="fstep">${ORD_TABS.map((k, n) => `<span class="${n < ORD_TABS.indexOf(stage) ? 'dn' : n === ORD_TABS.indexOf(stage) ? 'on' : ''}">${t('flow.' + (k === 'new' ? 'ordered' : k === 'handed' ? (o.option === 'delivery' ? 'delivered' : 'collected') : k))}${k === 'handed' ? partN : ''}</span>`).join('')}</div>`;
     const stIdx = ORD_TABS.indexOf(stage), stName = (k) => t('flow.' + (k === 'new' ? 'ordered' : k === 'handed' ? (o.option === 'delivery' ? 'delivered' : 'collected') : k));
     const stripBar = o.status === 'declined' ? '' : `<div class="stk" hidden aria-hidden="true"><div class="dots">${ORD_TABS.map((k, n) => `<i class="${n < stIdx ? 'dn' : n === stIdx ? 'on' : ''}">${n < stIdx ? '✓' : ''}</i>${n < ORD_TABS.length - 1 ? `<b class="${n < stIdx ? 'dn' : ''}"></b>` : ''}`).join('')}</div><span class="lab">${stName(ORD_TABS[stIdx])}<small>${t('ord.stepOf', { n: stIdx + 1, total: ORD_TABS.length })}</small></span></div>`;
     const owingNow = pay && pay.owing > 0 ? pay.owing : 0;
@@ -2305,7 +2349,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
       ${payCard}${tlCard}${spotCard}
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('flow.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
-        : o.status === 'confirmed' ? `<div class="fnext">${owingNow > 0 ? `<button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
+        : o.status === 'confirmed' ? `<div class="fnext">${(() => { const left = toHand(o), wait = left.filter(itemArriving); if (left.length && wait.length === left.length) return `<div class="fwait">⏳ ${tn('ord.waitingN', wait.length)}</div>`; return owingNow > 0 ? `<button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`; })()}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
         : o.status === 'done' && inv && (L.purchaseOf(state, inv) || { items: [] }).items.length ? `<div class="btnrow"><button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1;grid-column:1 / -1">↩ ${t('ret.btn')}</button></div>` : ''}</div>`, null, true);   // the invoice opens from its row in the checklist above
     if (lat && !sentLatest && canAct) setTimeout(() => { if (pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id) prefetchPdf(lat.no, true); }, 800);
   }
@@ -2676,7 +2720,10 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'ord-send-inv': { const o = Store.orders().find((x) => x.id === id), lat = o && latestInvOf(o); return lat && shareInvoicePdf(lat.no, false); }
       case 'ord-more': ordLimit += 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = ordLimit; }); return refreshOrders();
       case 'ord-q-clear': ordQ = ''; document.querySelectorAll('.oq').forEach((e) => { e.value = ''; }); return refreshOrders();
-      case 'order-done': return markHanded(id);
+      case 'dv-toggle': { if (dvSel) { if (dvSel.has(id)) dvSel.delete(id); else dvSel.add(id); } return sheetDeliver(dvOrd, true); }
+      case 'dv-all': { const o = Store.orders().find((x) => x.id === dvOrd); if (o) dvSel = new Set(toHand(o).filter((i) => !itemArriving(i)).map((i) => i.id)); return sheetDeliver(dvOrd, true); }
+      case 'dv-go': return deliverNow(id);
+      case 'order-done': { const po = Store.orders().find((x) => x.id === id); return po && toHand(po).some(itemArriving) ? sheetDeliver(id) : markHanded(id); }   // some items are still on their way: choose what goes out now
       case 'pick-client': invForm.client = id; comboOpen = false; return render();
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
       case 'combo-new': comboOpen = false; return render();

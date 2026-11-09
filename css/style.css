@@ -1170,3 +1170,9 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .stk .dots{display:flex;align-items:center;flex:1}.stk .dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:var(--card);box-sizing:border-box;flex:none;display:grid;place-items:center;color:#fff;font-size:8px;font-style:normal;font-weight:900}
 .stk .dots b{flex:1;height:2px;background:var(--line)}.stk .dots b.dn{background:#2e9e5b}.stk .dots i.dn{background:#2e9e5b;border-color:#2e9e5b}.stk .dots i.on{background:var(--brand,#d6264a);border-color:var(--brand,#d6264a);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#d6264a) 25%,transparent)}
 .stk .lab{flex:none;font-weight:800;font-size:13.5px}.stk .lab small{color:var(--mute);font-weight:600;font-size:11.5px;margin-left:6px}
+
+/* the "Not in your online store yet" notice: readable on both light and dark */
+.row.notin{background:#fff4e0;border-color:#f1d4a0;color:#4a3213}.row.notin b{color:#4a3213}.row.notin small{color:#7a5a12}
+:root[data-theme=dark] .row.notin{background:var(--warnbg);border-color:color-mix(in srgb,var(--warn) 35%,transparent);color:var(--warn)}:root[data-theme=dark] .row.notin b{color:var(--warn)}:root[data-theme=dark] .row.notin small{color:var(--ink);opacity:.85}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .row.notin{background:var(--warnbg);border-color:color-mix(in srgb,var(--warn) 35%,transparent);color:var(--warn)}:root:not([data-theme=light]) .row.notin b{color:var(--warn)}:root:not([data-theme=light]) .row.notin small{color:var(--ink);opacity:.85}}
+.row.notin small{white-space:normal;overflow:visible;text-overflow:clip}

@@ -1207,3 +1207,9 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .tmenu .tmi{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:0 12px;border:0;border-radius:12px;background:transparent;color:var(--ink);font-weight:600;text-align:left;box-shadow:none}
 .tmenu .tmi+.tmi{border-top:1px solid var(--line);border-radius:0 0 12px 12px}.tmenu .tmic{width:22px;text-align:center;font-size:18px}.tmenu .tml{flex:1}
 .tmenu .dot.on{position:static;width:9px;height:9px;border-radius:50%;background:var(--brand);display:block}
+
+/* item pages: ‹ 2 of 10 › under the thumb, swipe on the photo, faint arrows on its sides */
+.inavpill{position:fixed;right:14px;bottom:calc(var(--tabh,64px) + var(--sab,0px) + 24px);z-index:70;display:flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:99px;box-shadow:0 8px 22px rgba(0,0,0,.35);padding:4px}
+.inavpill button{width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:var(--brand);font-size:26px;line-height:1;padding:0 0 3px;min-height:0;box-shadow:none}.inavpill button:disabled{opacity:.3}.inavpill b{font-size:13px;padding:0 6px;color:var(--ink);white-space:nowrap}
+.swbox{position:relative}.swbox .swe{position:absolute;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:22px;line-height:1;padding:0 0 2px;min-height:0;opacity:.8;backdrop-filter:blur(3px);box-shadow:none}.swbox .swe.l{left:8px}.swbox .swe.r{right:8px}
+.fullbar .tools{margin-left:auto}

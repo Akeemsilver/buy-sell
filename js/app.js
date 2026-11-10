@@ -1776,6 +1776,7 @@
     box.innerHTML = amt <= 0 ? `<span>${t('pay.after')}</span><span>—</span>` : amt > v.balance + 0.005 ? `<span>${t('pay.tooMuch')}</span><span></span>` : `<span>${t('pay.after')}</span><span>${left <= 0.004 ? '✓ ' + t('pay.afterPaid') : t('pay.afterOwes', { amt: money(left) })}</span>`;
     save.disabled = amt <= 0 || amt > v.balance + 0.005;
   }
+  let payPending = null;   // the payment waiting for a yes on the confirmation card
   let payOrd = '';   // the order page a payment was started from: after saving, go back to it
   function sheetPay(no) {
     const v = state.invoices.find((x) => x.no === no); if (!v || v.updatedBy || v.balance <= 0) return;
@@ -1908,7 +1909,7 @@
   // The actions each permission covers (the click handler refuses them when your rank does not allow it)
   const ACT_NEEDS = {};
   Object.entries({
-    sell: ['make-invoice', 'pay-inv', 'pay-save', 'pay-full', 'pay-full-amt', 'pay-clearing'],
+    sell: ['make-invoice', 'pay-inv', 'pay-save', 'pay-go', 'pay-no', 'pay-full', 'pay-full-amt', 'pay-clearing'],
     orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'wait-open', 'wait-batch', 'dv-toggle', 'dv-all', 'dv-go', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
@@ -2346,14 +2347,20 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + dlvCard(o);   // last on the page, after the items, payment and timeline
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
       <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
-    const step = (on, label, d, extra) => `<div class="s ${on ? 'on' : ''}"><i></i><div><b>${label}${extra || ''}</b><small>${d ? fullWhen(d) : on ? '' : t('ord.tl.notYet')}</small></div></div>`;
+    const dateOnly = (d) => d.toLocaleDateString(I.locale(I.getLang()), { weekday: 'short' }).replace('.', '') + ' ' + dayMon(d);   // a payment is saved with a day, not a time
+    const step = (on, label, d, extra, dOnly) => `<div class="s ${on ? 'on' : ''}"><i></i><div><b>${label}${extra || ''}</b><small>${d ? (dOnly ? dateOnly(d) : fullWhen(d)) : on ? '' : t('ord.tl.notYet')}</small></div></div>`;
     const handed = t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected');
-    const tl = [step(true, t('ord.tl.ordered'), Store.when(o))];
-    if (o.status !== 'new') tl.push(step(o.status !== 'declined' || !!tsAt(o.confirmedAt), t('ord.tl.confirmed'), tsAt(o.confirmedAt)));
-    if (pay) pay.payments.forEach((x) => tl.push(step(true, t('ord.tl.payment'), new Date(x.date), ' · ' + money(x.amount))));
-    if (o.status === 'declined') tl.push(step(true, t(o.returned ? 'ord.pl.returned' : o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'), tsAt(o.declinedAt)));
-    else if (o.status === 'confirmed') tl.push(step(false, handed, null));
-    else if (o.status === 'done') tl.push(step(true, handed, tsAt(o.doneAt)));
+    // what happened, in the order it happened (steps not reached yet come last); the balance sits under the last payment only
+    const ev = [{ at: Store.when(o), h: step(true, t('ord.tl.ordered'), Store.when(o)) }];
+    if (o.status !== 'new') ev.push({ at: tsAt(o.confirmedAt) || Store.when(o), h: step(o.status !== 'declined' || !!tsAt(o.confirmedAt), t('ord.tl.confirmed'), tsAt(o.confirmedAt)) });
+    if (pay) pay.payments.forEach((x) => ev.push({ at: new Date(x.date), pay: true, h: step(true, t('ord.tl.payment'), new Date(x.date), ' · ' + money(x.amount), true) }));
+    if (o.status === 'declined') ev.push({ at: tsAt(o.declinedAt) || new Date(8.64e15), h: step(true, t(o.returned ? 'ord.pl.returned' : o.cancelled ? 'ord.pl.cancelled' : 'ord.pl.declined'), tsAt(o.declinedAt)) });
+    else if (o.status === 'confirmed') ev.push({ at: new Date(8.64e15), h: step(false, handed, null) });
+    else if (o.status === 'done') ev.push({ at: tsAt(o.doneAt) || new Date(8.64e15), h: step(true, handed, tsAt(o.doneAt)) });
+    ev.forEach((e, n) => { e.n = n; }); ev.sort((x, y) => (x.at - y.at) || (x.n - y.n));
+    const lastPay = ev.map((e) => !!e.pay).lastIndexOf(true);
+    if (lastPay >= 0 && pay && pay.owing > 0) ev[lastPay].h += `<div class="s on"><i></i><div><b class="tlbal">${t('ord.tl.balance', { amt: money(pay.owing) })}</b><small>${t('ord.pl.owing')}</small></div></div>`;
+    const tl = ev.map((e) => e.h);
     const tlCard = o.status === 'new' ? '' : `<h4><span>${t('ord.timeline')}</span></h4><div class="card tl">${tl.join('')}</div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${fullWhen(Store.when(o))}</small></div>${nav}</div>${stripBar}
       <div class="ap">${stepBar}${sumCard}<div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small></div><a class="ibtn wapp" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a><a class="ibtn" href="tel:${esc(SCore.digits(o.phone))}" aria-label="${t('ord.call')}"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stage === 'new' ? '' : stBadge(o)}</div></div>
@@ -2554,8 +2561,18 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'pay-inv': payOrd = t_.dataset.ord || ''; return sheetPay(id);
       case 'pay-full-amt': { if (payInv) { $('#pay-amt').value = String(payInv.balance); payUpdate(); } return; }
       case 'pay-save': {
-        const amt = parseAmt($('#pay-amt').value), dv = $('#pay-date').value, date = dv ? new Date(dv + 'T12:00:00') : new Date();
-        try { const inv = L.recordPayment(state, id, amt, date); if (sharedBusiness()) inv.by = myName(); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); if (payOrd && Store.orders().some((x) => x.id === payOrd)) { const back = payOrd; payOrd = ''; return sheetOrder(back); } return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
+        const amt = parseAmt($('#pay-amt').value), dv = $('#pay-date').value, date = dv ? new Date(dv + 'T12:00:00') : new Date(), inv0 = state.invoices.find((x) => x.no === id);
+        if (!inv0 || !(amt > 0)) return;
+        payPending = { id, amt, dv, text: $('#pay-amt').value, date };
+        const left = Math.round((inv0.balance - amt) * 100) / 100, paidOff = left <= 0.004;
+        const row = (a, b, c) => `<div class="pcr"><span>${a}</span><b${c ? ` class="${c}"` : ''}>${b}</b></div>`;
+        return openSmall(`<h3>${t('pay.cfTitle')}</h3><p class="muted small" style="margin:0 0 6px">${esc(inv0.no)} · ${esc(inv0.client)}</p>${row(t('pay.cfNow'), money(amt))}${row(t('pay.cfAfter'), money(Math.max(0, left)), paidOff ? 'ok' : 'owe')}${row(t('pay.cfStatus'), paidOff ? '✓ ' + t('pay.afterPaid') : t('ord.pl.owing'), paidOff ? 'ok' : 'owe')}
+          <div class="btns"><button class="btn primary" data-act="pay-go" data-id="${esc(id)}">${t('pay.cfYes')}</button><button class="btn" data-act="pay-no">${t('pay.cfNo')}</button></div>`, 'card');
+      }
+      case 'pay-no': { const pp = payPending; closeSheet(); setTimeout(() => { const el = $('#pay-amt'); if (el && pp) { el.value = pp.text; payUpdate(); } }, 380); return; }
+      case 'pay-go': {
+        const pp = payPending; if (!pp || pp.id !== id) return; payPending = null; closeSheet();
+        try { const inv = L.recordPayment(state, id, pp.amt, pp.date); if (sharedBusiness()) inv.by = myName(); save(); tidyPhotos(); toast(t('pay.saved', { no: inv.no })); pageStack = pageStack.filter((p) => p.key !== 'pay|' + id && p.key !== 'invoice|' + id); render(); if (payOrd && Store.orders().some((x) => x.id === payOrd)) { const back = payOrd; payOrd = ''; return sheetOrder(back); } return sheetInvoice(inv.no); } catch (e) { return toast('⚠️ ' + errMsg(e)); }
       }
       case 'free-thumbs': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.thumbsAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.removeOldThumbs().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }
       case 'free-space': { const n = Number(t_.dataset.n) || 0; return askCard(t('about.freeAsk', { n, mb: t_.dataset.mb })).then((y) => { if (!y) return; return PUI.freeOriginals().then((r) => { toast(t('about.freed', { mb: fmtBytes(r.bytes) })); fillAbout(); }); }); }

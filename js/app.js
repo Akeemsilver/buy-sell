@@ -949,7 +949,7 @@
     });
   }
   function openSheet(html, onClose, full) {
-    voiceStop();
+    voiceStop(); removeItemPill();
     if (keepGhost) keepGhost = false; else removeGhost();
     const kind = full === 'card' || full === 'sheet' ? full : null;
     if (kind) full = false; else if (!full) { html = asPage(html); full = true; }
@@ -964,7 +964,7 @@
   let ordDirty = false;   // an order changed while a page was open on top of the Store list: redraw the list when that page closes
   function closeSheet() {
     if ($('#sheet').hidden) return;
-    voiceStop();
+    voiceStop(); removeItemPill();
     pageStack = [];
     $('#sheet').hidden = true; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; $('#sheet').classList.remove('full', 'card', 'small', 'pick', 'hdr'); document.body.classList.remove('page-open'); invLangSession = null; invLangAuto = null; document.body.style.overflow = '';
     if (L.cleanNames(state)) save();   // tidy names/descriptions typed in a sheet (e.g. trailing spaces)
@@ -1405,15 +1405,24 @@
   document.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.szt')) e.preventDefault(); });
   // Previous / next arrows (with "4 of 8") for the top bar, to flip through the items of one batch without going back.
   const navArrows = (ids, id, act) => { const n = ids.indexOf(id); if (n < 0 || ids.length < 2) return ''; return `<div class="nx"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span><button data-act="${act}" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><button data-act="${act}" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button></div>`; };
+  let itemNavIds = null;   // the items a swipe moves through: the invoice or order the item was opened from (null: the item's batch)
   const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isLocked(x))).map((x) => x.id).sort();
+  const itemNavList = (i) => (itemNavIds && itemNavIds.includes(i.id) ? itemNavIds : batchIds(i.batchId, false));
+  function removeItemPill() { const p = document.getElementById('inavpill'); if (p) p.remove(); }
+  function showItemPill(i) {   // bottom right, under the thumb: ‹ 2 of 10 ›
+    removeItemPill(); const ids = itemNavList(i), n = ids.indexOf(i.id); if (ids.length < 2 || n < 0) return;
+    const p = document.createElement('div'); p.id = 'inavpill'; p.className = 'inavpill';
+    p.innerHTML = `<button type="button" data-act="item-go" data-dir="prev" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><b>${t('nav.ofN', { n: n + 1, total: ids.length })}</b><button type="button" data-act="item-go" data-dir="next" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button>`;
+    document.body.appendChild(p);
+  }
   function sheetItem(id, swap) {
     const i = state.items.find((x) => x.id === id); if (!i) return;
     enterPage('item', id, () => sheetItem(id), swap);
     const b = batchOf(i), sold = L.isSold(i), ord = !sold && L.isHeld(i), lock = sold || ord, ordr = ord ? Store.orders().find((o) => o.status === 'new' && (o.items || []).some((x) => x.id === i.id)) : null;
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : ord ? t('item.orderedTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div>${navArrows(batchIds(b.id, false), i.id, 'item-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : ord ? t('item.orderedTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div><div class="tools">${(() => { const nb = notifCount(); return `<button class="round" data-act="bell" aria-label="${t('notif.title')}"><svg viewBox="0 0 24 24">${ICONS.bell}</svg>${nb ? `<b class="nb">${nb > 9 ? '9+' : nb}</b>` : ''}</button>`; })()}<button class="round" data-act="page-more" aria-label="${t('batch.more')}"><svg viewBox="0 0 24 24">${ICONS.dots}</svg></button></div></div>
       ${ord ? `<div class="lockbar">🔒 <div><b>${t('item.orderedLock')}</b><small>${t('item.orderedNote')}</small>${ordr ? `<button class="pay-btn" data-act="order-open" data-id="${ordr.id}">${t('item.viewOrder')}</button>` : ''}</div></div>` : ''}
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
-      ${PUI.photoBox(i)}
+      ${(() => { const ids = itemNavList(i), n = ids.indexOf(i.id); if (ids.length < 2 || n < 0) return PUI.photoBox(i); return `<div class="swbox" data-swipe="1">${PUI.photoBox(i)}${n > 0 ? `<button type="button" class="swe l" data-act="item-go" data-id="${ids[n - 1]}" aria-label="${t('nav.prev')}">‹</button>` : ''}${n < ids.length - 1 ? `<button type="button" class="swe r" data-act="item-go" data-id="${ids[n + 1]}" aria-label="${t('nav.next')}">›</button>` : ''}</div>`; })()}
       <fieldset class="lockset" ${lock || !can('stock') ? 'disabled' : ''}>
       <label>${t('item.desc')}</label><div class="dscrow"><input data-f="${esMode() ? 'descS' : 'desc'}" value="${esc(descShown(i))}" placeholder="${t('item.descPh')}" autocomplete="off">${micBtn()}${esBtn(i)}</div>${lock ? '' : szSection(i, true, false)}${lock ? '' : grpNote(i, true)}
       <div class="costonly"><label>🔒 ${t('item.cost', { cur: b.currency })} <span class="privnote">${t('item.privateNote')}</span></label><input data-f="cost" type="text" inputmode="decimal" step="0.01" min="0" value="${i.cost || ''}"></div>
@@ -1433,7 +1442,7 @@
       ${sold ? `<div class="btns">${i.invoice ? `<button class="btn" data-act="view-inv" data-id="${i.invoice}">${t('item.viewInv')}</button><button class="btn danger" data-act="return-inv" data-id="${i.invoice}">${t('item.returnInv')}</button>` : `<button class="btn danger" data-act="return-item" data-id="${i.id}">${t('item.returnItem')}</button>`}<button class="btn" data-act="close">${t('btn.done')}</button></div>`
       : `<div class="btns">${ord ? '' : `<button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>`}
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
-    $('#sheet').dataset.item = id; updateSale(i); scrollSize();
+    $('#sheet').dataset.item = id; updateSale(i); scrollSize(); showItemPill(i);
     const hlr = $('#szrow.hl'); if (hlr) setTimeout(() => hlr.scrollIntoView({ block: 'center' }), 60);   // an item with a name but no size: bring the Size block into view
   }
   /* Edit batch: one unsold item at a time with its picture, description, price, cost and sale; Save & next moves on. */
@@ -1853,7 +1862,7 @@
       // One compact tile per purchase: invoice number (and PAY) on top; under it the pictures, date and items; amount and status at the right; a thin progress line when something is owing.
       const nPay = L.invoiceChain(state, v.no).length, label = its.length === 1 ? esc(dn(its[0]) || its[0].id) : tn('cust.itemsN', its.length || v.qty || 1);
       const shown = its.slice(0, 3), more = its.length - shown.length, arr = its.filter((x) => { const bt = state.batches.find((y) => y.id === x.batchId); return !!bt && bt.status === 'In Transit'; }).length;   // items whose batch has not been received yet (an invoiced item no longer says In Transit itself)
-      const stack = shown.map((x, n) => `<button class="tn" style="z-index:${9 - n}" data-act="edit-item" data-id="${x.id}" aria-label="${esc(dn(x) || x.id)}">${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}${offStrip(x)}</button>`).join('') + (more > 0 ? `<span class="more">+${more}</span>` : '');
+      const stack = shown.map((x, n) => `<button class="tn" style="z-index:${9 - n}" data-act="edit-item" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(dn(x) || x.id)}">${x.photo ? `<img data-ph="${x.photo.id}" data-kind="thumb" alt="">` : '<em>·</em>'}${offStrip(x)}</button>`).join('') + (more > 0 ? `<span class="more">+${more}</span>` : '');
       return `<div class="cp-inv cv2 ${due ? 'due' : ''}" data-act="view-inv" data-id="${v.no}">
         <div class="c2-top"><button class="num" data-act="view-inv" data-id="${v.no}"><b>${v.no}</b></button>${due && !v.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-from="${esc(name)}" data-back="cust">${t('pay.btn')}</button>` : ''}</div>
         <div class="c2-mid"><div class="c2-stack">${stack}</div><div class="c2-txt"><small>${day(v.date)}</small><b>${label}${nPay > 1 ? ' · ' + tn('cust.paymentsN', nPay) : ''}</b>${arr ? `<small class="arr">⏳ ${arr < its.length ? t('cust.arrN', { n: arr, m: its.length }) : t('ord.transit')}</small>` : ''}</div><div class="c2-r"><b>${money(v.total)}</b>${due ? `<span class="owes">${t('cust.stillOwes', { amt: money(v.balance) })}</span>` : `<span class="ok">● ${invStLabel(st)}</span>`}</div></div>
@@ -2364,7 +2373,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const rows = (o.items || []).map((i) => { const it = state.items.find((x) => x.id === i.id), gone = !it || L.isSold(it), tr = it && it.status === 'In Transit', sold = it && L.isSold(it) && it.invoice;
       const back = o.status === 'done' && it && !L.isSold(it) && !it.invoice, sub = sold && o.status !== 'new' ? t('ord.soldOn', { no: it.invoice }) : back ? t('ord.returned') : gone ? t('ord.gone') : tr ? '⏳ ' + t('ord.transit') : t('ord.available');
       const CHEV = '<svg viewBox="0 0 10 16" width="9" height="15" aria-hidden="true"><path d="M2 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      return `<div class="rw itm${it ? ' go' : ''}"${it ? ` role="button" tabindex="0" data-act="edit-item" data-id="${esc(it.id)}"` : ''}><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(it ? dn(it) : i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small>${itemPill(o, i, it)}</div><span class="rgo">${it ? CHEV : ''}</span><b class="rp">${money(i.price)}</b></div>`; }).join('');
+      return `<div class="rw itm${it ? ' go' : ''}"${it ? ` role="button" tabindex="0" data-act="edit-item" data-ord="${o.id}" data-id="${esc(it.id)}"` : ''}><span class="othumb">${it ? PUI.thumb(it) : '<span class="ph"></span>'}</span><div class="t"><b>${esc(it ? dn(it) : i.name)}${i.size ? ' · ' + esc(szLabel(i.size)) : ''}</b><small class="${gone && o.status === 'new' ? 'bad' : ''}">${esc(i.id)} · ${sub}</small>${itemPill(o, i, it)}</div><span class="rgo">${it ? CHEV : ''}</span><b class="rp">${money(i.price)}</b></div>`; }).join('');
     const msg = t('ord.waMsg', { name: o.name, code: o.code || SCore.orderCode(o.id) }), inv = orderInvoice(o), pay = L.orderPay(state, inv);
     const gp = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null, ml = gp ? SCore.mapLinks(gp.lat, gp.lng) : null;   // the pin the customer chose on the map
     const stage = stageOf(o), sib = newestFirst(Store.orders().filter((x) => stageOf(x) === stage)), at = sib.findIndex((x) => x.id === id);
@@ -2704,7 +2713,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'batch-pick-do': stockBatch = id; stockFilter = 'All'; closeSheet(); window.scrollTo(0, 0); return render();
       case 'batch-info': return sheetBatchInfo(id);
       case 'pick-filter': stockFilter = id; return render();
-      case 'edit-item': return sheetItem(id);
+      case 'edit-item': { const iv = t_.dataset.inv, od = t_.dataset.ord; itemNavIds = iv ? state.items.filter((x) => x.invoice === iv).map((x) => x.id).sort() : od ? ((Store.orders().find((o) => o.id === od) || {}).items || []).map((x) => x.id).filter((x) => state.items.some((y) => y.id === x)).sort() : null; return sheetItem(id); }
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return setSale(it, !it.saleOn, null); }
       case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return setSale(it, true, Number(t_.dataset.v)); }
       case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); const old = it.price; if (onQuick()) { it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); } return setPrice(it, c.recommended, old); }
@@ -3070,6 +3079,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     sh.addEventListener('touchcancel', () => end(true));
   })();
 
+  // Item pages: swipe the photo left or right for the next or last item
+  (() => { let x0 = null, y0 = 0;
+    document.addEventListener('touchstart', (e) => { const b = e.target.closest && e.target.closest('[data-swipe]'); if (!b || e.touches.length !== 1) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    document.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null; if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const btn = document.querySelector('#inavpill [data-dir="' + (dx < 0 ? 'next' : 'prev') + '"]'); if (btn && !btn.disabled) btn.click(); }, { passive: true }); })();
   // Delivery log calendar: swipe the month grid left or right for the next or last month
   (function () {
     let x0 = null, y0 = 0;

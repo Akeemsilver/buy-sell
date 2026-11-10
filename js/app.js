@@ -1407,20 +1407,24 @@
   const navArrows = (ids, id, act) => { const n = ids.indexOf(id); if (n < 0 || ids.length < 2) return ''; return `<div class="nx"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span><button data-act="${act}" data-id="${ids[n - 1] || ''}" ${n ? '' : 'disabled'} aria-label="${t('nav.prev')}">‹</button><button data-act="${act}" data-id="${ids[n + 1] || ''}" ${n < ids.length - 1 ? '' : 'disabled'} aria-label="${t('nav.next')}">›</button></div>`; };
   let itemNavIds = null;   // the items a swipe moves through: the invoice or order the item was opened from (null: the item's batch)
   const batchIds = (batchId, unsoldOnly) => state.items.filter((x) => x.batchId === batchId && (!unsoldOnly || !L.isLocked(x))).map((x) => x.id).sort();
-  /* moving to the next or last item: the page slides out and the next one slides in (dir 1 = next, -1 = last) */
+  /* moving to the next or last item: the photo slides out and the next photo slides in (dir 1 = next, -1 = last); the details below fade and shift a little while they change */
   let sliding = false;
-  const slideKids = () => [...$('#sheet').children].filter((e) => !e.classList.contains('fullbar') && !e.classList.contains('grab'));
+  const slideParts = () => { const sh = $('#sheet'), sw = sh.querySelector('.swbox');
+    const mv = sw ? [...sw.querySelectorAll('.photo-big, .swe')] : [];
+    const fd = (sw ? [...sw.querySelectorAll(':scope > .btn')] : []).concat([...sh.children].filter((e) => e !== sw && !e.classList.contains('fullbar') && !e.classList.contains('grab')));
+    return { mv, fd }; };
+  const setParts = (list, tr, op, ms) => list.forEach((e) => { e.style.transition = ms ? `transform ${ms}ms cubic-bezier(.2,.9,.3,1), opacity ${ms}ms` : 'none'; e.style.transform = tr; e.style.opacity = op; });
   function slideItem(id, dir) {
     if (!id || sliding) return; const sh = $('#sheet');
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { sheetItem(id, true); sh.scrollTop = 0; return; }
     sliding = true; sh.style.overflowX = 'hidden';
-    slideKids().forEach((k) => { k.style.transition = 'transform .16s ease-in, opacity .16s'; k.style.transform = `translateX(${-dir * 70}%)`; k.style.opacity = '0'; });
+    let p = slideParts(); setParts(p.mv, `translateX(${-dir * 112}%)`, '', 170); setParts(p.fd, `translateX(${-dir * 6}%)`, '0', 170);
     setTimeout(() => {
-      sheetItem(id, true); sh.scrollTop = 0; const nk = slideKids();
-      nk.forEach((k) => { k.style.transition = 'none'; k.style.transform = `translateX(${dir * 70}%)`; k.style.opacity = '0'; }); void sh.offsetWidth;
-      nk.forEach((k) => { k.style.transition = 'transform .22s cubic-bezier(.2,.9,.3,1), opacity .22s'; k.style.transform = ''; k.style.opacity = ''; });
-      setTimeout(() => { nk.forEach((k) => { k.style.transition = ''; }); sh.style.overflowX = ''; sliding = false; }, 250);
-    }, 150);
+      sheetItem(id, true); sh.scrollTop = 0; p = slideParts();
+      setParts(p.mv, `translateX(${dir * 112}%)`, '', 0); setParts(p.fd, `translateX(${dir * 6}%)`, '0', 0); void sh.offsetWidth;
+      setParts(p.mv, '', '', 230); setParts(p.fd, '', '', 230);
+      setTimeout(() => { [...p.mv, ...p.fd].forEach((e) => { e.style.transition = ''; e.style.transform = ''; e.style.opacity = ''; }); sh.style.overflowX = ''; sliding = false; }, 260);
+    }, 160);
   }
   const itemNavList = (i) => (itemNavIds && itemNavIds.includes(i.id) ? itemNavIds : batchIds(i.batchId, false));
   function removeItemPill() { const p = document.getElementById('inavpill'); if (p) p.remove(); }
@@ -1458,6 +1462,7 @@
       : `<div class="btns">${ord ? '' : `<button class="btn primary" data-act="${selected.has(i.id) ? 'unselect-close' : 'select-close'}" data-id="${i.id}">${selected.has(i.id) ? t('item.removeInv') : t('item.addInv')}</button>`}
       <button class="btn" data-act="close">${t('btn.done')}</button></div>`}`, render, true);
     $('#sheet').dataset.item = id; updateSale(i); scrollSize(); showItemPill(i);
+    { const pb = document.querySelector('#sheet .swbox .photo-big'); if (pb) { if (getComputedStyle(pb).position === 'static') pb.style.position = 'relative'; document.querySelectorAll('#sheet .swbox > .swe').forEach((b) => pb.appendChild(b)); } }   // the side arrows sit on the photo itself
     const hlr = $('#szrow.hl'); if (hlr) setTimeout(() => hlr.scrollIntoView({ block: 'center' }), 60);   // an item with a name but no size: bring the Size block into view
   }
   /* Edit batch: one unsold item at a time with its picture, description, price, cost and sale; Save & next moves on. */
@@ -3095,15 +3100,15 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     sh.addEventListener('touchcancel', () => end(true));
   })();
 
-  // Item pages: drag the photo left or right and the page follows your finger; let go past a short distance and the next (or last) item slides in
+  // Item pages: drag the photo left or right and it follows your finger; let go past a short distance and the next (or last) item slides in
   (() => { let x0 = null, y0 = 0, drag = false;
     document.addEventListener('touchstart', (e) => { const b = e.target.closest && e.target.closest('[data-swipe]'); if (!b || e.touches.length !== 1 || sliding) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; drag = false; }, { passive: true });
     document.addEventListener('touchmove', (e) => { if (x0 == null) return; const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
       if (!drag) { if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.4) { drag = true; $('#sheet').style.overflowX = 'hidden'; } else return; }
-      const pill = (d) => { const b = document.querySelector('#inavpill [data-dir="' + d + '"]'); return b && !b.disabled; }, edge = (dx < 0 && !pill('next')) || (dx > 0 && !pill('prev')), shown = dx * (edge ? 0.25 : 0.85);
-      slideKids().forEach((k) => { k.style.transition = 'none'; k.style.transform = `translateX(${shown}px)`; }); if (e.cancelable) e.preventDefault(); }, { passive: false });
+      const pill = (d) => { const b = document.querySelector('#inavpill [data-dir="' + d + '"]'); return b && !b.disabled; }, edge = (dx < 0 && !pill('next')) || (dx > 0 && !pill('prev')), shown = dx * (edge ? 0.25 : 0.9), p = slideParts();
+      setParts(p.mv, `translateX(${shown}px)`, '', 0); setParts(p.fd, `translateX(${shown * 0.18}px)`, String(Math.max(0.3, 1 - Math.abs(shown) / 220)), 0); if (e.cancelable) e.preventDefault(); }, { passive: false });
     document.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0, was = drag; x0 = null; drag = false;
-      const back = () => { slideKids().forEach((k) => { k.style.transition = 'transform .2s cubic-bezier(.2,.9,.3,1)'; k.style.transform = ''; }); setTimeout(() => { slideKids().forEach((k) => { k.style.transition = ''; }); $('#sheet').style.overflowX = ''; }, 230); };
+      const back = () => { const p = slideParts(); setParts(p.mv, '', '', 210); setParts(p.fd, '', '', 210); setTimeout(() => { [...p.mv, ...p.fd].forEach((x) => { x.style.transition = ''; x.style.transform = ''; x.style.opacity = ''; }); $('#sheet').style.overflowX = ''; }, 240); };
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) { if (was) back(); return; }
       const b = document.querySelector('#inavpill [data-dir="' + (dx < 0 ? 'next' : 'prev') + '"]'); if (b && !b.disabled) slideItem(b.dataset.id, dx < 0 ? 1 : -1); else if (was) back(); }, { passive: true });
   })();

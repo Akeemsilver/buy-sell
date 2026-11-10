@@ -28,6 +28,8 @@
   const bl = (id) => String(id).replace(/^BATCH-/, t('batch.prefix') + '-');
   const ICONS = {
     bell: '<path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+    dots: '<circle cx="12" cy="5" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.7" fill="currentColor" stroke="none"/>',
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     eyeoff: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
     download: '<path d="M12 4v11"/><path d="M7.5 11 12 15.5 16.5 11"/><path d="M5 19.5h14"/>',
@@ -311,15 +313,46 @@
   /* ---------- shell ---------- */
 
   // The two buttons at the top right: the bell (notifications, with the number of new things) and the gear (Settings).
+  // The top bar: a search button where the page has a search, the bell, and a ⋮ menu (filter, settings). The page's own search box stays hidden; the button opens one over the bar.
+  const pageSearchSel = () => (tab === 'sell' && !moreView ? '.oq' : tab === 'more' && moreView === 'orders' ? '.oq' : tab === 'more' && moreView === 'deliveries' ? '.dq' : tab === 'more' && moreView === 'batches' ? '.blq' : tab === 'people' ? '#q' : '');
   function renderTools() {
     const el = $('#appbar-right'); if (!el) return;
-    const btn = (act, label, icon, extra) => `<button class="round" data-act="${act}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
-    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0;
-    if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools"><button class="round" data-act="bl-filter-open" aria-label="${t('bl.filterAria')}"><svg viewBox="0 0 24 24">${ICONS.filter}</svg>${k ? `<b class="nb">${k}</b>` : ''}</button></div>`; return; }
-    if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools"><button class="round dots3" data-act="dlv-menu" aria-label="${t('batch.more')}">⋮</button></div>`; return; }   // the Delivery log keeps its three dots in the title bar
-    el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${btn('filter', t('tool.filter'), 'filter', filtered() ? '<i class="dot"></i>' : '')}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('settings', t('tool.settings'), 'gear')}</div>` : '';
+    const btn = (act, label, icon, extra, id) => `<button class="round" data-act="${act}"${id ? ` data-id="${id}"` : ''} aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
+    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : '';
+    const sbtn = sel ? btn('tsearch-open', t('tool.search'), 'search', active ? '<i class="dot"></i>' : '') : '';
+    if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', k ? `<b class="nb">${k}</b>` : '', 'bl')}</div>`; return; }
+    if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools">${sbtn}${btn('dlv-menu', t('batch.more'), 'dots')}</div>`; return; }   // the Delivery log's own menu
+    if (tab === 'more' && moreView === 'orders') { el.innerHTML = `<div class="tools">${sbtn}</div>`; return; }
+    el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${sbtn}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'main')}</div>` : '';
+  }
+  /* search over the top bar: it types into the page's own search box (hidden), so every page keeps its own search logic */
+  let tsKey = '';
+  function closeTopSearch(keep) {
+    const o = $('#tsearch'); if (!o) return;
+    o.remove(); const pi = $(pageSearchSel()); if (!keep && pi && pi.value) { pi.value = ''; pi.dispatchEvent(new Event('input', { bubbles: true })); }
+    renderTools();
+  }
+  function openTopSearch() {
+    const sel = pageSearchSel(), page = sel && $(sel); if (!page) return;
+    closeTopSearch(true); tsKey = tab + '|' + moreView;
+    const hd = document.querySelector('.appbar'), cs = getComputedStyle(hd), o = document.createElement('div'); o.id = 'tsearch'; o.className = 'tsearch';
+    o.style.cssText = `height:${hd.getBoundingClientRect().height}px;background:${cs.backgroundColor};padding-top:${cs.paddingTop}`;
+    o.innerHTML = `<button type="button" class="tsb" data-act="tsearch-close" aria-label="${t('aria.back')}">‹</button><label class="tsf"><span aria-hidden="true">🔍</span><input type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(page.getAttribute('placeholder') || t('tool.search'))}" value="${esc(page.value)}"><button type="button" class="tsx" data-act="tsearch-clear" aria-label="${t('ord.clear')}">✕</button></label>`;
+    document.body.appendChild(o); const f = o.querySelector('input'); f.focus(); f.setSelectionRange(f.value.length, f.value.length);
+  }
+  function closeTopMenu() { ['tmenu', 'tmscrim'].forEach((i) => { const e = document.getElementById(i); if (e) e.remove(); }); }
+  function openTopMenu(kind) {
+    closeTopMenu();
+    const row = (act, ic, label, on) => `<button type="button" class="tmi" data-act="${act}"><span class="tmic" aria-hidden="true">${ic}</span><span class="tml">${label}</span>${on ? '<i class="dot on"></i>' : ''}</button>`;
+    const rows = kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false);
+    const sc = document.createElement('div'); sc.id = 'tmscrim'; sc.className = 'tmscrim'; sc.dataset.close = '1';
+    const m = document.createElement('div'); m.id = 'tmenu'; m.className = 'tmenu'; m.setAttribute('role', 'menu'); m.innerHTML = rows;
+    const hd = document.querySelector('.appbar').getBoundingClientRect(); m.style.top = (hd.bottom - 6) + 'px';
+    document.body.appendChild(sc); document.body.appendChild(m);
   }
   function render() {
+    if ($('#tsearch') && tsKey !== tab + '|' + moreView) closeTopSearch(true);
+    closeTopMenu();
     cleanSelected();
     const moreTitles = { deliveries: 'more.deliveries', orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
     const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
@@ -2468,6 +2501,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
 
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
+    if (e.target.id === 'tmscrim') return closeTopMenu();
+    if (e.target.closest && e.target.closest('#tmenu')) setTimeout(closeTopMenu, 0);   // a menu row does its job, then the menu closes
     if (comboOpen && !e.target.closest('#combo')) { comboOpen = false; const pop = $('#combopop'); if (pop) pop.hidden = true; const ar = document.querySelector('.combo-btn i'); if (ar) ar.textContent = '▾'; }
     const t_ = e.target.closest('[data-tab],[data-act]'); if (!t_) return;
     if (t_.dataset.tab) { themeDraft = null; if (!$('#sheet').hidden) closeSheet(); go({ tab: t_.dataset.tab, moreView: null }); window.scrollTo(0, 0); return render(); }
@@ -2535,6 +2570,10 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'notif-read': notifMarkSeen(); return sheetNotifs();
       case 'notif-go': return notifGo(Number(id));
       case 'filter': return sheetFilter();
+      case 'tsearch-open': return openTopSearch();
+      case 'tsearch-close': return closeTopSearch();
+      case 'tsearch-clear': { const f = $('#tsearch input'); if (f) { f.value = ''; f.focus(); f.dispatchEvent(new Event('input', { bubbles: true })); } return; }
+      case 'tmenu': return openTopMenu(id);
       case 'settings':
         closeSheet();
         if (isSettings()) { themeDraft = null; while (places.length > 1 && isSettings()) placeBack(); if (isSettings()) go({ tab: 'home', moreView: null }); }   // the gear closes Settings again: back to where you were
@@ -2849,6 +2888,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
 
   document.addEventListener('input', (e) => {
     const el = e.target;
+    if (el.closest && el.closest('#tsearch')) { const pi = $(pageSearchSel()); if (pi) { pi.value = el.value; pi.dispatchEvent(new Event('input', { bubbles: true })); } return; }
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
     if (el.dataset.store) { storeSet({ [el.dataset.store]: el.value }); const pn = $('#ct-pn'); if (pn) { const n = storeCfg().name || bizName(); pn.textContent = n; $('#ct-pl').textContent = (n.trim().charAt(0) || '?').toUpperCase(); } return; }
     if (el.id === 'pay-amt') { payUpdate(); return; }

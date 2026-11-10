@@ -1193,3 +1193,17 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 
 /* Order Log: four tabs on one row, Completed as a green tick; the open tab no longer grows over its neighbour */
 .sth .ordseg.four{display:grid;grid-template-columns:1fr 1.15fr 1.25fr .7fr;gap:4px}.sth .ordseg.four button{min-width:0;padding:8px 2px}.ordseg.four button{transform:none!important;padding-left:2px;padding-right:2px;font-size:12.5px}.ordseg.four button .tk{color:var(--ok);font-weight:900;font-size:15px}
+
+/* top bar: search, bell, ⋮ menu; the search box opens over the bar and the page's own box stays hidden */
+#view .oqbar,#view #q{display:none}
+.tsearch{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;gap:8px;padding:0 12px;box-sizing:border-box;align-items:center}
+.tsearch .tsb{flex:none;width:40px;height:44px;border:0;background:transparent;color:#fff;font-size:30px;line-height:1;padding:0 0 4px;margin-top:auto;margin-bottom:auto;min-height:0;box-shadow:none}
+.tsearch .tsf{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:44px;border-radius:99px;background:rgba(255,255,255,.16);padding:0 6px 0 14px;color:#fff}
+.tsearch .tsf input{flex:1;min-width:0;border:0;background:transparent;color:#fff;font-size:16px;height:auto;min-height:0;padding:0;box-shadow:none;outline:0;-webkit-appearance:none;appearance:none}
+.tsearch .tsf input::placeholder{color:rgba(255,255,255,.7)}.tsearch .tsf input::-webkit-search-cancel-button{display:none}
+.tsearch .tsx{flex:none;border:0;background:transparent;color:#fff;font-size:17px;width:36px;height:36px;min-height:0;padding:0;box-shadow:none;opacity:.85}
+.tmscrim{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.4)}
+.tmenu{position:fixed;right:10px;z-index:75;min-width:210px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 34px rgba(0,0,0,.45);padding:6px}
+.tmenu .tmi{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:0 12px;border:0;border-radius:12px;background:transparent;color:var(--ink);font-weight:600;text-align:left;box-shadow:none}
+.tmenu .tmi+.tmi{border-top:1px solid var(--line);border-radius:0 0 12px 12px}.tmenu .tmic{width:22px;text-align:center;font-size:18px}.tmenu .tml{flex:1}
+.tmenu .dot.on{position:static;width:9px;height:9px;border-radius:50%;background:var(--brand);display:block}

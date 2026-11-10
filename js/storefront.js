@@ -118,8 +118,10 @@
   // any other change to one order (a planned delivery day, a distance typed by hand)
   const patch = (id, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(extra);
   // the moment of each answer is saved too (confirmedAt, doneAt, declinedAt), for the order's timeline
+  // delete one finished order (owners only, by the store rules); invoices and stock are never touched
+  const remove = (id) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).delete();
   const setStatus = (id, status, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(Object.assign({ status }, status === 'new' ? {} : { [status + 'At']: Cloud.stamp() }, extra || {}));
 
-  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, measure, patch, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
+  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, remove, measure, patch, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
     ageMs: (o) => (ts(o) ? Date.now() - ts(o) : 0), when: (o) => (ts(o) ? new Date(ts(o)) : null) };
 })(window);

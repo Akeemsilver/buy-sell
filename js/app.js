@@ -1972,7 +1972,7 @@
   const ACT_NEEDS = {};
   Object.entries({
     sell: ['make-invoice', 'pay-inv', 'pay-save', 'pay-go', 'pay-no', 'pay-full', 'pay-full-amt', 'pay-clearing'],
-    orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'wait-open', 'wait-batch', 'dv-toggle', 'dv-all', 'dv-go', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
+    orders: ['ord-sent-mark', 'order-confirm', 'loc-yes', 'loc-no', 'order-decline', 'order-done', 'order-delete', 'wait-open', 'wait-batch', 'dv-toggle', 'dv-all', 'dv-go', 'order-cancel', 'dlv-done', 'dlv-plan', 'dlv-plan-set', 'dlv-plan-date', 'ord-send-inv', 'dlv-way', 'dlv-thanks', 'km-save', 'km-reset'],
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
@@ -2442,7 +2442,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       ${payCard}${tlCard}${spotCard}
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('flow.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
         : o.status === 'confirmed' ? `<div class="fnext">${(() => { const left = toHand(o), wait = left.filter(itemArriving); if (left.length && wait.length === left.length) return `<button type="button" class="fwait" data-act="wait-open" data-id="${o.id}">⏳ ${tn('ord.waitingN', wait.length)} ›</button>`; return owingNow > 0 ? `<button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`; })()}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
-        : o.status === 'done' && inv && (L.purchaseOf(state, inv) || { items: [] }).items.length ? `<div class="btnrow"><button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1;grid-column:1 / -1">↩ ${t('ret.btn')}</button></div>` : ''}</div>`, null, true);   // the invoice opens from its row in the checklist above
+        : o.status === 'done' && inv && (L.purchaseOf(state, inv) || { items: [] }).items.length ? `<div class="btnrow"><button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1;grid-column:1 / -1">↩ ${t('ret.btn')}</button></div>` : (o.status === 'done' || o.status === 'declined') ? `<p class="ocancel"><button data-act="order-delete" data-id="${o.id}">${t('ord.delete')}</button><small>${t('ord.deleteNote')}</small></p>` : ''}</div>`, null, true);   // the invoice opens from its row in the checklist above
     if (lat && !sentLatest && canAct) setTimeout(() => { if (pageStack.length && pageStack[pageStack.length - 1].key === 'order|' + id) prefetchPdf(lat.no, true); }, 800);
   }
   const orderItemsLeft = (o) => (o.items || []).map((i) => state.items.find((x) => x.id === i.id)).filter((it) => it && !L.isSold(it));
@@ -2823,6 +2823,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'order-open': return sheetOrder(id);
       case 'order-confirm': { const o = Store.orders().find((x) => x.id === id); return o && confirmOrder(o); }
       case 'order-cancel': return orderCancel(id);
+      case 'order-delete': { const od = Store.orders().find((x) => x.id === id); if (!od) return; return askCard(t('ord.deleteAsk', { code: od.code || SCore.orderCode(od.id) }), { danger: true, ok: t('ord.deleteOk') }).then((y) => { if (y) Store.remove(id).then(() => { toast(t('ord.deleted')); dropPages('order|' + id); closeSheet(); render(); }).catch(() => toast(t('store.pubError'))); }); }
       case 'order-decline': return declineOrder(id);
       case 'loc-yes': { closeSheet(); const o = Store.orders().find((x) => x.id === id); return o && doConfirmOrder(o); }
       case 'loc-no': { closeSheet(); return declineOrder(id); }

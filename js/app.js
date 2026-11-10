@@ -1649,20 +1649,20 @@
         if (classic) x.drawImage(img, 0, 0, W, bannerH); else x.drawImage(headerCanvas(invDesignId(), S), 0, 0, W, bannerH);
         const L0 = 36, R0 = W - 36; let y = bannerH + 44;
         x.textBaseline = 'alphabetic';
-        F('700', 14); x.fillStyle = INV.grey; x.textAlign = 'left'; x.fillText(ti('doc.billTo'), L0, y);
-        F('400', 22); x.fillStyle = '#000'; x.fillText(v.client, L0, y + 32);
+        F('700', 16); x.fillStyle = INV.grey; x.textAlign = 'left'; x.fillText(ti('doc.billTo'), L0, y);
+        F('400', 26); x.fillStyle = '#000'; x.fillText(v.client, L0, y + 32);
         [[ti('doc.invoiceNo'), v.no], [ti('doc.date'), invDate(v.date)], [ti('doc.due'), invDate(v.due)]].forEach(([k, val], i) => {
-          F('700', 13); x.fillStyle = INV.grey; x.textAlign = 'right'; x.fillText(k, R0 - 150, y + i * 26);
-          F('400', 16); x.fillStyle = '#000'; x.fillText(val, R0, y + i * 26);
+          F('700', 15); x.fillStyle = INV.grey; x.textAlign = 'right'; x.fillText(k, R0 - 150, y + i * 26);
+          F('400', 19); x.fillStyle = '#000'; x.fillText(val, R0, y + i * 26);
         });
         y += 74;
         x.fillStyle = D.head; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), 38);
-        F('700', 14); x.fillStyle = '#fff'; x.textAlign = 'left'; x.fillText(ti('doc.desc'), L0, y + 25);
+        F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'left'; x.fillText(ti('doc.desc'), L0, y + 25);
         x.textAlign = 'right'; x.fillText(ti('doc.qty'), R0 - 250, y + 25); x.fillText(ti('doc.price'), R0 - 130, y + 25); x.fillText(ti('doc.amount'), R0, y + 25);
         y += 38;
         lines.forEach((l, li) => {
           if (D.tint && li % 2) { x.fillStyle = D.tint; x.fillRect(L0 - 8, y, W - 2 * (L0 - 8), rowH); }
-          F('400', 16); x.fillStyle = '#000'; x.textAlign = 'left';
+          F('400', 19); x.fillStyle = '#000'; x.textAlign = 'left';
           const ld = lineName(l, LG); let d = String(ld); while (x.measureText(d).width > 330 && d.length > 4) d = d.slice(0, -2); if (d !== String(ld)) d = d.trim() + '…';
           x.fillText(d, L0, y + 24);
           x.textAlign = 'right'; x.fillText(String(l.qty), R0 - 250, y + 24); x.fillText(invMoney(l.price), R0 - 130, y + 24); x.fillText(invMoney(l.qty * l.price), R0, y + 24);
@@ -1671,18 +1671,18 @@
         x.strokeStyle = '#bdbdbd'; x.lineWidth = 1; x.beginPath(); x.moveTo(L0 - 8, y + 0.5); x.lineTo(W - L0 + 8, y + 0.5); x.stroke();
         y += 34;
         totRows(v, sub).map(([k, val]) => [ti(k), val]).forEach(([k, val]) => {
-          F('400', 16); x.fillStyle = INV.mid; x.textAlign = 'right'; x.fillText(k, R0 - 130, y); x.fillStyle = '#000'; x.fillText(invMoney(val), R0, y); y += 28;
+          F('400', 19); x.fillStyle = INV.mid; x.textAlign = 'right'; x.fillText(k, R0 - 130, y); x.fillStyle = '#000'; x.fillText(invMoney(val), R0, y); y += 33;
         });
         x.fillStyle = D.head; x.fillRect(W - 360, y - 14, 360 - (L0 - 8), 36);
-        F('700', 16); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ti('doc.balance'), R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
+        F('700', 19); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ti('doc.balance'), R0 - 130, y + 10); x.fillText(invMoney(v.balance), R0, y + 10);
         if (stampKind(v) && !v.void) {
           x.save(); x.globalCompositeOperation = 'multiply';
           x.drawImage(stampCanvasFor(v, LG), W - L0 - 350, y + 34, 340, 152); x.restore();
         }
-        const nt = invNote(v, LG); if (nt) { x.textAlign = 'right'; F('700', 17); x.fillStyle = '#222'; x.fillText(nt[0], R0, y + 104); F('400', 14); x.fillStyle = '#555'; x.fillText(nt[1], R0, y + 126); }
+        const nt = invNote(v, LG); if (nt) { x.textAlign = 'right'; F('700', 19); x.fillStyle = '#222'; x.fillText(nt[0], R0, y + 104); F('400', 16); x.fillStyle = '#555'; x.fillText(nt[1], R0, y + 126); }
         y = H - 62;   // Terms stay at the bottom, as in the sheet; the empty space above them is where the stamp sits
-        F('700', 16); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
-        F('400', 15); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
+        F('700', 19); x.fillStyle = '#000'; x.textAlign = 'left'; x.fillText(ti('doc.terms'), L0, y);
+        F('400', 17); x.fillStyle = INV.grey; x.fillText(ti('doc.thanks'), L0, y + 26);
         x.fillStyle = D.band; x.fillRect(0, H - 26, W, 26);   // the footer bar runs edge to edge of the sheet
         const out = frame && invFrame() !== 'none' ? framedCanvas(c, invFrame(), S, Theme.brand()) : c;
         out.toBlob((b) => (b ? ok(b) : fail(new Error(ti('doc.imgErr')))), type || 'image/png', quality || 0.92);

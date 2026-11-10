@@ -330,15 +330,15 @@
   function closeTopSearch(keep) {
     const o = $('#tsearch'); if (!o) return;
     o.remove(); const pi = $(pageSearchSel()); if (!keep && pi && pi.value) { pi.value = ''; pi.dispatchEvent(new Event('input', { bubbles: true })); }
-    renderTools();
+    renderTools(); syncHistory();
   }
   function openTopSearch() {
     const sel = pageSearchSel(), page = sel && $(sel); if (!page) return;
     closeTopSearch(true); tsKey = tab + '|' + moreView;
     const hd = document.querySelector('.appbar'), cs = getComputedStyle(hd), o = document.createElement('div'); o.id = 'tsearch'; o.className = 'tsearch';
     o.style.cssText = `height:${hd.getBoundingClientRect().height}px;background:${cs.backgroundColor};padding-top:${cs.paddingTop}`;
-    o.innerHTML = `<button type="button" class="tsb" data-act="tsearch-close" aria-label="${t('aria.back')}">‹</button><label class="tsf"><span aria-hidden="true">🔍</span><input type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(page.getAttribute('placeholder') || t('tool.search'))}" value="${esc(page.value)}"><button type="button" class="tsx" data-act="tsearch-clear" aria-label="${t('ord.clear')}">✕</button></label>`;
-    document.body.appendChild(o); const f = o.querySelector('input'); f.focus(); f.setSelectionRange(f.value.length, f.value.length);
+    o.innerHTML = `<button type="button" class="tsb" data-act="tsearch-close" aria-label="${t('aria.back')}">‹</button><label class="tsf"><span aria-hidden="true">🔍</span><input type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(page.getAttribute('placeholder') || t('tool.search'))}" value="${esc(page.value)}"><button type="button" class="tsx" data-act="tsearch-close" aria-label="${t('tool.closeSearch')}">✕</button></label>`;
+    document.body.appendChild(o); const f = o.querySelector('input'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); syncHistory();
   }
   function closeTopMenu() { ['tmenu', 'tmscrim'].forEach((i) => { const e = document.getElementById(i); if (e) e.remove(); }); }
   function openTopMenu(kind) {
@@ -2979,7 +2979,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   // Every layer you can back out of (non-home tab, a More sub-screen, an open sheet) is one history entry,
   // so the system Back button / gesture closes the top layer first. At Home, Back asks to press again to exit.
   let hist = 0, skipPops = 0, exitArmed = false, exitTimer, reconTimer;
-  const depth = () => (places.length - 1) + ($('#sheet').hidden ? 0 : Math.max(1, pageStack.length)) + PUI.layers();
+  const depth = () => (places.length - 1) + ($('#tsearch') ? 1 : 0) + ($('#sheet').hidden ? 0 : Math.max(1, pageStack.length)) + PUI.layers();
   function reconcile() {
     reconTimer = null;
     if (skipPops > 0) return;                        // a back traversal is still in flight
@@ -2999,7 +2999,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const n = st.d == null ? 0 : st.d;
     if (n >= hist) return;                           // stale entry from before a reload: nothing to undo
     hist = n;
-    if (PUI.isOpen()) PUI.back();
+    if ($('#tsearch')) closeTopSearch();             // the search bar over the top bar is the top layer
+    else if (PUI.isOpen()) PUI.back();
     else if (!$('#sheet').hidden) pageBack();
     else if (places.length > 1) { themeDraft = null; placeBack(); }
     render();

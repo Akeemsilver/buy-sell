@@ -1188,3 +1188,5 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bad:#ff6b63}:root:not([data-theme=light]) .szrow .req,:root:not([data-theme=light]) .errtxt,:root:not([data-theme=light]) .lnk2,:root:not([data-theme=light]) .szsum.bad b{color:#ff6b63}:root:not([data-theme=light]) .szrow.err{outline-color:#ff6b63}:root:not([data-theme=light]) .listen{color:#ff7a72}:root:not([data-theme=light]) .loss{color:#ff6b63}}
 
 .bpg .btn.brecv.pulse{animation:brecvpulse 1s ease-in-out 2}@keyframes brecvpulse{0%,100%{box-shadow:0 0 0 0 rgba(79,194,122,.55)}50%{box-shadow:0 0 0 10px rgba(79,194,122,0)}}
+
+.s .tlbal{color:var(--warn)}.pcr{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line)}.pcr span{color:var(--mute)}.pcr b.owe{color:var(--warn)}.pcr b.ok{color:var(--ok)}

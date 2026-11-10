@@ -337,7 +337,7 @@
     closeTopSearch(true); tsKey = tab + '|' + moreView;
     const hd = document.querySelector('.appbar'), cs = getComputedStyle(hd), o = document.createElement('div'); o.id = 'tsearch'; o.className = 'tsearch';
     o.style.cssText = `height:${hd.getBoundingClientRect().height}px;background:${cs.backgroundColor};padding-top:${cs.paddingTop}`;
-    o.innerHTML = `<button type="button" class="tsb" data-act="tsearch-close" aria-label="${t('aria.back')}">‹</button><label class="tsf"><span aria-hidden="true">🔍</span><input type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(page.getAttribute('placeholder') || t('tool.search'))}" value="${esc(page.value)}"><button type="button" class="tsx" data-act="tsearch-close" aria-label="${t('tool.closeSearch')}">✕</button></label>`;
+    o.innerHTML = `<button type="button" class="tsb" data-act="tsearch-close" aria-label="${t('aria.back')}">‹</button><label class="tsf"><span aria-hidden="true">🔍</span><input type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('tool.search'))}" value="${esc(page.value)}"><button type="button" class="tsx" data-act="tsearch-close" aria-label="${t('tool.closeSearch')}">✕</button></label>`;
     document.body.appendChild(o); const f = o.querySelector('input'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); syncHistory();
   }
   function closeTopMenu() { ['tmenu', 'tmscrim'].forEach((i) => { const e = document.getElementById(i); if (e) e.remove(); }); }
@@ -2320,14 +2320,14 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const panel = (inner) => `<div class="opanel">${inner}</div>`;   // on the store page the orders sit in a soft panel, so you can see where they appear
     if (q) {
       const hits = all.map((o) => ({ o, st: stageOf(o), m: L.orderMatch(state, o, q, orderInvoice(o)) })).filter((x) => x.m);
-      if (!hits.length) return hub ? panel(`<div class="oempty"><span class="em">🔍</span><span>${t('ord.noMatch', { q: esc(q) })}</span></div>`) : `<div class="none">${t('ord.noMatch', { q: esc(q) })}</div>`;
+      if (!hits.length) return panel(`<div class="oempty"><span class="em">🔍</span><span>${t('ord.noMatch', { q: esc(q) })}</span></div>`);
       const lim = hub ? limit : Math.max(limit, ordLimit), shown = hits.slice(0, lim);
       const body = ORD_TABS.map((st) => { const g = shown.filter((x) => x.st === st); return g.length ? `<div class="ostage">${t('ord.f.' + st).toUpperCase()} · ${hits.filter((x) => x.st === st).length}</div>${g.map((x) => ordRow(x.o, x.m)).join('')}` : ''; }).join('');
       return hub ? panel(body + (hits.length > lim ? logBtn(hits.length) : '')) : body + more(hits.length, lim);
     }
     const flt = hub && ordFilter === 'done' ? 'new' : ordFilter, list = all.filter((o) => stageOf(o) === flt), owed = flt === 'handed' ? list.reduce((n, o) => n + ((L.orderPay(state, orderInvoice(o)) || {}).owing || 0), 0) : 0;
     const tot = owed > 0 ? `<div class="otot">${tn('ord.nOrders', list.length)} · <b>${t('ord.stillToCollect', { amount: money(owed) })}</b></div>` : '';
-    if (!list.length) return hub ? panel(`<div class="oempty"><span class="em">🛍️</span><span>${t('ord.empty.' + flt)}</span><small>${t('ord.emptyHint.' + flt)}</small></div>`) : `<div class="none">${t('hub.noOrders')}</div>`;
+    if (!list.length) return panel(`<div class="oempty"><span class="em">🛍️</span><span>${t('ord.empty.' + flt)}</span><small>${t('ord.emptyHint.' + flt)}</small></div>`);   // the same empty card on the Store page and in the Order Log
     const rows = list.slice(0, limit).map((o) => ordRow(o)).join('');
     return hub ? panel(tot + rows + logBtn(list.length)) : tot + rows + more(list.length, limit);
   }

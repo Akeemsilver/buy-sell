@@ -1220,3 +1220,9 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .tsearch{background:var(--bg)!important;border-bottom:1px solid var(--line)}:root:not([data-theme=light]) .tsearch .tsb{color:var(--ink)}:root:not([data-theme=light]) .tsearch .tsf{background:color-mix(in srgb,var(--brand) 12%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 40%,transparent)}}
 
 .swbox{touch-action:pan-y}
+
+/* Order Log overview: three small numbers and an optional line under them */
+.ordov{margin:0 0 10px}.ordov:empty{display:none}
+.ovc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:2px}.ovc .ovr{display:flex}.ovc .ovr>div{flex:1;min-width:0;text-align:center;padding:5px 2px 4px}.ovc .ovr>div+div{border-left:1px solid var(--line)}
+.ovc small{display:block;color:var(--mute);font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;line-height:1.2}.ovc .ovr b{font-size:15px;font-weight:800;line-height:1.25;white-space:nowrap}.ovc .ow b{color:var(--bad)}
+.ovc .ovf{border-top:1px solid var(--line);margin:0 8px;padding:4px 4px 5px;display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--mute)}.ovc .ovf b{color:var(--ink);font-weight:800}

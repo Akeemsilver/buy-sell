@@ -2331,9 +2331,20 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const rows = list.slice(0, limit).map((o) => ordRow(o)).join('');
     return hub ? panel(tot + rows + logBtn(list.length)) : tot + rows + more(list.length, limit);
   }
-  const refreshOrders = () => { document.querySelectorAll('.ordp').forEach((e) => { e.innerHTML = ordPanel(Number(e.dataset.lim) || 20); }); document.querySelectorAll('.ordseg').forEach((e) => { e.hidden = !!ordQ.trim(); }); document.querySelectorAll('.oqx').forEach((e) => { e.hidden = !ordQ; }); };
+  const refreshOrders = () => { document.querySelectorAll('.ordov').forEach((e) => { e.innerHTML = ordOverview(); }); document.querySelectorAll('.ordp').forEach((e) => { e.innerHTML = ordPanel(Number(e.dataset.lim) || 20); }); document.querySelectorAll('.ordseg').forEach((e) => { e.hidden = !!ordQ.trim(); }); document.querySelectorAll('.oqx').forEach((e) => { e.hidden = !ordQ; }); };
   // More > Order log: every order, with the search box and the same four tabs (nothing is ever removed from it)
-  function OrderLog() { return `<div class="sth">${ordHead()}<div class="ordp" data-lim="${ordLimit}">${ordPanel(ordLimit)}</div></div>`; }
+  // A small summary above the Order Log: what still has to go out, what is on its way, and what is owed
+  function ordOverview() {
+    let del = 0, col = 0, arr = 0, owed = 0, oldest = -1;
+    Store.orders().forEach((o) => {
+      const st = stageOf(o);
+      if (st === 'confirmed') { const left = toHand(o), ready = left.filter((i) => !itemArriving(i)).length; if (o.option === 'delivery') del += ready; else col += ready; arr += left.length - ready; }
+      if (st === 'confirmed' || st === 'handed') { const ow = (L.orderPay(state, orderInvoice(o)) || {}).owing || 0; if (ow > 0) { owed += ow; const since = tsAt(o.confirmedAt) || Store.when(o); if (since) oldest = Math.max(oldest, Math.floor((Date.now() - since) / 864e5)); } }
+    });
+    const arrTxt = arr ? tn('ov.arriving', arr) : '', oldTxt = oldest < 0 ? '' : oldest < 1 ? t('ov.oldestToday') : tn('ov.oldest', oldest);
+    return `<div class="ovc"><div class="ovr"><div><small>${t('ov.toDeliver')}</small><b>${del}</b></div><div><small>${t('ov.toCollect')}</small><b>${col}</b></div><div class="${owed > 0 ? 'ow' : ''}"><small>${t('ov.owed')}</small><b>${money(owed)}</b></div></div>${arrTxt || oldTxt ? `<div class="ovf"><span>${arrTxt ? '⏳ ' + arrTxt : ''}</span><span>${oldTxt}</span></div>` : ''}</div>`;
+  }
+  function OrderLog() { return `<div class="sth"><div class="ordov">${ordOverview()}</div>${ordHead()}<div class="ordp" data-lim="${ordLimit}">${ordPanel(ordLimit)}</div></div>`; }
   // The invoice an order was turned into (saved on the order; older orders: the invoice their sold items are on).
   const orderInvoice = (o) => o.invoice || ((o.items || []).map((i) => state.items.find((x) => x.id === i.id)).find((it) => it && it.invoice && L.isSold(it)) || {}).invoice || '';
   Object.defineProperty(L, 'orderHold', { get: () => new Set(Store.reserved()), configurable: true });   // items inside unanswered orders are locked like sold ones

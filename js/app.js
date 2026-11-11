@@ -2844,7 +2844,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; return render();
       case 'inv-tab': invTab = id; return render();
-      case 'inv-sort': { if (invSort.col === id) invSort.dir = invSort.dir === 'desc' ? 'asc' : 'desc'; else invSort = { col: id, dir: id === 'inv' ? 'asc' : 'desc' }; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); return; }
+      case 'inv-sort': { if (invSort.col === id) invSort.dir = invSort.dir === 'desc' ? 'asc' : 'desc'; else invSort = { col: id, dir: id === 'inv' ? 'asc' : 'desc' }; const l = $('#ilog'), w0 = document.getElementById('imwrap'), sx = w0 ? w0.scrollLeft : 0; if (l) l.innerHTML = invoiceLogRows(invQ); const w1 = document.getElementById('imwrap'), h1 = document.getElementById('imhd'); if (w1 && sx) { w1.scrollLeft = sx; if (h1) h1.scrollLeft = sx; } return; }   // keep the Money table where it was scrolled sideways
       case 'bl-filter-open': blDraft = null; return sheetBlFilter();
       case 'bl-chip': { const [g, k] = id.split(':'); if (!blDraft) blDraft = { store: blF.store.slice(), status: blF.status.slice(), items: blF.items.slice() }; blDraft[g] = blDraft[g].includes(k) ? blDraft[g].filter((x) => x !== k) : blDraft[g].concat(k); return sheetBlFilter(); }
       case 'bl-clear': blDraft = { store: [], status: [], items: [] }; return sheetBlFilter();

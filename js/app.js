@@ -623,7 +623,7 @@
   }
 
   /* ---------- Invoice log: four tabs like the Batch Log. Overview, Money and Profit / Loss carry the spreadsheet's columns; Items shows each invoice's thumbnails ---------- */
-  let invTab = 'overview', invQ = '';
+  let invTab = 'overview', invQ = '', invSort = { col: 'inv', dir: 'desc' };   // Profit / Loss tab: newest invoice on top until a column title is tapped
   const IL_COL = { Paid: '#4fc27a', Owing: '#f0b34a', Updated: '#6c7bb5', Returned: '#8c7f91', Cancelled: '#8c7f91' };
   const invEff = (v) => (v.void ? Object.assign({}, v, v.void.was) : v);   // a returned invoice keeps its old amounts in void.was
   const invFind = (q) => { const x = String(q || '').trim().toLowerCase(), all = L.filterInvoices(state, flt).slice().reverse(); return x ? all.filter((v) => [v.no, v.client, v.desc].some((f) => String(f || '').toLowerCase().includes(x))) : all; };
@@ -640,9 +640,13 @@
       return `<div class="imbox"><div class="imhd" id="imhd"><div class="bltbl im"><div class="tr h"><span>${t('il.h.invoice')}</span><span class="n">${t('il.h.total')}</span><span class="n">${t('il.h.paid')}</span><span class="n">${t('il.h.prev')}</span><span class="n">${t('il.h.balance')}</span><span class="n">${t('il.h.delivery')}</span></div></div></div><div class="imwrap" id="imwrap"><div class="bltbl im">${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n">${fmt2(sum((v) => v.total))}</span><span class="n">${fmt2(sum((v) => v.amountPaid))}</span><span class="n">${fmt2(sum((v) => v.previouslyPaid))}</span><span class="n">${bal > 0 ? `<span class="ow">${fmt2(bal)}</span>` : dsh}</span><span class="n">${fmt2(sum((v) => v.delivery))}</span></div></div></div></div><p class="muted small" style="margin:10px 2px">${t('il.moneyNote')}</p>`;
     }
     if (invTab === 'pl') {
-      const rows = list.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), dim = v0.void || v0.updatedBy;
+      const invN = (v) => parseInt(String(v.no).replace(/\D/g, ''), 10) || 0, val = (v0) => { const v = invEff(v0); return invSort.col === 'profit' ? Math.max(0, Number(v.profit) || 0) : invSort.col === 'loss' ? Math.abs(Number(v.loss) || 0) : invSort.col === 'tip' ? Math.max(0, Number(v.tip) || 0) : 0; };
+      const sorted = list.slice().sort((a, b2) => { if (invSort.col === 'inv') return invSort.dir === 'asc' ? invN(a) - invN(b2) : invN(b2) - invN(a);
+        const x = val(a), y = val(b2); if (x > 0 && y > 0) return x !== y ? (invSort.dir === 'desc' ? y - x : x - y) : invN(a) - invN(b2); if (x > 0) return -1; if (y > 0) return 1; return invN(a) - invN(b2); });   // rows with nothing in that column come last, lowest invoice number first
+      const shd = (col, label, cost) => `<button type="button" class="shd${invSort.col === col ? ' on' : ''}${cost ? ' costonly' : ''}" data-act="inv-sort" data-id="${col}" aria-label="${esc(label)}"${invSort.col === col ? ` aria-sort="${invSort.dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>${label}${invSort.col === col ? `<i>${invSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`;
+      const rows = sorted.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), dim = v0.void || v0.updatedBy;
         return `<div class="tr s-${st}${dim ? ' dim' : ''}" role="button" tabindex="0" data-act="view-inv" data-id="${v0.no}"><i class="st" style="background:${IL_COL[st]}"></i><span class="inum"><b>${esc(v0.no)}</b><small>${invStLabel(st)}</small></span><span class="n costonly">${Number(v.profit) > 0 ? `<span class="pos">${fmt2(v.profit)}</span>` : dsh}</span><span class="n costonly">${Number(v.loss) !== 0 ? `<span class="neg">${signed2(-Math.abs(Number(v.loss)))}</span>` : dsh}</span><span class="n costonly">${amt(v.tip)}</span></div>`; }).join('');
-      return `<div class="bltbl ipl"><div class="tr h"><span>${t('il.h.invoice')}</span><span class="n costonly">${t('il.h.profit')}</span><span class="n costonly">${t('il.h.loss')}</span><span class="n costonly">${t('il.h.tip')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n costonly"><span class="pos">${fmt2(sum((v) => v.profit))}</span></span><span class="n costonly"><span class="neg">${signed2(-Math.abs(sum((v) => Math.abs(Number(v.loss) || 0))))}</span></span><span class="n costonly">${fmt2(sum((v) => v.tip))}</span></div></div><p class="muted small" style="margin:10px 2px">${t('il.plNote')}</p>`;
+      return `<div class="bltbl ipl"><div class="tr h">${shd('inv', t('il.h.invoice'))}${shd('profit', t('il.h.profit'), true)}${shd('loss', t('il.h.loss'), true)}${shd('tip', t('il.h.tip'), true)}</div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n costonly"><span class="pos">${fmt2(sum((v) => v.profit))}</span></span><span class="n costonly"><span class="neg">${signed2(-Math.abs(sum((v) => Math.abs(Number(v.loss) || 0))))}</span></span><span class="n costonly">${fmt2(sum((v) => v.tip))}</span></div></div><p class="muted small" style="margin:10px 2px">${t('il.plNote')}</p>`;
     }
     if (invTab === 'items') {
       return list.map((v0) => { const st = L.invoiceStatus(v0), col = IL_COL[st], pu = L.purchaseOf(state, v0.no), its = (v0.void ? ((pu && pu.inv.void && pu.inv.void.items) || v0.void.items || []).map((r) => state.items.find((x) => x.id === r.id)) : pu ? pu.items : []).filter(Boolean).sort((a, b2) => (a.id < b2.id ? -1 : 1));
@@ -2820,6 +2824,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; return render();
       case 'inv-tab': invTab = id; return render();
+      case 'inv-sort': { if (invSort.col === id) invSort.dir = invSort.dir === 'desc' ? 'asc' : 'desc'; else invSort = { col: id, dir: id === 'inv' ? 'asc' : 'desc' }; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); return; }
       case 'bl-filter-open': blDraft = null; return sheetBlFilter();
       case 'bl-chip': { const [g, k] = id.split(':'); if (!blDraft) blDraft = { store: blF.store.slice(), status: blF.status.slice(), items: blF.items.slice() }; blDraft[g] = blDraft[g].includes(k) ? blDraft[g].filter((x) => x !== k) : blDraft[g].concat(k); return sheetBlFilter(); }
       case 'bl-clear': blDraft = { store: [], status: [], items: [] }; return sheetBlFilter();

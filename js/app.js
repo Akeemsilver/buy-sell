@@ -362,7 +362,7 @@
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
     $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
-    renderTools();
+    renderTools(); syncAppbarH();
     document.body.classList.toggle('hide-amounts', hideAmounts); document.body.classList.toggle('nocosts', !can('costs'));
     $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, more: More }[tab]();
     renderActionBar();
@@ -637,7 +637,7 @@
       const rows = list.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), dim = v0.void || v0.updatedBy;
         return `<div class="tr s-${st}${dim ? ' dim' : ''}" role="button" tabindex="0" data-act="view-inv" data-id="${v0.no}"><span class="inum" style="--stripe:${IL_COL[st]}"><b>${esc(v0.no.replace(/^INV0*/, 'INV'))}</b><small>${invStLabel(st)}</small></span><span class="n">${fmt2(v.total)}</span><span class="n">${amt(v.amountPaid)}</span><span class="n">${amt(v.previouslyPaid)}</span><span class="n">${v.balance > 0 ? `<span class="ow">${fmt2(v.balance)}</span>` : dsh}</span><span class="n">${amt(v0.delivery)}</span></div>`; }).join('');
       const bal = sum((v) => v.balance);
-      return `<div class="imwrap"><div class="bltbl im"><div class="tr h"><span>${t('il.h.invoice')}</span><span class="n">${t('il.h.total')}</span><span class="n">${t('il.h.paid')}</span><span class="n">${t('il.h.prev')}</span><span class="n">${t('il.h.balance')}</span><span class="n">${t('il.h.delivery')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n">${fmt2(sum((v) => v.total))}</span><span class="n">${fmt2(sum((v) => v.amountPaid))}</span><span class="n">${fmt2(sum((v) => v.previouslyPaid))}</span><span class="n">${bal > 0 ? `<span class="ow">${fmt2(bal)}</span>` : dsh}</span><span class="n">${fmt2(sum((v) => v.delivery))}</span></div></div></div><p class="muted small" style="margin:10px 2px">${t('il.moneyNote')}</p>`;
+      return `<div class="imbox"><div class="imhd" id="imhd"><div class="bltbl im"><div class="tr h"><span>${t('il.h.invoice')}</span><span class="n">${t('il.h.total')}</span><span class="n">${t('il.h.paid')}</span><span class="n">${t('il.h.prev')}</span><span class="n">${t('il.h.balance')}</span><span class="n">${t('il.h.delivery')}</span></div></div></div><div class="imwrap" id="imwrap"><div class="bltbl im">${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n">${fmt2(sum((v) => v.total))}</span><span class="n">${fmt2(sum((v) => v.amountPaid))}</span><span class="n">${fmt2(sum((v) => v.previouslyPaid))}</span><span class="n">${bal > 0 ? `<span class="ow">${fmt2(bal)}</span>` : dsh}</span><span class="n">${fmt2(sum((v) => v.delivery))}</span></div></div></div></div><p class="muted small" style="margin:10px 2px">${t('il.moneyNote')}</p>`;
     }
     if (invTab === 'pl') {
       const rows = list.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), dim = v0.void || v0.updatedBy;
@@ -657,6 +657,10 @@
         <div class="mid"><div class="nm">${esc(v0.no)} · ${esc(v0.client)}</div><div class="sub idesc">${esc(desc)}</div><div class="itags">${tags.map((x) => `<span>${x}</span>`).join('')}</div></div>
         <div class="rt"><b class="ist s-${st}">${invStLabel(st)}</b>${v.balance > 0 && !v0.updatedBy ? `<small class="owes">${t('il.owes', { amt: fmt2(v.balance) })}</small>` : ''}<small class="invt${v0.void ? ' x' : ''}">${money(v.total)}</small></div></div>`; }).join('');
   }
+  // the Money table: its title row sticks under the app bar while the page scrolls, and slides sideways together with the rows
+  const syncAppbarH = () => { const h = document.querySelector('.appbar'); if (h) document.documentElement.style.setProperty('--ah', h.getBoundingClientRect().height + 'px'); };
+  window.addEventListener('resize', syncAppbarH);
+  document.addEventListener('scroll', (e) => { const w = e.target; if (w && w.id === 'imwrap') { const h = document.getElementById('imhd'); if (h) h.scrollLeft = w.scrollLeft; } }, true);
   function InvoiceLog() {
     const all = L.filterInvoices(state, flt).filter(invLiveOnly), billed = all.reduce((n, v) => n + (Number(v.total) || 0), 0), bal = all.reduce((n, v) => n + (Number(v.balance) || 0), 0);
     return `<div class="blhero i3"><div><small>${t('il.billed')}</small><b>${money(billed)}</b></div><div><small>${t('il.paid')}</small><b>${money(billed - bal)}</b></div><div><small>${t('il.balDue')}</small><b>${money(bal)}</b></div></div>

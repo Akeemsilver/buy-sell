@@ -1261,7 +1261,7 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .bltbl.im .tr{padding-top:9px;padding-bottom:9px}.bltbl.ipl .tr{padding-top:9px;padding-bottom:9px}
 
 /* Invoice log: the invoice number stays put while the Money table slides sideways; status colours */
-.imwrap{border:1px solid var(--line);border-radius:18px;background:var(--card);overflow-x:auto;overflow-y:hidden}.bltbl.im{border:0;border-radius:0;overflow:visible;background:transparent}.bltbl.im .tr:last-child{border-bottom:0}
+.imwrap{overflow-x:auto;overflow-y:hidden;border-radius:0 0 18px 18px}.bltbl.im{border:0;border-radius:0;overflow:visible;background:transparent}.bltbl.im .tr:last-child{border-bottom:0}
 .bltbl .inum{position:sticky;left:0;z-index:2;display:block;background:var(--card);padding:9px 6px 9px 0;margin:-9px 0}.bltbl .tr.h>:first-child,.bltbl .tr.t>:first-child{background:color-mix(in srgb,var(--tint) 60%,var(--card))}.bltbl.im .tr.h>:first-child,.bltbl.im .tr.t>:first-child{position:sticky;left:0;z-index:2;margin:-9px 0;padding:9px 6px 9px 0}
 .bltbl .inum b{display:block;font-size:13px;line-height:1.2}.bltbl .inum small{display:block;font-size:10.5px;font-weight:800;line-height:1.2;margin-top:1px}
 
@@ -1275,10 +1275,12 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .bltbl.im .tr.h>:first-child,.bltbl.im .tr.t>:first-child{padding-left:18px}
 
 /* Invoice log, Money tab: the column titles and the Total row stay in view while you scroll up and down; the red matches the softer red used elsewhere */
-.imwrap{max-height:calc(100dvh - 340px);overflow:auto}
-.bltbl.im .tr.h{position:sticky;top:0;z-index:3}.bltbl.im .tr.h>:first-child{z-index:4}
-.bltbl.im .tr.t{position:sticky;bottom:0;z-index:3;border-top:1px solid var(--line)}.bltbl.im .tr.t>:first-child{z-index:4}
 .bltbl .tr.dim{opacity:.82}
 :root:not([data-theme=dark]) .bltbl .ow,:root:not([data-theme=dark]) .blr .rt small.owes{color:#cf4b4b;font-weight:600}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .bltbl .ow,:root:not([data-theme=light]) .blr .rt small.owes{color:#ff7b7b;font-weight:inherit}}
 :root[data-theme=light] .bltbl .ow,:root[data-theme=light] .blr .rt small.owes{color:#cf4b4b;font-weight:600}
+
+/* Money table: a box whose title row is sticky for the page and slides sideways with the rows */
+.imbox{border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.imhd{position:sticky;top:var(--ah,62px);z-index:6;overflow:hidden;border-radius:17px 17px 0 0;background:color-mix(in srgb,var(--tint) 60%,var(--card));border-bottom:1px solid var(--line);scrollbar-width:none}.imhd::-webkit-scrollbar{display:none}
+.imhd .bltbl.im{border:0;border-radius:0;background:transparent;min-width:560px}.imhd .tr.h{border-bottom:0}

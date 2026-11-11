@@ -321,8 +321,8 @@
     const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : sel === '.iq' ? invQ.trim() : '';
     const sbtn = sel ? btn('tsearch-open', t('tool.search'), 'search', active ? '<i class="dot"></i>' : '') : '';
     if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', k ? `<b class="nb">${k}</b>` : '', 'bl')}</div>`; return; }
-    if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools">${sbtn}${btn('dlv-menu', t('batch.more'), 'dots')}</div>`; return; }   // the Delivery log's own menu
-    if (tab === 'more' && moreView === 'orders') { el.innerHTML = `<div class="tools">${sbtn}</div>`; return; }
+    if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', !dset().home ? '<i class="dot"></i>' : '', 'dlv')}</div>`; return; }   // same ⋮ menu as the other logs, plus a Delivery settings shortcut
+    if (tab === 'more' && moreView === 'orders') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', !dset().home ? '<i class="dot"></i>' : '', 'ord')}</div>`; return; }
     if (tab === 'more' && moreView === 'invoices') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'inv')}</div>`; return; }
     el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${sbtn}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'main')}</div>` : '';
   }
@@ -345,7 +345,8 @@
   function openTopMenu(kind) {
     closeTopMenu();
     const row = (act, ic, label, on) => `<button type="button" class="tmi" data-act="${act}"><span class="tmic" aria-hidden="true">${ic}</span><span class="tml">${label}</span>${on ? '<i class="dot on"></i>' : ''}</button>`;
-    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false);
+    const ss = row('store-settings', '🏪', t('hub.settings'), !dset().home);   // Store settings (with Store location) from the Store page and every log
+    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) + ss : kind === 'ord' ? ss : kind === 'dlv' ? row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + ss + row('dlv-settings', '🚚', t('dlv.settings'), false) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) + ss : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + (tab === 'sell' && !moreView ? ss : '');
     const sc = document.createElement('div'); sc.id = 'tmscrim'; sc.className = 'tmscrim'; sc.dataset.close = '1';
     const m = document.createElement('div'); m.id = 'tmenu'; m.className = 'tmenu'; m.setAttribute('role', 'menu'); m.innerHTML = rows;
     const hd = document.querySelector('.appbar').getBoundingClientRect(); m.style.top = (hd.bottom - 6) + 'px';
@@ -562,7 +563,8 @@
           <div class="box">${all.slice(0, 5).map(batchRow).join('') || `<div class="rw2"><div class="t"><small>${t('stock.none')}</small></div></div>`}${all.length ? `<button class="rw2 tap" data-act="batches-log" style="justify-content:space-between;color:var(--brand);font-weight:800"><span>${t('hub.openBatchLog')} · ${all.length}</span><span>›</span></button>` : ''}</div>`; })()}
       ${hid0 ? `<div class="warn"><span style="font-size:20px">⚠️</span><div><b>${tn('hub.hidden', hidden.length)}</b><br><small>${t('hub.hiddenSub')}</small></div><button class="fx" data-act="open-stock" data-id="${hid0.batchId}">${t('hub.fix')}</button></div>` : ''}
       <h4><span>${t('hub.settings')}</span></h4>
-      <div class="box"><button class="rw2 tap" data-act="pickup-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
+      <div class="box"><button class="rw2 tap" data-act="dlv-home"><div class="t"><b>📍 ${t('sset.loc')}</b><small>${dset().home ? esc(dset().home.name || t('ds.pinSet')) : t('sset.locNone')}</small></div><span class="chev">›</span></button>
+        <button class="rw2 tap" data-act="pickup-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
         <button class="rw2 tap" data-act="contact-open"><div class="t"><b>${t('hub.contact')}</b><small>${esc(c.name || bizName())} · ${esc(c.whatsapp) || t('store.whatsappSub')}</small></div><span class="chev">›</span></button>
         <button class="rw2 tap" data-act="words-open"><div class="t"><b>${t('hub.spanish')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div><span class="chev">›</span></button>
         <div class="rw2"><div class="t"><b>${t('store.left')}</b><small>${t('hub.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div>
@@ -1998,6 +2000,17 @@
       <button class="btn" style="width:100%;margin-top:6px" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="muted small" style="margin:10px 2px">${t('store.note')}</p>` : ''}</div>`, null, true);
   }
   // Pickup and delivery: only the places, with what each offers; tap one to change it, or add a place.
+  function sheetStoreSettings() {
+    enterPage('storeset', '', () => sheetStoreSettings());
+    const c = storeCfg(), h = dset().home, row = (act, title, sub) => `<button class="rw2 tap" data-act="${act}"><div class="t"><b>${title}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.settings')}</b></div></div><div class="ap sth"><div class="box">
+      ${row('dlv-home', '📍 ' + t('sset.loc'), h ? esc(h.name || t('ds.pinSet')) : `<span style="color:var(--bad,#cf4b4b)">${t('sset.locNone')}</span>`)}
+      ${row('pickup-open', t('hub.delivery'), esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone'))}
+      ${row('dlv-settings', t('dlv.settings'), t('sset.ratesSub'))}
+      ${row('contact-open', t('hub.contact'), esc(c.name || bizName()) + ' · ' + (esc(c.whatsapp) || t('store.whatsappSub')))}
+      ${row('words-open', t('hub.spanish'), t('words.openLibSub', { n: wordList().length }))}
+      ${row('store-open', t('hub.all'), '')}</div></div>`, null, true);
+  }
   function sheetPickup() {
     enterPage('pickup', '', () => sheetPickup());
     const c = storeCfg(), chip = (on, html) => `<span class="chp ${on ? '' : 'off'}">${html}</span>`;
@@ -2038,7 +2051,7 @@
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
-    storeSettings: ['store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
+    storeSettings: ['store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
   }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
   /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
   const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
@@ -2301,6 +2314,7 @@
   function dlvSetHome(g) { saveDset({ home: { lat: g.lat, lng: g.lng, name: g.name || '' } }); toast(t('ds.homeSet')); if (g.name == null || g.name === '') MapPick.nameOf(g.lat, g.lng, I.getLang()).then((n) => { if (n) { const h = dset().home; if (h && h.lat === g.lat) { saveDset({ home: Object.assign({}, h, { name: n }) }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); } } }); Store.measure(dset().home, true).then((n) => { if (n) toast(t('ds.measured', { n })); }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); }
   function sheetDeliverySettings() {
     enterPage('dsettings', '', () => sheetDeliverySettings());
+    const dpins = toDeliver().map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean);
     const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done'), d.costKm), h = d.home, ex = st.avgKm || 7.4, exFee = SCore.rateFee(d, ex);
     const inp = (k, v, label) => `<div class="ln"><span>${label}</span><input class="dinp" data-dset="${k}" type="text" inputmode="decimal" autocomplete="off" value="${v ? v : ''}" placeholder="0"></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('dlv.settings')}</b></div></div><div class="ap dsp">
@@ -2313,7 +2327,7 @@
         ${st.n ? `<div class="ln"><span>${t('ds.n')}</span><b>${st.n}</b></div><div class="ln"><span>${t('ds.avgKm')}</span><b>${st.avgKm} km</b></div><div class="ln"><span>${t('ds.avgFee')}</span><b>${money(st.avgFee)}</b></div><div class="ln"><span>${t('ds.perKmAvg')}</span><b>${money(st.perKm)}</b></div>${d.costKm > 0 ? `<div class="ln"><span>${t('ds.avgCost')}</span><b>${money(st.avgCost)}</b></div><div class="ln"><span>${t('ds.profitTotal')}</span><b class="${st.profit < 0 ? 'loss' : 'gain'}">${money(st.profit)}</b></div><div class="ln"><span>${t('ds.lossN')}</span><b>${st.lossN}</b></div>` : ''}
         ${st.bands.map((b) => `<div class="dbd"><span class="l">${b.label}</span><i style="width:${Math.max(3, Math.round(b.n / st.n * 100))}%"></i><span class="r">${b.n}${b.n ? ' · ' + plain(money(b.avgFee)) : ''}</span></div>`).join('')}${d.costKm > 0 ? st.bands.filter((b) => b.n && b.avgCost > b.avgFee).map((b) => `<p class="dsug">💡 <b>${t('ds.sugg')}</b> · ${t('ds.suggLine', { label: b.label, cost: plain(money(b.avgCost)), fee: plain(money(b.avgFee)) })}</p>`).join('') : ''}` : `<p class="muted small" style="margin:0">${t('ds.noData')}</p>`}
         <p class="muted small" style="margin:10px 0 0">${t('ds.how')}</p></div>
-      <div class="btns"><button class="btn" data-act="ds-recalc">${t('ds.recalc')}</button></div></div>`, null, true);
+      <div class="btns"><button class="btn" data-act="ds-recalc">🔄 ${t('ds.recalc')}</button>${dpins.length > 1 ? `<a class="btn" href="${SCore.routeLink(dpins)}" target="_blank" rel="noopener" data-act="pin-open">🧭 ${t('dv.route', { n: Math.min(10, dpins.length) })}</a>` : ''}<button class="btn" data-act="dlv-export">⬇️ ${t('dlv.export')}</button></div></div>`, null, true);
   }
   function planSave(id, day) { closeSheet(); return Store.patch(id, { planDay: day || null }).then(() => { toast(t('dlv.planSaved')); render(); }).catch(() => toast(t('store.pubError'))); }
   function sheetPlan(id) {
@@ -2821,6 +2835,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-preview': { const c = storeCfg(); if (!c.id) return sheetStore(); window.open(Store.link(c), '_blank', 'noopener'); return; }
       case 'store-link': { const c = storeCfg(); if (!c.id) return sheetStore(); return copyText(Store.link(c)).then((ok) => toast(ok ? t('store.copied') : Store.link(c))); }
       case 'store-open': return sheetStore();
+      case 'store-settings': closeSheet(); return sheetStoreSettings();
       case 'pickup-open': return sheetPickup();
       case 'contact-open': return sheetContact();
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
@@ -2858,6 +2873,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dlv-q-clear': dlvQ = ''; document.querySelectorAll('.dq').forEach((e) => { e.value = ''; }); return dlvRefresh();
       case 'dlv-menu': { const h = dset().home, pins = toDeliver().map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean), route = SCore.routeLink(pins);
         return openSmall(`<h3>${t('dlv.title')}</h3><div class="dlvmenu">
+          <button class="btn" data-act="store-settings">🏪 ${t('hub.settings')}</button>
           <button class="btn" data-act="dlv-settings">⚙️ ${t('dlv.settings')}</button>
           <button class="btn" data-act="dlv-home">📍 ${t(h ? 'dlv.changeHome' : 'dlv.setHome')}</button>
           ${pins.length > 1 ? `<a class="btn" href="${route}" target="_blank" rel="noopener" data-act="pin-open">🧭 ${t('dv.route', { n: Math.min(10, pins.length) })}</a>` : ''}

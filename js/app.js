@@ -671,6 +671,11 @@
       const tot = L.owingFor(state, res.map((x) => x.b));
       return `<div class="bltbl ow"><div class="tr h"><span>${t('bl.h.batch')}</span><span class="n">${t('bl.h.owing')}</span><span class="n">${t('bl.h.people')}</span><span class="n">${t('bl.h.waiting')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n"><span class="ow">${tot.owing > 0 ? fmt2(tot.owing) : '—'}</span></span><span class="n">${tot.people || '—'}</span><span class="n">${tot.oldestDays !== null && tot.owing > 0 ? dayTxt(tot.oldestDays) : '—'}</span></div></div><p class="blnote">${t('bl.note.owing')}</p>`;
     }
+    if (blTab === 'items') {
+      return res.map(({ b }) => { const st = L.batchStats(state, b), bs = bStatus(b), col = BL_COL[bs] || BL_COL.Closed, its = state.items.filter((x) => x.batchId === b.id).sort((x, y) => (x.id < y.id ? -1 : 1));
+        const th = its.map((i) => { const sold = L.isSold(i); return `<button type="button" class="blth${sold ? ' sold' : ''}" data-act="edit-item" data-id="${esc(i.id)}" data-bt="${b.id}" aria-label="${esc(dn(i) || i.id)}"><span class="blp">${i.photo ? `<img data-ph="${esc(i.photo.id)}" data-kind="thumb" alt="">` : `<em>${esc(String(i.id).split('-').pop())}</em>`}<span class="blpr">${sold ? t('bl.soldTag') : (Number(i.price) > 0 ? fmt2(L.salePrice(i) || i.price) : '—')}</span></span><small>${esc(i.id)}</small></button>`; }).join('');
+        return `<div class="bli"><div class="blh"><b>${esc(blShort(b.id))}</b><span class="chip2" style="color:${col}"><i></i>${stLabel(bs)}</span><small>${st.sold ? t('bl.ofSold', { n: st.count }).replace(/^/, st.sold + ' ') : tn('notif.items', its.length)}</small></div>${its.length ? `<div class="blrail">${th}</div>` : `<div class="muted small">${t('bl.noItems')}</div>`}</div>`; }).join('');
+    }
     return res.map(({ b }) => { const st = L.batchStats(state, b), pc = st.count ? Math.round(st.sold / st.count * 100) : 0, bs = bStatus(b), col = BL_COL[bs] || BL_COL.Closed, on = c.batches.includes(b.id);
       return `<div class="blr${bs === 'Closed' ? ' cl' : ''}" role="button" tabindex="0" data-act="batch" data-id="${b.id}"><i class="stripe" style="background:${col}"></i>
         <span class="ring" style="background:conic-gradient(${col} ${pc * 3.6}deg,color-mix(in srgb,var(--line) 80%,transparent) 0)"><b>${pc}%</b></span>
@@ -679,9 +684,9 @@
   }
   function BatchLog() {
     const c = storeCfg(), n = state.batches.length, inN = state.batches.filter((b) => c.batches.includes(b.id)).length;
-    const hero = blTab === 'overview' ? `<div class="blhero"><div><small>${t('bl.customersSee')}</small><b>${t('bl.xOfY', { x: inN, y: n })}</b></div>${n ? `<div class="sa">${t('store.selAll')}${swt('store-batch-all', 'all', n > 0 && inN === n)}</div>` : ''}</div>` : '';
+    const hero = true ? `<div class="blhero"><div><small>${t('bl.customersSee')}</small><b>${t('bl.xOfY', { x: inN, y: n })}</b></div>${n ? `<div class="sa">${t('store.selAll')}${swt('store-batch-all', 'all', n > 0 && inN === n)}</div>` : ''}</div>` : '';
     return `${hero}<div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
-      <div class="blseg">${[['overview', 'bl.tabOverview'], ['pl', 'bl.tabPL'], ['owing', 'bl.tabOwing']].map(([k, l]) => `<button class="${blTab === k ? 'on' : ''}" data-act="bl-tab" data-id="${k}">${t(l)}</button>`).join('')}</div>
+      <div class="blseg">${[['overview', 'bl.tabOverview'], ['pl', 'bl.tabPL'], ['owing', 'bl.tabOwing'], ['items', 'bl.tabItems']].map(([k, l]) => `<button class="${blTab === k ? 'on' : ''}" data-act="bl-tab" data-id="${k}">${t(l)}</button>`).join('')}</div>
       <div id="blog">${batchLogRows('')}</div>`;
   }
   // The filter panel: several choices at once; choices in different groups combine
@@ -2747,7 +2752,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'batch-pick-do': stockBatch = id; stockFilter = 'All'; closeSheet(); window.scrollTo(0, 0); return render();
       case 'batch-info': return sheetBatchInfo(id);
       case 'pick-filter': stockFilter = id; return render();
-      case 'edit-item': { const iv = t_.dataset.inv, od = t_.dataset.ord; itemNavIds = iv ? state.items.filter((x) => x.invoice === iv).map((x) => x.id).sort() : od ? ((Store.orders().find((o) => o.id === od) || {}).items || []).map((x) => x.id).filter((x) => state.items.some((y) => y.id === x)).sort() : null; return sheetItem(id); }
+      case 'edit-item': { const iv = t_.dataset.inv, od = t_.dataset.ord, bt = t_.dataset.bt; itemNavIds = bt ? state.items.filter((x) => x.batchId === bt).map((x) => x.id).sort() : iv ? state.items.filter((x) => x.invoice === iv).map((x) => x.id).sort() : od ? ((Store.orders().find((o) => o.id === od) || {}).items || []).map((x) => x.id).filter((x) => state.items.some((y) => y.id === x)).sort() : null; return sheetItem(id); }
       case 'toggle-sale': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return setSale(it, !it.saleOn, null); }
       case 'sale-pct': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); return setSale(it, true, Number(t_.dataset.v)); }
       case 'use-rec': { const it = state.items.find((x) => x.id === id); if (!it) return; if (L.isLocked(it)) return lockToast(it); const c = L.itemCalc(batchOf(it), it); if (!c.recommended) return toast(t('item.noRec')); const old = it.price; if (onQuick()) { it.price = c.recommended; L.applyToGroup(state, it, ['price']); save(); const f = $('#sheet [data-f=price]'); if (f) f.value = c.recommended; return updateSale(it); } return setPrice(it, c.recommended, old); }

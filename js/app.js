@@ -701,6 +701,7 @@
 
   const dayLong = (d) => { const v = new Date(d); if (isNaN(v)) return ''; const m = v.toLocaleDateString(I.locale(I.getLang()), { month: 'short' }).replace(/\./g, ''); return String(v.getDate()).padStart(2, '0') + ' ' + m.charAt(0).toUpperCase() + m.slice(1) + ' ' + v.getFullYear(); };   // 12 Oct 2026: three letters, capital first letter
   // Batch Log: three tabs (Overview cards, Profit / Loss table, Owing table), a filter with several choices, and the search box
+  let blSort = { col: 'batch', dir: 'desc' };   // Profit / Loss and Owing tabs: newest batch on top until a column title is tapped
   let blTab = 'overview', blF = { store: [], status: [], items: [] }, blDraft = null;
   const BL_COL = { 'In Transit': '#f0b34a', Received: '#4fc27a', Closed: '#8c7f91' };
   const blCount = (f) => f.store.length + f.status.length + f.items.length;
@@ -719,16 +720,23 @@
     const res = blList(q);
     if (!res.length) return `<div class="empty">${blCount(blF) && !String(q || '').trim() ? t('bl.noMatch') : t('bp.none', { q: esc(String(q || '').trim()) })}</div>`;
     const c = storeCfg();
+    const bN = (b) => parseInt(String(b.id).replace(/\D/g, ''), 10) || 0;
+    const bshd = (col, label, cost) => `<button type="button" class="shd${blSort.col === col ? ' on' : ''}${cost ? ' costonly' : ''}" data-act="bl-sort" data-id="${col}" aria-label="${esc(label)}"${blSort.col === col ? ` aria-sort="${blSort.dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>${label}${blSort.col === col ? `<i>${blSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`;
+    const bsort = (list, val, signed) => list.slice().sort((x, y) => { if (blSort.col === 'batch') return blSort.dir === 'asc' ? bN(x.b) - bN(y.b) : bN(y.b) - bN(x.b);
+      const a = val(x.b), b2 = val(y.b); if (signed) return a !== b2 ? (blSort.dir === 'desc' ? b2 - a : a - b2) : bN(x.b) - bN(y.b);
+      if (a > 0 && b2 > 0) return a !== b2 ? (blSort.dir === 'desc' ? b2 - a : a - b2) : bN(x.b) - bN(y.b); if (a > 0) return -1; if (b2 > 0) return 1; return bN(x.b) - bN(y.b); });   // batches with nothing in that column come last
     if (blTab === 'pl') {
       let ti = 0, ts = 0;
-      const rows = res.map(({ b }) => { const st = L.batchStats(state, b); ti += st.investment; ts += st.sales; return blRow(b, `<span class="n costonly">${fmt2(st.investment)}</span><span class="n">${fmt2(st.sales)}</span><span class="n costonly ${st.net < 0 ? 'neg' : 'pos'}">${signed2(st.net)}</span>`); }).join('');
+      const plv = { invested: (b) => L.batchStats(state, b).investment, sales: (b) => L.batchStats(state, b).sales, pl: (b) => L.batchStats(state, b).net };
+      const rows = bsort(res, plv[blSort.col] || (() => 0), blSort.col === 'pl').map(({ b }) => { const st = L.batchStats(state, b); ti += st.investment; ts += st.sales; return blRow(b, `<span class="n costonly">${fmt2(st.investment)}</span><span class="n">${fmt2(st.sales)}</span><span class="n costonly ${st.net < 0 ? 'neg' : 'pos'}">${signed2(st.net)}</span>`); }).join('');
       const tn2 = Math.round((ts - ti) * 100) / 100;
-      return `<div class="bltbl pl"><div class="tr h"><span>${t('bl.h.batch')}</span><span class="n costonly">${t('bl.h.invested')}</span><span class="n">${t('bl.h.sales')}</span><span class="n costonly">${t('bl.h.pl')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n costonly">${fmt2(ti)}</span><span class="n">${fmt2(ts)}</span><span class="n costonly ${tn2 < 0 ? 'neg' : 'pos'}">${signed2(tn2)}</span></div></div><p class="blnote">${t('bl.note.pl')}</p>`;
+      return `<div class="bltbl pl"><div class="tr h">${bshd('batch', t('bl.h.batch'))}${bshd('invested', t('bl.h.invested'), true)}${bshd('sales', t('bl.h.sales'))}${bshd('pl', t('bl.h.pl'), true)}</div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n costonly">${fmt2(ti)}</span><span class="n">${fmt2(ts)}</span><span class="n costonly ${tn2 < 0 ? 'neg' : 'pos'}">${signed2(tn2)}</span></div></div><p class="blnote">${t('bl.note.pl')}</p>`;
     }
     if (blTab === 'owing') {
-      const rows = res.map(({ b }) => { const o = L.batchOwing(state, b); return blRow(b, `<span class="n">${o.owing > 0 ? `<span class="ow">${fmt2(o.owing)}</span>` : dash}</span><span class="n">${o.people ? o.people : dash}</span><span class="n">${o.oldestDays !== null && o.owing > 0 ? `<span class="${o.oldestDays > 10 ? 'neg' : ''}">${dayTxt(o.oldestDays)}</span>` : dash}</span>`); }).join('');
+      const owv = { owing: (b) => L.batchOwing(state, b).owing, people: (b) => L.batchOwing(state, b).people, waiting: (b) => { const o = L.batchOwing(state, b); return o.owing > 0 && o.oldestDays !== null ? o.oldestDays + 1 : 0; } };
+      const rows = bsort(res, owv[blSort.col] || (() => 0)).map(({ b }) => { const o = L.batchOwing(state, b); return blRow(b, `<span class="n">${o.owing > 0 ? `<span class="ow">${fmt2(o.owing)}</span>` : dash}</span><span class="n">${o.people ? o.people : dash}</span><span class="n">${o.oldestDays !== null && o.owing > 0 ? `<span class="${o.oldestDays > 10 ? 'neg' : ''}">${dayTxt(o.oldestDays)}</span>` : dash}</span>`); }).join('');
       const tot = L.owingFor(state, res.map((x) => x.b));
-      return `<div class="bltbl ow"><div class="tr h"><span>${t('bl.h.batch')}</span><span class="n">${t('bl.h.owing')}</span><span class="n">${t('bl.h.people')}</span><span class="n">${t('bl.h.waiting')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n"><span class="ow">${tot.owing > 0 ? fmt2(tot.owing) : '—'}</span></span><span class="n">${tot.people || '—'}</span><span class="n">${tot.oldestDays !== null && tot.owing > 0 ? dayTxt(tot.oldestDays) : '—'}</span></div></div><p class="blnote">${t('bl.note.owing')}</p>`;
+      return `<div class="bltbl ow"><div class="tr h">${bshd('batch', t('bl.h.batch'))}${bshd('owing', t('bl.h.owing'))}${bshd('people', t('bl.h.people'))}${bshd('waiting', t('bl.h.waiting'))}</div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n"><span class="ow">${tot.owing > 0 ? fmt2(tot.owing) : '—'}</span></span><span class="n">${tot.people || '—'}</span><span class="n">${tot.oldestDays !== null && tot.owing > 0 ? dayTxt(tot.oldestDays) : '—'}</span></div></div><p class="blnote">${t('bl.note.owing')}</p>`;
     }
     if (blTab === 'items') {
       return res.map(({ b }) => { const st = L.batchStats(state, b), bs = bStatus(b), col = BL_COL[bs] || BL_COL.Closed, its = state.items.filter((x) => x.batchId === b.id).sort((x, y) => (x.id < y.id ? -1 : 1));
@@ -2842,7 +2850,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
-      case 'bl-tab': blTab = id; return render();
+      case 'bl-tab': blTab = id; if (blSort.col !== 'batch' && !({ pl: ['invested', 'sales', 'pl'], owing: ['owing', 'people', 'waiting'] }[id] || []).includes(blSort.col)) blSort = { col: 'batch', dir: 'desc' }; return render();
+      case 'bl-sort': { if (blSort.col === id) blSort.dir = blSort.dir === 'desc' ? 'asc' : 'desc'; else blSort = { col: id, dir: id === 'batch' ? 'asc' : 'desc' }; const l = $('#blog'); if (l) l.innerHTML = batchLogRows($('.blq') ? $('.blq').value : ''); return; }
       case 'inv-tab': invTab = id; return render();
       case 'inv-sort': { if (invSort.col === id) invSort.dir = invSort.dir === 'desc' ? 'asc' : 'desc'; else invSort = { col: id, dir: id === 'inv' ? 'asc' : 'desc' }; const l = $('#ilog'), w0 = document.getElementById('imwrap'), sx = w0 ? w0.scrollLeft : 0; if (l) l.innerHTML = invoiceLogRows(invQ); const w1 = document.getElementById('imwrap'), h1 = document.getElementById('imhd'); if (w1 && sx) { w1.scrollLeft = sx; if (h1) h1.scrollLeft = sx; } return; }   // keep the Money table where it was scrolled sideways
       case 'bl-filter-open': blDraft = null; return sheetBlFilter();

@@ -1286,3 +1286,7 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .imhd .bltbl.im{border:0;border-radius:0;background:transparent;min-width:560px}.imhd .tr.h{border-bottom:0}
 
 .bltbl.im .tr{grid-template-columns:112px repeat(5,minmax(70px,1fr))}.bltbl.im{min-width:590px}.imhd .bltbl.im{min-width:590px}.bltbl .inum b{white-space:nowrap}
+
+/* Invoice log, Profit / Loss: tap a column title to sort */
+.bltbl.ipl .tr.h .shd{border:0;background:none;box-shadow:none;min-height:0;padding:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer;display:flex;align-items:center;gap:3px;justify-content:flex-end;text-align:right}
+.bltbl.ipl .tr.h .shd:first-child{justify-content:flex-start}.bltbl.ipl .tr.h .shd.on{color:var(--brand)}.bltbl.ipl .tr.h .shd i{font-style:normal;font-size:9px}

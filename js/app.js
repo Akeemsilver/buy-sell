@@ -314,15 +314,16 @@
 
   // The two buttons at the top right: the bell (notifications, with the number of new things) and the gear (Settings).
   // The top bar: a search button where the page has a search, the bell, and a ⋮ menu (filter, settings). The page's own search box stays hidden; the button opens one over the bar.
-  const pageSearchSel = () => (tab === 'sell' && !moreView ? '.oq' : tab === 'more' && moreView === 'orders' ? '.oq' : tab === 'more' && moreView === 'deliveries' ? '.dq' : tab === 'more' && moreView === 'batches' ? '.blq' : tab === 'more' && moreView === 'invoices' ? '.iq' : tab === 'people' ? '#q' : '');
+  const pageSearchSel = () => (tab === 'sell' && !moreView ? '.oq' : tab === 'more' && moreView === 'orders' ? '.oq' : tab === 'more' && moreView === 'deliveries' ? '.dq' : tab === 'more' && moreView === 'batches' ? '.blq' : tab === 'more' && moreView === 'invoices' ? '.iq' : tab === 'more' && moreView === 'items' ? '.itq' : tab === 'people' ? '#q' : '');
   function renderTools() {
     const el = $('#appbar-right'); if (!el) return;
     const btn = (act, label, icon, extra, id) => `<button class="round" data-act="${act}"${id ? ` data-id="${id}"` : ''} aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
-    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : sel === '.iq' ? invQ.trim() : '';
+    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : sel === '.iq' ? invQ.trim() : sel === '.itq' ? itQ.trim() : '';
     const sbtn = sel ? btn('tsearch-open', t('tool.search'), 'search', active ? '<i class="dot"></i>' : '') : '';
     if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', k ? `<b class="nb">${k}</b>` : '', 'bl')}</div>`; return; }
     if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', !dset().home ? '<i class="dot"></i>' : '', 'dlv')}</div>`; return; }   // same ⋮ menu as the other logs, plus a Delivery settings shortcut
     if (tab === 'more' && moreView === 'orders') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', !dset().home ? '<i class="dot"></i>' : '', 'ord')}</div>`; return; }
+    if (tab === 'more' && moreView === 'items') { el.innerHTML = `<div class="tools">${sbtn}</div>`; return; }
     if (tab === 'more' && moreView === 'invoices') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'inv')}</div>`; return; }
     el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${sbtn}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'main')}</div>` : '';
   }
@@ -370,6 +371,7 @@
     syncHistory();
     showVersion();
     PUI.hydrate();
+    if (tab === 'more' && moreView === 'items') itFitBar();
     if (restoreY !== null) { const y = restoreY; restoreY = null; window.scrollTo(0, y); requestAnimationFrame(() => window.scrollTo(0, y)); }
   }
 
@@ -769,9 +771,103 @@
       <div class="btns"><button class="btn primary" data-act="bl-apply">${t(n === 1 ? 'bl.show1' : 'bl.show', { n })}</button><button class="btn" data-act="bl-cancel">${t('btn.cancel')}</button></div></div>`, 'sheet');
   }
 
+  /* ---------- Item log: Overview (a card per item), Sales, Cost & Profit; filtered by batch, status and search ---------- */
+  let itTab = 'overview', itQ = '', itStat = 'all', itBatches = [], itGroup = false, itSort = { col: 'item', dir: 'asc' }, itLimit = 100;
+  const IT_COL = { Paid: '#4fc27a', Owing: '#f0b34a', Available: '#6d83e0', 'In Transit': '#8c7f91', Closed: '#8c7f91' };
+  const itStLabel = (st) => (st === 'In Transit' ? t('it.arriving') : stLabel(st));
+  const itNum = (id) => parseInt(String(id).replace(/\D/g, ''), 10) || 0;
+  const itBatch = (i) => state.batches.find((b) => b.id === i.batchId);
+  const itBase = () => {   // batch + search, before the status chips
+    const q = itQ.trim().toLowerCase(), set = itBatches.length ? new Set(itBatches) : null;
+    return state.items.filter((i) => (!set || set.has(i.batchId)) && (!q || [i.id, dn(i), i.desc, i.customer, i.invoice].some((x) => String(x || '').toLowerCase().includes(q))));
+  };
+  const itThumb = (i) => `<span class="ithm">${i.photo ? `<span class="ph"><img data-ph="${i.photo.id}" data-kind="thumb" alt=""></span>` : `<span class="ph none"><i>${esc(String(i.id).split('-').pop())}</i></span>`}</span>`;
+  const itInvTag = (i) => (i.invoice ? `<span class="invc" role="button" data-act="view-inv" data-id="${esc(i.invoice)}">${esc(i.invoice)}</span>` : '');
+  const itCols = () => {
+    const cur = [...new Set(itBase().map((i) => (itBatch(i) || {}).currency).filter(Boolean))];
+    return { sales: [['item', t('it.h.item')], ['customer', t('it.h.customer')], ['invoice', t('it.h.invoice')], ['date', t('it.h.date')], ['sold', t('it.h.sold')], ['paid', t('it.h.paid')], ['owing', t('it.h.owing')]],
+      cost: [['item', t('it.h.item')], ['cost', cur.length === 1 ? t('it.h.costCur', { cur: cur[0] === 'USD' ? 'US$' : cur[0] }) : t('it.h.cost')], ['ttd', t('it.h.ttd')], ['landed', t('it.h.landed')], ['sug', t('it.h.sug')], ['sold', t('it.h.sold')], ['paid', t('it.h.paid')], ['pct', t('it.h.pct')], ['pl', t('it.h.pl')]] };
+  };
+  const itVal = (i, col) => {
+    const c = L.itemCalc(itBatch(i), i), sold = L.isSold(i), pos = (n) => (Number(n) > 0 ? Number(n) : null), inv = i.invoice ? state.invoices.find((v) => v.no === i.invoice) : null;
+    switch (col) {
+      case 'item': return itNum(i.id);
+      case 'customer': return String(i.customer || '').trim().toLowerCase() || null;
+      case 'invoice': return i.invoice ? itNum(i.invoice) : null;
+      case 'date': return inv && inv.date ? new Date(inv.date).getTime() || null : null;
+      case 'sold': return pos(i.sold);
+      case 'paid': return pos(i.paid);
+      case 'owing': return pos(i.owing);
+      case 'cost': return pos(i.cost);
+      case 'ttd': return pos(c.costTTD);
+      case 'landed': return pos(c.landed);
+      case 'sug': return pos(c.recommended);
+      case 'pct': return sold && c.landed > 0 ? c.profitSoFar / c.landed : null;
+      case 'pl': return sold && c.landed > 0 ? c.profitSoFar : null;
+      default: return null;
+    }
+  };
+  const itSorted = (list) => {
+    const col = itSort.col, dir = itSort.dir === 'asc' ? 1 : -1, dec = list.map((i) => ({ i, v: itVal(i, col), n: itNum(i.id) }));
+    dec.sort((a, b) => { if (a.v === null && b.v === null) return a.n - b.n; if (a.v === null) return 1; if (b.v === null) return -1; const c = typeof a.v === 'string' ? a.v.localeCompare(b.v) : a.v - b.v; return c ? c * dir : a.n - b.n; });
+    return dec.map((d) => d.i);
+  };
+  const itPaidCell = (i, dsh) => (i.status === 'Paid' ? `<span class="pf">${t('it.paidFull')}</span>` : Number(i.paid) > 0 ? `<span class="pp">${fmt2(i.paid)}</span>` : dsh);
+  function itRows(list) {
+    const dsh = '<span class="dsh">—</span>', total = list.length, shown = list.slice(0, itLimit), isOv = itTab === 'overview', cols = isOv ? null : itCols()[itTab];
+    const head = (b) => { const its = state.items.filter((x) => x.batchId === b.id); return `<div class="itgh"><b>${esc(blShort(b.id))}</b><span>${t('it.groupHead', { n: its.length, s: its.filter(L.isSold).length })}</span></div>`; };
+    const row = (i) => {
+      const st = i.status, col = IT_COL[st] || IT_COL.Closed, c = L.itemCalc(itBatch(i), i), sold = L.isSold(i);
+      if (isOv) {
+        const amt = sold ? fmt2(i.sold) : Number(i.price) > 0 ? fmt2(L.salePrice(i) || i.price) : '—', who = esc(i.customer || ''), tag = itInvTag(i);
+        return `<div class="itc" role="button" tabindex="0" data-act="edit-item" data-id="${esc(i.id)}" style="--c:${col}">${itThumb(i)}<div class="t"><b>${esc(dn(i)) || t('item.untitled')}</b><small>${esc(i.id)}</small><small>${who || tag ? `${who}${tag}` : (sold ? '' : t('it.noInvoice'))}</small></div><div class="e"><b${sold ? '' : ' class="mute"'}>${amt}</b><small class="itst itst-${st.replace(' ', '')}">${itStLabel(st)}</small>${Number(i.owing) > 0 ? `<small class="owes">${t('it.owes', { amt: fmt2(i.owing) })}</small>` : ''}</div></div>`;
+      }
+      const prof = sold && c.landed > 0 ? c.profitSoFar : null;
+      const cell = (k) => ({
+        customer: `<span class="n l">${esc(i.customer || '') || dsh}</span>`, invoice: `<span class="n">${itInvTag(i) || dsh}</span>`,
+        date: `<span class="n">${(() => { const v = i.invoice && state.invoices.find((x) => x.no === i.invoice); return v && v.date ? day(v.date) : dsh; })()}</span>`,
+        sold: `<span class="n">${Number(i.sold) > 0 ? fmt2(i.sold) : dsh}</span>`, paid: `<span class="n">${itPaidCell(i, dsh)}</span>`, owing: `<span class="n">${Number(i.owing) > 0 ? `<span class="ow">${fmt2(i.owing)}</span>` : dsh}</span>`,
+        cost: `<span class="n">${Number(i.cost) > 0 ? fmt2(i.cost) : dsh}</span>`, ttd: `<span class="n">${c.costTTD > 0 ? fmt2(c.costTTD) : dsh}</span>`, landed: `<span class="n">${c.landed > 0 ? fmt2(c.landed) : dsh}</span>`, sug: `<span class="n">${c.recommended > 0 ? fmt2(c.recommended) : dsh}</span>`,
+        pct: `<span class="n">${prof === null ? dsh : Math.round(prof / c.landed * 100) + '%'}</span>`, pl: `<span class="n">${prof === null ? dsh : prof >= 0 ? `<span class="gp">${fmt2(prof)}</span>` : `<span class="lossr">${fmt2(-prof)}</span>`}</span>` })[k];
+      return `<div class="itr" role="button" tabindex="0" data-act="edit-item" data-id="${esc(i.id)}" style="--c:${col}"><span class="itf"><i></i>${itThumb(i)}<span><b>${esc(i.id)}</b><small class="itst itst-${st.replace(' ', '')}">${itStLabel(st)}</small></span></span>${cols.slice(1).map(([k]) => cell(k)).join('')}</div>`;
+    };
+    let out = '', last = null;
+    shown.forEach((i) => { if (itGroup && i.batchId !== last) { last = i.batchId; const b = itBatch(i); if (b) out += head(b); } out += row(i); });
+    const more = total > shown.length ? `<button class="itmore" data-act="it-more">${t('it.showMore', { n: total - shown.length })}</button>` : '';
+    if (isOv) return `<div class="itlist">${out}</div>${more}`;
+    const sum = (f) => list.reduce((n, i) => n + (Number(f(i)) || 0), 0), tot = { sold: fmt2(sum((i) => i.sold)), paid: fmt2(sum((i) => i.paid)), owing: fmt2(sum((i) => i.owing)), ttd: fmt2(sum((i) => L.itemCalc(itBatch(i), i).costTTD)), landed: fmt2(sum((i) => L.itemCalc(itBatch(i), i).landed)), pl: (() => { const v = sum((i) => { const c = L.itemCalc(itBatch(i), i); return L.isSold(i) && c.landed > 0 ? c.profitSoFar : 0; }); return v >= 0 ? `<span class="gp">${fmt2(v)}</span>` : `<span class="lossr">${fmt2(-v)}</span>`; })() };
+    const hd = cols.map(([k, label], n) => `<button type="button" class="shd${itSort.col === k ? ' on' : ''}" data-act="it-sort" data-id="${k}" aria-label="${esc(label)}">${label}${itSort.col === k ? `<i>${itSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`).join('');
+    const tr = `<div class="itr tt"><span class="itf"><b>${t('bl.total')}</b></span>${cols.slice(1).map(([k]) => `<span class="n">${tot[k] ? `<b>${tot[k]}</b>` : ''}</span>`).join('')}</div>`;
+    return `<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:128px repeat(${cols.length - 1},104px)"><div class="itr h">${hd}</div>${out}${tr}</div></div></div>${more}`;
+  }
+  function itMain() {
+    const base = itBase(), list = itSorted(base.filter((i) => itStat === 'all' || i.status === itStat));
+    const sales = list.filter(L.isSold).reduce((n, i) => n + (Number(i.sold) || 0), 0), owing = list.reduce((n, i) => n + (Number(i.owing) || 0), 0);
+    const tabs = [['overview', 'bl.tabOverview'], ['sales', 'it.tabSales']].concat(can('costs') ? [['cost', 'it.tabCost']] : []);
+    if (itTab === 'cost' && !can('costs')) itTab = 'overview';
+    const chips = [['all', t('filter.all'), base.length]].concat(STATUSES.map((st) => [st, itStLabel(st), base.filter((i) => i.status === st).length])).map(([k, label, n]) => `<button type="button" class="itchip${itStat === k ? ' on' : ''}" data-act="it-chip" data-id="${k}">${label} <b>${n}</b></button>`).join('');
+    const picked = itBatches.length ? itBatches.map((id) => String(id).replace(/^BATCH-/, '')).join(', ') : t('filter.all');
+    return `<div class="blhero i3"><div><small>${t('it.sales')}</small><b>${money(sales)}</b></div><div class="ow"><small>${t('it.owing')}</small><b>${money(owing)}</b></div><div class="rt"><small>${t('it.items')}</small><b>${list.length.toLocaleString()}</b></div></div>
+      <div class="blseg">${tabs.map(([k, l]) => `<button class="${itTab === k ? 'on' : ''}" data-act="it-tab" data-id="${k}">${t(l)}</button>`).join('')}</div>
+      <div class="itbar"><button type="button" class="itsel${itBatches.length ? ' on' : ''}" data-act="it-bpick"><span class="v">${t('it.batch')}<small data-full="${esc(picked)}" data-n="${itBatches.length}">${esc(picked)}</small></span>${itBatches.length ? `<span class="x" role="button" data-act="it-bclear" aria-label="${t('it.clear')}">✕</span>` : '<span class="dd">▾</span>'}</button><button type="button" class="itgb${itGroup ? ' on' : ''}" data-act="it-group" aria-pressed="${itGroup}">${t('it.group')}${itGroup ? ' ✓' : ''}</button></div>
+      <div class="itchips">${chips}</div>
+      ${list.length ? itRows(list) : `<div class="empty">${t('stock.noMatch')}</div>`}`;
+  }
+  function itFitBar() {   // a long list of batches shortens to "12 batches" only when the names do not fit
+    const sm = document.querySelector('.itsel .v small'); if (!sm) return;
+    sm.textContent = sm.dataset.full; const n = Number(sm.dataset.n) || 0;
+    if (n > 1 && sm.scrollWidth > sm.clientWidth + 1) sm.textContent = t('it.nBatches', { n });
+  }
+  function itRefresh() { const m = $('#itmain'); if (!m) return; const wrap = m.querySelector('.itwrap'), sx = wrap ? wrap.scrollLeft : 0; m.innerHTML = itMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; PUI.hydrate(); itFitBar(); renderTools(); }
+  function sheetItBatches() {
+    const all = state.batches.slice().sort((a, b) => b.num - a.num), cnt = (b) => state.items.filter((i) => i.batchId === b.id);
+    openSmall(`<div class="blf"><div class="blfh"><h3>${t('it.pick')}</h3></div><p class="muted small" style="margin:0 0 8px">${t('it.pickSub')}</p>
+      <div class="itpick"><button type="button" class="bo${itBatches.length ? '' : ' on'}" data-act="it-bclear2"><span class="ck">${itBatches.length ? '' : '✓'}</span><div class="t"><b>${t('it.allBatches')}</b><small>${state.items.length.toLocaleString()} ${t('it.items').toLowerCase()}</small></div></button>
+      ${all.map((b) => { const its = cnt(b), on = itBatches.includes(b.id); return `<button type="button" class="bo${on ? ' on' : ''}" data-act="it-btoggle" data-id="${b.id}"><span class="ck">${on ? '✓' : ''}</span><div class="t"><b>${esc(blShort(b.id))}</b><small>${esc(b.store)} · ${t('it.groupHead', { n: its.length, s: its.filter(L.isSold).length })}</small></div></button>`; }).join('')}</div>
+      <div class="btns"><button class="btn" data-act="it-bclear2">${t('it.clear')}</button><button class="btn primary" data-act="it-bdone">${t('it.done')}</button></div></div>`, 'sheet');
+  }
   function ItemLog() {
-    const counts = STATUSES.map((s) => `<div class="stat"><span>${stLabel(s)}</span><b>${state.items.filter((i) => i.status === s).length}</b></div>`).join('');
-    return `<div class="stats">${counts}</div><h2>${t('items.all')}</h2><div class="list">${state.items.map((i) => `<button class="row tap" data-act="edit-item" data-id="${i.id}"><div class="grow"><b>${esc(dn(i)) || t('item.untitled')}</b><small>${i.id}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span></button>`).join('')}</div>`;
+    return `<div class="oqbar"><span aria-hidden="true">🔍</span><input class="itq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('tool.search'))}" aria-label="${esc(t('tool.search'))}" value="${esc(itQ)}"></div><div id="itmain">${itMain()}</div>`;
   }
 
   function Summary() {
@@ -2851,6 +2947,16 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; if (blSort.col !== 'batch' && !({ pl: ['invested', 'sales', 'pl'], owing: ['owing', 'people', 'waiting'] }[id] || []).includes(blSort.col)) blSort = { col: 'batch', dir: 'desc' }; return render();
+      case 'it-tab': itTab = id; itSort = { col: 'item', dir: 'asc' }; itLimit = 100; return itRefresh();
+      case 'it-chip': itStat = id; itLimit = 100; return itRefresh();
+      case 'it-sort': { if (itSort.col === id) itSort.dir = itSort.dir === 'desc' ? 'asc' : 'desc'; else itSort = { col: id, dir: id === 'item' || id === 'customer' ? 'asc' : 'desc' }; return itRefresh(); }
+      case 'it-group': itGroup = !itGroup; return itRefresh();
+      case 'it-more': itLimit += 100; return itRefresh();
+      case 'it-bpick': return sheetItBatches();
+      case 'it-btoggle': itBatches = itBatches.includes(id) ? itBatches.filter((x) => x !== id) : itBatches.concat(id); itLimit = 100; return sheetItBatches();
+      case 'it-bclear2': itBatches = []; itLimit = 100; return sheetItBatches();
+      case 'it-bclear': itBatches = []; itLimit = 100; return itRefresh();
+      case 'it-bdone': closeSheet(); return itRefresh();
       case 'bl-sort': { if (blSort.col === id) blSort.dir = blSort.dir === 'desc' ? 'asc' : 'desc'; else blSort = { col: id, dir: id === 'batch' ? 'asc' : 'desc' }; const l = $('#blog'); if (l) l.innerHTML = batchLogRows($('.blq') ? $('.blq').value : ''); return; }
       case 'inv-tab': invTab = id; return render();
       case 'inv-sort': { if (invSort.col === id) invSort.dir = invSort.dir === 'desc' ? 'asc' : 'desc'; else invSort = { col: id, dir: id === 'inv' ? 'asc' : 'desc' }; const l = $('#ilog'), w0 = document.getElementById('imwrap'), sx = w0 ? w0.scrollLeft : 0; if (l) l.innerHTML = invoiceLogRows(invQ); const w1 = document.getElementById('imwrap'), h1 = document.getElementById('imhd'); if (w1 && sx) { w1.scrollLeft = sx; if (h1) h1.scrollLeft = sx; } return; }   // keep the Money table where it was scrolled sideways
@@ -3034,6 +3140,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if (el.dataset && el.dataset.dsshow !== undefined) saveDset({ showRate: !!el.checked });
     else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
     else if (el.classList.contains('iq')) { invQ = el.value; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); }
+    else if (el.classList.contains('itq')) { itQ = el.value; itLimit = 100; itRefresh(); }
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }

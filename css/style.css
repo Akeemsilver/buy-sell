@@ -1264,4 +1264,12 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .imwrap{border:1px solid var(--line);border-radius:18px;background:var(--card);overflow-x:auto;overflow-y:hidden}.bltbl.im{border:0;border-radius:0;overflow:visible;background:transparent}.bltbl.im .tr:last-child{border-bottom:0}
 .bltbl .inum{position:sticky;left:0;z-index:2;display:block;background:var(--card);padding:9px 6px 9px 0;margin:-9px 0}.bltbl .tr.h>:first-child,.bltbl .tr.t>:first-child{background:color-mix(in srgb,var(--tint) 60%,var(--card))}.bltbl.im .tr.h>:first-child,.bltbl.im .tr.t>:first-child{position:sticky;left:0;z-index:2;margin:-9px 0;padding:9px 6px 9px 0}
 .bltbl .inum b{display:block;font-size:13px;line-height:1.2}.bltbl .inum small{display:block;font-size:10.5px;font-weight:800;line-height:1.2;margin-top:1px}
-.bltbl .inum small{color:var(--mute)}
+
+
+/* status colours back, and the coloured stripe travels with the sticky invoice number */
+.s-Paid{--sc:#2b9a60}.s-Owing{--sc:#d4800f}.s-Updated{--sc:#5b6bb0}.s-Returned,.s-Cancelled{--sc:#7d7184}
+.bltbl .tr[class*=s-] .inum b,.bltbl .tr[class*=s-] .inum small{color:var(--sc)}.blr .ist[class*=s-],.bli .chip2[class*=s-]{color:var(--sc)!important;font-weight:800}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .s-Paid{--sc:#5fd391}:root:not([data-theme=light]) .s-Owing{--sc:#ffb74d}:root:not([data-theme=light]) .s-Updated{--sc:#9aa8ee}:root:not([data-theme=light]) .s-Returned,:root:not([data-theme=light]) .s-Cancelled{--sc:#a99db0}}
+:root[data-theme=dark] .s-Paid{--sc:#5fd391}:root[data-theme=dark] .s-Owing{--sc:#ffb74d}:root[data-theme=dark] .s-Updated{--sc:#9aa8ee}:root[data-theme=dark] .s-Returned,:root[data-theme=dark] .s-Cancelled{--sc:#a99db0}
+.bltbl.im .tr{padding-left:0;grid-template-columns:96px repeat(5,minmax(70px,1fr))}.bltbl.im .inum{padding-left:18px;padding-right:6px}.bltbl.im .inum::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--stripe,transparent)}
+.bltbl.im .tr.h>:first-child,.bltbl.im .tr.t>:first-child{padding-left:18px}

@@ -1290,3 +1290,9 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 /* Invoice log, Profit / Loss: tap a column title to sort */
 .bltbl.ipl .tr.h .shd{border:0;background:none;box-shadow:none;min-height:0;padding:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer;display:flex;align-items:center;gap:3px;justify-content:flex-end;text-align:right}
 .bltbl.ipl .tr.h .shd:first-child{justify-content:flex-start}.bltbl.ipl .tr.h .shd.on{color:var(--brand)}.bltbl.ipl .tr.h .shd i{font-style:normal;font-size:9px}
+/* Invoice log: tappable column titles on Money, red loss, coloured hero */
+.bltbl.im .tr.h .shd{border:0;background:none;box-shadow:none;min-height:0;padding:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer;display:flex;align-items:center;gap:3px;justify-content:flex-end;text-align:right}
+.bltbl.im .tr.h .shd:first-child{justify-content:flex-start}.bltbl.im .tr.h .shd.on{color:var(--brand)}.bltbl.im .tr.h .shd i{font-style:normal;font-size:9px}
+.lossr{color:#cf4b4b;font-weight:600}[data-theme=dark] .lossr{color:#ff7d7d}
+.netl{display:flex;justify-content:space-between;margin:10px 4px 0;font-size:13px;color:var(--mute)}.netl b{color:var(--ink)}.netl b.pos{color:var(--pos,#2f9e5f)}
+.blhero.i3 .pg b{color:#8be8b3}.blhero.i3 .ow b{color:#ffab9c}.blhero.i3 .pg{text-align:center}.blhero.i3 .ow{text-align:right}

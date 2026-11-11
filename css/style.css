@@ -1273,3 +1273,12 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 :root[data-theme=dark] .s-Paid{--sc:#5fd391}:root[data-theme=dark] .s-Owing{--sc:#ffb74d}:root[data-theme=dark] .s-Updated{--sc:#9aa8ee}:root[data-theme=dark] .s-Returned,:root[data-theme=dark] .s-Cancelled{--sc:#a99db0}
 .bltbl.im .tr{padding-left:0;grid-template-columns:96px repeat(5,minmax(70px,1fr))}.bltbl.im .inum{padding-left:18px;padding-right:6px}.bltbl.im .inum::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--stripe,transparent)}
 .bltbl.im .tr.h>:first-child,.bltbl.im .tr.t>:first-child{padding-left:18px}
+
+/* Invoice log, Money tab: the column titles and the Total row stay in view while you scroll up and down; the red matches the softer red used elsewhere */
+.imwrap{max-height:calc(100dvh - 340px);overflow:auto}
+.bltbl.im .tr.h{position:sticky;top:0;z-index:3}.bltbl.im .tr.h>:first-child{z-index:4}
+.bltbl.im .tr.t{position:sticky;bottom:0;z-index:3;border-top:1px solid var(--line)}.bltbl.im .tr.t>:first-child{z-index:4}
+.bltbl .tr.dim{opacity:.82}
+:root:not([data-theme=dark]) .bltbl .ow,:root:not([data-theme=dark]) .blr .rt small.owes{color:#cf4b4b;font-weight:600}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .bltbl .ow,:root:not([data-theme=light]) .blr .rt small.owes{color:#ff7b7b;font-weight:inherit}}
+:root[data-theme=light] .bltbl .ow,:root[data-theme=light] .blr .rt small.owes{color:#cf4b4b;font-weight:600}

@@ -1284,3 +1284,5 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .imbox{border:1px solid var(--line);border-radius:18px;background:var(--card)}
 .imhd{position:sticky;top:var(--ah,62px);z-index:6;overflow:hidden;border-radius:17px 17px 0 0;background:color-mix(in srgb,var(--tint) 60%,var(--card));border-bottom:1px solid var(--line);scrollbar-width:none}.imhd::-webkit-scrollbar{display:none}
 .imhd .bltbl.im{border:0;border-radius:0;background:transparent;min-width:560px}.imhd .tr.h{border-bottom:0}
+
+.bltbl.im .tr{grid-template-columns:112px repeat(5,minmax(70px,1fr))}.bltbl.im{min-width:590px}.imhd .bltbl.im{min-width:590px}.bltbl .inum b{white-space:nowrap}

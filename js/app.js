@@ -314,15 +314,16 @@
 
   // The two buttons at the top right: the bell (notifications, with the number of new things) and the gear (Settings).
   // The top bar: a search button where the page has a search, the bell, and a ⋮ menu (filter, settings). The page's own search box stays hidden; the button opens one over the bar.
-  const pageSearchSel = () => (tab === 'sell' && !moreView ? '.oq' : tab === 'more' && moreView === 'orders' ? '.oq' : tab === 'more' && moreView === 'deliveries' ? '.dq' : tab === 'more' && moreView === 'batches' ? '.blq' : tab === 'people' ? '#q' : '');
+  const pageSearchSel = () => (tab === 'sell' && !moreView ? '.oq' : tab === 'more' && moreView === 'orders' ? '.oq' : tab === 'more' && moreView === 'deliveries' ? '.dq' : tab === 'more' && moreView === 'batches' ? '.blq' : tab === 'more' && moreView === 'invoices' ? '.iq' : tab === 'people' ? '#q' : '');
   function renderTools() {
     const el = $('#appbar-right'); if (!el) return;
     const btn = (act, label, icon, extra, id) => `<button class="round" data-act="${act}"${id ? ` data-id="${id}"` : ''} aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
-    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : '';
+    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : sel === '.iq' ? invQ.trim() : '';
     const sbtn = sel ? btn('tsearch-open', t('tool.search'), 'search', active ? '<i class="dot"></i>' : '') : '';
     if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', k ? `<b class="nb">${k}</b>` : '', 'bl')}</div>`; return; }
     if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools">${sbtn}${btn('dlv-menu', t('batch.more'), 'dots')}</div>`; return; }   // the Delivery log's own menu
     if (tab === 'more' && moreView === 'orders') { el.innerHTML = `<div class="tools">${sbtn}</div>`; return; }
+    if (tab === 'more' && moreView === 'invoices') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'inv')}</div>`; return; }
     el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${sbtn}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'main')}</div>` : '';
   }
   /* search over the top bar: it types into the page's own search box (hidden), so every page keeps its own search logic */
@@ -344,7 +345,7 @@
   function openTopMenu(kind) {
     closeTopMenu();
     const row = (act, ic, label, on) => `<button type="button" class="tmi" data-act="${act}"><span class="tmic" aria-hidden="true">${ic}</span><span class="tml">${label}</span>${on ? '<i class="dot on"></i>' : ''}</button>`;
-    const rows = kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false);
+    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false);
     const sc = document.createElement('div'); sc.id = 'tmscrim'; sc.className = 'tmscrim'; sc.dataset.close = '1';
     const m = document.createElement('div'); m.id = 'tmenu'; m.className = 'tmenu'; m.setAttribute('role', 'menu'); m.innerHTML = rows;
     const hd = document.querySelector('.appbar').getBoundingClientRect(); m.style.top = (hd.bottom - 6) + 'px';
@@ -621,10 +622,53 @@
       <div class="end"><b class="${c.owing > 0 ? 'bad' : ''}">${c.owing > 0 ? money(c.owing) : ''}</b><span class="pill ${c.owing > 0 ? 'Owing' : 'Up'}">${custStLabel(c)}</span></div></button>`).join('') || `<div class="empty">${t('people.noMatch')}</div>`;
   }
 
+  /* ---------- Invoice log: four tabs like the Batch Log. Overview, Money and Profit / Loss carry the spreadsheet's columns; Items shows each invoice's thumbnails ---------- */
+  let invTab = 'overview', invQ = '';
+  const IL_COL = { Paid: '#4fc27a', Owing: '#f0b34a', Updated: '#6c7bb5', Returned: '#8c7f91', Cancelled: '#8c7f91' };
+  const invEff = (v) => (v.void ? Object.assign({}, v, v.void.was) : v);   // a returned invoice keeps its old amounts in void.was
+  const invFind = (q) => { const x = String(q || '').trim().toLowerCase(), all = L.filterInvoices(state, flt).slice().reverse(); return x ? all.filter((v) => [v.no, v.client, v.desc].some((f) => String(f || '').toLowerCase().includes(x))) : all; };
+  const invLiveOnly = (v) => !v.void && !v.updatedBy;   // the totals count each purchase once
+  const ilDay = (d) => (d ? day(d) : '');
+  function invoiceLogRows(q) {
+    const list = invFind(q);
+    if (!list.length) return `<div class="opanel"><div class="oempty"><span class="em">🧾</span><span>${String(q || '').trim() ? t('ord.noMatch', { q: esc(String(q).trim()) }) : t('invoices.none')}</span></div></div>`;
+    const live = list.filter(invLiveOnly), sum = (f) => live.reduce((n, v) => n + (Number(f(v)) || 0), 0), dsh = '<span class="dsh">—</span>', amt = (n) => (Number(n) > 0 ? fmt2(n) : dsh);
+    if (invTab === 'money') {
+      const rows = list.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), dim = v0.void || v0.updatedBy;
+        return `<div class="tr${dim ? ' dim' : ''}" role="button" tabindex="0" data-act="view-inv" data-id="${v0.no}"><i class="st" style="background:${IL_COL[st]}"></i><b>${esc(v0.no.replace(/^INV0*/, 'INV'))}</b><span class="n">${fmt2(v.total)}</span><span class="n">${amt(v.amountPaid)}</span><span class="n">${amt(v.previouslyPaid)}</span><span class="n">${v.balance > 0 ? `<span class="ow">${fmt2(v.balance)}</span>` : dsh}</span><span class="n">${amt(v0.delivery)}</span></div>`; }).join('');
+      const bal = sum((v) => v.balance);
+      return `<div class="imwrap"><div class="bltbl im"><div class="tr h"><span>${t('il.h.invoice')}</span><span class="n">${t('il.h.total')}</span><span class="n">${t('il.h.paid')}</span><span class="n">${t('il.h.prev')}</span><span class="n">${t('il.h.balance')}</span><span class="n">${t('il.h.delivery')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n">${fmt2(sum((v) => v.total))}</span><span class="n">${fmt2(sum((v) => v.amountPaid))}</span><span class="n">${fmt2(sum((v) => v.previouslyPaid))}</span><span class="n">${bal > 0 ? `<span class="ow">${fmt2(bal)}</span>` : dsh}</span><span class="n">${fmt2(sum((v) => v.delivery))}</span></div></div></div><p class="muted small" style="margin:10px 2px">${t('il.moneyNote')}</p>`;
+    }
+    if (invTab === 'pl') {
+      const rows = list.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), dim = v0.void || v0.updatedBy;
+        return `<div class="tr${dim ? ' dim' : ''}" role="button" tabindex="0" data-act="view-inv" data-id="${v0.no}"><i class="st" style="background:${IL_COL[st]}"></i><b>${esc(v0.no.replace(/^INV0*/, 'INV'))}</b><span class="n costonly">${Number(v.profit) > 0 ? `<span class="pos">${fmt2(v.profit)}</span>` : dsh}</span><span class="n costonly">${Number(v.loss) !== 0 ? `<span class="neg">${signed2(-Math.abs(Number(v.loss)))}</span>` : dsh}</span><span class="n costonly">${amt(v.tip)}</span></div>`; }).join('');
+      return `<div class="bltbl ipl"><div class="tr h"><span>${t('il.h.invoice')}</span><span class="n costonly">${t('il.h.profit')}</span><span class="n costonly">${t('il.h.loss')}</span><span class="n costonly">${t('il.h.tip')}</span></div>${rows}<div class="tr t"><span>${t('bl.total')}</span><span class="n costonly"><span class="pos">${fmt2(sum((v) => v.profit))}</span></span><span class="n costonly"><span class="neg">${signed2(-Math.abs(sum((v) => Math.abs(Number(v.loss) || 0))))}</span></span><span class="n costonly">${fmt2(sum((v) => v.tip))}</span></div></div><p class="muted small" style="margin:10px 2px">${t('il.plNote')}</p>`;
+    }
+    if (invTab === 'items') {
+      return list.map((v0) => { const st = L.invoiceStatus(v0), col = IL_COL[st], pu = L.purchaseOf(state, v0.no), its = (v0.void ? (v0.void.items || []).map((r) => state.items.find((x) => x.id === r.id)) : pu ? pu.items : []).filter(Boolean).sort((a, b2) => (a.id < b2.id ? -1 : 1));
+        const th = its.map((i) => `<button type="button" class="blth" data-act="edit-item" data-id="${esc(i.id)}" data-inv="${esc(pu ? pu.inv.no : v0.no)}" aria-label="${esc(dn(i) || i.id)}"><span class="blp">${i.photo ? `<img data-ph="${esc(i.photo.id)}" data-kind="thumb" alt="">` : `<em>${esc(String(i.id).split('-').pop())}</em>`}<span class="blpr">${Number(i.sold) > 0 || Number(i.price) > 0 ? fmt2(Number(i.sold) > 0 ? i.sold : L.salePrice(i) || i.price) : '—'}</span></span><small>${esc(i.id)}</small></button>`).join('');
+        return `<div class="bli${v0.void ? ' dim' : ''}" role="button" tabindex="0"><i class="stripe" style="background:${col}"></i><div class="blh" data-act="view-inv" data-id="${v0.no}"><b>${esc(v0.no)} · ${esc(v0.client)}</b><span class="chip2" style="color:${col}">${invStLabel(st)}</span><small>${tn('notif.items', its.length || Number(v0.qty) || 0)}</small></div>${its.length ? `<div class="blrail">${th}</div>` : `<div class="muted small">${t('bl.noItems')}</div>`}</div>`; }).join('');
+    }
+    return list.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), col = IL_COL[st], paidPct = v.total > 0 ? Math.max(0, Math.min(100, Math.round((v.total - v.balance) / v.total * 100))) : 0, qty = Number(v0.qty) || invLines(v0).reduce((n, l) => n + (Number(l.qty) || 0), 0);
+      const desc = I.getLang() === 'es' ? (() => { try { return invLines(v0).map((l) => lineName(l, 'es')).join(', ') || v0.desc; } catch (e) { return v0.desc; } })() : v0.desc;
+      const tags = [tn('notif.items', qty), v0.void ? t(v0.void.kind === 'cancelled' ? 'il.cancelledOn' : 'il.returnedOn', { d: ilDay(v0.void.date) }) : t('il.invoiced', { d: ilDay(v0.date) }), !v0.void && !v0.updatedBy && v0.due && v.balance > 0 ? t('il.due', { d: ilDay(v0.due) }) : '', v0.updatedBy ? t('il.updatedTo', { no: esc(v0.updatedBy) }) : ''].filter(Boolean);
+      return `<div class="blr${v0.void ? ' cl' : ''}" role="button" tabindex="0" data-act="view-inv" data-id="${v0.no}"><i class="stripe" style="background:${col}"></i>
+        <span class="ring" style="background:conic-gradient(${col} ${(v0.void ? 100 : paidPct) * 3.6}deg,color-mix(in srgb,var(--line) 80%,transparent) 0)"><b>${v0.void ? '↩' : v0.updatedBy ? '↻' : paidPct + '%'}</b></span>
+        <div class="mid"><div class="nm">${esc(v0.no)} · ${esc(v0.client)}</div><div class="sub idesc">${esc(desc)}</div><div class="itags">${tags.map((x) => `<span>${x}</span>`).join('')}</div></div>
+        <div class="rt"><b class="ist">${invStLabel(st)}</b>${v.balance > 0 && !v0.updatedBy ? `<small class="owes">${t('il.owes', { amt: fmt2(v.balance) })}</small>` : ''}<small class="invt${v0.void ? ' x' : ''}">${money(v.total)}</small></div></div>`; }).join('');
+  }
+  function InvoiceLog() {
+    const all = L.filterInvoices(state, flt).filter(invLiveOnly), billed = all.reduce((n, v) => n + (Number(v.total) || 0), 0), bal = all.reduce((n, v) => n + (Number(v.balance) || 0), 0);
+    return `<div class="blhero i3"><div><small>${t('il.billed')}</small><b>${money(billed)}</b></div><div><small>${t('il.paid')}</small><b>${money(billed - bal)}</b></div><div><small>${t('il.balDue')}</small><b>${money(bal)}</b></div></div>
+      <div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="iq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('tool.search'))}" aria-label="${esc(t('tool.search'))}" value="${esc(invQ)}"></div>
+      <div class="blseg">${[['overview', 'bl.tabOverview'], ['money', 'il.tabMoney'], ['pl', 'bl.tabPL'], ['items', 'bl.tabItems']].map(([k, l]) => `<button class="${invTab === k ? 'on' : ''}" data-act="inv-tab" data-id="${k}">${t(l)}</button>`).join('')}</div>
+      <div id="ilog">${invoiceLogRows(invQ)}</div>`;
+  }
+
   /* ---------- More ---------- */
 
   function More() {
-    if (moreView === 'invoices') return `<div class="list">${L.filterInvoices(state, flt).slice().reverse().map(invoiceRow).join('') || `<div class="empty">${t('invoices.none')}</div>`}</div>`;
+    if (moreView === 'invoices') return InvoiceLog();
     if (moreView === 'items') return ItemLog();
     if (moreView === 'batches') return BatchLog();
     if (moreView === 'orders') return OrderLog();
@@ -2771,6 +2815,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; return render();
+      case 'inv-tab': invTab = id; return render();
       case 'bl-filter-open': blDraft = null; return sheetBlFilter();
       case 'bl-chip': { const [g, k] = id.split(':'); if (!blDraft) blDraft = { store: blF.store.slice(), status: blF.status.slice(), items: blF.items.slice() }; blDraft[g] = blDraft[g].includes(k) ? blDraft[g].filter((x) => x !== k) : blDraft[g].concat(k); return sheetBlFilter(); }
       case 'bl-clear': blDraft = { store: [], status: [], items: [] }; return sheetBlFilter();
@@ -2949,6 +2994,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if (el.classList.contains('dq')) { dlvQ = el.value; dlvDay = ''; dlvRefresh(); }
     else if (el.dataset && el.dataset.dsshow !== undefined) saveDset({ showRate: !!el.checked });
     else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
+    else if (el.classList.contains('iq')) { invQ = el.value; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); }
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }

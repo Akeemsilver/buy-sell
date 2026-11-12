@@ -659,7 +659,7 @@
     const sum = (f) => sorted.reduce((n, c) => n + f(c), 0), tot = { owing: fmt2(sum((c) => c.owing)), sales: fmt2(sum((c) => c.sales)), bought: sum((c) => c.bought), itemsOwing: sum((c) => c.itemsOwing), profit: (() => { const v = sum((c) => c.profit); return v >= 0 ? `<span class="gp">${fmt2(v)}</span>` : `<span class="lossr">${fmt2(-v)}</span>`; })() };
     const hd = cols.map(([k, label]) => `<button type="button" class="shd${cuSort.col === k ? ' on' : ''}${cuAl[k] ? ' ' + cuAl[k] : ''}" data-act="cu-sort" data-id="${k}" aria-label="${esc(label)}">${label}${cuSort.col === k ? `<i>${cuSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`).join('');
     const tr = `<div class="itr tt"><span class="itf"><b>${t('bl.total')}</b></span>${cols.slice(1).map(([k]) => `<span class="n">${tot[k] !== undefined && tot[k] !== '' && tot[k] !== 0 ? `<b>${tot[k]}</b>` : ''}</span>`).join('')}</div>`;
-    return `${head}<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:${cuTab === 'money' ? '140px repeat(' + (cols.length - 1) + ',104px)' : '140px 90px 90px 140px 110px'}"><div class="itr h">${hd}</div>${rows}${tr}</div></div></div>`;
+    return `${head}<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:${cuTab === 'money' ? '140px repeat(' + (cols.length - 1) + ',112px)' : '140px 120px 120px 150px 120px'}"><div class="itr h">${hd}</div>${rows}${tr}</div></div></div>`;
   }
   function cuRefresh() { const m = $('#cumain'); if (!m) return; const w = m.querySelector('.itwrap'), sx = w ? w.scrollLeft : 0; m.innerHTML = cuMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; renderTools(); }
   function People() {
@@ -880,7 +880,7 @@
     const sum = (f) => list.reduce((n, i) => n + (Number(f(i)) || 0), 0), tot = { sold: fmt2(sum((i) => i.sold)), paid: fmt2(sum((i) => i.paid)), owing: fmt2(sum((i) => i.owing)), ttd: fmt2(sum((i) => L.itemCalc(itBatch(i), i).costTTD)), landed: fmt2(sum((i) => L.itemCalc(itBatch(i), i).landed)), pl: (() => { const v = sum((i) => { const c = L.itemCalc(itBatch(i), i); return L.isSold(i) && c.landed > 0 ? c.profitSoFar : 0; }); return v >= 0 ? `<span class="gp">${fmt2(v)}</span>` : `<span class="lossr">${fmt2(-v)}</span>`; })() };
     const hd = cols.map(([k, label], n) => `<button type="button" class="shd${itSort.col === k ? ' on' : ''}${itAl[k] ? ' ' + itAl[k] : ''}" data-act="it-sort" data-id="${k}" aria-label="${esc(label)}">${label}${itSort.col === k ? `<i>${itSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`).join('');
     const tr = `<div class="itr tt"><span class="itf"><b>${t('bl.total')}</b></span>${cols.slice(1).map(([k]) => `<span class="n">${tot[k] ? `<b>${tot[k]}</b>` : ''}</span>`).join('')}</div>`;
-    return `<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:128px repeat(${cols.length - 1},104px)"><div class="itr h">${hd}</div>${out}${tr}</div></div></div>${more}`;
+    return `<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:128px repeat(${cols.length - 1},116px)"><div class="itr h">${hd}</div>${out}${tr}</div></div></div>${more}`;
   }
   function itMain() {
     const base = itBase(), list = itSorted(base.filter((i) => itStat === 'all' || i.status === itStat));

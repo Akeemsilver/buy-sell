@@ -409,8 +409,9 @@
     const orders = window.Store && storeCfg().id ? Store.newCount() : 0, oweTotal = owingAll.reduce((n, c) => n + c.owing, 0);
     const need = (icon, bg, title, sub, n, act, hot) => `<button class="hnr" data-act="${act}"><span class="hic" style="background:${bg}">${icon}</span><div class="t"><b>${title}</b><small>${sub}</small></div><span class="hcnt${hot ? ' hot' : ''}">${n}</span><span class="chev">›</span></button>`;
     const rows = [];
-    const wayDays = (b) => Math.floor((Date.now() - new Date(b.datePurchased).getTime()) / 864e5), late = inTransit.filter((b) => wayDays(b) >= TRANSIT_LATE_DAYS).sort((a, b) => wayDays(b) - wayDays(a));   // only batches that have been on the way a while are worth a look
-    if (late.length) rows.push(need('📦', 'var(--infobg)', t('hm.wayTitle'), late.length === 1 ? t('hm.wayOne', { b: blShort(late[0].id), n: wayDays(late[0]) }) : t('hm.wayMany', { b: blShort(late[0].id), n: wayDays(late[0]) }), late.length, 'goto-transit', false));
+    const wayDays = (b) => Math.max(0, Math.floor((Date.now() - new Date(b.datePurchased).getTime()) / 864e5)), oldest = inTransit.slice().sort((a, b) => wayDays(b) - wayDays(a))[0];   // always shown while a batch is on the way; red once the oldest has been on the way 14 days or more
+    const wayTxt = (b) => (wayDays(b) < 1 ? t('hm.wayToday', { b: blShort(b.id) }) : t(inTransit.length === 1 ? 'hm.wayOne' : 'hm.wayMany', { b: blShort(b.id), n: wayDays(b) }));
+    if (inTransit.length) rows.push(need('📦', 'var(--infobg)', t('hm.wayTitle'), wayTxt(oldest), inTransit.length, 'goto-transit', wayDays(oldest) >= TRANSIT_LATE_DAYS));
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-stock', false));

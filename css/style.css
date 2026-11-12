@@ -1327,3 +1327,5 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .itr .n.c{text-align:center}.itr .n.c .invc{margin-left:0}.itr.h .shd.l{justify-content:flex-start}.itr.h .shd.c{justify-content:center}
 /* Item log: money colours follow the rest of the app: a part-payment is plain text, what is owing is red */
 .itr .n .pp{color:inherit;font-weight:500;font-size:inherit}.itr .n .ow{color:var(--bad)}.itc .e small.owes{color:var(--bad)}
+/* Customer log */
+.cu-ow{color:var(--bad)}.cu-ok{color:#2f9e5f}.itc .e b.cu-ok{font-size:14px}.itr .n.l{text-align:left}

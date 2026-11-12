@@ -314,11 +314,11 @@
 
   // The two buttons at the top right: the bell (notifications, with the number of new things) and the gear (Settings).
   // The top bar: a search button where the page has a search, the bell, and a ⋮ menu (filter, settings). The page's own search box stays hidden; the button opens one over the bar.
-  const pageSearchSel = () => (tab === 'sell' && !moreView ? '.oq' : tab === 'more' && moreView === 'orders' ? '.oq' : tab === 'more' && moreView === 'deliveries' ? '.dq' : tab === 'more' && moreView === 'batches' ? '.blq' : tab === 'more' && moreView === 'invoices' ? '.iq' : tab === 'more' && moreView === 'items' ? '.itq' : tab === 'people' ? '#q' : '');
+  const pageSearchSel = () => (tab === 'sell' && !moreView ? '.oq' : tab === 'more' && moreView === 'orders' ? '.oq' : tab === 'more' && moreView === 'deliveries' ? '.dq' : tab === 'more' && moreView === 'batches' ? '.blq' : tab === 'more' && moreView === 'invoices' ? '.iq' : tab === 'more' && moreView === 'items' ? '.itq' : tab === 'people' ? '.cq' : '');
   function renderTools() {
     const el = $('#appbar-right'); if (!el) return;
     const btn = (act, label, icon, extra, id) => `<button class="round" data-act="${act}"${id ? ` data-id="${id}"` : ''} aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
-    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : sel === '.iq' ? invQ.trim() : sel === '.itq' ? itQ.trim() : '';
+    const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : sel === '.iq' ? invQ.trim() : sel === '.itq' ? itQ.trim() : sel === '.cq' ? cuQ.trim() : '';
     const sbtn = sel ? btn('tsearch-open', t('tool.search'), 'search', active ? '<i class="dot"></i>' : '') : '';
     if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', k ? `<b class="nb">${k}</b>` : '', 'bl')}</div>`; return; }
     if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', !dset().home ? '<i class="dot"></i>' : '', 'dlv')}</div>`; return; }   // same ⋮ menu as the other logs, plus a Delivery settings shortcut
@@ -347,7 +347,7 @@
     closeTopMenu();
     const row = (act, ic, label, on) => `<button type="button" class="tmi" data-act="${act}"><span class="tmic" aria-hidden="true">${ic}</span><span class="tml">${label}</span>${on ? '<i class="dot on"></i>' : ''}</button>`;
     const ss = row('store-settings', '🏪', t('hub.settings'), !dset().home);   // Store settings (with Store location) from the Store page and every log
-    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) + ss : kind === 'ord' ? ss : kind === 'dlv' ? row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + ss + row('dlv-settings', '🚚', t('dlv.settings'), false) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) + ss : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + (tab === 'sell' && !moreView ? ss : '');
+    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) + ss : kind === 'ord' ? ss : kind === 'dlv' ? row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + ss + row('dlv-settings', '🚚', t('dlv.settings'), false) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) + ss : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + (tab === 'sell' && !moreView ? ss : '') + (tab === 'people' ? '' : row('goto-customers', '👥', t('cu.title'), L.customerStats(state).some((c) => c.owing > 0)));
     const sc = document.createElement('div'); sc.id = 'tmscrim'; sc.className = 'tmscrim'; sc.dataset.close = '1';
     const m = document.createElement('div'); m.id = 'tmenu'; m.className = 'tmenu'; m.setAttribute('role', 'menu'); m.innerHTML = rows;
     const hd = document.querySelector('.appbar').getBoundingClientRect(); m.style.top = (hd.bottom - 6) + 'px';
@@ -358,7 +358,7 @@
     closeTopMenu();
     cleanSelected();
     const moreTitles = { deliveries: 'more.deliveries', orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('nav.people'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('cu.title'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
@@ -615,15 +615,56 @@
 
   /* ---------- People ---------- */
 
-  function People() {
-    const rows = L.customerStats(state);
-    if (!rows.length) return `<div class="empty"><b>${t('people.none')}</b>${t('people.noneText')}</div>`;
-    return `<input id="q" type="search" placeholder="${t('people.search')}" aria-label="${t('people.search')}" style="margin-bottom:10px"><div class="list" id="custlist">${custRows(rows, '')}</div>`;
+  /* ---------- Customer log: Overview (a card per customer), Money and Items tables (the spreadsheet's Customer Log columns) ---------- */
+  let cuTab = 'overview', cuStat = 'all', cuQ = '', cuSort = { col: 'owing', dir: 'desc' };
+  const cuVal = (c, col) => {
+    switch (col) {
+      case 'name': return c.name.toLowerCase();
+      case 'owing': return c.owing > 0 ? c.owing : null;
+      case 'sales': return c.sales > 0 ? c.sales : null;
+      case 'profit': return c.bought && c.profit !== 0 ? c.profit : null;
+      case 'bought': return c.bought > 0 ? c.bought : null;
+      case 'itemsOwing': return c.itemsOwing > 0 ? c.itemsOwing : null;
+      case 'lastItem': return c.lastItem ? String(c.lastItem).toLowerCase() : null;
+      case 'lastDate': return c.lastDate && c.lastDate.getTime() > 0 ? c.lastDate.getTime() : null;
+      default: return null;
+    }
+  };
+  const cuAl = { name: '', lastItem: 'l', lastDate: 'c' };
+  function cuMain() {
+    const all = L.customerStats(state), q = cuQ.trim().toLowerCase(), base = all.filter((c) => !q || c.name.toLowerCase().includes(q) || String(c.lastItem || '').toLowerCase().includes(q));
+    const list = base.filter((c) => cuStat === 'all' || (cuStat === 'owing') === (c.owing > 0));
+    const col = cuSort.col, dir = cuSort.dir === 'asc' ? 1 : -1;
+    const sorted = list.map((c) => ({ c, v: cuVal(c, col) })).sort((a, b) => { if (a.v === null && b.v === null) return a.c.name.localeCompare(b.c.name); if (a.v === null) return 1; if (b.v === null) return -1; const r = typeof a.v === 'string' ? a.v.localeCompare(b.v) : a.v - b.v; return r ? r * dir : a.c.name.localeCompare(b.c.name); }).map((x) => x.c);
+    const owingN = base.filter((c) => c.owing > 0).length, dsh = '<span class="dsh">—</span>';
+    const tabs = [['overview', 'bl.tabOverview'], ['money', 'cu.tabMoney'], ['items', 'cu.tabItems']];
+    const chips = [['all', t('filter.all'), base.length], ['owing', t('cust.Owing'), owingN], ['ok', t('cust.UpToDate'), base.length - owingN]].map(([k, l, n]) => `<button type="button" class="itchip${cuStat === k ? ' on' : ''}" data-act="cu-chip" data-id="${k}">${l} <b>${n}</b></button>`).join('');
+    const hero = `<div class="blhero i3"><div><small>${t('cu.customers')}</small><b>${list.length.toLocaleString()}</b></div><div class="ow"><small>${t('it.owing')}</small><b>${money(list.reduce((n, c) => n + c.owing, 0))}</b></div><div class="rt"><small>${t('it.sales')}</small><b>${money(list.reduce((n, c) => n + c.sales, 0))}</b></div></div>`;
+    const head = `${hero}<div class="blseg">${tabs.map(([k, l]) => `<button class="${cuTab === k ? 'on' : ''}" data-act="cu-tab" data-id="${k}">${t(l)}</button>`).join('')}</div><div class="itchips" style="margin-top:12px">${chips}</div>`;
+    if (!sorted.length) return `${head}<div class="empty">${t('people.noMatch')}</div>`;
+    if (cuTab === 'overview') {
+      return `${head}<div class="itlist">${sorted.map((c) => {
+        const ow = c.owing > 0, sub = c.lastItem ? t('cu.lastBought', { item: esc(c.lastItem), d: c.lastDate && c.lastDate.getTime() > 0 ? day(c.lastDate) : '' }).replace(/ · $/, '') : (c.bought ? tn('notif.items', c.bought) : t('cu.noPurchases')), place = L.place(state, c.name);
+        return `<div class="itc" role="button" tabindex="0" data-act="customer" data-id="${esc(c.name)}" style="--c:${ow ? '#f0b34a' : '#4fc27a'}"><div class="t"><b>${esc(c.name)}</b><small>${sub}${place ? ' · 📍 ' + esc(place) : ''}</small></div><div class="e">${ow ? `<b class="cu-ow">${fmt2(c.owing)}</b><small class="itst">${t('cu.nOfOwing', { n: c.itemsOwing, m: c.bought })}</small>` : `<b class="cu-ok">${t('cust.UpToDate')}</b><small class="itst">${tn('notif.items', c.bought)}</small>`}</div></div>`; }).join('')}</div>`;
+    }
+    const costs = can('costs');
+    const cols = cuTab === 'money' ? [['name', t('cu.h.customer')], ['owing', t('cu.h.owing')], ['sales', t('cu.h.sales')]].concat(costs ? [['profit', t('cu.h.profit')]] : [])
+      : [['name', t('cu.h.customer')], ['bought', t('cu.h.bought')], ['itemsOwing', t('cu.h.itemsOwing')], ['lastItem', t('cu.h.lastItem')], ['lastDate', t('cu.h.lastDate')]];
+    const cell = (c, k) => ({
+      owing: `<span class="n">${c.owing > 0 ? `<span class="cu-ow">${fmt2(c.owing)}</span>` : dsh}</span>`, sales: `<span class="n">${c.sales > 0 ? fmt2(c.sales) : dsh}</span>`,
+      profit: `<span class="n">${!c.bought || c.profit === 0 ? dsh : c.profit > 0 ? `<span class="gp">${fmt2(c.profit)}</span>` : `<span class="lossr">${fmt2(-c.profit)}</span>`}</span>`,
+      bought: `<span class="n">${c.bought || dsh}</span>`, itemsOwing: `<span class="n">${c.itemsOwing ? `<span class="cu-ow">${c.itemsOwing}</span>` : dsh}</span>`,
+      lastItem: `<span class="n l">${c.lastItem ? esc(c.lastItem) : dsh}</span>`, lastDate: `<span class="n c">${c.lastDate && c.lastDate.getTime() > 0 ? day(c.lastDate) : dsh}</span>` })[k];
+    const rows = sorted.map((c) => `<div class="itr" role="button" tabindex="0" data-act="customer" data-id="${esc(c.name)}" style="--c:${c.owing > 0 ? '#f0b34a' : '#4fc27a'}"><span class="itf"><i></i><span><b>${esc(c.name)}</b><small class="itst ${c.owing > 0 ? 'itst-Owing' : 'itst-Paid'}">${custStLabel(c)}</small></span></span>${cols.slice(1).map(([k]) => cell(c, k)).join('')}</div>`).join('');
+    const sum = (f) => sorted.reduce((n, c) => n + f(c), 0), tot = { owing: fmt2(sum((c) => c.owing)), sales: fmt2(sum((c) => c.sales)), bought: sum((c) => c.bought), itemsOwing: sum((c) => c.itemsOwing), profit: (() => { const v = sum((c) => c.profit); return v >= 0 ? `<span class="gp">${fmt2(v)}</span>` : `<span class="lossr">${fmt2(-v)}</span>`; })() };
+    const hd = cols.map(([k, label]) => `<button type="button" class="shd${cuSort.col === k ? ' on' : ''}${cuAl[k] ? ' ' + cuAl[k] : ''}" data-act="cu-sort" data-id="${k}" aria-label="${esc(label)}">${label}${cuSort.col === k ? `<i>${cuSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`).join('');
+    const tr = `<div class="itr tt"><span class="itf"><b>${t('bl.total')}</b></span>${cols.slice(1).map(([k]) => `<span class="n">${tot[k] !== undefined && tot[k] !== '' && tot[k] !== 0 ? `<b>${tot[k]}</b>` : ''}</span>`).join('')}</div>`;
+    return `${head}<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:${cuTab === 'money' ? '140px repeat(' + (cols.length - 1) + ',104px)' : '140px 90px 90px 140px 110px'}"><div class="itr h">${hd}</div>${rows}${tr}</div></div></div>`;
   }
-  function custRows(rows, q) {
-    const f = rows.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.owing - a.owing || a.name.localeCompare(b.name));
-    return f.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${tn('people.sub', c.bought, { amount: money(c.sales) })}${L.place(state, c.name) ? ' · 📍 ' + esc(L.place(state, c.name)) : ''}</small></div>
-      <div class="end"><b class="${c.owing > 0 ? 'bad' : ''}">${c.owing > 0 ? money(c.owing) : ''}</b><span class="pill ${c.owing > 0 ? 'Owing' : 'Up'}">${custStLabel(c)}</span></div></button>`).join('') || `<div class="empty">${t('people.noMatch')}</div>`;
+  function cuRefresh() { const m = $('#cumain'); if (!m) return; const w = m.querySelector('.itwrap'), sx = w ? w.scrollLeft : 0; m.innerHTML = cuMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; renderTools(); }
+  function People() {
+    if (!L.customerStats(state).length) return `<div class="empty"><b>${t('people.none')}</b>${t('people.noneText')}</div>`;
+    return `<div class="oqbar"><span aria-hidden="true">🔍</span><input class="cq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('people.search'))}" aria-label="${esc(t('people.search'))}" value="${esc(cuQ)}"></div><div id="cumain">${cuMain()}</div>`;
   }
 
   /* ---------- Invoice log: four tabs like the Batch Log. Overview, Money and Profit / Loss carry the spreadsheet's columns; Items shows each invoice's thumbnails ---------- */
@@ -2962,6 +3003,10 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; if (blSort.col !== 'batch' && !({ pl: ['invested', 'sales', 'pl'], owing: ['owing', 'people', 'waiting'] }[id] || []).includes(blSort.col)) blSort = { col: 'batch', dir: 'desc' }; return render();
+      case 'goto-customers': go({ tab: 'people', moreView: null }); window.scrollTo(0, 0); return render();
+      case 'cu-tab': cuTab = id; return cuRefresh();
+      case 'cu-chip': cuStat = id; return cuRefresh();
+      case 'cu-sort': { if (cuSort.col === id) cuSort.dir = cuSort.dir === 'desc' ? 'asc' : 'desc'; else cuSort = { col: id, dir: id === 'name' || id === 'lastItem' ? 'asc' : 'desc' }; return cuRefresh(); }
       case 'it-tab': itTab = id; itSort = { col: 'item', dir: 'asc' }; itLimit = 100; return itRefresh();
       case 'it-chip': itStat = id; itLimit = 100; return itRefresh();
       case 'it-sort': { if (itSort.col === id) itSort.dir = itSort.dir === 'desc' ? 'asc' : 'desc'; else itSort = { col: id, dir: id === 'item' || id === 'customer' ? 'asc' : 'desc' }; return itRefresh(); }
@@ -3164,7 +3209,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if (el.classList.contains('oq')) { ordQ = el.value; ordLimit = 20; document.querySelectorAll('.ordp').forEach((e) => { if (e.dataset.lim !== '5') e.dataset.lim = 20; }); refreshOrders(); }
     else if (el.id === 'w-q') { wordQ = el.value; wordsRefresh(); }
     else if (el.id === 'w-try') tryName();
-    else if (el.id === 'q') $('#custlist').innerHTML = custRows(L.customerStats(state), el.value);
+    else if (el.classList.contains('cq')) { cuQ = el.value; cuRefresh(); }
     else if (el.dataset.f && $('#sheet').dataset.item) {
       const i = state.items.find((x) => x.id === $('#sheet').dataset.item), f = el.dataset.f;
       if (f === 'discount') { if (discOld.id !== i.id) discOld = { id: i.id, v: i.discount }; i.discount = parsePct(el.value); if (onQuick()) L.applyToGroup(state, i, ['discount']); updateSale(i); }

@@ -859,11 +859,25 @@
     if (n > 1 && sm.scrollWidth > sm.clientWidth + 1) sm.textContent = t('it.nBatches', { n });
   }
   function itRefresh() { const m = $('#itmain'); if (!m) return; const wrap = m.querySelector('.itwrap'), sx = wrap ? wrap.scrollLeft : 0; m.innerHTML = itMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; PUI.hydrate(); itFitBar(); renderTools(); }
-  function sheetItBatches() {
-    const all = state.batches.slice().sort((a, b) => b.num - a.num), cnt = (b) => state.items.filter((i) => i.batchId === b.id);
+  let itBQ = '';   // search inside the Choose batches pop-up
+  const itBMatches = () => {
+    const q = itBQ.trim().toLowerCase(), all = state.batches.slice().sort((a, b) => b.num - a.num);
+    return q ? all.filter((b) => [b.id, blShort(b.id), b.store, dayLong(b.datePurchased)].some((x) => String(x || '').toLowerCase().includes(q))) : all;
+  };
+  function itPickRows() {
+    const list = itBMatches(), q = itBQ.trim(), cnt = (b) => state.items.filter((i) => i.batchId === b.id);
+    const allRow = q ? '' : `<button type="button" class="bo${itBatches.length ? '' : ' on'}" data-act="it-bclear2"><span class="ck">${itBatches.length ? '' : '✓'}</span><div class="t"><b>${t('it.allBatches')}</b><small>${state.items.length.toLocaleString()} ${t('it.items').toLowerCase()}</small></div></button>`;
+    const info = q ? `<div class="pickinfo">${t('it.matchN', { n: list.length, total: state.batches.length })}</div>` : '';
+    const rows = list.map((b) => { const its = cnt(b), on = itBatches.includes(b.id); return `<button type="button" class="bo${on ? ' on' : ''}" data-act="it-btoggle" data-id="${b.id}"><span class="ck">${on ? '✓' : ''}</span><div class="t"><b>${esc(blShort(b.id))}</b><small>${esc(b.store)} · ${t('it.groupHead', { n: its.length, s: its.filter(L.isSold).length })}</small></div></button>`; }).join('');
+    const sel = q && list.length && !list.every((b) => itBatches.includes(b.id)) ? `<button type="button" class="itselall" data-act="it-bsel">${t('it.selectThese', { n: list.length })}</button>` : '';
+    return `${info}${allRow}${rows || (q ? `<div class="empty">${t('it.noBatch')}</div>` : '')}${sel}`;
+  }
+  function itPickRefresh() { const el = $('#itpick'); if (el) el.innerHTML = itPickRows(); const x = document.querySelector('.itbs .oqx'); if (x) x.hidden = !itBQ; }
+  function sheetItBatches(keep) {
+    if (!keep) itBQ = '';
     openSmall(`<div class="blf"><div class="blfh"><h3>${t('it.pick')}</h3></div><p class="muted small" style="margin:0 0 8px">${t('it.pickSub')}</p>
-      <div class="itpick"><button type="button" class="bo${itBatches.length ? '' : ' on'}" data-act="it-bclear2"><span class="ck">${itBatches.length ? '' : '✓'}</span><div class="t"><b>${t('it.allBatches')}</b><small>${state.items.length.toLocaleString()} ${t('it.items').toLowerCase()}</small></div></button>
-      ${all.map((b) => { const its = cnt(b), on = itBatches.includes(b.id); return `<button type="button" class="bo${on ? ' on' : ''}" data-act="it-btoggle" data-id="${b.id}"><span class="ck">${on ? '✓' : ''}</span><div class="t"><b>${esc(blShort(b.id))}</b><small>${esc(b.store)} · ${t('it.groupHead', { n: its.length, s: its.filter(L.isSold).length })}</small></div></button>`; }).join('')}</div>
+      <div class="oqbar itbs"><span aria-hidden="true">🔍</span><input class="itbq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('it.searchBatches'))}" aria-label="${esc(t('it.searchBatches'))}" value="${esc(itBQ)}"><button type="button" class="oqx" data-act="it-bqx" aria-label="${t('it.clear')}"${itBQ ? '' : ' hidden'}>✕</button></div>
+      <div class="itpick" id="itpick">${itPickRows()}</div>
       <div class="btns"><button class="btn" data-act="it-bclear2">${t('it.clear')}</button><button class="btn primary" data-act="it-bdone">${t('it.done')}</button></div></div>`, 'sheet');
   }
   function ItemLog() {
@@ -2953,8 +2967,10 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'it-group': itGroup = !itGroup; return itRefresh();
       case 'it-more': itLimit += 100; return itRefresh();
       case 'it-bpick': return sheetItBatches();
-      case 'it-btoggle': itBatches = itBatches.includes(id) ? itBatches.filter((x) => x !== id) : itBatches.concat(id); itLimit = 100; return sheetItBatches();
-      case 'it-bclear2': itBatches = []; itLimit = 100; return sheetItBatches();
+      case 'it-btoggle': itBatches = itBatches.includes(id) ? itBatches.filter((x) => x !== id) : itBatches.concat(id); itLimit = 100; return itPickRefresh();
+      case 'it-bclear2': itBatches = []; itLimit = 100; return itPickRefresh();
+      case 'it-bsel': { itBMatches().forEach((b) => { if (!itBatches.includes(b.id)) itBatches.push(b.id); }); itLimit = 100; return itPickRefresh(); }
+      case 'it-bqx': { itBQ = ''; const f = document.querySelector('.itbq'); if (f) { f.value = ''; f.focus(); } return itPickRefresh(); }
       case 'it-bclear': itBatches = []; itLimit = 100; return itRefresh();
       case 'it-bdone': closeSheet(); return itRefresh();
       case 'bl-sort': { if (blSort.col === id) blSort.dir = blSort.dir === 'desc' ? 'asc' : 'desc'; else blSort = { col: id, dir: id === 'batch' ? 'asc' : 'desc' }; const l = $('#blog'); if (l) l.innerHTML = batchLogRows($('.blq') ? $('.blq').value : ''); return; }
@@ -3140,6 +3156,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if (el.dataset && el.dataset.dsshow !== undefined) saveDset({ showRate: !!el.checked });
     else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
     else if (el.classList.contains('iq')) { invQ = el.value; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); }
+    else if (el.classList.contains('itbq')) { itBQ = el.value; itPickRefresh(); }
     else if (el.classList.contains('itq')) { itQ = el.value; itLimit = 100; itRefresh(); }
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
     else if (el.classList.contains('bq')) { const l = $('#bpl'); if (l) { l.innerHTML = bpRows(el.value); l.scrollTop = 0; } const nn = $('#bp-n'); if (nn) nn.textContent = el.value.trim() ? t('bp.found', { n: L.batchSearch(state.batches, el.value).length }) : t('bp.n', { n: state.batches.length }); }

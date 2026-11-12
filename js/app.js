@@ -410,7 +410,7 @@
     const rows = [];
     if (inTransit.length) rows.push(need('📦', 'var(--infobg)', t('hm.recvTitle'), inTransit.length === 1 ? t('hm.recvOne', { b: blShort(inTransit[0].id) }) : t('hm.recvMany', { n: inTransit.length }), inTransit.length, 'receive', false));
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
-    if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-customers', true));
+    if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-stock', false));
     const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
     const batches = L.filterBatches(state, flt).slice().sort((a, b) => b.num - a.num).slice(0, 3);
@@ -420,7 +420,7 @@
     <div class="hkp"><div class="costonly"><small>${t('hm.salesPaid')}</small><b>${money(tot.sales)}</b></div><div class="ow"><small>${t('hm.owingTile')}</small><b>${money(tot.owing)}</b></div><div class="costonly"><small>${t('hm.expTile')}</small><b>${money(tot.expense)}</b></div></div>
     ${needs}
     <div class="hact"><button data-act="pay-clearing"><i>💳</i>${t('home.payClearing')}</button><button data-act="receive" ${inTransit.length ? '' : 'disabled'}><i>📦</i>${t('home.receive')}</button><button data-act="goto-stock"><i>🏷️</i>${t('home.priceItems')}</button></div>
-    ${owing.length ? `<div class="hsec"><h3>${t('home.whoOwes')}</h3><button class="hall" data-act="goto-customers">${t('hm.seeAll')}</button></div><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${tn('home.itemsOwing', c.itemsOwing)}</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
+    ${owing.length ? `<div class="hsec"><h3>${t('home.whoOwes')}</h3><button class="hall" data-act="goto-owing">${t('hm.seeAll')}</button></div><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${tn('home.itemsOwing', c.itemsOwing)}</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
     <div class="hsec"><h3>${t('hm.latest')}</h3><button class="hall" data-act="more" data-id="batches">${t('hm.seeAll')}</button></div>
     <div class="hbs">${batches.map((b) => { const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0; return `<button class="hbc" data-act="batch" data-id="${b.id}"><b>${esc(blShort(b.id))}</b><small>${esc(b.store)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div><span class="costonly ${st.profit < 0 ? 'neg' : 'pos'}">${st.profit < 0 ? '−' : '+'}${fmt2(Math.abs(st.profit))}</span></button>`; }).join('')}</div>
     ${recent.length ? `<div class="hsec"><h3>${t('hm.recent')}</h3><button class="hall" data-act="more" data-id="invoices">${t('hm.seeAll')}</button></div><div class="list">${recent.map(invoiceRow).join('')}</div>` : ''}<div style="height:70px"></div>`;
@@ -2969,7 +2969,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'qe-go': if (id) { qeTried = false; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;
       case 'qe-next': return quickNext(id, !!t_.dataset.skip);
       case 'open-stock': stockBatch = id; stockFilter = 'All'; closeSheet(); go({ tab: 'stock', moreView: null }); return render();
-      case 'goto-stock': go({ tab: 'stock', moreView: null }); return render();
+      case 'goto-stock': go({ tab: 'stock', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'grp-toggle': grpOpen.has(id) ? grpOpen.delete(id) : grpOpen.add(id); return render();
       case 'sel-all': { state.items.filter((i) => i.batchId === stockBatch && !L.isLocked(i)).forEach((i) => selected.add(i.id)); return render(); }
       case 'sel-clear': selected.clear(); return render();
@@ -3005,7 +3005,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; if (blSort.col !== 'batch' && !({ pl: ['invested', 'sales', 'pl'], owing: ['owing', 'people', 'waiting'] }[id] || []).includes(blSort.col)) blSort = { col: 'batch', dir: 'desc' }; return render();
-      case 'goto-customers': go({ tab: 'people', moreView: null }); window.scrollTo(0, 0); return render();
+      case 'goto-customers': go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
+      case 'goto-owing': cuStat = 'owing'; cuQ = ''; go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));   // from Home: the Customer log already filtered to who owes
       case 'cu-tab': cuTab = id; return cuRefresh();
       case 'cu-chip': cuStat = id; return cuRefresh();
       case 'cu-sort': { if (cuSort.col === id) cuSort.dir = cuSort.dir === 'desc' ? 'asc' : 'desc'; else cuSort = { col: id, dir: id === 'name' || id === 'lastItem' ? 'asc' : 'desc' }; return cuRefresh(); }

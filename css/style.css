@@ -1329,3 +1329,6 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .itr .n .pp{color:inherit;font-weight:500;font-size:inherit}.itr .n .ow{color:var(--bad)}.itc .e small.owes{color:var(--bad)}
 /* Customer log */
 .cu-ow{color:var(--bad)}.cu-ok{color:#2f9e5f}.itc .e b.cu-ok{font-size:14px}.itr .n.l{text-align:left}
+/* All logs: the columns and their titles are centred (the first column keeps its stripe, photo and name on the left) */
+.bltbl .tr .n,.itr .n,.itr .n.l,.itr .n.c,.bltbl .tr.h>.n{text-align:center}.itr .n{overflow:hidden;text-overflow:ellipsis}
+.itr.h .shd:not(:first-child),.itr.h .shd.l,.itr.h .shd.c,.bltbl.ipl .tr.h .shd:not(:first-child),.bltbl.im .tr.h .shd:not(:first-child),.bltbl.pl .tr.h .shd:not(:first-child),.bltbl.ow .tr.h .shd:not(:first-child){justify-content:center;text-align:center}

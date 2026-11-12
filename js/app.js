@@ -396,6 +396,7 @@
 
   /* ---------- Home ---------- */
 
+  const TRANSIT_LATE_DAYS = 14;
   function Home() {
     const tot = L.totals(state, flt);
     const inTransit = state.batches.filter((b) => bStatus(b) === 'In Transit').sort((a, b) => b.num - a.num);
@@ -408,7 +409,8 @@
     const orders = window.Store && storeCfg().id ? Store.newCount() : 0, oweTotal = owingAll.reduce((n, c) => n + c.owing, 0);
     const need = (icon, bg, title, sub, n, act, hot) => `<button class="hnr" data-act="${act}"><span class="hic" style="background:${bg}">${icon}</span><div class="t"><b>${title}</b><small>${sub}</small></div><span class="hcnt${hot ? ' hot' : ''}">${n}</span><span class="chev">›</span></button>`;
     const rows = [];
-    if (inTransit.length) rows.push(need('📦', 'var(--infobg)', t('hm.recvTitle'), inTransit.length === 1 ? t('hm.recvOne', { b: blShort(inTransit[0].id) }) : t('hm.recvMany', { n: inTransit.length }), inTransit.length, 'receive', false));
+    const wayDays = (b) => Math.floor((Date.now() - new Date(b.datePurchased).getTime()) / 864e5), late = inTransit.filter((b) => wayDays(b) >= TRANSIT_LATE_DAYS).sort((a, b) => wayDays(b) - wayDays(a));   // only batches that have been on the way a while are worth a look
+    if (late.length) rows.push(need('📦', 'var(--infobg)', t('hm.wayTitle'), late.length === 1 ? t('hm.wayOne', { b: blShort(late[0].id), n: wayDays(late[0]) }) : t('hm.wayMany', { b: blShort(late[0].id), n: wayDays(late[0]) }), late.length, 'goto-transit', false));
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-stock', false));
@@ -3006,6 +3008,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; if (blSort.col !== 'batch' && !({ pl: ['invested', 'sales', 'pl'], owing: ['owing', 'people', 'waiting'] }[id] || []).includes(blSort.col)) blSort = { col: 'batch', dir: 'desc' }; return render();
       case 'goto-customers': go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
+      case 'goto-transit': blF = { store: [], status: ['transit'], items: [] }; blTab = 'overview'; go({ tab: 'more', moreView: 'batches' }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'goto-owing': cuStat = 'owing'; cuQ = ''; go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));   // from Home: the Customer log already filtered to who owes
       case 'cu-tab': cuTab = id; return cuRefresh();
       case 'cu-chip': cuStat = id; return cuRefresh();

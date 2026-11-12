@@ -1325,3 +1325,5 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .itbs{min-height:50px;margin:0 0 6px;padding:0 12px;border-radius:16px;border-color:var(--brand)}.itbs input.itbq{flex:1;min-width:0;border:0;background:transparent;box-shadow:none;outline:0;padding:14px 0;font-size:16px;color:var(--ink);height:auto;min-height:0;-webkit-appearance:none;appearance:none}.itbs input.itbq::placeholder{color:var(--mute);opacity:.6}.itbs input.itbq::-webkit-search-cancel-button{display:none}
 .pickinfo{color:var(--mute);font-size:12px;margin:4px 2px 6px}.itselall{display:block;width:100%;margin-top:10px;padding:12px;border-radius:12px;border:0;background:var(--tint);color:var(--brand);font:800 14px inherit;box-shadow:none}
 .itr .n.c{text-align:center}.itr .n.c .invc{margin-left:0}.itr.h .shd.l{justify-content:flex-start}.itr.h .shd.c{justify-content:center}
+/* Item log: money colours follow the rest of the app: a part-payment is plain text, what is owing is red */
+.itr .n .pp{color:inherit;font-weight:500;font-size:inherit}.itr .n .ow{color:var(--bad)}.itc .e small.owes{color:var(--bad)}

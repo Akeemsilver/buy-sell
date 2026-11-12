@@ -812,6 +812,7 @@
     dec.sort((a, b) => { if (a.v === null && b.v === null) return a.n - b.n; if (a.v === null) return 1; if (b.v === null) return -1; const c = typeof a.v === 'string' ? a.v.localeCompare(b.v) : a.v - b.v; return c ? c * dir : a.n - b.n; });
     return dec.map((d) => d.i);
   };
+  const itAl = { customer: 'l', invoice: 'c', date: 'c', paid: 'c' };   // text columns: left or centred; money columns: right. The title always follows its column.
   const itPaidCell = (i, dsh) => (i.status === 'Paid' ? `<span class="pf">${t('it.paidFull')}</span>` : Number(i.paid) > 0 ? `<span class="pp">${fmt2(i.paid)}</span>` : dsh);
   function itRows(list) {
     const dsh = '<span class="dsh">—</span>', total = list.length, shown = list.slice(0, itLimit), isOv = itTab === 'overview', cols = isOv ? null : itCols()[itTab];
@@ -824,9 +825,9 @@
       }
       const prof = sold && c.landed > 0 ? c.profitSoFar : null;
       const cell = (k) => ({
-        customer: `<span class="n l">${esc(i.customer || '') || dsh}</span>`, invoice: `<span class="n">${itInvTag(i) || dsh}</span>`,
-        date: `<span class="n">${(() => { const v = i.invoice && state.invoices.find((x) => x.no === i.invoice); return v && v.date ? day(v.date) : dsh; })()}</span>`,
-        sold: `<span class="n">${Number(i.sold) > 0 ? fmt2(i.sold) : dsh}</span>`, paid: `<span class="n">${itPaidCell(i, dsh)}</span>`, owing: `<span class="n">${Number(i.owing) > 0 ? `<span class="ow">${fmt2(i.owing)}</span>` : dsh}</span>`,
+        customer: `<span class="n l">${esc(i.customer || '') || dsh}</span>`, invoice: `<span class="n c">${itInvTag(i) || dsh}</span>`,
+        date: `<span class="n c">${(() => { const v = i.invoice && state.invoices.find((x) => x.no === i.invoice); return v && v.date ? day(v.date) : dsh; })()}</span>`,
+        sold: `<span class="n">${Number(i.sold) > 0 ? fmt2(i.sold) : dsh}</span>`, paid: `<span class="n c">${itPaidCell(i, dsh)}</span>`, owing: `<span class="n">${Number(i.owing) > 0 ? `<span class="ow">${fmt2(i.owing)}</span>` : dsh}</span>`,
         cost: `<span class="n">${Number(i.cost) > 0 ? fmt2(i.cost) : dsh}</span>`, ttd: `<span class="n">${c.costTTD > 0 ? fmt2(c.costTTD) : dsh}</span>`, landed: `<span class="n">${c.landed > 0 ? fmt2(c.landed) : dsh}</span>`, sug: `<span class="n">${c.recommended > 0 ? fmt2(c.recommended) : dsh}</span>`,
         pct: `<span class="n">${prof === null ? dsh : Math.round(prof / c.landed * 100) + '%'}</span>`, pl: `<span class="n">${prof === null ? dsh : prof >= 0 ? `<span class="gp">${fmt2(prof)}</span>` : `<span class="lossr">${fmt2(-prof)}</span>`}</span>` })[k];
       return `<div class="itr" role="button" tabindex="0" data-act="edit-item" data-id="${esc(i.id)}" style="--c:${col}"><span class="itf"><i></i>${itThumb(i)}<span><b>${esc(i.id)}</b><small class="itst itst-${st.replace(' ', '')}">${itStLabel(st)}</small></span></span>${cols.slice(1).map(([k]) => cell(k)).join('')}</div>`;
@@ -836,7 +837,7 @@
     const more = total > shown.length ? `<button class="itmore" data-act="it-more">${t('it.showMore', { n: total - shown.length })}</button>` : '';
     if (isOv) return `<div class="itlist">${out}</div>${more}`;
     const sum = (f) => list.reduce((n, i) => n + (Number(f(i)) || 0), 0), tot = { sold: fmt2(sum((i) => i.sold)), paid: fmt2(sum((i) => i.paid)), owing: fmt2(sum((i) => i.owing)), ttd: fmt2(sum((i) => L.itemCalc(itBatch(i), i).costTTD)), landed: fmt2(sum((i) => L.itemCalc(itBatch(i), i).landed)), pl: (() => { const v = sum((i) => { const c = L.itemCalc(itBatch(i), i); return L.isSold(i) && c.landed > 0 ? c.profitSoFar : 0; }); return v >= 0 ? `<span class="gp">${fmt2(v)}</span>` : `<span class="lossr">${fmt2(-v)}</span>`; })() };
-    const hd = cols.map(([k, label], n) => `<button type="button" class="shd${itSort.col === k ? ' on' : ''}" data-act="it-sort" data-id="${k}" aria-label="${esc(label)}">${label}${itSort.col === k ? `<i>${itSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`).join('');
+    const hd = cols.map(([k, label], n) => `<button type="button" class="shd${itSort.col === k ? ' on' : ''}${itAl[k] ? ' ' + itAl[k] : ''}" data-act="it-sort" data-id="${k}" aria-label="${esc(label)}">${label}${itSort.col === k ? `<i>${itSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`).join('');
     const tr = `<div class="itr tt"><span class="itf"><b>${t('bl.total')}</b></span>${cols.slice(1).map(([k]) => `<span class="n">${tot[k] ? `<b>${tot[k]}</b>` : ''}</span>`).join('')}</div>`;
     return `<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:128px repeat(${cols.length - 1},104px)"><div class="itr h">${hd}</div>${out}${tr}</div></div></div>${more}`;
   }

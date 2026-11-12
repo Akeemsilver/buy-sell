@@ -383,13 +383,13 @@
 
   function renderActionBar() {
     const bar = $('#actionbar'); let html = '';
-    if (tab === 'home') html = `<button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button>`;
+    if (tab === 'home' && state.batches.length) html = `<button class="fab" data-act="new-batch">${t('btn.newBatch')}</button>`;
     else if (tab === 'stock' && selected.size) html = `<div class="dual"><button class="btn sale" data-act="sale-open">🏷 ${t('sale.btn')}</button><button class="btn primary go" data-act="goto-sell">${tn('bar.sell', selected.size)}</button></div>`;
     else if (tab === 'sell' && moreView === 'invoice' && selected.size) {
       const p = preview();
       html = `<button class="btn primary" data-act="make-invoice" ${p.errors.length ? 'disabled' : ''}>${t(pendingOrder ? 'ord.confirmBar' : 'bar.create', { amount: money(p.total) })}</button>`;
     }
-    bar.hidden = !html; bar.innerHTML = html;
+    bar.classList.toggle('fabbar', tab === 'home'); bar.hidden = !html; bar.innerHTML = html;
   }
 
   const preview = () => L.previewInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying, allowZero: !!pendingOrder });
@@ -398,30 +398,32 @@
 
   function Home() {
     const tot = L.totals(state, flt);
-    const inTransit = state.batches.filter((b) => bStatus(b) === 'In Transit');
-    const owing = L.customerStats(state).filter((c) => c.owing > 0).sort((a, b) => b.owing - a.owing).slice(0, 4);
+    const inTransit = state.batches.filter((b) => bStatus(b) === 'In Transit').sort((a, b) => b.num - a.num);
+    const owingAll = L.customerStats(state).filter((c) => c.owing > 0).sort((a, b) => b.owing - a.owing), owing = owingAll.slice(0, 3);
     const recent = L.filterInvoices(state, flt).slice(-3).reverse();
     if (!state.batches.length) return `<div class="empty"><b>${t('home.welcome')}</b>${t('home.welcomeText')}</div>
       <div class="list"><button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button><button class="btn" data-act="import-xlsx">${t('btn.importXlsx')}</button></div>`;
-    return `${filtered() ? `<button class="row tap" data-act="filter" style="margin-bottom:10px;background:var(--tint)"><div class="grow"><b>${t('home.filtered', { label: esc(filterLabel()) })}</b><small>${t('home.filteredHint')}</small></div><span class="chev">›</span></button>` : ''}<div class="stats">
-      <div class="stat hero"><span>${t(can('costs') ? 'home.profit' : 'home.sales')}</span><b>${money(can('costs') ? tot.profit : tot.sales)}</b><button class="eyeb" data-act="view" aria-label="${hideAmounts ? t('tool.show') : t('tool.hide')}"><svg viewBox="0 0 24 24">${ICONS[hideAmounts ? 'eyeoff' : 'eye']}</svg></button></div>
-      <div class="stat costonly"><span>${t('home.sales')}</span><b>${money(tot.sales)}</b></div>
-      <div class="stat"><span>${t('home.owing')}</span><b>${money(tot.owing)}</b></div>
-      <div class="stat costonly"><span>${t('home.expenses')}</span><b>${money(tot.expense)}</b></div>
-      <div class="stat"><span>${t('home.avail')}</span><b>${tot.available} · ${tot.inTransit}</b></div></div>
-    <h2>${t('home.quick')}</h2>
-    <div class="quick">
-      <button data-act="pay-clearing"><i>💳</i>${t('home.payClearing')}</button>
-      <button data-act="receive" ${inTransit.length ? '' : 'disabled'}><i>📦</i>${t('home.receive')}</button>
-      <button data-act="goto-stock"><i>🏷️</i>${t('home.priceItems')}</button></div>
-    <h2>${t('home.batches')}</h2>
-    <div class="list">${L.filterBatches(state, flt).slice().sort((a, b) => b.num - a.num).map((b) => {
-      const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0;
-      return `<button class="row tap" data-act="batch" data-id="${b.id}" style="${bStatus(b) === 'Closed' ? 'opacity:.6' : ''}"><div class="grow"><b>${bl(b.id)} <span class="pill ${bStatus(b).replace(' ', '')}">${stLabel(bStatus(b))}</span></b>
-        <small>${esc(b.store)} · ${day(b.datePurchased)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div></div>
-        <div class="end costonly"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="chev">›</span></button>`; }).join('')}</div>
-    ${owing.length ? `<h2>${t('home.whoOwes')}</h2><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${tn('home.itemsOwing', c.itemsOwing)}</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
-    ${recent.length ? `<h2>${t('home.recent')}</h2><div class="list">${recent.map(invoiceRow).join('')}</div>` : ''}`;
+    const hr = new Date().getHours(), greet = t(hr < 12 ? 'hm.morning' : hr < 18 ? 'hm.afternoon' : 'hm.evening'), nm = String(myName() || '').trim(), who = nm ? nm.charAt(0).toUpperCase() + nm.slice(1) : '';
+    const noPrice = state.items.filter((i) => i.status === 'Available' && String(i.desc || '').trim() && !(Number(i.price) > 0) && !(L.salePrice(i) > 0)).length;
+    const orders = window.Store && storeCfg().id ? Store.newCount() : 0, oweTotal = owingAll.reduce((n, c) => n + c.owing, 0);
+    const need = (icon, bg, title, sub, n, act, hot) => `<button class="hnr" data-act="${act}"><span class="hic" style="background:${bg}">${icon}</span><div class="t"><b>${title}</b><small>${sub}</small></div><span class="hcnt${hot ? ' hot' : ''}">${n}</span><span class="chev">›</span></button>`;
+    const rows = [];
+    if (inTransit.length) rows.push(need('📦', 'var(--infobg)', t('hm.recvTitle'), inTransit.length === 1 ? t('hm.recvOne', { b: blShort(inTransit[0].id) }) : t('hm.recvMany', { n: inTransit.length }), inTransit.length, 'receive', false));
+    if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
+    if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-customers', true));
+    if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-stock', false));
+    const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
+    const batches = L.filterBatches(state, flt).slice().sort((a, b) => b.num - a.num).slice(0, 3);
+    return `${filtered() ? `<button class="row tap" data-act="filter" style="margin-bottom:10px;background:var(--tint)"><div class="grow"><b>${t('home.filtered', { label: esc(filterLabel()) })}</b><small>${t('home.filteredHint')}</small></div><span class="chev">›</span></button>` : ''}
+    <div class="hgreet"><small>${greet}</small>${who ? `<b>${esc(who)}</b>` : ''}</div>
+    <div class="hhero"><small>${t(can('costs') ? 'home.profit' : 'home.sales')}</small><b>${money(can('costs') ? tot.profit : tot.sales)}</b><button class="eyeb" data-act="view" aria-label="${hideAmounts ? t('tool.show') : t('tool.hide')}"><svg viewBox="0 0 24 24">${ICONS[hideAmounts ? 'eyeoff' : 'eye']}</svg></button></div>
+    <div class="hkp"><div class="costonly"><small>${t('hm.salesPaid')}</small><b>${money(tot.sales)}</b></div><div class="ow"><small>${t('hm.owingTile')}</small><b>${money(tot.owing)}</b></div><div class="costonly"><small>${t('hm.expTile')}</small><b>${money(tot.expense)}</b></div></div>
+    ${needs}
+    <div class="hact"><button data-act="pay-clearing"><i>💳</i>${t('home.payClearing')}</button><button data-act="receive" ${inTransit.length ? '' : 'disabled'}><i>📦</i>${t('home.receive')}</button><button data-act="goto-stock"><i>🏷️</i>${t('home.priceItems')}</button></div>
+    ${owing.length ? `<div class="hsec"><h3>${t('home.whoOwes')}</h3><button class="hall" data-act="goto-customers">${t('hm.seeAll')}</button></div><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${tn('home.itemsOwing', c.itemsOwing)}</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
+    <div class="hsec"><h3>${t('hm.latest')}</h3><button class="hall" data-act="more" data-id="batches">${t('hm.seeAll')}</button></div>
+    <div class="hbs">${batches.map((b) => { const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0; return `<button class="hbc" data-act="batch" data-id="${b.id}"><b>${esc(blShort(b.id))}</b><small>${esc(b.store)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div><span class="costonly ${st.profit < 0 ? 'neg' : 'pos'}">${st.profit < 0 ? '−' : '+'}${fmt2(Math.abs(st.profit))}</span></button>`; }).join('')}</div>
+    ${recent.length ? `<div class="hsec"><h3>${t('hm.recent')}</h3><button class="hall" data-act="more" data-id="invoices">${t('hm.seeAll')}</button></div><div class="list">${recent.map(invoiceRow).join('')}</div>` : ''}<div style="height:70px"></div>`;
   }
 
   function invoiceRow(v0) {

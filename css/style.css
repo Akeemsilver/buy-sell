@@ -1452,3 +1452,4 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .zmw{--zrisk:#c0392b}
 .zwarn.zhot{background:#fdecea;color:#b3261e;border-radius:12px;padding:10px 12px;font-weight:800;margin:8px 0}
 .zm-corners[hidden],.zm-rad[hidden]{display:none!important}
+.zwarn.zout{background:#fff4e0;color:#8a5a00;border-radius:12px;padding:10px 12px;font-weight:700;margin:8px 0}

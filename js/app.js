@@ -801,6 +801,10 @@
   const pinHot = (o) => (o.option === 'delivery' && SCore.geo(o.lat, o.lng) ? SCore.hotAt(storeZones(), Number(o.lat), Number(o.lng)) : []);   // the order's pin is inside one of your high-risk spots
   // the customer whose free zones include the zone the order's pin is in (and whose main number is on the order)
   const freeProfile = (o) => { if (!peopleOn || o.option !== 'delivery') return null; const hit = pinZones(o).map((z) => z.id); return PE.mainOwners(state, o.phone).find((p) => p.free && p.free.on && (p.free.zones || []).some((id) => hit.includes(id))) || null; };
+  // The zone behind the place the customer picked, how far the pin is outside it, and the place (and price) of the zone the pin is really in.
+  const pickedZone = (o) => { const l = storeCfg().locations.find((x) => placeNorm(x.name) === placeNorm(o.location)); return l && l.zone ? storeZones().find((z) => z.id === l.zone && !z.risk) || null : null; };
+  const pinGap = (o, z) => { const g = SCore.geo(o.lat, o.lng); return g && z ? (z.poly ? SCore.nearestZone([z], g.lat, g.lng).m : Math.max(0, Math.round(SCore.metres(g.lat, g.lng, z.lat, z.lng) - z.r))) : 0; };
+  const pinPlace = (o) => { const c = storeCfg(), ids = pinZones(o).map((z) => z.id); return c.locations.find((l) => l.zone && ids.includes(l.zone) && !l.risk && !l.off && l.delivery && SCore.priceOf(c, l) > 0) || null; };
   const normalFee = (o) => { const c = storeCfg(), l = c.locations.find((x) => placeNorm(x.name) === placeNorm(o.location)); return l ? SCore.priceOf(c, l) : 0; };
   function orderWho(o) {
     if (!peopleOn || !o.phone) return '';
@@ -2897,11 +2901,15 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (o.option !== 'delivery') return '';
     const zs = pinZones(o), hot = pinHot(o), has = storeZones().length > 0, pin = SCore.geo(o.lat, o.lng), fee = normalFee(o), freed = Number(o.deliveryPrice) === 0 && fee > 0, fp = freeProfile(o);
     if (!has && !freed) return '';
+    const pz = pin ? pickedZone(o) : null, gap = pz ? pinGap(o, pz) : 0, pp = pin && o.status === 'new' ? pinPlace(o) : null, ppFee = pp ? SCore.priceOf(storeCfg(), pp) : 0;
+    const outWarn = pin && has && !zs.length && !hot.length ? `<p class="zwarn zout">⚠️ ${t('zn.outWarn')}</p>` : '';
+    const farWarn = pz && gap > 1500 ? `<p class="zwarn zout">⚠️ ${t('zn.farWarn', { z: esc(pz.name), km: (gap / 1000).toFixed(1) })}</p>` : '';
+    const pinBtn = farWarn && pp && o.status === 'new' && Math.abs(ppFee - (Number(o.deliveryPrice) || 0)) > 0.004 ? `<button type="button" class="btn alt" data-act="fee-pin" data-id="${o.id}">${t('fee.pinBtn', { z: esc(pp.name), fee: money(ppFee) })}</button>` : '';
     const hotWarn = hot.length ? `<p class="zwarn zhot">⚠️ ${t('zn.hotWarn', { z: esc(hot.map((z) => z.name).join(', ')) })}</p>` : '';
     const nz = pin && !zs.length ? SCore.nearestZone(SCore.areaZones(storeZones()), Number(o.lat), Number(o.lng)) : null, where = !pin ? t('zn.noPin') : zs.length ? t('zn.inZone', { z: esc(zs.map((z) => z.name).join(', ')) }) : t('zn.outZone') + (nz ? ' · ' + t('zn.nearest', { z: esc(nz.zone.name), km: (nz.m / 1000).toFixed(1) }) : '');
     const warn = freed && !fp ? `<p class="zwarn">⚠️ ${t(pin ? 'zn.warnFree' : 'zn.warnNoPin')}</p>` : '';
     const btn = freed && o.status === 'new' ? `<button type="button" class="btn alt" data-act="fee-charge" data-id="${o.id}">${t('fee.btn', { fee: money(fee) })}</button>` : '';
-    return `<div class="card zcard"><div class="rw"><span class="pn" aria-hidden="true">🗺️</span><div class="t"><b>${where}</b>${freed ? `<small>🎁 ${t(fp ? 'zn.freeOk' : 'zn.freeNow')}</small>` : o.feeChanged ? `<small>${t('fee.changed')}</small>` : ''}</div></div>${hotWarn}${warn}${btn}</div>`;
+    return `<div class="card zcard"><div class="rw"><span class="pn" aria-hidden="true">🗺️</span><div class="t"><b>${where}</b>${freed ? `<small>🎁 ${t(fp ? 'zn.freeOk' : 'zn.freeNow')}</small>` : o.feeChanged ? `<small>${t('fee.changed')}</small>` : ''}</div></div>${hotWarn}${outWarn}${farWarn}${warn}${btn}${pinBtn}</div>`;
   };
   const kmLine = (o) => { if (o.option !== 'delivery' || !(SCore.geo(o.lat, o.lng) || o.km != null)) return ''; const km = kmNum(o); return `<div class="card kmcard"><div class="rw"><div class="t"><b>${t('km.title')}</b><small>${km == null ? t('km.measuring') : o.kmSrc === 'line' ? t('km.line2', { km: km.toFixed(1) }) : t('km.line', { km: km.toFixed(1) }) + (o.kmSrc === 'manual' ? ' · ' + t('km.manual') : '')}${km != null ? ' · ' + t('dlv.roundTrip', { km: (km * 2).toFixed(1) }) : ''}</small></div><button class="dchip" data-act="km-edit" data-id="${o.id}">✏️ ${t('km.edit')}</button></div></div>`; };
   function dlvExport() {
@@ -3084,7 +3092,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (!its.length) return toast(t('ord.noneLeft'));
     if (o.option !== 'delivery') return doConfirmOrder(o);
     const gp = orderPin(o), km = kmNum(o), place = o.spot || o.location || '';
-    openSmall(`<h3>${t('loc.title')}</h3><p><b>${esc(place)}</b>${o.spot && o.location ? '<br>' + esc(o.location) : ''}${km != null ? '<br>' + t('loc.km', { km: km.toFixed(1) }) : ''}${missing ? '<br><br>⚠️ ' + t('ord.someGone', { n: missing }) : ''}${pinHot(o).length ? '<br><br>⚠️ <b>' + t('zn.hotWarn', { z: esc(pinHot(o).map((z) => z.name).join(', ')) }) + '</b>' : ''}<br><br>${t('loc.ask')}</p>
+    openSmall(`<h3>${t('loc.title')}</h3><p><b>${esc(place)}</b>${o.spot && o.location ? '<br>' + esc(o.location) : ''}${km != null ? '<br>' + t('loc.km', { km: km.toFixed(1) }) : ''}${missing ? '<br><br>⚠️ ' + t('ord.someGone', { n: missing }) : ''}${(() => { const g = SCore.geo(o.lat, o.lng), zz = pickedZone(o); return g && storeZones().length && !pinZones(o).length && !pinHot(o).length ? '<br><br>⚠️ ' + t('zn.outWarn') : (zz && pinGap(o, zz) > 1500 ? '<br><br>⚠️ ' + t('zn.farWarn', { z: esc(zz.name), km: (pinGap(o, zz) / 1000).toFixed(1) }) : ''); })()}${pinHot(o).length ? '<br><br>⚠️ <b>' + t('zn.hotWarn', { z: esc(pinHot(o).map((z) => z.name).join(', ')) }) + '</b>' : ''}<br><br>${t('loc.ask')}</p>
       <div class="btns">${gp ? `<a class="btn navopen" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener">🧭 ${t('loc.open')}</a>` : ''}<button class="btn primary" data-act="loc-yes" data-id="${o.id}">${t('loc.yes')}</button><button class="btn rs" data-act="loc-no" data-id="${o.id}">${t('loc.no')}</button><button class="btn" data-act="close">${t('loc.later')}</button></div>`, 'card');
   }
   // Confirms the order, makes its invoice (nothing paid yet) and opens WhatsApp with the confirmation message
@@ -3564,6 +3572,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'zone-add': case 'zone-edit': return openZone(id, t_.dataset.risk === '1');
       case 'zone-starter-hot': return askCard(t('zn.hotAsk', { n: ZoneData.hot().length })).then((y) => { if (!y) return; const c = storeCfg(), have = new Set(c.zones.map((z) => z.name.toLowerCase())); storeSet({ zones: c.zones.concat(ZoneData.hot().filter((z) => !have.has(z.name.toLowerCase()))) }); toast(t('zn.added')); sheetZones(); });
       case 'zone-starter': return askCard(t('zn.starterAsk', { n: ZoneData.starter().length })).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ zones: c.zones.concat(ZoneData.starter()) }); toast(t('zn.added')); sheetZones(); });
+      case 'fee-pin': { const o = Store.orders().find((x) => x.id === id), pp = o && pinPlace(o); if (!pp) return; const fee = SCore.priceOf(storeCfg(), pp), cur = Number(o.deliveryPrice) || 0; return askCard(t('fee.pinAsk', { z: esc(pp.name), fee: money(fee), name: esc(o.name) }), { ok: t('fee.ok') }).then((y) => { if (!y) return; Store.patch(o.id, { deliveryPrice: fee, total: Math.round((Number(o.total) - cur + fee) * 100) / 100, feeChanged: true }).then(() => { toast(t('fee.done')); setTimeout(() => sheetOrder(o.id, true), 300); }).catch(() => toast(t('store.pubError'))); }); }
       case 'fee-charge': { const o = Store.orders().find((x) => x.id === id); if (!o) return; const fee = normalFee(o); return askCard(t('fee.ask', { fee: money(fee), name: esc(o.name) }), { ok: t('fee.ok') }).then((y) => { if (!y) return; Store.patch(o.id, { deliveryPrice: fee, total: Math.round((Number(o.total) + fee) * 100) / 100, feeChanged: true }).then(() => { toast(t('fee.done')); setTimeout(() => sheetOrder(o.id, true), 300); }).catch(() => toast(t('store.pubError'))); }); }
       case 'pf-free': case 'pf-free-places': case 'pf-number': case 'pf-nick-add': case 'pf-nick-del': case 'split-open': case 'merge-open': case 'merge-go': case 'split-go': return peopleAct(t_.dataset.act, id, t_);
       case 'cust-edit': return sheetCustEdit(id);

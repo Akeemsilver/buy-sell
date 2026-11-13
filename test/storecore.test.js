@@ -154,5 +154,11 @@ console.log('details tests passed');
   const loc = { pickup: true, delivery: true, price: 40 }, spots = SC.publicSpots(sp);
   assert.deepStrictEqual(SC.options(loc, spots, 20).map((o) => o.key), ['pickup', 'delivery', 'spot']); assert.deepStrictEqual(SC.options(loc, [], 20).map((o) => o.key), ['pickup', 'delivery']);
   const items = [{ price: 100, sale: 0 }]; const tt = SC.totals(items, loc, 'spot', spots, 20); assert.strictEqual(tt.total, 120); assert.ok(tt.valid);
+  // free delivery for regulars: same person in any phone format, same place in any case; nothing else matches
+  const fl = SC.freeList([{ phone: '868 555 1234', free: { on: true, places: ['Arima'] } }, { phone: '555 0000', free: { on: false, places: ['Arima'] } }]);
+  assert.strictEqual(fl.length, 1); assert.ok(!JSON.stringify(fl).includes('5551234'));
+  assert.ok(SC.isFree(fl, '1-868-555-1234', ' arima ')); assert.ok(SC.isFree(fl, '5551234', 'ARIMA'));
+  assert.ok(!SC.isFree(fl, '555 1235', 'Arima')); assert.ok(!SC.isFree(fl, '555 1234', 'Couva')); assert.ok(!SC.isFree(fl, '', 'Arima'));
+  assert.ok(!SC.validPhone('1111111') && !SC.validPhone('868 888 8888') && SC.validPhone('555 1234'));
   console.log('delivery area tests passed');
 })();

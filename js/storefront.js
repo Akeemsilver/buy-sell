@@ -60,7 +60,7 @@
   }
 
   // What the store page's top document holds (shared by the publish and by the "needs publishing" check).
-  const headOf = (c) => ({ open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, showPrices: c.showPrices !== false, logo: A.state().settings.bizLogo || '', color: root.Theme ? Theme.brand() : '#741b47', locations: SC.publicLocs(c), spots: SC.publicSpots(c), spotPrice: c.spotPrice });
+  const headOf = (c) => ({ open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, showPrices: c.showPrices !== false, logo: A.state().settings.bizLogo || '', color: root.Theme ? Theme.brand() : '#741b47', locations: SC.publicLocs(c), spots: SC.publicSpots(c), spotPrice: c.spotPrice, free: SC.freeList(A.state().people) });
   // Is something waiting to be published? True after a failed publish, or when what is online differs from what the app holds and no automatic publish is on its way (offline, for example).
   function needsPublish() {
     try {

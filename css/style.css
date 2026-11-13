@@ -1358,3 +1358,6 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .qe .qbig{position:relative;touch-action:pan-y}.qe .qbig .qsw{position:absolute;top:50%;margin-top:-19px;width:38px;height:38px;border:0;border-radius:50%;background:rgba(70,70,70,.85);color:#fff;font-size:22px;line-height:1;padding:0 0 2px;min-height:0;box-shadow:none;z-index:2;display:grid;place-items:center}.qe .qbig .qsw.l{left:6px}.qe .qbig .qsw.r{right:6px}
 .fullbar .nx.qcount{display:flex;align-items:center;margin-left:auto;padding-right:8px}.fullbar .nx.qcount .c{font-weight:800;white-space:nowrap}
 .qe .qgo button{min-height:46px;font-size:15px}
+/* Customer page card: no glow or blur, the same plum gradient as the Home banner */
+.cpage .cp-hero{background:linear-gradient(135deg,var(--brand2),var(--bar));box-shadow:none}
+.cpage .cp-hero .pill{background:rgba(255,255,255,.2);backdrop-filter:none;-webkit-backdrop-filter:none}

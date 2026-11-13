@@ -764,7 +764,7 @@
     const p = c.p; if (!p || !peopleOn) return '';
     const nicks = p.nicks.map((n) => `<span class="tag">${esc(n)}<button type="button" class="tx" data-act="pf-nick-del" data-id="${p.id}" data-n="${esc(n)}" aria-label="${t('pf.dropNick')}">✕</button></span>`).join('');
     const prev = p.prev.map((e) => `<div class="row"><span>${esc(e.phone)}<small>${e.until ? t('pf.until', { d: esc(dayMon(new Date(e.until))) }) : ''}${e.note ? ' · ' + esc(e.note) : ''}</small></span><span class="tag warn">${t('pf.old')}</span></div>`).join('');
-    return `<div class="card pfc"><div class="row"><span>📞 ${p.phone ? `<b>${esc(p.phone)}</b> <small>(${t('pf.main')})</small>` : `<span class="bad">${t('pf.noNumber')}</span>`}${p.shared ? ` <span class="tag">${t('pp.shared')}</span>` : ''}</span><button type="button" class="chip" data-act="pf-number" data-id="${p.id}">${t('pf.setNumber')}</button></div>
+    return `<div class="pfbox"><div class="row"><span>📞 ${p.phone ? `<b>${esc(p.phone)}</b> <small>(${t('pf.main')})</small>` : `<span class="bad">${t('pf.noNumber')}</span>`}${p.shared ? ` <span class="tag">${t('pp.shared')}</span>` : ''}</span><button type="button" class="chip" data-act="pf-number" data-id="${p.id}">${t('pf.setNumber')}</button></div>
       <div class="row"><span>${t('pf.also')}<br>${nicks || '<small>—</small>'}</span><button type="button" class="chip" data-act="pf-nick-add" data-id="${p.id}">＋ ${t('pf.addNick')}</button></div>
       ${prev ? `<div class="row"><b>${t('pf.before')}</b></div>${prev}` : ''}
       <div class="pfb"><button type="button" class="btn" data-act="split-open" data-id="${p.id}">${t('pf.split')}</button><button type="button" class="btn" data-act="merge-open" data-id="${p.id}">${t('pf.merge')}</button></div></div>`;

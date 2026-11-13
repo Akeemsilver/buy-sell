@@ -1393,3 +1393,5 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .pkadd{display:block;width:100%;margin:6px 0 4px;padding:10px;border:1.5px dashed var(--brand);border-radius:12px;background:none;color:var(--brand);font-weight:700;font-size:13.5px}
 .rtag{display:inline-block;background:#fdeaea;color:#8a2a2a;border-radius:6px;font-size:10.5px;font-weight:800;padding:1px 6px}:root[data-theme=dark] .rtag{background:#4a2327;color:#f3b5b5}
 .pkc .chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}#sl-bands{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+
+.pubbtn.flash{animation:pbfl 1s ease 2}@keyframes pbfl{50%{box-shadow:0 0 0 6px rgba(224,103,159,.45)}}

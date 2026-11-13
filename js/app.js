@@ -421,6 +421,7 @@
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
     if (!state.settings.bizLogo && state.settings.businessName && state.settings.setupDone && !pref('logoNudgeOff', false)) rows.push(need('🖼️', 'var(--infobg)', t('hm.logoTitle'), t('hm.logoSub'), '+', 'logo-go', false));   // goes away once a logo is added (or once the page has been opened)
+    if (window.Store && Store.needsPublish && Store.needsPublish()) rows.unshift(need('📤', 'var(--warnbg)', t('hm.pubTitle'), t('hm.pubSub'), '!', 'goto-publish', true));
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-nopr', false));
     const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
     const batches = L.filterBatches(state, flt).slice().sort((a, b) => b.num - a.num).slice(0, 3);
@@ -2472,6 +2473,7 @@
       if (c.id && !c.batches.includes(b.id)) { const hid = mine.filter((i) => i.status === 'Available' && String(i.desc || '').trim() && Number(i.price) > 0).length; if (hid) add({ key: 'nis:' + b.id + ':' + hid, grp: 'attn', ic: '🏪', title: t('notif.notIn', { b: bl(b.id) }), sub: tn('notif.hidden', hid), go: ['stock', b.id, 'All'] }); }
       if (bStatus(b) === 'In Transit') { const days = Math.floor((now - new Date(b.datePurchased).getTime()) / DAY); if (days >= 30) add({ key: 'transit:' + b.id, grp: 'remind', ic: '📦', title: t('notif.transit', { b: bl(b.id), n: days }), sub: t('notif.transitSub'), go: ['batch', b.id] }); }
     });
+    if (c.id && window.Store && Store.needsPublish && Store.needsPublish()) add({ key: 'needpub', grp: 'attn', ic: '📤', always: true, title: t('hm.pubTitle'), sub: t('hm.pubSub'), go: ['goto-publish', ''] });
     if (c.id && window.Store) { if (Store.info().error) add({ key: 'storeerr', grp: 'attn', ic: '⚠️', title: t('notif.storeErr'), sub: t('notif.storeErrSub'), go: ['store-open', ''] }); if (!c.open) add({ key: 'storeclosed', grp: 'attn', ic: '🔒', title: t('notif.storeClosed'), sub: t('notif.storeClosedSub'), go: ['store-open', ''] }); }
     // Only invoices that are still current count: an older invoice that was replaced by an updated one (or returned) is cleared by it.
     const owes = new Map(); state.invoices.forEach((v) => { if (v.updatedBy || v.void || !(Number(v.balance) > 0.004)) return; let root = v, g = 0; while (root.ref && g++ < 50) { const prev = state.invoices.find((x) => x.no === root.ref); if (!prev) break; root = prev; }
@@ -3142,6 +3144,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'qe-next': return quickNext(id, !!t_.dataset.skip);
       case 'open-stock': stockBatch = id; stockFilter = 'All'; closeSheet(); go({ tab: 'stock', moreView: null }); return render();
       case 'quick-sale': return sheetQuickSale();
+      case 'goto-publish': if (!$('#sheet').hidden) closeSheet(); go({ tab: 'sell', moreView: null }); render(); return requestAnimationFrame(() => { const b = document.querySelector('.pubbtn'); if (b) { b.scrollIntoView({ block: 'center' }); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 2500); } });
       case 'goto-stock': go({ tab: 'stock', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'grp-toggle': grpOpen.has(id) ? grpOpen.delete(id) : grpOpen.add(id); return render();
       case 'sel-all': { state.items.filter((i) => i.batchId === stockBatch && !L.isLocked(i)).forEach((i) => selected.add(i.id)); return render(); }

@@ -643,7 +643,8 @@
       });
     });
     hidden.forEach((h) => s.items.push({
-      id: String(h[1]), batchId: h[0], store: h[3] || '', desc: h[4] || '', cost: num(h[5]), sold: num(h[11]),
+      // "Sold For" is the final price only once the item is Owing or Paid; on an item still In Transit or Available it is the asking price
+      id: String(h[1]), batchId: h[0], store: h[3] || '', desc: h[4] || '', cost: num(h[5]), price: num(h[11]), sold: /^(Owing|Paid)$/.test(String(h[13] || '')) ? num(h[11]) : 0,
       status: h[13] || 'In Transit', customer: String(h[14] || h[15] || '').trim().replace(/^-$/, ''),
       delivery: num(h[16]), invoice: h[18] || '',
     }));
@@ -657,6 +658,7 @@
       });
     });
     s.invoices.forEach((v) => { if (v.updatedBy) { const n = s.invoices.find((x) => x.no === v.updatedBy); if (n) n.ref = v.no; } });
+    s.invoices.forEach((v) => { if (v.updatedBy) { v.profit = 0; v.loss = 0; } });   // the newer invoice already carries the whole result; the old one's loss would count the same cost twice
     s.invoices.forEach((v) => { // rebuild line items from the items tagged with each invoice
       const g = {};
       s.items.filter((i) => i.invoice === v.no).forEach((i) => { (g[i.desc + '|' + i.sold] = g[i.desc + '|' + i.sold] || { desc: i.desc.trim(), price: i.sold, qty: 0 }).qty++; });

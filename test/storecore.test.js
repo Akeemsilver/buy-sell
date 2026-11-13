@@ -179,5 +179,11 @@ console.log('details tests passed');
   const ren = SC.syncZonePlaces({ zones: [{ id: 'z1', name: 'Couva Town', lat: 10.42, lng: -61.45, r: 4000 }], locations: sy.locations, bands: sy.bands });
   assert.ok(ren.locations.some((l) => l.zone === 'z1' && l.name === 'Couva Town')); assert.ok(!ren.locations.some((l) => l.name === 'Valencia'));
   assert.ok(SC.publicLocs(Object.assign({}, zc, { locations: sy.locations, bands: sy.bands })).every((l) => l.name !== 'Valencia' && l.name !== 'Laventille'));
+  // high-risk spots: a flag inside a bigger zone; they are not published as areas, not free-delivery zones, and are listed with the high-risk places (off)
+  const hz = SC.normZones([{ id: 'a', name: 'Port of Spain', lat: 10.6549, lng: -61.5019, r: 3500 }, { id: 'h', name: 'Laventille (East Port of Spain)', risk: true, lat: 10.659, lng: -61.489, r: 1200 }]);
+  assert.deepStrictEqual(SC.hotAt(hz, 10.659, -61.489).map((z) => z.id), ['h']); assert.deepStrictEqual(SC.hotAt(hz, 10.6549, -61.5019), []); assert.deepStrictEqual(SC.areaZones(hz).map((z) => z.id), ['a']);
+  assert.deepStrictEqual(SC.zonesAt(SC.areaZones(hz), 10.659, -61.489).map((z) => z.id), ['a']);
+  const hs = SC.syncZonePlaces({ zones: hz, locations: [] }), hp = hs.locations.find((l) => l.zone === 'h');
+  assert.ok(hp && hp.risk && hp.off && !SC.needsPrice({}, hp)); assert.ok(SC.publicLocs({ zones: hz, locations: hs.locations, bands: hs.bands }).every((l) => !l.name.startsWith('Laventille')));
   console.log('delivery area tests passed');
 })();

@@ -20,7 +20,8 @@
       <button type="button" class="mp-cur" data-a="zm-cur" aria-label="${esc(T.here)}">◎</button>
       <div class="mp-bot zm-bot"><div class="zm-seg"><button type="button" data-a="zm-mode" data-m="circle">${esc(T.circle)}</button><button type="button" data-a="zm-mode" data-m="shape">${esc(T.shape)}</button></div>
         <input id="zm-name" class="zm-name" value="${esc(z0 ? z0.name : '')}" placeholder="${esc(T.name)}" autocomplete="off" enterkeyhint="done" aria-label="${esc(T.name)}">
-        <div id="zm-rad" class="zm-rad"><label for="zm-r">${esc(T.radius)} <b id="zm-rv"></b></label><input id="zm-r" type="range" min="0.5" max="20" step="0.5"></div>
+        <label class="zm-risk"><input type="checkbox" id="zm-risk" ${z0 && z0.risk ? 'checked' : (o.risk && !z0 ? 'checked' : '')}><span>⚠️ ${esc(T.risk)}</span></label>
+        <div id="zm-rad" class="zm-rad"><label for="zm-r">${esc(T.radius)} <b id="zm-rv"></b></label><input id="zm-r" type="range" min="0.1" max="20" step="0.1"></div>
         <div id="zm-corners" class="zm-corners" hidden><button type="button" class="btn alt" data-a="zm-add">${esc(T.addCorner)}</button><button type="button" class="btn alt" data-a="zm-undo">${esc(T.undo)}</button><small id="zm-cn"></small></div>
         <button type="button" class="big-btn" data-a="zm-ok">${esc(T.save)}</button>
         <div class="zm-row">${z0 ? `<button type="button" class="mp-cancel zm-del" data-a="zm-del">${esc(T.del)}</button>` : ''}<button type="button" class="mp-cancel" data-a="zm-cancel">${esc(T.cancel)}</button></div></div>`;
@@ -28,8 +29,8 @@
     const start = z0 ? (z0.poly ? [z0.lat, z0.lng] : [z0.lat, z0.lng]) : [10.5, -61.3], map = L.map('mpm', { zoomControl: false, attributionControl: true }).setView(start, z0 ? (z0.poly ? 12 : 12) : 9);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
     const others = (o.zones || []).filter((z) => !z0 || z.id !== z0.id);
-    others.forEach((z) => { const sh = z.poly ? L.polygon(z.poly, { color: '#741b47', weight: 1.5, dashArray: '5 5', fillOpacity: 0.05 }) : L.circle([z.lat, z.lng], { radius: z.r, color: '#741b47', weight: 1.5, dashArray: '5 5', fillOpacity: 0.05 }); sh.bindTooltip(esc(z.name), { permanent: map.getZoom() > 9, direction: 'center', className: 'zm-tip' }).addTo(map); });
-    cur = { map, mode: z0 && z0.poly ? 'shape' : 'circle', poly: z0 && z0.poly ? z0.poly.map((q) => q.slice()) : [], r: z0 && !z0.poly ? z0.r / 1000 : 4, layer: null };
+    others.forEach((z) => { const col = z.risk ? '#c0392b' : '#741b47', st = { color: col, weight: z.risk ? 2 : 1.5, dashArray: z.risk ? null : '5 5', fillOpacity: z.risk ? 0.18 : 0.05 }, sh = z.poly ? L.polygon(z.poly, st) : L.circle([z.lat, z.lng], Object.assign({ radius: z.r }, st)); sh.bindTooltip(esc(z.name), { permanent: map.getZoom() > 9, direction: 'center', className: 'zm-tip' }).addTo(map); });
+    cur = { map, mode: z0 && z0.poly ? 'shape' : 'circle', poly: z0 && z0.poly ? z0.poly.map((q) => q.slice()) : [], r: z0 && !z0.poly ? z0.r / 1000 : (o.risk ? 1 : 4), layer: null };
     const q = (id) => document.getElementById(id);
     // the map fills what is above the bottom panel, and the pin sits in the middle of that part (so the pin is exactly the map's centre)
     const fit = () => { const h = w.querySelector('.zm-bot').offsetHeight; document.getElementById('mpm').style.bottom = h + 'px'; const mid = 'calc((100% - ' + h + 'px) / 2)'; q('zm-pin').style.top = mid; w.querySelector('.mp-dot').style.top = mid; q('zm-hint').style.top = 'calc((100% - ' + h + 'px) / 2 - 80px)'; map.invalidateSize(); };
@@ -54,8 +55,9 @@
       else if (a === 'zm-ok') {
         const name = q('zm-name').value.trim(); if (!name) { q('zm-name').focus(); return; }
         const id = z0 ? z0.id : undefined; let z;
-        if (cur.mode === 'circle') { const c = map.getCenter(); z = { id, name, lat: Math.round(c.lat * 1e5) / 1e5, lng: Math.round(c.lng * 1e5) / 1e5, r: Math.round(cur.r * 1000) }; }
-        else { if (cur.poly.length < 3) { q('zm-hint').textContent = T.need; return; } z = { id, name, poly: cur.poly.slice() }; }
+        const risk = !!q('zm-risk').checked;
+        if (cur.mode === 'circle') { const c = map.getCenter(); z = { id, name, risk, lat: Math.round(c.lat * 1e5) / 1e5, lng: Math.round(c.lng * 1e5) / 1e5, r: Math.round(cur.r * 1000) }; }
+        else { if (cur.poly.length < 3) { q('zm-hint').textContent = T.need; return; } z = { id, name, risk, poly: cur.poly.slice() }; }
         close(); if (o.onSave) o.onSave(SC.normZones([z])[0] || z);
       }
     });

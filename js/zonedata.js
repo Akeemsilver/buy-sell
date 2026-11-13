@@ -12,7 +12,13 @@
     ['Penal', 10.1667, -61.4667, 4500], ['Debe', 10.1700, -61.4500, 3000], ['Siparia', 10.1333, -61.5000, 4500], ['Fyzabad', 10.1700, -61.5400, 3500], ['La Brea', 10.2500, -61.6200, 3500],
     ['Point Fortin', 10.1833, -61.6833, 5000], ['Cedros', 10.0900, -61.8600, 5000], ['Tabaquite', 10.4000, -61.2800, 4500], ['Scarborough (Tobago)', 11.1800, -60.7400, 5000], ['Crown Point (Tobago)', 11.1500, -60.8300, 4000]
   ];
+  // High-risk spots inside the bigger zones (centre and radius are approximate; the seller checks and edits them on the map).
+  const H = [
+    ['Laventille (East Port of Spain)', 10.6590, -61.4890, 1200], ['Beetham Gardens (East Port of Spain)', 10.6680, -61.4950, 900], ['Sea Lots (East Port of Spain)', 10.6480, -61.4930, 700], ['East Dry River (Port of Spain)', 10.6570, -61.5010, 600],
+    ['Gonzales (East Port of Spain)', 10.6620, -61.4930, 700], ['Morvant centre', 10.6760, -61.4600, 1100], ['Cocorite', 10.6700, -61.5450, 1000], ['Tunapuna North (Fairley St, Maingot Rd)', 10.6590, -61.3810, 700],
+    ['Diego Martin: La Puerta', 10.7330, -61.5650, 800], ['Diego Martin: River Estate', 10.7250, -61.5560, 800], ['Enterprise (Chaguanas)', 10.5290, -61.4150, 1300]
+  ];
   const rid = () => Math.random().toString(36).slice(2, 8);
-  root.ZoneData = { starter: () => Z.map(([name, lat, lng, r]) => ({ id: rid(), name, lat, lng, r })) };
+  root.ZoneData = { starter: () => Z.map(([name, lat, lng, r]) => ({ id: rid(), name, lat, lng, r })), hot: () => H.map(([name, lat, lng, r]) => ({ id: rid(), name, lat, lng, r, risk: true })) };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.ZoneData;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -797,7 +797,8 @@
   const placeNorm = (v) => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const storeZones = () => SCore.normZones(storeCfg().zones);
   const zoneName = (id) => { const z = storeZones().find((x) => x.id === id); return z ? z.name : ''; };
-  const pinZones = (o) => (SCore.geo(o.lat, o.lng) ? SCore.zonesAt(storeZones(), Number(o.lat), Number(o.lng)) : []);
+  const pinZones = (o) => (SCore.geo(o.lat, o.lng) ? SCore.zonesAt(SCore.areaZones(storeZones()), Number(o.lat), Number(o.lng)) : []);
+  const pinHot = (o) => (o.option === 'delivery' && SCore.geo(o.lat, o.lng) ? SCore.hotAt(storeZones(), Number(o.lat), Number(o.lng)) : []);   // the order's pin is inside one of your high-risk spots
   // the customer whose free zones include the zone the order's pin is in (and whose main number is on the order)
   const freeProfile = (o) => { if (!peopleOn || o.option !== 'delivery') return null; const hit = pinZones(o).map((z) => z.id); return PE.mainOwners(state, o.phone).find((p) => p.free && p.free.on && (p.free.zones || []).some((id) => hit.includes(id))) || null; };
   const normalFee = (o) => { const c = storeCfg(), l = c.locations.find((x) => placeNorm(x.name) === placeNorm(o.location)); return l ? SCore.priceOf(c, l) : 0; };
@@ -809,20 +810,24 @@
   }
   function sheetFreePlaces(pid) {
     const p = PE.byId(state, pid); if (!p) return;
-    const cur = (p.free && p.free.zones) || [], zs = storeZones().slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }));
+    const cur = (p.free && p.free.zones) || [], zs = SCore.areaZones(storeZones()).slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }));
     if (!zs.length) return openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.noZones')}</p><div class="btns"><button class="btn primary" data-act="zones-open">${t('zn.open')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
     openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${zs.map((z) => `<label class="tkr"><input type="checkbox" value="${esc(z.id)}" ${cur.includes(z.id) ? 'checked' : ''}><span>${esc(z.name)}</span></label>`).join('')}</div><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
   function sheetZones() {
     enterPage('zones', '', () => sheetZones());
-    const c = storeCfg(), zs = c.zones.slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }));
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('zn.title')}</b><small>${t('zn.count', { n: zs.length })}</small></div></div><div class="ap"><p class="muted small" style="margin:6px 2px 10px">${t('zn.sub')}</p>
-      <div class="card pkc">${zs.map((z) => `<div class="pkr"><button type="button" class="pkn" data-act="zone-edit" data-id="${z.id}"><b>${esc(z.name)}</b><small>${z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') })}</small></button></div>`).join('') || `<p class="muted small">${t('zn.rowNone')}</p>`}</div>
-      <button type="button" class="pkadd" data-act="zone-add">＋ ${t('zn.add')}</button>${zs.length ? '' : `<button type="button" class="pkadd" data-act="zone-starter">🇹🇹 ${t('zn.starter')}</button><p class="muted small">${t('zn.starterSub')}</p>`}</div>`, null, true);
+    const c = storeCfg(), byName = (x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }), zs = SCore.areaZones(c.zones).slice().sort(byName), hot = c.zones.filter((z) => z.risk).sort(byName);
+    const row = (z) => `<div class="pkr"><button type="button" class="pkn" data-act="zone-edit" data-id="${z.id}"><b>${z.risk ? '⚠️ ' : ''}${esc(z.name)}</b><small>${z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') })}</small></button></div>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('zn.title')}</b><small>${t('zn.count2', { n: zs.length, h: hot.length })}</small></div></div><div class="ap"><p class="muted small" style="margin:6px 2px 10px">${t('zn.sub')}</p>
+      <div class="card pkc">${zs.map(row).join('') || `<p class="muted small">${t('zn.rowNone')}</p>`}</div>
+      <button type="button" class="pkadd" data-act="zone-add">＋ ${t('zn.add')}</button>${zs.length ? '' : `<button type="button" class="pkadd" data-act="zone-starter">🇹🇹 ${t('zn.starter')}</button><p class="muted small">${t('zn.starterSub')}</p>`}
+      <h4 class="pkh" style="margin-top:22px">${t('zn.hotTitle')} <span class="rtag">${hot.length}</span></h4><p class="muted small" style="margin:0 2px 8px">${t('zn.hotSub')}</p>
+      <div class="card pkc">${hot.map(row).join('') || `<p class="muted small">${t('zn.hotNone')}</p>`}</div>
+      <button type="button" class="pkadd" data-act="zone-add" data-risk="1">＋ ${t('zn.hotAdd')}</button>${hot.length ? '' : `<button type="button" class="pkadd" data-act="zone-starter-hot">⚠️ ${t('zn.hotStarter')}</button><p class="muted small">${t('zn.hotStarterSub')}</p>`}</div>`, null, true);
   }
-  function openZone(id) {
+  function openZone(id, risk) {
     const c = storeCfg(), z = id && id !== 'new' ? c.zones.find((x) => x.id === id) : null;
-    ZoneMap.open({ zones: c.zones, zone: z, T: { name: t('zn.name'), radius: t('zn.radius'), circle: t('zn.circle'), shape: t('zn.shape'), addCorner: t('zn.addCorner'), undo: t('zn.undo'), save: t('pp.save'), del: t('zn.del'), cancel: t('btn.cancel'), hint: t('zn.hint'), hintShape: t('zn.hintShape'), need: t('zn.need'), corners: t('zn.corners'), here: t('mp.here'), mapNoLib: t('mp.nolib') },
+    ZoneMap.open({ zones: c.zones, zone: z, risk: !!risk, T: { name: t('zn.name'), radius: t('zn.radius'), circle: t('zn.circle'), shape: t('zn.shape'), addCorner: t('zn.addCorner'), undo: t('zn.undo'), save: t('pp.save'), del: t('zn.del'), cancel: t('btn.cancel'), hint: t('zn.hint'), hintShape: t('zn.hintShape'), need: t('zn.need'), corners: t('zn.corners'), here: t('mp.here'), mapNoLib: t('mp.nolib'), risk: t('zn.riskLabel') },
       onSave: (nz) => { const list = storeCfg().zones.slice(), i = list.findIndex((x) => x.id === nz.id); if (i >= 0) list[i] = nz; else list.push(nz); storeSet({ zones: list }); toast(t('zn.saved')); if (!$('#sheet').hidden) sheetZones(); },
       onDelete: (zid) => askCard(t('zn.delAsk'), { danger: true, ok: t('zn.del') }).then((y) => { if (!y) return; storeSet({ zones: storeCfg().zones.filter((x) => x.id !== zid) }); PE.list(state).forEach((p) => { if (p.free && p.free.zones) p.free.zones = p.free.zones.filter((x) => x !== zid); }); save(); sheetZones(); }),
       onError: (m) => toast(m) });
@@ -2536,7 +2541,7 @@
     const spotRow = (x) => `<div class="pkr ${x.on ? '' : 'dim'}"><button type="button" class="pkn" data-act="spot-edit" data-id="${x.id}"><b>${esc(x.name)}</b>${x.note ? `<small>${esc(x.note)}</small>` : ''}</button>${swt('spot-on', x.id, x.on)}<button type="button" class="pkx" data-act="spot-del" data-id="${x.id}" aria-label="${t('pk.spotDel')}">✕</button></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.delivery')}</b><small>${t('pd.sub')}</small></div></div>
       <div class="pd">
-      <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.rowSub', { n: c.zones.length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
+      <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.count2', { n: SCore.areaZones(c.zones).length, h: c.zones.filter((z) => z.risk).length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
       ${c.locations.some((l) => SCore.needsPrice(c, l)) ? `<button type="button" class="hnr zrow" data-act="places-jump"><span class="hic" style="background:var(--warnbg)">💲</span><div class="t"><b>${t('pk.needsRow', { n: c.locations.filter((l) => SCore.needsPrice(c, l)).length })}</b><small>${t('pk.needsSub')}</small></div><span class="chev">↓</span></button>` : ''}
       <button type="button" class="hnr zrow" data-act="risk-jump"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${t('pk.riskRow', { n: risks.length })}</small></div><span class="chev">↓</span></button>
       ${c.bands.length ? '' : `<button type="button" class="addp towns" data-act="store-towns">🇹🇹 ${t('pk.towns')}</button><p class="lead" style="margin-top:8px">${t('pk.townsSub')}</p>`}
@@ -2890,12 +2895,13 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   // Where the pin falls in your delivery zones, whether delivery was free, and the button to charge it after all.
   const zoneCard = (o) => {
     if (o.option !== 'delivery') return '';
-    const zs = pinZones(o), has = storeZones().length > 0, pin = SCore.geo(o.lat, o.lng), fee = normalFee(o), freed = Number(o.deliveryPrice) === 0 && fee > 0, fp = freeProfile(o);
+    const zs = pinZones(o), hot = pinHot(o), has = storeZones().length > 0, pin = SCore.geo(o.lat, o.lng), fee = normalFee(o), freed = Number(o.deliveryPrice) === 0 && fee > 0, fp = freeProfile(o);
     if (!has && !freed) return '';
+    const hotWarn = hot.length ? `<p class="zwarn zhot">⚠️ ${t('zn.hotWarn', { z: esc(hot.map((z) => z.name).join(', ')) })}</p>` : '';
     const where = !pin ? t('zn.noPin') : zs.length ? t('zn.inZone', { z: esc(zs.map((z) => z.name).join(', ')) }) : t('zn.outZone');
     const warn = freed && !fp ? `<p class="zwarn">⚠️ ${t(pin ? 'zn.warnFree' : 'zn.warnNoPin')}</p>` : '';
     const btn = freed && o.status === 'new' ? `<button type="button" class="btn alt" data-act="fee-charge" data-id="${o.id}">${t('fee.btn', { fee: money(fee) })}</button>` : '';
-    return `<div class="card zcard"><div class="rw"><span class="pn" aria-hidden="true">🗺️</span><div class="t"><b>${where}</b>${freed ? `<small>🎁 ${t(fp ? 'zn.freeOk' : 'zn.freeNow')}</small>` : o.feeChanged ? `<small>${t('fee.changed')}</small>` : ''}</div></div>${warn}${btn}</div>`;
+    return `<div class="card zcard"><div class="rw"><span class="pn" aria-hidden="true">🗺️</span><div class="t"><b>${where}</b>${freed ? `<small>🎁 ${t(fp ? 'zn.freeOk' : 'zn.freeNow')}</small>` : o.feeChanged ? `<small>${t('fee.changed')}</small>` : ''}</div></div>${hotWarn}${warn}${btn}</div>`;
   };
   const kmLine = (o) => { if (o.option !== 'delivery' || !(SCore.geo(o.lat, o.lng) || o.km != null)) return ''; const km = kmNum(o); return `<div class="card kmcard"><div class="rw"><div class="t"><b>${t('km.title')}</b><small>${km == null ? t('km.measuring') : o.kmSrc === 'line' ? t('km.line2', { km: km.toFixed(1) }) : t('km.line', { km: km.toFixed(1) }) + (o.kmSrc === 'manual' ? ' · ' + t('km.manual') : '')}${km != null ? ' · ' + t('dlv.roundTrip', { km: (km * 2).toFixed(1) }) : ''}</small></div><button class="dchip" data-act="km-edit" data-id="${o.id}">✏️ ${t('km.edit')}</button></div></div>`; };
   function dlvExport() {
@@ -3078,7 +3084,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (!its.length) return toast(t('ord.noneLeft'));
     if (o.option !== 'delivery') return doConfirmOrder(o);
     const gp = orderPin(o), km = kmNum(o), place = o.spot || o.location || '';
-    openSmall(`<h3>${t('loc.title')}</h3><p><b>${esc(place)}</b>${o.spot && o.location ? '<br>' + esc(o.location) : ''}${km != null ? '<br>' + t('loc.km', { km: km.toFixed(1) }) : ''}${missing ? '<br><br>⚠️ ' + t('ord.someGone', { n: missing }) : ''}<br><br>${t('loc.ask')}</p>
+    openSmall(`<h3>${t('loc.title')}</h3><p><b>${esc(place)}</b>${o.spot && o.location ? '<br>' + esc(o.location) : ''}${km != null ? '<br>' + t('loc.km', { km: km.toFixed(1) }) : ''}${missing ? '<br><br>⚠️ ' + t('ord.someGone', { n: missing }) : ''}${pinHot(o).length ? '<br><br>⚠️ <b>' + t('zn.hotWarn', { z: esc(pinHot(o).map((z) => z.name).join(', ')) }) + '</b>' : ''}<br><br>${t('loc.ask')}</p>
       <div class="btns">${gp ? `<a class="btn navopen" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener">🧭 ${t('loc.open')}</a>` : ''}<button class="btn primary" data-act="loc-yes" data-id="${o.id}">${t('loc.yes')}</button><button class="btn rs" data-act="loc-no" data-id="${o.id}">${t('loc.no')}</button><button class="btn" data-act="close">${t('loc.later')}</button></div>`, 'card');
   }
   // Confirms the order, makes its invoice (nothing paid yet) and opens WhatsApp with the confirmation message
@@ -3555,7 +3561,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'zones-page': return sheetZones();
       case 'places-jump': { const h = document.getElementById('pk-places'); if (h) h.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       case 'risk-jump': { const h = document.getElementById('pk-risk'); if (h) { h.scrollIntoView({ block: 'start', behavior: 'smooth' }); h.classList.add('flash'); setTimeout(() => h.classList.remove('flash'), 2000); } return; }
-      case 'zone-add': case 'zone-edit': return openZone(id);
+      case 'zone-add': case 'zone-edit': return openZone(id, t_.dataset.risk === '1');
+      case 'zone-starter-hot': return askCard(t('zn.hotAsk', { n: ZoneData.hot().length })).then((y) => { if (!y) return; const c = storeCfg(), have = new Set(c.zones.map((z) => z.name.toLowerCase())); storeSet({ zones: c.zones.concat(ZoneData.hot().filter((z) => !have.has(z.name.toLowerCase()))) }); toast(t('zn.added')); sheetZones(); });
       case 'zone-starter': return askCard(t('zn.starterAsk', { n: ZoneData.starter().length })).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ zones: c.zones.concat(ZoneData.starter()) }); toast(t('zn.added')); sheetZones(); });
       case 'fee-charge': { const o = Store.orders().find((x) => x.id === id); if (!o) return; const fee = normalFee(o); return askCard(t('fee.ask', { fee: money(fee), name: esc(o.name) }), { ok: t('fee.ok') }).then((y) => { if (!y) return; Store.patch(o.id, { deliveryPrice: fee, total: Math.round((Number(o.total) + fee) * 100) / 100, feeChanged: true }).then(() => { toast(t('fee.done')); setTimeout(() => sheetOrder(o.id, true), 300); }).catch(() => toast(t('store.pubError'))); }); }
       case 'pf-free': case 'pf-free-places': case 'pf-number': case 'pf-nick-add': case 'pf-nick-del': case 'split-open': case 'merge-open': case 'merge-go': case 'split-go': return peopleAct(t_.dataset.act, id, t_);

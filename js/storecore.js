@@ -89,7 +89,7 @@
 
   const digits = (s) => String(s || '').replace(/\D/g, '');
   const validName = (s) => { const n = String(s || '').trim(); return n.length >= 2 && n.length <= 60; };
-  const validPhone = (s) => { const d = digits(s); return d.length >= 7 && d.length <= 15 && String(s).length <= 25; };
+  const validPhone = (s) => { const d = digits(s); return d.length >= 7 && d.length <= 15 && String(s).length <= 25 && !/^(\d)\1+$/.test(d.replace(/^(1868|868)(?=\d{7}$)/, '')); };
   // 'name' | 'phone' | 'items' | 'location' | '' (fine): the same checks the published rules make.
   const checkOrder = (o) => (!validName(o.name) ? 'name' : !validPhone(o.phone) ? 'phone' : !o.items || !o.items.length || o.items.length > 30 ? 'items' : !o.location || !['pickup', 'delivery'].includes(o.option) ? 'location' : '');
 

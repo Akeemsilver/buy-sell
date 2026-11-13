@@ -59,3 +59,15 @@ const cloudOf = (s) => S.docs(s);                      // what a cloud holding t
   assert.strictEqual(S.hasData(s), true); assert.strictEqual(S.hasData(S.clearData(s)), false);
 }
 console.log('sync tests passed');
+
+// customers as people travel as one more small document, and only when they exist
+(() => {
+  const S2 = require('../js/sync.js'), assert2 = require('assert');
+  const s = { settings: {}, batches: [], items: [], invoices: [], customers: ['Ann'] };
+  assert2.ok(!('people' in S2.docs(s).meta), 'no people, no document');
+  s.people = [{ id: 'a', key: 'Ann', name: 'Ann', phone: '868 392 3773', nicks: ['Annie'], prev: [] }]; s.decisions = [{ id: 'd1', text: 'x' }]; s.peopleV = 1;
+  assert2.ok('people' in S2.docs(s).meta);
+  const t = { settings: {}, batches: [], items: [], invoices: [], customers: [] }; S2.apply(t, 'meta', 'people', S2.docs(s).meta.people);
+  assert2.strictEqual(t.people[0].phone, '868 392 3773'); assert2.strictEqual(t.decisions.length, 1); assert2.strictEqual(t.peopleV, 1);
+  console.log('sync people tests passed');
+})();

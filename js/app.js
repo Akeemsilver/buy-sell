@@ -2711,7 +2711,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   }
   function OrderLog() { return `<div class="sth"><div class="ordov">${ordOverview()}</div>${ordHead()}<div class="ordp" data-lim="${ordLimit}">${ordPanel(ordLimit)}</div></div>`; }
   // The invoice an order was turned into (saved on the order; older orders: the invoice their sold items are on).
-  const orderInvoice = (o) => o.invoice || ((o.items || []).map((i) => state.items.find((x) => x.id === i.id)).find((it) => it && it.invoice && L.isSold(it)) || {}).invoice || '';
+  // An order's saved invoice number only counts when that invoice was made after the order arrived. After a reset or an import the
+  // numbers start again, and an old number could otherwise point at someone else's invoice.
+  const invBelongs = (o, no) => { const inv = state.invoices.find((v) => v.no === no); if (!inv) return false; const at = tsAt(o.createdAt), d = new Date(inv.date); return !(at && !isNaN(d) && d.getTime() < at.getTime() - 3600000); };
+  const orderLinkLost = (o) => !!(o.invoice && !invBelongs(o, o.invoice));
+  const orderInvoice = (o) => (o.invoice && invBelongs(o, o.invoice) ? o.invoice : '') || ((o.items || []).map((i) => state.items.find((x) => x.id === i.id)).find((it) => it && it.invoice && L.isSold(it)) || {}).invoice || '';
   Object.defineProperty(L, 'orderHold', { get: () => new Set(Store.reserved()), configurable: true });   // items inside unanswered orders are locked like sold ones
   let pendingOrder = null, custLock = false;   // the order whose invoice page is open, and whether its customer card is locked in
   // The customer on the invoice page of an order: one card instead of the search list.
@@ -2781,7 +2785,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const owingNow = pay && pay.owing > 0 ? pay.owing : 0;
     const lat = latestInvOf(o), canAct = stage !== 'new' && o.status !== 'declined', sentLatest = lat && o.invSentNo === lat.no;
     const ckRow = (ok, title, sub, btn, attrs) => `<div class="r ${ok ? 'ok' : 'todo'}${attrs ? ' tap' : ''}" ${attrs || ''}><i>${ok ? '✓' : '○'}</i><span class="tx">${title}${sub ? `<small>${sub}</small>` : ''}</span>${btn || ''}</div>`;
-    const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="cklist">${ckRow(true, t('ck.confirmed'), tsAt(o.confirmedAt) ? fullWhen(tsAt(o.confirmedAt)) : '')}${lat ? ckRow(true, t('ck.inv', { no: lat.no }), pay ? (pay.owing > 0 ? (pay.paid > 0 ? t('ck.paidOwing', { paid: money(pay.paid), owing: money(pay.owing) }) : t('ck.owingOnly', { owing: money(pay.owing) })) : t('ck.paidFull')) : '', `<button type="button" class="ckview" data-act="view-inv" data-id="${lat.no}">${t('ck.view')} ›</button>`, `role="button" tabindex="0" data-act="view-inv" data-id="${lat.no}"`) : ''}${lat ? (sentLatest ? ckRow(true, t('ck.sent'), o.invSentAt ? fullWhen(new Date(o.invSentAt)) : '') : ckRow(false, t(o.invSentNo ? 'ck.updNotSent' : 'ck.notSent'), o.invSentNo ? t('ck.sentEarlier', { no: o.invSentNo }) : '', canAct ? `<span class="sbtns"><button class="sendbtn ${o.invSentNo ? 'soft' : ''}" data-act="ord-send-inv" data-id="${o.id}">${t(o.invSentNo ? 'ck.sendUpd' : 'ck.send')}</button><button class="alink" data-act="ord-sent-mark" data-id="${o.id}">${t('ck.already')}</button></span>` : '')) : ''}</div>`;
+    const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="cklist">${ckRow(true, t('ck.confirmed'), tsAt(o.confirmedAt) ? fullWhen(tsAt(o.confirmedAt)) : '')}${!lat && orderLinkLost(o) ? ckRow(false, t('ck.invLost'), t('ck.invLostSub', { no: o.invoice })) : ''}${lat ? ckRow(true, t('ck.inv', { no: lat.no }), pay ? (pay.owing > 0 ? (pay.paid > 0 ? t('ck.paidOwing', { paid: money(pay.paid), owing: money(pay.owing) }) : t('ck.owingOnly', { owing: money(pay.owing) })) : t('ck.paidFull')) : '', `<button type="button" class="ckview" data-act="view-inv" data-id="${lat.no}">${t('ck.view')} ›</button>`, `role="button" tabindex="0" data-act="view-inv" data-id="${lat.no}"`) : ''}${lat ? (sentLatest ? ckRow(true, t('ck.sent'), o.invSentAt ? fullWhen(new Date(o.invSentAt)) : '') : ckRow(false, t(o.invSentNo ? 'ck.updNotSent' : 'ck.notSent'), o.invSentNo ? t('ck.sentEarlier', { no: o.invSentNo }) : '', canAct ? `<span class="sbtns"><button class="sendbtn ${o.invSentNo ? 'soft' : ''}" data-act="ord-send-inv" data-id="${o.id}">${t(o.invSentNo ? 'ck.sendUpd' : 'ck.send')}</button><button class="alink" data-act="ord-sent-mark" data-id="${o.id}">${t('ck.already')}</button></span>` : '')) : ''}</div>`;
     const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + dlvCard(o);   // last on the page, after the items, payment and timeline
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
       <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
@@ -3411,12 +3415,14 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       <label for="reset-word">${t('reset.type')}</label><input id="reset-word" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="RESET" style="margin-bottom:12px">
       <div class="btns"><button class="btn dsolid" id="reset-go" data-act="reset-go" disabled>${t('reset.go')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card');
   }
+  // Invoice numbers start again after a reset or an import, so the orders in the cloud forget the numbers they were holding.
+  function unlinkOrders() { try { Store.orders().forEach((o) => { if (o.invoice) Store.patch(o.id, { invoice: '', invSentNo: '', invSentAt: 0 }).catch(() => {}); }); } catch (e) { /* the date check still protects them */ } }
   function resetToDefault() {
     const keep = state.settings, fresh = L.defaultState(); fresh.settings = keep;
     state = fresh; selected = new Set(); stockBatch = null; stockFilter = 'All'; itBatches = []; itQ = ''; itStat = 'all'; cuStat = 'all'; cuQ = ''; blF = { store: [], status: [], items: [] }; invQ = '';
     tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; pageStack = [];
     try { if (window.PhotoStore) PhotoStore.keys().then((ks) => Promise.all((ks || []).map(PhotoStore.del))).catch(() => {}); } catch (e) { /* photos are tidied later */ }
-    save(); toast(t('toast.cleared')); render();
+    save(); unlinkOrders(); toast(t('toast.cleared')); render();
   }
   function importXlsx(file) {
     if (state.batches.length) return askCard(t('confirm.import'), { danger: true, ok: t('btn.continue') }).then((y) => { if (y) importXlsx2(file); });
@@ -3429,7 +3435,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       ['Batch Log', 'Hidden Master Log', 'Invoice Log'].forEach((n) => { if (wb.Sheets[n]) sheets[n] = X.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }); });
       if (!sheets['Hidden Master Log'] || !sheets['Batch Log']) throw coded('notWorkbook');
       const imp = L.importWorkbook(sheets); imp.settings = state.settings;   // only the data is replaced; your settings (business, theme, store, delivery) stay
-      state = imp; selected = new Set(); stockBatch = null; tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; save();
+      state = imp; selected = new Set(); stockBatch = null; tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; save(); unlinkOrders();
       toast(t('toast.imported', { b: state.batches.length, i: state.items.length, v: state.invoices.length })); render();
     })).catch((e) => toast('⚠️ ' + errMsg(e)));
   }

@@ -366,7 +366,9 @@
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     renderTools(); syncAppbarH();
     document.body.classList.toggle('hide-amounts', hideAmounts); document.body.classList.toggle('nocosts', !can('costs'));
+    const chipX = tab === 'stock' && $('.stchips') ? $('.stchips').scrollLeft : 0;   // a tap on a filter chip keeps the row where it was scrolled
     $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, more: More }[tab]();
+    if (chipX && $('.stchips')) $('.stchips').scrollLeft = chipX;
     renderActionBar();
     syncHistory();
     showVersion();
@@ -454,7 +456,7 @@
     const chip = (act, id, label, n, extra) => `<button type="button" class="itchip${extra ? ' ' + extra : ''}${stockFilter === id ? ' on' : ''}" data-act="${act}" data-id="${esc(id)}">${label}${n !== undefined ? ` <b>${n}</b>` : ''}</button>`;
     const chips = chip('pick-filter', 'All', t('filter.all'), all.length) + STATUSES.map((x) => chip('pick-filter', x, x === 'In Transit' ? t('it.arriving') : stLabel(x), cnt(x))).join('') + (noPr.length || nop ? chip('pick-filter', 'NoPrice', t('stock.noPrice'), noPr.length, 'warn') : '') + (ps.needCheck ? chip('pick-filter', 'NeedCheck', t('filter.needCheck'), ps.needCheck) : '');
     const bar = `<div class="itbar"><button type="button" class="itsel${nop ? '' : ' on'}" data-act="batch-pick"><span class="v">${t('it.batch')}<small>${nop ? t('it.allBatches') : esc(blShort(b.id).replace(/^\D+\s*/, ''))}</small></span><span class="dd">▾</span></button><button type="button" class="itgb" data-act="new-batch">${t('btn.newBatch')}</button></div>`;
-    const hero = nop ? `<div class="blhero i3"><div><small>${t('it.items')}</small><b>${items.length}</b></div><div class="mid"><small>${t('stock.needPrice')}</small><b>${items.length}</b></div><div class="rt"><small>${t('hm.batchesN')}</small><b>${new Set(items.map((i) => i.batchId)).size}</b></div></div>`
+    const hero = nop ? `<div class="blhero i3 sthero"><div><small>${t('it.items')}</small><b>${items.length}</b></div><div class="mid"><small>${t('stock.needPrice')}</small><b>${items.length}</b></div><div class="rt"><small>${t('hm.batchesN')}</small><b>${new Set(items.map((i) => i.batchId)).size}</b></div><div class="sub">${t('stock.noPriceSub')}</div></div>`
       : `<div class="blhero i3 sthero" role="button" tabindex="0" data-act="batch-info" data-id="${b.id}"><div><small>${t('stock.invested2')}</small><b>${money(st.investment)}</b></div><div class="mid costonly"><small>${t('stock.profitAll')}</small><b>${money(st.profit)}</b></div><div class="rt"><small>${t('it.items')}</small><b>${all.length}</b></div><div class="sub">${stLabel(bStatus(b))} · ${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</div></div>`;
     const photo = nop ? '' : `<div class="phrow"><div class="grow"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button><button class="chip" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.short')}</button></div>`;
     const notin = nop ? '' : (() => { const sc = storeCfg(); return sc.id && !sc.batches.includes(b.id) && all.some((i) => i.status === 'Available' && String(i.desc || '').trim()) ? `<div class="row notin" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow"><b>${t('store.notIn')}</b><small>${t('store.notInSub')}</small></div><button class="chip on" data-act="store-addbatch" data-id="${b.id}">${t('store.addBatch')}</button></div>` : ''; })();
@@ -670,7 +672,7 @@
     const tr = `<div class="itr tt"><span class="itf"><b>${t('bl.total')}</b></span>${cols.slice(1).map(([k]) => `<span class="n">${tot[k] !== undefined && tot[k] !== '' && tot[k] !== 0 ? `<b>${tot[k]}</b>` : ''}</span>`).join('')}</div>`;
     return `${head}<div class="itbox"><div class="itwrap"><div class="itt" style="--cols:${cuTab === 'money' ? '140px repeat(' + (cols.length - 1) + ',112px)' : '140px 120px 120px 150px 120px'}"><div class="itr h">${hd}</div>${rows}${tr}</div></div></div>`;
   }
-  function cuRefresh() { const m = $('#cumain'); if (!m) return; const w = m.querySelector('.itwrap'), sx = w ? w.scrollLeft : 0; m.innerHTML = cuMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; renderTools(); }
+  function cuRefresh() { const m = $('#cumain'); if (!m) return; const w = m.querySelector('.itwrap'), sx = w ? w.scrollLeft : 0, cx = m.querySelector('.itchips') ? m.querySelector('.itchips').scrollLeft : 0; m.innerHTML = cuMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; const c2 = m.querySelector('.itchips'); if (c2 && cx) c2.scrollLeft = cx; renderTools(); }
   function People() {
     if (!L.customerStats(state).length) return `<div class="empty"><b>${t('people.none')}</b>${t('people.noneText')}</div>`;
     return `<div class="oqbar"><span aria-hidden="true">🔍</span><input class="cq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('people.search'))}" aria-label="${esc(t('people.search'))}" value="${esc(cuQ)}"></div><div id="cumain">${cuMain()}</div>`;
@@ -909,7 +911,7 @@
     sm.textContent = sm.dataset.full; const n = Number(sm.dataset.n) || 0;
     if (n > 1 && sm.scrollWidth > sm.clientWidth + 1) sm.textContent = t('it.nBatches', { n });
   }
-  function itRefresh() { const m = $('#itmain'); if (!m) return; const wrap = m.querySelector('.itwrap'), sx = wrap ? wrap.scrollLeft : 0; m.innerHTML = itMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; PUI.hydrate(); itFitBar(); renderTools(); }
+  function itRefresh() { const m = $('#itmain'); if (!m) return; const wrap = m.querySelector('.itwrap'), sx = wrap ? wrap.scrollLeft : 0, cx = m.querySelector('.itchips') ? m.querySelector('.itchips').scrollLeft : 0; m.innerHTML = itMain(); const w2 = m.querySelector('.itwrap'); if (w2 && sx) w2.scrollLeft = sx; const c2 = m.querySelector('.itchips'); if (c2 && cx) c2.scrollLeft = cx; PUI.hydrate(); itFitBar(); renderTools(); }
   let itBQ = '';   // search inside the Choose batches pop-up
   const itBMatches = () => {
     const q = itBQ.trim().toLowerCase(), all = state.batches.slice().sort((a, b) => b.num - a.num);

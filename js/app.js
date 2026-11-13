@@ -2898,7 +2898,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const zs = pinZones(o), hot = pinHot(o), has = storeZones().length > 0, pin = SCore.geo(o.lat, o.lng), fee = normalFee(o), freed = Number(o.deliveryPrice) === 0 && fee > 0, fp = freeProfile(o);
     if (!has && !freed) return '';
     const hotWarn = hot.length ? `<p class="zwarn zhot">⚠️ ${t('zn.hotWarn', { z: esc(hot.map((z) => z.name).join(', ')) })}</p>` : '';
-    const where = !pin ? t('zn.noPin') : zs.length ? t('zn.inZone', { z: esc(zs.map((z) => z.name).join(', ')) }) : t('zn.outZone');
+    const nz = pin && !zs.length ? SCore.nearestZone(SCore.areaZones(storeZones()), Number(o.lat), Number(o.lng)) : null, where = !pin ? t('zn.noPin') : zs.length ? t('zn.inZone', { z: esc(zs.map((z) => z.name).join(', ')) }) : t('zn.outZone') + (nz ? ' · ' + t('zn.nearest', { z: esc(nz.zone.name), km: (nz.m / 1000).toFixed(1) }) : '');
     const warn = freed && !fp ? `<p class="zwarn">⚠️ ${t(pin ? 'zn.warnFree' : 'zn.warnNoPin')}</p>` : '';
     const btn = freed && o.status === 'new' ? `<button type="button" class="btn alt" data-act="fee-charge" data-id="${o.id}">${t('fee.btn', { fee: money(fee) })}</button>` : '';
     return `<div class="card zcard"><div class="rw"><span class="pn" aria-hidden="true">🗺️</span><div class="t"><b>${where}</b>${freed ? `<small>🎁 ${t(fp ? 'zn.freeOk' : 'zn.freeNow')}</small>` : o.feeChanged ? `<small>${t('fee.changed')}</small>` : ''}</div></div>${hotWarn}${warn}${btn}</div>`;

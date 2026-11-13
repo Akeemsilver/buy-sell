@@ -24,6 +24,8 @@
   const zoneHit = (z, lat, lng, margin) => { const m = margin == null ? 200 : margin; if (!z || !Number.isFinite(lat) || !Number.isFinite(lng)) return false; if (z.poly) return inPoly(lat, lng, z.poly) || z.poly.some((a, i) => segDist(lat, lng, a, z.poly[(i + 1) % z.poly.length]) <= m); return metres(lat, lng, z.lat, z.lng) <= z.r + m; };
   const zonesAt = (zones, lat, lng, margin) => (Array.isArray(zones) ? zones : []).filter((z) => zoneHit(z, Number(lat), Number(lng), margin));
   const hotAt = (zones, lat, lng) => zonesAt((Array.isArray(zones) ? zones : []).filter((z) => z.risk), lat, lng, 0);   // high-risk spots hold exactly, no GPS margin: a flag, not a free-delivery decision
+  // For a pin outside every zone: the closest zone and how far its edge is (metres), so a gap between circles still tells you where the order is.
+  const nearestZone = (zones, lat, lng) => { let best = null; (Array.isArray(zones) ? zones : []).forEach((z) => { const d = z.poly ? Math.min(...z.poly.map((a, i) => segDist(lat, lng, a, z.poly[(i + 1) % z.poly.length]))) : Math.max(0, metres(lat, lng, z.lat, z.lng) - z.r); if (!best || d < best.m) best = { zone: z, m: Math.round(d) }; }); return best; };
   const areaZones = (zones) => (Array.isArray(zones) ? zones : []).filter((z) => !z.risk);
   const norm = (c) => {
     c = c || {};
@@ -212,6 +214,6 @@
   const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

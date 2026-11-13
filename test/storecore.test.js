@@ -185,5 +185,12 @@ console.log('details tests passed');
   assert.deepStrictEqual(SC.zonesAt(SC.areaZones(hz), 10.659, -61.489).map((z) => z.id), ['a']);
   const hs = SC.syncZonePlaces({ zones: hz, locations: [] }), hp = hs.locations.find((l) => l.zone === 'h');
   assert.ok(hp && hp.risk && hp.off && !SC.needsPrice({}, hp)); assert.ok(SC.publicLocs({ zones: hz, locations: hs.locations, bands: hs.bands }).every((l) => !l.name.startsWith('Laventille')));
+  // the starter spots sit inside the starter zones (a spot never floats outside every zone), and all starter points are in Trinidad and Tobago
+  const ZD = require('../js/zonedata.js'), baseZ = SC.normZones(ZD.starter()), hotZ = SC.normZones(ZD.hot());
+  assert.ok(baseZ.length >= 60); assert.strictEqual(new Set(baseZ.map((z) => z.name)).size, baseZ.length);
+  baseZ.concat(hotZ).forEach((z) => { assert.ok(z.lat > 9.9 && z.lat < 11.4 && z.lng > -62 && z.lng < -60.4, 'inside T&T: ' + z.name); });
+  hotZ.forEach((h) => assert.ok(SC.zonesAt(baseZ, h.lat, h.lng, 0).length > 0, 'spot inside a zone: ' + h.name));
+  hotZ.forEach((h) => { for (let a = 0; a < 360; a += 45) { const dl = (h.r / 111320) * Math.cos(a * Math.PI / 180), dn = (h.r / (111320 * Math.cos(h.lat * Math.PI / 180))) * Math.sin(a * Math.PI / 180); assert.ok(SC.zonesAt(baseZ, h.lat + dl, h.lng + dn, 0).length > 0, 'spot edge covered: ' + h.name); } });
+  const nzr = SC.nearestZone(baseZ, 10.455, -61.30); assert.ok(nzr && nzr.zone && nzr.m > 0); assert.strictEqual(SC.nearestZone(baseZ, 10.5167, -61.4112).m, 0);
   console.log('delivery area tests passed');
 })();

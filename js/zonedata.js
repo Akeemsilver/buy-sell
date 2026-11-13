@@ -10,12 +10,16 @@
     ['Couva', 10.4200, -61.4500, 4500], ['Freeport', 10.4500, -61.4170, 2500], ['Claxton Bay', 10.3700, -61.4600, 3000], ['Pointe-a-Pierre', 10.3200, -61.4700, 3000], ['San Fernando', 10.2800, -61.4670, 5000],
     ['Marabella', 10.2900, -61.4500, 2500], ['Gasparillo', 10.3100, -61.4400, 3000], ['Princes Town', 10.2667, -61.3833, 4500], ['Rio Claro', 10.3000, -61.1800, 5000], ['Mayaro', 10.2833, -61.0167, 5000],
     ['Penal', 10.1667, -61.4667, 4500], ['Debe', 10.1700, -61.4500, 3000], ['Siparia', 10.1333, -61.5000, 4500], ['Fyzabad', 10.1700, -61.5400, 3500], ['La Brea', 10.2500, -61.6200, 3500],
-    ['Point Fortin', 10.1833, -61.6833, 5000], ['Cedros', 10.0900, -61.8600, 5000], ['Tabaquite', 10.4000, -61.2800, 4500], ['Scarborough (Tobago)', 11.1800, -60.7400, 5000], ['Crown Point (Tobago)', 11.1500, -60.8300, 4000]
+    ['Point Fortin', 10.1833, -61.6833, 5000], ['Cedros', 10.0900, -61.8600, 5000], ['Tabaquite', 10.4000, -61.2800, 4500], ['Scarborough (Tobago)', 11.1800, -60.7400, 5000], ['Crown Point (Tobago)', 11.1500, -60.8300, 4000],
+    ['Cocorite', 10.6700, -61.5450, 2200], ['St. Joseph', 10.6420, -61.4220, 2500], ['Maracas Bay', 10.7500, -61.4200, 3000], ['Lopinot', 10.6900, -61.3200, 3000], ['Blanchisseuse', 10.7800, -61.3000, 5000],
+    ['Matelot', 10.8000, -61.1000, 5000], ['Manzanilla', 10.5300, -61.0100, 5000], ['Matura', 10.6300, -61.0500, 4000], ['Biche', 10.4700, -61.1000, 5000], ['Talparo', 10.4900, -61.2800, 4000],
+    ['Gran Couva', 10.4000, -61.3750, 4000], ['Point Lisas', 10.4100, -61.4800, 3000], ['Moruga', 10.0850, -61.2900, 5000], ['Guayaguayare', 10.1400, -61.0300, 4000],
+    ['Plymouth (Tobago)', 11.2200, -60.7900, 4000], ['Castara (Tobago)', 11.2700, -60.7000, 4000], ['Roxborough (Tobago)', 11.2500, -60.5800, 4000], ['Speyside (Tobago)', 11.2900, -60.5400, 4000], ['Charlotteville (Tobago)', 11.3100, -60.5500, 4000]
   ];
   // High-risk spots inside the bigger zones (centre and radius are approximate; the seller checks and edits them on the map).
   const H = [
     ['Laventille (East Port of Spain)', 10.6590, -61.4890, 1200], ['Beetham Gardens (East Port of Spain)', 10.6680, -61.4950, 900], ['Sea Lots (East Port of Spain)', 10.6480, -61.4930, 700], ['East Dry River (Port of Spain)', 10.6570, -61.5010, 600],
-    ['Gonzales (East Port of Spain)', 10.6620, -61.4930, 700], ['Morvant centre', 10.6760, -61.4600, 1100], ['Cocorite', 10.6700, -61.5450, 1000], ['Tunapuna North (Fairley St, Maingot Rd)', 10.6590, -61.3810, 700],
+    ['Gonzales (East Port of Spain)', 10.6620, -61.4930, 700], ['Morvant centre', 10.6760, -61.4600, 1100], ['Cocorite (West Port of Spain)', 10.6700, -61.5450, 1000], ['Tunapuna North (Fairley St, Maingot Rd)', 10.6590, -61.3810, 700],
     ['Diego Martin: La Puerta', 10.7330, -61.5650, 800], ['Diego Martin: River Estate', 10.7250, -61.5560, 800], ['Enterprise (Chaguanas)', 10.5290, -61.4150, 1300]
   ];
   const rid = () => Math.random().toString(36).slice(2, 8);

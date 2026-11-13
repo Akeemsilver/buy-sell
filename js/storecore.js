@@ -12,10 +12,10 @@
   // The owner's store settings (kept in the workspace settings, so they sync between phones).
   // Delivery zones the seller draws on the map: a circle (centre + radius in metres) or a shape (corner points). The pin decides which zone an order is in.
   const normZones = (list) => (Array.isArray(list) ? list : []).map((z) => {
-    const id = String(z.id || newId(6)), name = String(z.name || '').trim().slice(0, 50);
-    if (Array.isArray(z.poly) && z.poly.length >= 3) { const poly = z.poly.map((q) => [Number(q[0]), Number(q[1])]).filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])); if (poly.length >= 3) return { id, name, poly, lat: poly.reduce((n, q) => n + q[0], 0) / poly.length, lng: poly.reduce((n, q) => n + q[1], 0) / poly.length }; }
+    const id = String(z.id || newId(6)), name = String(z.name || '').trim().slice(0, 50), risk = !!z.risk;
+    if (Array.isArray(z.poly) && z.poly.length >= 3) { const poly = z.poly.map((q) => [Number(q[0]), Number(q[1])]).filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])); if (poly.length >= 3) return { id, name, risk, poly, lat: poly.reduce((n, q) => n + q[0], 0) / poly.length, lng: poly.reduce((n, q) => n + q[1], 0) / poly.length }; }
     const lat = Number(z.lat), lng = Number(z.lng), r = Math.max(100, Math.min(60000, Math.round(Number(z.r) || 0)));
-    return Number.isFinite(lat) && Number.isFinite(lng) && r ? { id, name, lat, lng, r } : null;
+    return Number.isFinite(lat) && Number.isFinite(lng) && r ? { id, name, risk, lat, lng, r } : null;
   }).filter((z) => z && z.name);
   const metres = (a, b, c, d) => { const R = 6371000, rad = Math.PI / 180, dl = (c - a) * rad, dn = (d - b) * rad, x = Math.sin(dl / 2) ** 2 + Math.cos(a * rad) * Math.cos(c * rad) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
   const segDist = (lat, lng, a, b) => { const k = Math.cos(lat * Math.PI / 180), px = (lng - a[1]) * k, py = lat - a[0], dx = (b[1] - a[1]) * k, dy = b[0] - a[0], l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / l2)) : 0; return Math.hypot(px - t * dx, py - t * dy) * 111320; };
@@ -23,11 +23,15 @@
   // Is the pin in this zone? A small margin (default 200 m) keeps a pin that just touches the edge, because phone GPS is never exact.
   const zoneHit = (z, lat, lng, margin) => { const m = margin == null ? 200 : margin; if (!z || !Number.isFinite(lat) || !Number.isFinite(lng)) return false; if (z.poly) return inPoly(lat, lng, z.poly) || z.poly.some((a, i) => segDist(lat, lng, a, z.poly[(i + 1) % z.poly.length]) <= m); return metres(lat, lng, z.lat, z.lng) <= z.r + m; };
   const zonesAt = (zones, lat, lng, margin) => (Array.isArray(zones) ? zones : []).filter((z) => zoneHit(z, Number(lat), Number(lng), margin));
+  const hotAt = (zones, lat, lng) => zonesAt((Array.isArray(zones) ? zones : []).filter((z) => z.risk), lat, lng, 0);   // high-risk spots hold exactly, no GPS margin: a flag, not a free-delivery decision
+  // For a pin outside every zone: the closest zone and how far its edge is (metres), so a gap between circles still tells you where the order is.
+  const nearestZone = (zones, lat, lng) => { let best = null; (Array.isArray(zones) ? zones : []).forEach((z) => { const d = z.poly ? Math.min(...z.poly.map((a, i) => segDist(lat, lng, a, z.poly[(i + 1) % z.poly.length]))) : Math.max(0, metres(lat, lng, z.lat, z.lng) - z.r); if (!best || d < best.m) best = { zone: z, m: Math.round(d) }; }); return best; };
+  const areaZones = (zones) => (Array.isArray(zones) ? zones : []).filter((z) => !z.risk);
   const norm = (c) => {
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
       batches: Array.isArray(c.batches) ? c.batches.slice() : [],
-      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || '') })).filter((l) => l.name && (l.pickup || l.delivery)),
+      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || ''), zone: String(l.zone || ''), auto: !!l.auto })).filter((l) => l.name && (l.pickup || l.delivery)),
       bands: (Array.isArray(c.bands) ? c.bands : []).map((b) => ({ id: String(b.id || newId(6)), name: String(b.name || '').trim(), price: Math.max(0, r2(num(b.price))), on: b.on !== false })),
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
@@ -50,6 +54,24 @@
     ['r80', 'Penal', 0], ['r100', 'Point Fortin', 0],
     ['r60', 'Laventille', 1], ['r60', 'Morvant', 1], ['r60', 'Beetham', 1], ['r60', 'Cocorite', 1], ['r60', 'Sea Lots', 1], ['r60', 'East Dry River (Port of Spain)', 1], ['r60', 'Carenage', 1], ['r60', 'Gonzales', 1],
     ['r50', 'Tunapuna North (Fairley St, Maingot Rd)', 1], ['r60', 'Diego Martin: La Puerta', 1], ['r60', 'Diego Martin: River Estate', 1]];
+  // Every delivery zone is also a place in the customer's "Where are you?" list (kept in step with the zones). A zone that matches the starter pack takes its price range
+  // and high-risk mark; any other zone starts switched off with no price ("auto"), so nothing is delivered free by accident until a price is set.
+  const nameKey = (v) => String(v || '').toLowerCase().replace(/[.\u2019']/g, '').replace(/\s+/g, ' ').trim();
+  const syncZonePlaces = (cfgIn) => {
+    const cfg = norm(cfgIn), bands = cfg.bands.slice(); let changed = false, locs = cfg.locations.map((l) => Object.assign({}, l));
+    const ids = new Set(cfg.zones.map((z) => z.id)), n0 = locs.length; locs = locs.filter((l) => !l.zone || ids.has(l.zone)); if (locs.length !== n0) changed = true;
+    cfg.zones.forEach((z) => {
+      let l = locs.find((x) => x.zone === z.id);
+      if (!l) { l = locs.find((x) => !x.zone && nameKey(x.name) === nameKey(z.name)); if (l) { l.zone = z.id; changed = true; } }
+      if (l) { if (l.name !== z.name) { l.name = z.name; changed = true; } if (z.risk && !l.risk) { l.risk = true; l.off = true; changed = true; } return; }
+      const hit = TT_PLACES.find((q) => nameKey(q[1]) === nameKey(z.name));
+      if (hit && !bands.some((b) => b.id === hit[0])) { const bd = TT_BANDS.find((b) => b.id === hit[0]); if (bd) bands.push(Object.assign({}, bd)); }
+      if (z.risk) { locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: 0, risk: true, off: true, band: hit ? hit[0] : '', zone: z.id, auto: false }); changed = true; return; }   // a high-risk spot is listed with the high-risk areas and kept off the customer's list
+      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: hit ? hit[0] : '', zone: z.id, auto: !hit }); changed = true;
+    });
+    return { locations: locs, bands, changed };
+  };
+  const needsPrice = (cfg, l) => !l.risk && !!l.auto && !l.band && !(Number(l.price) > 0) && l.delivery;
   // Adds the starter pack to the owner's settings: bands are added when missing, places already in the list keep their pickup choice but take the range and risk mark.
   const seedTT = (cfgIn) => {
     const cfg = norm(cfgIn), bands = cfg.bands.slice(), have = new Map(cfg.locations.map((l) => [l.name.toLowerCase(), l]));
@@ -192,6 +214,6 @@
   const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

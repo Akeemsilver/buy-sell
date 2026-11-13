@@ -24,7 +24,7 @@
   P.valid = (v) => { const d = digits(v), k = pkey(v), core = k.startsWith('tt') ? k.slice(2) : d; return d.length >= 7 && d.length <= 15 && String(v).length <= 25 && !/^(\d)\1+$/.test(core); };
 
   /* ---------- profiles ---------- */
-  const blank = (key, name, phone) => ({ id: rid(8), key, name, phone: phone ? P.fmt(phone) : '', nicks: [], prev: [], noNumber: false, shared: false, free: { on: false, places: [] }, made: now() });
+  const blank = (key, name, phone) => ({ id: rid(8), key, name, phone: phone ? P.fmt(phone) : '', nicks: [], prev: [], noNumber: false, shared: false, free: { on: false, zones: [] }, made: now() });
   const allKeys = (s) => new Set([...(s.customers || []), ...(s.items || []).map((i) => i.customer), ...(s.invoices || []).map((v) => v.client)].map(clean).filter(Boolean));
   P.list = (s) => s.people || [];   // reading never creates the list: only ensure() switches profiles on
   P.byId = (s, id) => P.list(s).find((p) => p.id === id) || null;

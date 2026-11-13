@@ -154,11 +154,18 @@ console.log('details tests passed');
   const loc = { pickup: true, delivery: true, price: 40 }, spots = SC.publicSpots(sp);
   assert.deepStrictEqual(SC.options(loc, spots, 20).map((o) => o.key), ['pickup', 'delivery', 'spot']); assert.deepStrictEqual(SC.options(loc, [], 20).map((o) => o.key), ['pickup', 'delivery']);
   const items = [{ price: 100, sale: 0 }]; const tt = SC.totals(items, loc, 'spot', spots, 20); assert.strictEqual(tt.total, 120); assert.ok(tt.valid);
-  // free delivery for regulars: same person in any phone format, same place in any case; nothing else matches
-  const fl = SC.freeList([{ phone: '868 555 1234', free: { on: true, places: ['Arima'] } }, { phone: '555 0000', free: { on: false, places: ['Arima'] } }]);
+  // free delivery for regulars: same person in any phone format, same zone; nothing else matches
+  const fl = SC.freeList([{ phone: '868 555 1234', free: { on: true, zones: ['z1'] } }, { phone: '555 0000', free: { on: false, zones: ['z1'] } }]);
   assert.strictEqual(fl.length, 1); assert.ok(!JSON.stringify(fl).includes('5551234'));
-  assert.ok(SC.isFree(fl, '1-868-555-1234', ' arima ')); assert.ok(SC.isFree(fl, '5551234', 'ARIMA'));
-  assert.ok(!SC.isFree(fl, '555 1235', 'Arima')); assert.ok(!SC.isFree(fl, '555 1234', 'Couva')); assert.ok(!SC.isFree(fl, '', 'Arima'));
+  assert.ok(SC.isFree(fl, '1-868-555-1234', 'z1')); assert.ok(SC.isFree(fl, '5551234', 'z1'));
+  assert.ok(!SC.isFree(fl, '555 1235', 'z1')); assert.ok(!SC.isFree(fl, '555 1234', 'z2')); assert.ok(!SC.isFree(fl, '', 'z1'));
   assert.ok(!SC.validPhone('1111111') && !SC.validPhone('868 888 8888') && SC.validPhone('555 1234'));
+  // delivery zones: a circle and a shape; the pin decides; a 200 m margin forgives GPS
+  const zs = SC.normZones([{ id: 'a', name: 'Chaguanas', lat: 10.5167, lng: -61.4112, r: 5000 }, { id: 'b', name: 'Block', poly: [[10.2, -61.5], [10.2, -61.4], [10.3, -61.4], [10.3, -61.5]] }, { id: 'c', name: '', lat: 1, lng: 1, r: 100 }, { id: 'd', name: 'Bad', lat: 'x', lng: 1, r: 100 }]);
+  assert.strictEqual(zs.length, 2);
+  assert.deepStrictEqual(SC.zonesAt(zs, 10.52, -61.41).map((z) => z.id), ['a']); assert.deepStrictEqual(SC.zonesAt(zs, 10.25, -61.45).map((z) => z.id), ['b']);
+  assert.deepStrictEqual(SC.zonesAt(zs, 10.31, -61.45), []); assert.deepStrictEqual(SC.zonesAt(zs, 10.3015, -61.45).map((z) => z.id), ['b']); assert.deepStrictEqual(SC.zonesAt(zs, 10.3015, -61.45, 0), []);
+  assert.deepStrictEqual(SC.zonesAt(zs, undefined, undefined), []);
+  assert.strictEqual(SC.norm({ zones: zs }).zones.length, 2);
   console.log('delivery area tests passed');
 })();

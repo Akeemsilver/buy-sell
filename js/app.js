@@ -768,7 +768,7 @@
     return `<div class="pfbox"><div class="row"><span>📞 ${p.phone ? `<b>${esc(p.phone)}</b> <small>(${t('pf.main')})</small>` : `<span class="bad">${t('pf.noNumber')}</span>`}${p.shared ? ` <span class="tag">${t('pp.shared')}</span>` : ''}</span><button type="button" class="chip" data-act="pf-number" data-id="${p.id}">${t('pf.setNumber')}</button></div>
       <div class="row"><span>${t('pf.also')}<br>${nicks || '<small>—</small>'}</span><button type="button" class="chip" data-act="pf-nick-add" data-id="${p.id}">＋ ${t('pf.addNick')}</button></div>
       ${prev ? `<div class="row"><b>${t('pf.before')}</b></div>${prev}` : ''}
-      ${(() => { const fr = p.free || { on: false, places: [] }; return `<div class="row"><span>🎁 <b>${t('fd.title')}</b><br><small>${fr.on ? (fr.places.length ? esc(fr.places.join(', ')) : t('fd.noPlaces')) : t('fd.off')}</small></span>${swt('pf-free', p.id, fr.on)}</div>${fr.on ? `<div class="row"><span class="pfrule">${t('fd.rule')}</span><button type="button" class="chip" data-act="pf-free-places" data-id="${p.id}">${t('fd.choose')}</button></div>` : ''}`; })()}
+      ${(() => { const fr = p.free || { on: false, zones: [] }, zn = (fr.zones || []).map(zoneName).filter(Boolean); return `<div class="row"><span>🎁 <b>${t('fd.title')}</b><br><small>${fr.on ? (zn.length ? esc(zn.join(', ')) : t('fd.noPlaces')) : t('fd.off')}</small></span>${swt('pf-free', p.id, fr.on)}</div>${fr.on ? `<div class="row"><span class="pfrule">${t('fd.rule')}</span><button type="button" class="chip" data-act="pf-free-places" data-id="${p.id}">${t('fd.choose')}</button></div>` : ''}`; })()}
       <div class="pfb"><button type="button" class="btn" data-act="split-open" data-id="${p.id}">${t('pf.split')}</button><button type="button" class="btn" data-act="merge-open" data-id="${p.id}">${t('pf.merge')}</button></div></div>`;
   }
   function askText(title, sub, ph) {
@@ -781,7 +781,7 @@
     if (a === 'split-open') return sheetSplit(id);
     if (a === 'merge-open') return sheetMergePick(id);
     if (!p && a !== 'split-go' && a !== 'merge-go') return;
-    if (a === 'pf-free') { p.free = p.free || { on: false, places: [] }; p.free.on = !p.free.on; if (p.free.on && !p.phone) { p.free.on = false; return toast(t('fd.needNumber')); } save(); sheetCustomer(p.key); if (p.free.on && !p.free.places.length) sheetFreePlaces(p.id); return; }
+    if (a === 'pf-free') { p.free = p.free || { on: false, zones: [] }; p.free.zones = p.free.zones || []; p.free.on = !p.free.on; if (p.free.on && !p.phone) { p.free.on = false; return toast(t('fd.needNumber')); } save(); sheetCustomer(p.key); if (p.free.on && !p.free.zones.length) sheetFreePlaces(p.id); return; }
     if (a === 'pf-free-places') return sheetFreePlaces(p.id);
     if (a === 'pf-nick-add') { const v = await askText(t('pf.addNick'), t('pf.addNickSub', { name: esc(p.name) }), t('pf.nickPh')); if (!v) return; const n = L.cleanName(v), other = PE.list(state).find((q) => q.id !== p.id && PE.nameMatch(q, n)); PE.addNickTo ? PE.addNickTo(p, n) : (p.nicks.some((x) => x.toLowerCase() === n.toLowerCase()) || n.toLowerCase() === p.name.toLowerCase() || p.nicks.push(n)); save(); toast(other ? t('pf.nickShared') : t('cust.saved')); return sheetCustomer(p.key); }
     if (a === 'pf-nick-del') { p.nicks = p.nicks.filter((x) => x !== el.dataset.n); save(); return sheetCustomer(p.key); }
@@ -795,7 +795,12 @@
   }
   // On an order: who the number belongs to, and whether delivery was free for them.
   const placeNorm = (v) => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  const freeProfile = (o) => peopleOn && o.option === 'delivery' ? PE.mainOwners(state, o.phone).find((p) => p.free && p.free.on && (p.free.places || []).some((x) => placeNorm(x) === placeNorm(o.location))) : null;
+  const storeZones = () => SCore.normZones(storeCfg().zones);
+  const zoneName = (id) => { const z = storeZones().find((x) => x.id === id); return z ? z.name : ''; };
+  const pinZones = (o) => (SCore.geo(o.lat, o.lng) ? SCore.zonesAt(storeZones(), Number(o.lat), Number(o.lng)) : []);
+  // the customer whose free zones include the zone the order's pin is in (and whose main number is on the order)
+  const freeProfile = (o) => { if (!peopleOn || o.option !== 'delivery') return null; const hit = pinZones(o).map((z) => z.id); return PE.mainOwners(state, o.phone).find((p) => p.free && p.free.on && (p.free.zones || []).some((id) => hit.includes(id))) || null; };
+  const normalFee = (o) => { const c = storeCfg(), l = c.locations.find((x) => placeNorm(x.name) === placeNorm(o.location)); return l ? SCore.priceOf(c, l) : 0; };
   function orderWho(o) {
     if (!peopleOn || !o.phone) return '';
     const p = PE.mainOwners(state, o.phone)[0]; if (!p) return '';
@@ -804,8 +809,23 @@
   }
   function sheetFreePlaces(pid) {
     const p = PE.byId(state, pid); if (!p) return;
-    const cur = (p.free && p.free.places) || [], known = SCore.publicLocs(storeCfg()).map((l) => l.name), extra = cur.filter((x) => !known.some((k) => placeNorm(k) === placeNorm(x)));
-    openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${known.map((n) => `<label class="tk"><input type="checkbox" value="${esc(n)}" ${cur.some((x) => placeNorm(x) === placeNorm(n)) ? 'checked' : ''}><span>${esc(n)}</span></label>`).join('')}</div><input name="extra" type="text" value="${esc(extra.join(', '))}" placeholder="${t('fd.otherPlace')}" autocomplete="off"><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'card');
+    const cur = (p.free && p.free.zones) || [], zs = storeZones().slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }));
+    if (!zs.length) return openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.noZones')}</p><div class="btns"><button class="btn primary" data-act="zones-open">${t('zn.open')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card');
+    openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${zs.map((z) => `<label class="tk"><input type="checkbox" value="${esc(z.id)}" ${cur.includes(z.id) ? 'checked' : ''}><span>${esc(z.name)}</span></label>`).join('')}</div><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'card');
+  }
+  function sheetZones() {
+    enterPage('zones', '', () => sheetZones());
+    const c = storeCfg(), zs = c.zones.slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }));
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('zn.title')}</b><small>${t('zn.count', { n: zs.length })}</small></div></div><div class="ap"><p class="muted small" style="margin:6px 2px 10px">${t('zn.sub')}</p>
+      <div class="card pkc">${zs.map((z) => `<div class="pkr"><button type="button" class="pkn" data-act="zone-edit" data-id="${z.id}"><b>${esc(z.name)}</b><small>${z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') })}</small></button></div>`).join('') || `<p class="muted small">${t('zn.rowNone')}</p>`}</div>
+      <button type="button" class="pkadd" data-act="zone-add">＋ ${t('zn.add')}</button>${zs.length ? '' : `<button type="button" class="pkadd" data-act="zone-starter">🇹🇹 ${t('zn.starter')}</button><p class="muted small">${t('zn.starterSub')}</p>`}</div>`, null, true);
+  }
+  function openZone(id) {
+    const c = storeCfg(), z = id && id !== 'new' ? c.zones.find((x) => x.id === id) : null;
+    ZoneMap.open({ zones: c.zones, zone: z, T: { name: t('zn.name'), radius: t('zn.radius'), circle: t('zn.circle'), shape: t('zn.shape'), addCorner: t('zn.addCorner'), undo: t('zn.undo'), save: t('pp.save'), del: t('zn.del'), cancel: t('btn.cancel'), hint: t('zn.hint'), hintShape: t('zn.hintShape'), need: t('zn.need'), corners: t('zn.corners'), here: t('mp.here'), mapNoLib: t('mp.nolib') },
+      onSave: (nz) => { const list = storeCfg().zones.slice(), i = list.findIndex((x) => x.id === nz.id); if (i >= 0) list[i] = nz; else list.push(nz); storeSet({ zones: list }); toast(t('zn.saved')); if (!$('#sheet').hidden) sheetZones(); },
+      onDelete: (zid) => askCard(t('zn.delAsk'), { danger: true, ok: t('zn.del') }).then((y) => { if (!y) return; storeSet({ zones: storeCfg().zones.filter((x) => x.id !== zid) }); PE.list(state).forEach((p) => { if (p.free && p.free.zones) p.free.zones = p.free.zones.filter((x) => x !== zid); }); save(); sheetZones(); }),
+      onError: (m) => toast(m) });
   }
   function sheetSplit(pid) {
     const p = PE.byId(state, pid); if (!p) return;
@@ -2517,6 +2537,7 @@
       ${c.locations.length ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
       ${c.bands.length ? `<h4 class="pkh">${t('pk.bands')}</h4><div class="card pkc">${c.bands.map(bandRow).join('')}<button type="button" class="pkadd" data-act="band-add">＋ ${t('pk.bandAdd')}</button><p class="muted small">${t('pk.bandsSub')}</p></div>` : ''}
       <h4 class="pkh">${t('pk.placesH')}</h4><div class="card pkc">${c.locations.map(placeRow).join('') || `<p class="muted small">${t('pd.tip')}</p>`}<button type="button" class="pkadd" data-act="store-loc" data-id="new">＋ ${t('pd.add')}</button></div>
+      <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.rowSub', { n: c.zones.length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
       <h4 class="pkh">${t('pk.risk')} <span class="rtag">${risks.length}</span></h4><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.riskSub')}</p>${risks.map((l) => `<div class="pkr"><span class="pkn"><b>${esc(l.name)}</b></span>${swt('risk-flag', l.id, true)}</div>`).join('')}<button type="button" class="pkadd" data-act="risk-add">＋ ${t('pk.riskAdd')}</button><p class="muted small">${t('pk.riskNote')}</p></div>
       <h4 class="pkh">${t('pk.spots')}</h4><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.spotsSub')}</p><div class="pkb"><span class="pkp">TT$</span><input class="pkin" id="pk-spotprice" inputmode="decimal" data-spotprice="1" value="${c.spotPrice || ''}" placeholder="0.00" aria-label="${t('pk.spotPrice')}"><div class="pkt"><b>${t('pk.spotPrice')}</b></div></div>${c.spots.map(spotRow).join('')}<button type="button" class="pkadd" data-act="spot-add">＋ ${t('pk.spotAdd')}</button></div>
       </div>`, null, true);
@@ -2861,6 +2882,16 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   const dlvCard = (o) => { if (o.option !== 'delivery') return ''; const gp = orderPin(o), km = kmNum(o); if (!gp && km == null) return '';
     const dist = km == null ? (dset().home ? t('km.measuring') : `<a data-act="dlv-home">${t('km.noHome')}</a>`) : (o.kmSrc === 'line' ? t('km.line2', { km: km.toFixed(1) }) : t('km.line', { km: km.toFixed(1) }) + (o.kmSrc === 'manual' ? ' · ' + t('km.manual') : '')) + ' · ' + t('dlv.roundTrip', { km: (km * 2).toFixed(1) });
     return `<div class="card dcardn"><div class="rw"><span class="pn" aria-hidden="true">📍</span><div class="t"><b>${esc(o.spot || t('spot.h'))}</b><small>${dist}${km != null || dset().home ? ` <a data-act="km-edit" data-id="${o.id}">${t('km.edit')}</a>` : ''}</small></div>${gp ? `<a class="navbtn" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener" aria-label="${t('km.navigate')}" title="${t('km.navigate')}">${NAV_ICON}</a>` : ''}</div></div>`; };
+  // Where the pin falls in your delivery zones, whether delivery was free, and the button to charge it after all.
+  const zoneCard = (o) => {
+    if (o.option !== 'delivery') return '';
+    const zs = pinZones(o), has = storeZones().length > 0, pin = SCore.geo(o.lat, o.lng), fee = normalFee(o), freed = Number(o.deliveryPrice) === 0 && fee > 0, fp = freeProfile(o);
+    if (!has && !freed) return '';
+    const where = !pin ? t('zn.noPin') : zs.length ? t('zn.inZone', { z: esc(zs.map((z) => z.name).join(', ')) }) : t('zn.outZone');
+    const warn = freed && !fp ? `<p class="zwarn">⚠️ ${t(pin ? 'zn.warnFree' : 'zn.warnNoPin')}</p>` : '';
+    const btn = freed && o.status === 'new' ? `<button type="button" class="btn alt" data-act="fee-charge" data-id="${o.id}">${t('fee.btn', { fee: money(fee) })}</button>` : '';
+    return `<div class="card zcard"><div class="rw"><span class="pn" aria-hidden="true">🗺️</span><div class="t"><b>${where}</b>${freed ? `<small>🎁 ${t(fp ? 'zn.freeOk' : 'zn.freeNow')}</small>` : o.feeChanged ? `<small>${t('fee.changed')}</small>` : ''}</div></div>${warn}${btn}</div>`;
+  };
   const kmLine = (o) => { if (o.option !== 'delivery' || !(SCore.geo(o.lat, o.lng) || o.km != null)) return ''; const km = kmNum(o); return `<div class="card kmcard"><div class="rw"><div class="t"><b>${t('km.title')}</b><small>${km == null ? t('km.measuring') : o.kmSrc === 'line' ? t('km.line2', { km: km.toFixed(1) }) : t('km.line', { km: km.toFixed(1) }) + (o.kmSrc === 'manual' ? ' · ' + t('km.manual') : '')}${km != null ? ' · ' + t('dlv.roundTrip', { km: (km * 2).toFixed(1) }) : ''}</small></div><button class="dchip" data-act="km-edit" data-id="${o.id}">✏️ ${t('km.edit')}</button></div></div>`; };
   function dlvExport() {
     const q = (v) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }, d = dset();
@@ -2953,7 +2984,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     let where = (o.option === 'delivery' ? t('store.delivery', {}, lang) : t('store.pickup', {}, lang)) + ' · ' + o.location;
     const pin = o.option === 'delivery' ? SCore.geo(o.lat, o.lng) : null; if (pin) where += ' 📍 ' + SCore.mapLinks(pin.lat, pin.lng).view + ' ';   // the space keeps the full stop out of the link
     const lines = (inv ? state.items.filter((i) => i.invoice === inv.no) : []).map((i) => '• ' + (lang === 'es' ? esName(i) : i.desc) + (i.size ? ' (' + i.size + ')' : '') + ' · ' + (itemArriving({ id: i.id }) ? '⏳ ' + t('wa.soon', {}, lang) : t('wa.ready', {}, lang))).join('\n') || names;
-    const tot = plain(inv ? inv.total : o.total), fees = o.option === 'pickup' && Number(o.deliveryPrice) > 0 ? t('wa.feesSpot', { fee: plain(o.deliveryPrice), total: tot }, lang) : o.option === 'delivery' && Number(o.deliveryPrice) > 0 ? t('wa.feesDel', { fee: plain(o.deliveryPrice), total: tot }, lang) : o.option === 'delivery' ? t('wa.feesTotal', { total: tot }, lang) : t('wa.feesPick', { total: tot }, lang);
+    const tot = plain(inv ? inv.total : o.total), fees = o.option === 'delivery' && o.feeChanged && Number(o.deliveryPrice) > 0 ? t('wa.feeChanged', { fee: plain(o.deliveryPrice), total: tot }, lang) : o.option === 'pickup' && Number(o.deliveryPrice) > 0 ? t('wa.feesSpot', { fee: plain(o.deliveryPrice), total: tot }, lang) : o.option === 'delivery' && Number(o.deliveryPrice) > 0 ? t('wa.feesDel', { fee: plain(o.deliveryPrice), total: tot }, lang) : o.option === 'delivery' ? t('wa.feesTotal', { total: tot }, lang) : t('wa.feesPick', { total: tot }, lang);
     const msg = t(key, { name: o.name, code: o.code || SCore.orderCode(o.id), items: names, list: lines, fees, where, total: tot, how: t(o.option === 'delivery' ? 'ord.howDel' : 'ord.howPick', {}, lang), store: storeCfg().name || bizName() }, lang);
     const w = window.open(SCore.waLink(o.phone, msg), '_blank'); if (!w) toast(t('ord.waBlocked'));
   }
@@ -3008,7 +3039,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const lat = latestInvOf(o), canAct = stage !== 'new' && o.status !== 'declined', sentLatest = lat && o.invSentNo === lat.no;
     const ckRow = (ok, title, sub, btn, attrs) => `<div class="r ${ok ? 'ok' : 'todo'}${attrs ? ' tap' : ''}" ${attrs || ''}><i>${ok ? '✓' : '○'}</i><span class="tx">${title}${sub ? `<small>${sub}</small>` : ''}</span>${btn || ''}</div>`;
     const sumCard = stage === 'new' || o.status === 'declined' ? '' : `<div class="cklist">${ckRow(true, t('ck.confirmed'), tsAt(o.confirmedAt) ? fullWhen(tsAt(o.confirmedAt)) : '')}${!lat && orderLinkLost(o) ? ckRow(false, t('ck.invLost'), t('ck.invLostSub', { no: o.invoice })) : ''}${lat ? ckRow(true, t('ck.inv', { no: lat.no }), pay ? (pay.owing > 0 ? (pay.paid > 0 ? t('ck.paidOwing', { paid: money(pay.paid), owing: money(pay.owing) }) : t('ck.owingOnly', { owing: money(pay.owing) })) : t('ck.paidFull')) : '', `<button type="button" class="ckview" data-act="view-inv" data-id="${lat.no}">${t('ck.view')} ›</button>`, `role="button" tabindex="0" data-act="view-inv" data-id="${lat.no}"`) : ''}${lat ? (sentLatest ? ckRow(true, t('ck.sent'), o.invSentAt ? fullWhen(new Date(o.invSentAt)) : '') : ckRow(false, t(o.invSentNo ? 'ck.updNotSent' : 'ck.notSent'), o.invSentNo ? t('ck.sentEarlier', { no: o.invSentNo }) : '', canAct ? `<span class="sbtns"><button class="sendbtn ${o.invSentNo ? 'soft' : ''}" data-act="ord-send-inv" data-id="${o.id}">${t(o.invSentNo ? 'ck.sendUpd' : 'ck.send')}</button><button class="alink" data-act="ord-sent-mark" data-id="${o.id}">${t('ck.already')}</button></span>` : '')) : ''}</div>`;
-    const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + dlvCard(o);   // last on the page, after the items, payment and timeline
+    const spotCard = (o.note ? `<h4><span>${t('ord.notes')}</span></h4><div class="card"><div class="rw"><div class="t"><small style="white-space:pre-wrap">${esc(o.note)}</small></div></div></div>` : '') + dlvCard(o) + zoneCard(o);   // last on the page, after the items, payment and timeline
     const payCard = pay ? `<h4><span>${t('ord.payment')}</span></h4><div class="card pay"><div class="hd">${pay.owing <= 0 ? opl('paid', '✓ ' + t('ord.pl.paidFull')) : opl('owing', t(pay.paid > 0 ? 'ord.pl.part' : 'ord.pl.owing'))}${pay.owing > 0 ? `<span class="big">${t('ord.owingAmt', { amount: money(pay.owing) })}</span>` : ''}</div><div class="bar"><i style="width:${pay.total > 0 ? Math.round(pay.paid / pay.total * 100) : 0}%"></i></div>
       <div class="ln"><span>${t('ord.invTotal')}</span><b>${money(pay.total)}</b></div><div class="ln"><span>${t('ord.paidSoFar')}</span><b>${money(pay.paid)}</b></div><div class="ln ${pay.owing > 0 ? 'due' : 'ok'}"><span>${t('ord.stillOwing')}</span><b>${money(pay.owing)}</b></div>${pay.owing > 0 && o.status !== 'declined' ? `<div class="paybar"><button class="btn primary" data-act="pay-inv" data-id="${pay.inv}" data-ord="${o.id}">💳 ${t('ord.payBtn')}</button></div>` : ''}</div>` : '';
     const dateOnly = (d) => d.toLocaleDateString(I.locale(I.getLang()), { weekday: 'short' }).replace('.', '') + ' ' + dayMon(d);   // a payment is saved with a day, not a time
@@ -3514,6 +3545,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dec-undo': { try { PE.undo(state, id); save(); toast(t('fx.undone')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } return sheetDecisions(); }
       case 'dup-merge': { try { PE.merge(state, t_.dataset.b, id, myName()); save(); toast(t('mg.done')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } return sheetDups(); }
       case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
+      case 'zones-open': closeSheet(); return sheetZones();
+      case 'zones-page': return sheetZones();
+      case 'zone-add': case 'zone-edit': return openZone(id);
+      case 'zone-starter': return askCard(t('zn.starterAsk', { n: ZoneData.starter().length })).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ zones: c.zones.concat(ZoneData.starter()) }); toast(t('zn.added')); sheetZones(); });
+      case 'fee-charge': { const o = Store.orders().find((x) => x.id === id); if (!o) return; const fee = normalFee(o); return askCard(t('fee.ask', { fee: money(fee), name: esc(o.name) }), { ok: t('fee.ok') }).then((y) => { if (!y) return; Store.patch(o.id, { deliveryPrice: fee, total: Math.round((Number(o.total) + fee) * 100) / 100, feeChanged: true }).then(() => { toast(t('fee.done')); setTimeout(() => sheetOrder(o.id, true), 300); }).catch(() => toast(t('store.pubError'))); }); }
       case 'pf-free': case 'pf-free-places': case 'pf-number': case 'pf-nick-add': case 'pf-nick-del': case 'split-open': case 'merge-open': case 'merge-go': case 'split-go': return peopleAct(t_.dataset.act, id, t_);
       case 'cust-edit': return sheetCustEdit(id);
       case 'cust-lang': { clName = id; return sheetChoice(t('cl.popTitle', { who: esc(id) }), 'cl-set', savedLang(id) || 'auto', [['auto', t('cl.optAuto')], ['en', I.LANGS.en['lang.name'] + ' · EN'], ['es', I.LANGS.es['lang.name'] + ' · ES']], t('cl.popNote', { who: esc(id) })); }
@@ -3565,7 +3601,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
     if (f.id === 'f-pphone') { const v = JSON.stringify({ phone: d.phone, place: d.place }); if (!PE.valid(d.phone)) return toast(t('pp.badPhone')); const fn = window.__pp; if (fn) fn(v); return closeSheet(); }
-    if (f.id === 'f-free') { const p = PE.byId(state, f.dataset.pid); if (p) { const ticked = [...f.querySelectorAll('input[type=checkbox]:checked')].map((x) => x.value), extra = String(d.extra || '').split(',').map((x) => L.cleanName(x)).filter(Boolean); p.free = p.free || { on: true, places: [] }; p.free.places = [...new Set(ticked.concat(extra))]; save(); closeSheet(); toast(t('fd.saved')); sheetCustomer(p.key); } return; }
+    if (f.id === 'f-free') { const p = PE.byId(state, f.dataset.pid); if (p) { p.free = p.free || { on: true, zones: [] }; p.free.zones = [...f.querySelectorAll('input[type=checkbox]:checked')].map((x) => x.value); save(); closeSheet(); toast(t('fd.saved')); sheetCustomer(p.key); } return; }
     if (f.id === 'f-pf') { const fn = window.__pf; if (fn) fn(d.v); return closeSheet(); }
     if (f.id === 'f-chpw') { acctShow(''); return Cloud.changePassword(d.cur, d.password).then(() => { toast(t('acct.pwChanged')); f.reset(); }).catch((e) => acctShow(/wrong-password|invalid-credential/.test((e && e.code) || '') ? t('acct.err.curPw') : acctErr(e))); }
     if (f.id === 'f-addpw') { acctShow(''); return Cloud.addPassword(d.password).then(() => { toast(t('acct.pwAdded')); closeSheet(); render(); }).catch((e) => acctShow(/requires-recent-login/.test((e && e.code) || '') ? t('acct.pwRecent') : /provider-already-linked|credential-already-in-use|email-already-in-use/.test((e && e.code) || '') ? t('acct.pwHave') : acctErr(e))); }

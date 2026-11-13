@@ -10,6 +10,19 @@
   const newId = (n) => { const a = 'abcdefghijkmnpqrstuvwxyz23456789'; let s = ''; const c = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(n || 20)) : null; for (let i = 0; i < (n || 20); i++) s += a[(c ? c[i] : Math.floor(Math.random() * 256)) % a.length]; return s; };
 
   // The owner's store settings (kept in the workspace settings, so they sync between phones).
+  // Delivery zones the seller draws on the map: a circle (centre + radius in metres) or a shape (corner points). The pin decides which zone an order is in.
+  const normZones = (list) => (Array.isArray(list) ? list : []).map((z) => {
+    const id = String(z.id || newId(6)), name = String(z.name || '').trim().slice(0, 50);
+    if (Array.isArray(z.poly) && z.poly.length >= 3) { const poly = z.poly.map((q) => [Number(q[0]), Number(q[1])]).filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])); if (poly.length >= 3) return { id, name, poly, lat: poly.reduce((n, q) => n + q[0], 0) / poly.length, lng: poly.reduce((n, q) => n + q[1], 0) / poly.length }; }
+    const lat = Number(z.lat), lng = Number(z.lng), r = Math.max(100, Math.min(60000, Math.round(Number(z.r) || 0)));
+    return Number.isFinite(lat) && Number.isFinite(lng) && r ? { id, name, lat, lng, r } : null;
+  }).filter((z) => z && z.name);
+  const metres = (a, b, c, d) => { const R = 6371000, rad = Math.PI / 180, dl = (c - a) * rad, dn = (d - b) * rad, x = Math.sin(dl / 2) ** 2 + Math.cos(a * rad) * Math.cos(c * rad) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+  const segDist = (lat, lng, a, b) => { const k = Math.cos(lat * Math.PI / 180), px = (lng - a[1]) * k, py = lat - a[0], dx = (b[1] - a[1]) * k, dy = b[0] - a[0], l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / l2)) : 0; return Math.hypot(px - t * dx, py - t * dy) * 111320; };
+  const inPoly = (lat, lng, poly) => { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[0] > lat) !== (b[0] > lat) && lng < (b[1] - a[1]) * (lat - a[0]) / (b[0] - a[0]) + a[1]) ins = !ins; } return ins; };
+  // Is the pin in this zone? A small margin (default 200 m) keeps a pin that just touches the edge, because phone GPS is never exact.
+  const zoneHit = (z, lat, lng, margin) => { const m = margin == null ? 200 : margin; if (!z || !Number.isFinite(lat) || !Number.isFinite(lng)) return false; if (z.poly) return inPoly(lat, lng, z.poly) || z.poly.some((a, i) => segDist(lat, lng, a, z.poly[(i + 1) % z.poly.length]) <= m); return metres(lat, lng, z.lat, z.lng) <= z.r + m; };
+  const zonesAt = (zones, lat, lng, margin) => (Array.isArray(zones) ? zones : []).filter((z) => zoneHit(z, Number(lat), Number(lng), margin));
   const norm = (c) => {
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
@@ -18,7 +31,8 @@
       bands: (Array.isArray(c.bands) ? c.bands : []).map((b) => ({ id: String(b.id || newId(6)), name: String(b.name || '').trim(), price: Math.max(0, r2(num(b.price))), on: b.on !== false })),
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
-      spotPrice: Math.max(0, r2(num(c.spotPrice))) };
+      spotPrice: Math.max(0, r2(num(c.spotPrice))),
+      zones: normZones(c.zones) };
   };
   // Delivery places. A place may belong to a price range (band): then the range sets its price. A place can be switched off, or sit in the high-risk list.
   const bandOf = (cfg, l) => (l.band ? cfg.bands.find((b) => b.id === l.band) || null : null);
@@ -175,9 +189,9 @@
   const freeMemo = {};
   const freeKeyM = (phone, place) => { const id = phoneKey(phone) + '|' + placeKey(place); return freeMemo[id] || (freeMemo[id] = freeKey(phone, place)); };
   // profiles with free delivery switched on -> the list that goes in the store document
-  const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.places || []).forEach((pl) => { const k = freeKeyM(p.phone, pl); if (k) out.add(k); }); }); return [...out].sort(); };
+  const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

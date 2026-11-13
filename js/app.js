@@ -121,7 +121,7 @@
   // With the browser's own install prompt the button installs; otherwise it opens the how-to-install guide.
   function installBanner() {
     if (isStandalone()) return '';
-    return `<div class="install"><img src="icons/logo.png" alt="" width="44" height="44">
+    return `<div class="install"><img src="icons/icon-192.png" alt="" width="44" height="44">
       <div class="grow"><b>${t('install.title')}</b><small>${installEvt ? t('install.sub.prompt') : t('install.sub.add')}</small></div>
       <button class="pill-btn solid" data-act="install">${installEvt ? t('install.btn') : t('install.how')}</button></div>`;
   }
@@ -220,7 +220,7 @@
   const swatchRow = (cur) => `<div class="swatches wrap" role="radiogroup" aria-label="${t('set.color')}">${Theme.PALETTES.map((p) => `<button type="button" class="swatch ${cur === p.id ? 'on' : ''}" style="background:${p.brand}" role="radio" aria-checked="${cur === p.id}" aria-label="${t('pal.' + p.id)}" data-act="gate-color" data-id="${p.id}"></button>`).join('')}</div>`;
   const gateHTML = (v) => gatePage(v).replace(/<\/div>$/, gateLang() + '</div>');
   function gatePage(v) {
-    if (v === 'welcome') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.welcome')}</h1><p class="g-mute">${t('gate.tag')}</p>
+    if (v === 'welcome') return `<div class="g-wrap g-center"><div class="g-logo"><img src="icons/icon-192.png" alt="Shopivo"></div><h1>${t('gate.welcome')}</h1><p class="g-mute">${t('gate.tag')}</p>
       <button class="g-btn primary" data-act="gate-create">${t('gate.create')}</button><button class="g-btn" data-act="gate-have">${t('gate.have')}</button>
       <p class="g-small">${t('gate.note')}</p><button class="g-link" data-act="gate-skip">${t('gate.skip')}</button><p class="g-small">${t('gate.skipNote')}</p></div>`;
     if (v === 'auth') {
@@ -239,7 +239,7 @@
       <form id="f-forgot"><label>${t('acct.email')}</label><input name="email" type="email" inputmode="email" autocomplete="email" value="${esc(lastEmail())}" required>
       <div id="g-err" class="g-err" hidden></div><button class="g-btn primary" style="margin-top:18px">${t('fp.send')}</button></form>
       <p class="g-small" style="margin-top:14px">${t('fp.spam')}</p><p class="g-small">${t('fp.link')}</p><p class="g-small">${t('fp.google')}</p></div>`;
-    if (v === 'choose') return `<div class="g-wrap g-center"><div class="g-logo">✦</div><h1>${t('gate.chooseTitle')}</h1><p class="g-mute">${t('gate.chooseSub')}</p>
+    if (v === 'choose') return `<div class="g-wrap g-center"><div class="g-logo"><img src="icons/icon-192.png" alt="Shopivo"></div><h1>${t('gate.chooseTitle')}</h1><p class="g-mute">${t('gate.chooseSub')}</p>
       <button class="g-btn primary" data-act="gate-newbiz">${t('gate.newBiz')}</button><button class="g-btn" data-act="gate-joinbiz">${t('gate.joinBiz')}</button>
       <div id="g-err" class="g-err" hidden></div><button class="g-link" data-act="acct-out">${t('acct.signOut')}</button></div>`;
     if (v === 'join') return `<div class="g-wrap"><button class="g-link" data-act="gate-joinback">‹ ${t('gate.back')}</button><h1 style="font-size:24px">${t('gate.joinTitle')}</h1><p class="g-mute">${t('gate.joinSub')}</p>
@@ -260,7 +260,7 @@
         <div style="margin-top:14px">${themePreview(cur, gateDraft.name || t('gate.bizPh'))}</div>
         <button class="g-btn primary" style="margin-top:18px">${t('gate.continue')}</button></form></div>`;
     }
-    return `<div class="g-wrap g-center"><div class="g-logo">✦</div><p class="g-mute">${t('gate.waiting')}</p></div>`;
+    return `<div class="g-wrap g-center"><div class="g-logo"><img src="icons/icon-192.png" alt="Shopivo"></div><p class="g-mute">${t('gate.waiting')}</p></div>`;
   }
   const gateLang = () => `<div class="g-lang" role="radiogroup" aria-label="${t('gate.language')}"><span>${t('gate.language')}</span>${Object.keys(I.LANGS).map((l) => `<button type="button" class="${I.getLang() === l ? 'on' : ''}" role="radio" aria-checked="${I.getLang() === l}" data-act="gate-lang" data-id="${l}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>`;
   // redraw the open page (e.g. after a language change) without losing what was typed
@@ -362,8 +362,9 @@
     const titles = { home: bizName(), stock: stockBatch && stockFilter !== 'NoPrice' ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('cu.title'), promote: t('nav.promote'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
-    const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
-    $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
+    const hasLogo = !!state.settings.bizLogo, customBrand = !!state.settings.businessName, showBrand = $('#back').hidden, imgBrand = hasLogo || !customBrand;
+    { const want = hasLogo ? state.settings.bizLogo : 'icons/logo.png'; if ($('#brand').getAttribute('src') !== want) $('#brand').src = want; }
+    $('#brand').hidden = !showBrand || !imgBrand; $('#brandtxt').hidden = !showBrand || imgBrand; $('#brandtxt').textContent = initials(bizName());
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab || (k === 'more' && tab === 'people') ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     renderTools(); syncAppbarH();
     document.body.classList.toggle('hide-amounts', hideAmounts); document.body.classList.toggle('nocosts', !can('costs'));
@@ -717,12 +718,13 @@
   async function prMake() {   // the pictures to share: one collage, or one picture per item
     const list = prChosen(), prices = prShowPrices(), c = storeCfg(), name = c.name || bizName(), sub = t(prWhich === 'sale' ? 'pr.subSale' : prWhich === 'new' ? 'pr.subNew' : 'pr.subAll');
     const foot = prices ? t('pr.footPrices') : t('pr.footMsg'), imgs = await Promise.all(list.map((i) => PUI.url(i.photo.id, 'full').then((u) => (u ? loadImg(u) : null)).then((im) => im || PUI.url(i.photo.id, 'thumb').then((u) => (u ? loadImg(u) : null)))));
-    const items = list.map((i, n) => ({ i, im: imgs[n] })).filter((x) => x.im), out = [];
+    const items = list.map((i, n) => ({ i, im: imgs[n] })).filter((x) => x.im), out = [], lg = state.settings.bizLogo ? await loadImg(state.settings.bizLogo).catch(() => null) : null, circ = (g, x, y, r) => { if (!lg) return; g.save(); g.beginPath(); g.arc(x + r, y + r, r, 0, 6.2832); g.closePath(); g.clip(); g.drawImage(lg, x, y, r * 2, r * 2); g.restore(); g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(x + r, y + r, r, 0, 6.2832); g.stroke(); };
     if (!items.length) return out;
     if (prFormat === 'each') {
       for (const { i, im } of items) { const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350; const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 1080, 1350); cover(g, im, 0, 0, 1080, 1350);
         const gr = g.createLinearGradient(0, 1000, 0, 1350); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.65)'); g.fillStyle = gr; g.fillRect(0, 1000, 1080, 350);
         g.fillStyle = '#fff'; g.textBaseline = 'alphabetic'; g.font = '800 48px system-ui,Arial'; g.fillText(dn(i), 40, 1262, 1000); g.font = '600 28px system-ui,Arial'; g.fillText(name, 40, 1310, 1000);
+        circ(g, 40, 40, 48);
         if (prices && (Number(i.price) > 0 || L.salePrice(i) > 0)) pricePill(g, 40, 1212, i, 1);
         out.push(new File([await toBlob(cv)], 'promo-' + i.id + '.jpg', { type: 'image/jpeg' })); }
       return out;
@@ -730,12 +732,12 @@
     const n = Math.min(items.length, 6), odd = n % 2 === 1, rows = Math.ceil(n / 2), cw = 530, ch = n === 1 ? 1100 : 660, W = 1080, H = 170 + (n === 1 ? ch + 16 : rows * (ch + 8) + 8) + 100, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
     g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
     const hg = g.createLinearGradient(0, 0, W, 170); hg.addColorStop(0, brandNow()); hg.addColorStop(1, '#2a0b1d'); g.fillStyle = hg; g.fillRect(0, 0, W, 170);
-    g.fillStyle = '#fff'; g.textBaseline = 'alphabetic'; g.font = '800 60px system-ui,Arial'; g.fillText(name, 40, 84, 1000); g.font = '600 30px system-ui,Arial'; g.globalAlpha = .85; g.fillText(sub, 40, 130, 1000); g.globalAlpha = 1;
+    g.fillStyle = '#fff'; g.textBaseline = 'alphabetic'; const tx = lg ? 176 : 40; circ(g, 40, 37, 48); g.font = '800 60px system-ui,Arial'; g.fillText(name, tx, 84, 1040 - tx); g.font = '600 30px system-ui,Arial'; g.globalAlpha = .85; g.fillText(sub, tx, 130, 1040 - tx); g.globalAlpha = 1;
     items.slice(0, n).forEach(({ i, im }, k) => { const last = odd && k === n - 1, x = last ? 8 : 8 + (k % 2) * (cw + 8), y = 170 + 8 + Math.floor(k / 2) * (ch + 8), w = last ? W - 16 : cw; cover(g, im, x, y, w, ch); if (prices && (Number(i.price) > 0 || L.salePrice(i) > 0)) pricePill(g, x + 16, y + ch - 16, i, 1); });   // an odd last picture spreads across the whole width
     g.fillStyle = brandNow(); g.textAlign = 'center'; g.font = '700 32px system-ui,Arial'; g.fillText(foot, W / 2, H - 38, 1000); out.push(new File([await toBlob(cv)], 'promo-' + Date.now() + '.jpg', { type: 'image/jpeg' }));
     return out;
   }
-  function prSig() { return [prFormat, prShowPrices(), prChosen().map((i) => i.id + ':' + (i.price || '') + ':' + (i.discount || '') + ':' + (i.saleOn ? 1 : 0)).join(','), (storeCfg().name || '')].join('|'); }
+  function prSig() { return [prFormat, prShowPrices(), prChosen().map((i) => i.id + ':' + (i.price || '') + ':' + (i.discount || '') + ':' + (i.saleOn ? 1 : 0)).join(','), (storeCfg().name || ''), (state.settings.bizLogo || '').length].join('|'); }
   async function prEnsure() { const sig = prSig(); if (prFiles.sig === sig && prFiles.files.length) return prFiles.files; const files = await prMake(); (prFiles.urls || []).forEach((u) => URL.revokeObjectURL(u)); prFiles = { sig, files, urls: files.map((f) => URL.createObjectURL(f)) }; prIdx = Math.min(prIdx, Math.max(0, files.length - 1)); return files; }
   let prTimer = null;
   function prPreview() { clearTimeout(prTimer); prTimer = setTimeout(async () => { const box = $('#prprev'); if (!box || prMode !== 'pictures') return; if (!prChosen().length) { box.innerHTML = ''; return; } box.innerHTML = `<div class="muted small">${t('pr.making')}</div>`; try { await prEnsure(); const b2 = $('#prprev'); if (b2 && prFiles.urls.length) { const n = prFiles.urls.length, many = prFormat === 'each' && n > 1; b2.innerHTML = `<div class="prcar">${many ? `<button type="button" class="prar l" data-act="pr-prev" aria-label="${t('nav.prev')}">‹</button>` : ''}<img src="${prFiles.urls[prIdx] || prFiles.urls[0]}" alt="" class="prpimg" data-prswipe="1">${many ? `<button type="button" class="prar r" data-act="pr-next" aria-label="${t('nav.next')}">›</button>` : ''}</div><div class="muted small" style="margin-top:6px">${prFormat === 'each' ? (many ? (prIdx + 1) + ' / ' + n : tn('pr.pictures', n)) : t('pr.oneCollage')}</div>`; } } catch (e) { /* the preview is optional */ } }, 250); }
@@ -1243,7 +1245,8 @@
         <h2>${t('set.preview')}</h2>${themePreview(sel, bizName())}
         <div class="btns"><button class="btn primary" data-act="apply-palette" ${changed ? '' : 'disabled'}>${t('set.apply')}</button></div>`;
     }
-    return `<form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off">
+    return `<div class="lgcard"><span class="lgpv">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span><div class="t"><b>${t('logo.title')}</b><small>${t('logo.sub')}</small><div class="lgbt"><button type="button" class="btn" data-act="logo-pick">${t(s.bizLogo ? 'logo.change' : 'logo.add')}</button>${s.bizLogo ? `<button type="button" class="btn" data-act="logo-remove">${t('logo.remove')}</button>` : ''}</div></div><input type="file" id="logo-file" accept="image/*" hidden></div>
+      <form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off">
       <label>${t('set.bizCity')}</label><input name="bizCity" value="${esc(s.bizCity || '')}" autocomplete="off"><div class="grid2"><div><label>${t('set.bizPhone')}</label><input name="bizPhone" type="text" inputmode="tel" value="${esc(s.bizPhone || '')}" autocomplete="off"></div><div><label>${t('set.bizEmail')}</label><input name="bizEmail" type="text" inputmode="email" value="${esc(s.bizEmail || '')}" autocomplete="off"></div></div><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="text" inputmode="numeric" value="${s.year}"></div>
       <div><label>${t('set.margin')}</label><input name="defaultMargin" type="text" inputmode="decimal" value="${s.defaultMargin}"></div></div>
       <label>${t('set.markup')}</label><input name="markup" type="text" inputmode="decimal" step="0.001" value="${s.markup}">
@@ -1919,9 +1922,12 @@
   const invDesign = (id) => InvDesign.colours(id || invDesignId(), Theme.brand(), invStyle(id));
   const invBiz = () => {
     const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail);
-    return { name: s.businessName || 'B.RUIZ', lines: (own ? [s.bizCity, s.bizPhone, s.bizEmail] : ['Chaguanas', '18683658857', 'berilexy.ruiz93@gmail.com']).filter(Boolean), logo: s.businessName ? null : invLogo };
+    return { name: s.businessName || 'B.RUIZ', lines: (own ? [s.bizCity, s.bizPhone, s.bizEmail] : ['Chaguanas', '18683658857', 'berilexy.ruiz93@gmail.com']).filter(Boolean), logo: bizLogoImage() || (s.businessName ? null : invLogo) };
   };
-  const invLogo = new Image(); invLogo.src = 'icons/icon-512.png';
+  // The business's own logo (a small picture kept in the settings): drawn on invoices once it has loaded.
+  let bizLogoSrc = '', bizLogoImg = null;
+  const bizLogoImage = () => { const sx = state.settings.bizLogo || ''; if (!sx) return null; if (sx !== bizLogoSrc) { bizLogoSrc = sx; bizLogoImg = new Image(); bizLogoImg.onload = () => { Object.keys(headCache).forEach((k) => delete headCache[k]); }; bizLogoImg.src = sx; } return bizLogoImg; };
+  const invLogo = new Image(); invLogo.src = 'icons/bruiz-logo-512.png';
   const headCache = {};
   function headerCanvas(id, S) {
     const b = invBiz(), W = 800, c = document.createElement('canvas'); c.width = W * S; c.height = InvDesign.HEAD_H * S;
@@ -3136,6 +3142,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'pr-mode': prMode = id; prCaption = null; return prRefresh();
       case 'pr-which': prWhich = id; prPicks = id === 'picks' ? new Set() : null; prCaption = null; return prRefresh();
       case 'pr-pick': { const cur = new Set(prChosen().map((x) => x.id)); if (cur.has(id)) cur.delete(id); else cur.add(id); prPicks = cur; return prRefresh(); }
+      case 'logo-pick': { const f = $('#logo-file'); if (f) f.click(); return; }
+      case 'logo-remove': state.settings.bizLogo = ''; save(); Store.publish && Store.publish(true); return render();
       case 'pr-format': prFormat = id; prIdx = 0; return prRefresh();
       case 'pr-prev': case 'pr-next': { const n = prFiles.urls.length; if (n > 1) { prIdx = (prIdx + (t_.dataset.act === 'pr-next' ? 1 : n - 1)) % n; const im = $('#prprev .prpimg'), ct = $('#prprev .muted'); if (im) im.src = prFiles.urls[prIdx]; if (ct) ct.textContent = (prIdx + 1) + ' / ' + n; } return; }
       case 'pr-prices': prPrices = !prShowPrices(); prCaption = null; return prRefresh();
@@ -3307,8 +3315,16 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     }, t('set.saved'), true);
   });
 
+  // Business logo: shrink the chosen picture to a small square (white behind it) and keep it in the settings.
+  function logoFromFile(file) {
+    return new Promise((ok, no) => { const url = URL.createObjectURL(file), im = new Image(); im.onerror = () => { URL.revokeObjectURL(url); no(new Error('img')); };
+      im.onload = () => { const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, N, N);
+        const k = Math.min((N * 0.92) / im.width, (N * 0.92) / im.height); g.drawImage(im, (N - im.width * k) / 2, (N - im.height * k) / 2, im.width * k, im.height * k); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.9)); };
+      im.src = url; });
+  }
   document.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.id === 'logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { state.settings.bizLogo = d; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); }).catch(() => toast(t('logo.err'))); return; }
     if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isLocked(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
     if (el.hasAttribute('data-sel')) {
       const id = el.closest('.item').dataset.id;

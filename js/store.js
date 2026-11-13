@@ -64,7 +64,7 @@
     opts = opts || {}; const n = cartCount();
     return `${annText() && !opts.slim ? `<div class="ann">${annText()}</div>` : ''}<div class="hd"><div class="in">
       ${opts.back ? `<button class="ic" data-a="${opts.back}" aria-label="${T.back}">${ICON.back}</button>` : ''}
-      <button class="brand" data-a="home" aria-label="${T.home}"><span class="lg">${esc((store.name || '?').trim().charAt(0).toUpperCase())}</span><span class="nm">${esc(store.name || '')}</span></button>
+      <button class="brand" data-a="home" aria-label="${T.home}"><span class="lg">${store.logo ? `<img src="${esc(store.logo)}" alt="">` : esc((store.name || '?').trim().charAt(0).toUpperCase())}</span><span class="nm">${esc(store.name || '')}</span></button>
       <div class="srch" id="srch">${ICON.search}<input id="q" value="${esc(qs)}" placeholder="${T.search}" autocomplete="off" enterkeyhint="search"></div>
       <button class="ic sbtn" data-a="srch" aria-label="${T.search}">${ICON.search}</button>
       <button class="ic ${onlySaved ? 'on' : ''}" data-a="saved" aria-label="${T.saved}">${ICON.heart}${saved.size ? `<b class="d"></b>` : ''}</button>

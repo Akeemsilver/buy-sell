@@ -14,7 +14,35 @@
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
       batches: Array.isArray(c.batches) ? c.batches.slice() : [],
-      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))) })).filter((l) => l.name && (l.pickup || l.delivery)) };
+      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || '') })).filter((l) => l.name && (l.pickup || l.delivery)),
+      bands: (Array.isArray(c.bands) ? c.bands : []).map((b) => ({ id: String(b.id || newId(6)), name: String(b.name || '').trim(), price: Math.max(0, r2(num(b.price))), on: b.on !== false })),
+      areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
+      spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
+      spotPrice: Math.max(0, r2(num(c.spotPrice))) };
+  };
+  // Delivery places. A place may belong to a price range (band): then the range sets its price. A place can be switched off, or sit in the high-risk list.
+  const bandOf = (cfg, l) => (l.band ? cfg.bands.find((b) => b.id === l.band) || null : null);
+  const priceOf = (cfg, l) => { const b = bandOf(cfg, l); return b ? b.price : l.price; };
+  // What the customer's store page gets: the places that are switched on (and whose range is on), each with its real price.
+  const publicLocs = (cfgIn) => { const cfg = norm(cfgIn); return cfg.locations.filter((l) => { const b = bandOf(cfg, l); return !l.off && !(b && b.on === false); }).map((l) => ({ id: l.id, name: l.name, pickup: l.pickup, delivery: l.delivery, price: priceOf(cfg, l) })); };
+  const publicSpots = (cfgIn) => norm(cfgIn).spots.filter((x) => x.on).map((x) => ({ id: x.id, name: x.name, note: x.note }));
+  // The quick selection: "safe" switches every high-risk place off and the rest on, "all" switches everything on, "custom" changes nothing.
+  const applyMode = (cfgIn, mode) => { const cfg = norm(cfgIn); if (!['safe', 'all', 'custom'].includes(mode)) mode = 'custom'; return { areaMode: mode, locations: cfg.locations.map((l) => (mode === 'safe' ? Object.assign({}, l, { off: !!l.risk }) : mode === 'all' ? Object.assign({}, l, { off: false }) : l)) }; };
+  // Starter pack: the central areas of Trinidad in price ranges, and the areas the news and police reports keep naming as high-risk (kept off by default; the owner edits the list).
+  const TT_BANDS = [{ id: 'r40', name: 'Closest', price: 40, on: true }, { id: 'r50', name: 'Central', price: 50, on: true }, { id: 'r60', name: 'Further', price: 60, on: true }, { id: 'r80', name: 'Far', price: 80, on: true }, { id: 'r100', name: 'Very far', price: 100, on: false }];
+  const TT_PLACES = [['r40', 'Chaguanas', 0], ['r40', 'Cunupia', 0], ['r40', 'Longdenville', 0], ['r40', 'Waterloo (Carapichaima)', 0],
+    ['r50', 'Couva', 0], ['r50', 'Freeport', 0], ['r50', 'Claxton Bay', 0], ['r50', 'Curepe', 0], ['r50', 'Tunapuna', 0],
+    ['r60', 'Debe', 0], ['r60', 'San Fernando', 0], ['r60', 'Princes Town', 0], ['r60', 'Arima', 0], ['r60', 'Port of Spain (central)', 0],
+    ['r80', 'Penal', 0], ['r100', 'Point Fortin', 0],
+    ['r60', 'Laventille', 1], ['r60', 'Morvant', 1], ['r60', 'Beetham', 1], ['r60', 'Cocorite', 1], ['r60', 'Sea Lots', 1], ['r60', 'East Dry River (Port of Spain)', 1], ['r60', 'Carenage', 1], ['r60', 'Gonzales', 1],
+    ['r50', 'Tunapuna North (Fairley St, Maingot Rd)', 1], ['r60', 'Diego Martin: La Puerta', 1], ['r60', 'Diego Martin: River Estate', 1]];
+  // Adds the starter pack to the owner's settings: bands are added when missing, places already in the list keep their pickup choice but take the range and risk mark.
+  const seedTT = (cfgIn) => {
+    const cfg = norm(cfgIn), bands = cfg.bands.slice(), have = new Map(cfg.locations.map((l) => [l.name.toLowerCase(), l]));
+    TT_BANDS.forEach((b) => { if (!bands.some((x) => x.id === b.id)) bands.push(Object.assign({}, b)); });
+    const locations = cfg.locations.map((l) => { const hit = TT_PLACES.find((q) => q[1].toLowerCase() === l.name.toLowerCase()); return hit ? Object.assign({}, l, { band: hit[0], risk: !!hit[2] }) : l; });
+    TT_PLACES.forEach(([band, name, risk]) => { if (!have.has(name.toLowerCase())) locations.push({ id: newId(8), name, pickup: false, delivery: true, price: 0, risk: !!risk, off: false, band }); });
+    return { bands, locations };
   };
 
   // Items the store shows: only the chosen batches, only items for sale (Available, or In Transit when that is switched on), and only
@@ -56,8 +84,8 @@
   const hash = (v) => { const s = JSON.stringify(v); let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + ':' + s.length; };
 
   // What one order costs: the items, plus the delivery price when the customer chose delivery to a location that offers it.
-  const options = (loc) => (loc ? [loc.pickup ? { key: 'pickup', price: 0 } : null, loc.delivery ? { key: 'delivery', price: loc.price } : null].filter(Boolean) : []);
-  const totals = (items, loc, option) => { const o = options(loc).find((x) => x.key === option), sub = r2(items.reduce((t, i) => t + payPrice(i), 0)), del = o ? o.price : 0; return { sub, delivery: del, total: r2(sub + del), valid: !!o && items.length > 0 }; };
+  const options = (loc, spots, fee) => (loc ? [loc.pickup ? { key: 'pickup', price: 0 } : null, loc.delivery ? { key: 'delivery', price: loc.price } : null, spots && spots.length ? { key: 'spot', price: Math.max(0, Number(fee) || 0) } : null].filter(Boolean) : []);
+  const totals = (items, loc, option, spots, fee) => { const o = options(loc, spots, fee).find((x) => x.key === option), sub = r2(items.reduce((t, i) => t + payPrice(i), 0)), del = o ? o.price : 0; return { sub, delivery: del, total: r2(sub + del), valid: !!o && items.length > 0 }; };
 
   const digits = (s) => String(s || '').replace(/\D/g, '');
   const validName = (s) => { const n = String(s || '').trim(); return n.length >= 2 && n.length <= 60; };
@@ -139,6 +167,6 @@
     if (/^(\d{1,2}\s*[a-z]{3,}|[a-z]{3,}\s*\d{1,2})$/.test(raw) && months.some((m) => raw.includes(m))) return dtext.toLowerCase().includes(raw.replace(/\s+/g, ' ').trim());   // "6 nov" or "nov 6" is a date: it has to be that day
     const hayNum = hay.replace(/[^a-z0-9]/g, ''); return raw.split(/\s+/).every((w) => hay.includes(w) || hayNum.includes(w.replace(/[^a-z0-9]/g, ''))); };
 
-  const api = { slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

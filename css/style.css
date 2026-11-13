@@ -1428,3 +1428,9 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .owho{display:block;margin-top:2px}.ofree{color:var(--brand)}
 .fpl{max-height:240px;overflow:auto;margin:6px 0}
 .pfrule{flex:1;min-width:0;font-size:12.5px;color:var(--mute);white-space:normal!important}
+/* Add phone numbers: name on top, wide number box, buttons underneath */
+.phc{display:block!important}
+.phc .t{display:block;margin-bottom:10px}.phc .t b{display:block;font-size:16px}.phc .t small{display:block;margin-top:2px}
+.phc input.phin{display:block;width:100%;height:46px;box-sizing:border-box;margin:0 0 10px;padding:0 14px;text-align:left;font-size:16px;font-weight:600}
+.phc .chip{display:inline-block;margin:0 10px 4px 0}
+.phc .phno{display:inline-block;padding:8px 2px}

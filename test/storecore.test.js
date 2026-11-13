@@ -108,3 +108,14 @@ console.log('details tests passed');
   assert.deepStrictEqual(SC.nearestFirst(home, [far, nopin, mid, near]).map((x) => x.id), ['near', 'mid', 'far', 'none'], 'nearest first, stops without a pin last');
   assert.deepStrictEqual(SC.nearestFirst(null, [far, near]).map((x) => x.id), ['far', 'near'], 'no store pin: the order given'); assert.deepStrictEqual(SC.nearestFirst(home, []), []);
 }
+
+// Message seller: the WhatsApp text for an item (name, size, how many) in English and Spanish
+{
+  const SCm = require('../js/storecore.js');
+  assert.strictEqual(SCm.askMessage(false, 'B-RUIZ', 'Red t-shirt', 'M', 1), "Hi B-RUIZ! I'm interested in the Red t-shirt (size M). What is the price?");
+  assert.strictEqual(SCm.askMessage(true, 'B-RUIZ', 'Red t-shirt', 'M', 1), '¡Hola B-RUIZ! Me interesa la Red t-shirt (talla M). ¿Cuál es el precio?');
+  assert.strictEqual(SCm.askMessage(false, '', 'Hat', '', 3), "Hi! I'm interested in 3 of the Hat. What is the price?");
+  assert.strictEqual(SCm.norm({}).showPrices, true, 'prices are shown unless the seller turns them off');
+  assert.strictEqual(SCm.norm({ showPrices: false }).showPrices, false);
+  console.log('message seller tests passed');
+}

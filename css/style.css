@@ -1361,3 +1361,13 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 /* Customer page card: no glow or blur, the same plum gradient as the Home banner */
 .cpage .cp-hero{background:linear-gradient(135deg,var(--brand2),var(--bar));box-shadow:none}
 .cpage .cp-hero .pill{background:rgba(255,255,255,.2);backdrop-filter:none;-webkit-backdrop-filter:none}
+/* Promote tab */
+.prseg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px;margin:2px 0 4px}.prseg button{flex:1;border:0;background:none;border-radius:12px;padding:10px 4px;font-weight:700;font-size:13.5px;color:var(--mute);min-height:0;box-shadow:none}.prseg button.on{background:var(--tint);color:var(--brand);outline:1px solid var(--brand)}
+.prgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}.prt{position:relative;aspect-ratio:3/4;padding:0;border:0;border-radius:12px;overflow:hidden;background:var(--line);min-height:0;box-shadow:none}.prt .ph{width:100%;height:100%;border-radius:0}.prt.on{outline:3px solid var(--brand)}.prt.on:after{content:"✓";position:absolute;right:5px;top:5px;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-weight:800;font-size:13px;display:grid;place-items:center}
+.prrow{border:1px solid var(--line);border-radius:16px;background:var(--card);margin-top:4px}
+.prprev{margin-top:12px;text-align:center}.prpimg{max-width:100%;max-height:420px;border-radius:14px;box-shadow:0 8px 22px rgba(0,0,0,.25)}
+.prcap{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:12px;font:inherit;font-size:14px;line-height:1.4;resize:vertical}
+.prlink{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px;font-size:13.5px;word-break:break-all;color:var(--brand)}
+.prplat{display:flex;gap:10px;margin-top:6px}.prp{flex:1;border:0;background:none;box-shadow:none;min-height:0;padding:0;color:var(--ink);font-weight:700;font-size:11.5px;display:flex;flex-direction:column;align-items:center;gap:6px}.prp i{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;font-style:normal;font-size:24px;color:var(--brand);box-shadow:0 4px 10px rgba(0,0,0,.2)}
+.prsec2 .btn{flex:1}
+.prrow{display:flex;align-items:center;gap:12px;padding:14px}.prrow .t{flex:1;min-width:0}.prrow .t b{display:block;font-size:15px}.prrow .t small{display:block;color:var(--mute);font-size:12.5px;margin-top:3px;line-height:1.35}

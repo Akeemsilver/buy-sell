@@ -59,13 +59,26 @@
     writeMap(sid, map);
   }
 
+  // What the store page's top document holds (shared by the publish and by the "needs publishing" check).
+  const headOf = (c) => ({ open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, showPrices: c.showPrices !== false, logo: A.state().settings.bizLogo || '', color: root.Theme ? Theme.brand() : '#741b47', locations: SC.publicLocs(c), spots: SC.publicSpots(c), spotPrice: c.spotPrice });
+  // Is something waiting to be published? True after a failed publish, or when what is online differs from what the app holds and no automatic publish is on its way (offline, for example).
+  function needsPublish() {
+    try {
+      const c = cfg(); if (!c.id || !A) return false;
+      if (info.error) return true;
+      if (info.busy || timer) return false;
+      const list = SC.shown(A.state(), c, reserved()), retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;
+      return localStorage.getItem('buy-sell-store-sig:' + c.id) !== SC.hash({ head: headOf(c), list, retry, pv: 3 });
+    } catch (e) { return false; }
+  }
+
   // Writes the store and its catalogue when something public changed (compared with what was last written from this phone).
   async function publish(force) {
     const c = cfg(); if (!c.id || !root.Cloud || !Cloud.ready()) return false;
     if (running && Date.now() - runStart < TUNE.stale) return false;   // one at a time (a run stuck for over a minute is given up)
     running = true; runStart = Date.now(); info.busy = true; info.error = '';
     try {
-      const list = SC.shown(A.state(), c, reserved()), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, showPrices: c.showPrices !== false, logo: A.state().settings.bizLogo || '', color: root.Theme ? Theme.brand() : '#741b47', locations: SC.publicLocs(c), spots: SC.publicSpots(c), spotPrice: c.spotPrice };
+      const list = SC.shown(A.state(), c, reserved()), head = headOf(c);
       const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null; try { if (storage) { storage.setMaxUploadRetryTime(8000); storage.setMaxOperationRetryTime(8000); } } catch (e) { /* older SDK */ }
       const retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
       const sig = SC.hash({ head, list, retry, pv: 3 }), key = 'buy-sell-store-sig:' + c.id;
@@ -91,7 +104,7 @@
       info.at = Date.now(); info.count = items.length; listen(); if (storage) cleanPictures(c.id, storage).catch(() => {}); return true;
     } catch (e) { info.error = (e && e.code) || 'error'; return false; } finally { running = false; info.busy = false; A.refresh(); }
   }
-  const schedule = () => { clearTimeout(timer); if (A && cfg().id && root.Cloud && Cloud.ready()) timer = setTimeout(() => publish(false), 4000); };
+  const schedule = () => { clearTimeout(timer); timer = 0; if (A && cfg().id && root.Cloud && Cloud.ready()) timer = setTimeout(() => { timer = 0; publish(false); }, 4000); };
 
   function stopListen() { if (unsub) { try { unsub(); } catch (e) { /* ignore */ } } unsub = null; listenFor = ''; }
   function listen() {
@@ -133,6 +146,6 @@
   const remove = (id) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).delete();
   const setStatus = (id, status, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(Object.assign({ status }, status === 'new' ? {} : { [status + 'At']: Cloud.stamp() }, extra || {}));
 
-  root.Store = { init: (api) => { A = api; }, cfg, link, claim, publish, schedule, listen, stopListen, setStatus, remove, measure, patch, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
+  root.Store = { init: (api) => { A = api; }, cfg, link, claim, needsPublish, publish, schedule, listen, stopListen, setStatus, remove, measure, patch, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
     ageMs: (o) => (ts(o) ? Date.now() - ts(o) : 0), when: (o) => (ts(o) ? new Date(ts(o)) : null) };
 })(window);

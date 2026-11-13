@@ -1,6 +1,6 @@
 {
-  "name": "B-RUIZ Tienda Online",
-  "short_name": "B-RUIZ",
+  "name": "Shopivo",
+  "short_name": "Shopivo",
   "description": "Track batches, stock, invoices and customers",
   "start_url": "./",
   "scope": "./",

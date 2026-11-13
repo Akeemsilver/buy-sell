@@ -100,32 +100,32 @@
   const keyIn = (s, key) => { if (key && !(s.customers || []).includes(key)) (s.customers = s.customers || []).push(key); };
 
   // order from `name` on the main number of `p`: it is the same person (name becomes a nickname) ...
-  P.opSame = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); addNick(p, o.name); if (!p.phone && o.phone) p.phone = P.fmt(o.phone); return log(s, 'nick', '"' + clean(o.name) + '" added to ' + p.name + ' as a nickname', snap, { by, order: o.order, pids: [pid] }); };
+  P.opSame = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); addNick(p, o.name); if (!p.phone && o.phone) p.phone = P.fmt(o.phone); return log(s, 'nick', '"' + clean(o.name) + '" added to ' + p.name + ' as a nickname', snap, { k: 'dc.nick', a: { name: clean(o.name), who: p.name }, by, order: o.order, pids: [pid] }); };
   // ... or a different person: a new profile takes the number; the old one keeps it only in its previous numbers and needs a new one.
   P.opDifferent = (s, pid, o, by) => {
     const old = P.byId(s, pid), snap = start(s, [pid]); const had = old.phone; addPrev(old, had, 'taken by ' + clean(o.name)); old.phone = '';
     const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key);
-    return { profile: np, decision: log(s, 'taken', clean(o.name) + ' took ' + P.fmt(o.phone) + ' (it was ' + old.name + "'s)", snap, { by, order: o.order, pids: [pid, np.id] }) };
+    return { profile: np, decision: log(s, 'taken', clean(o.name) + ' took ' + P.fmt(o.phone) + ' (it was ' + old.name + "'s)", snap, { k: 'dc.taken', a: { name: clean(o.name), num: P.fmt(o.phone), who: old.name }, by, order: o.order, pids: [pid, np.id] }) };
   };
   // the name is known but the number is new: the same person gets a new main number (the old one is kept) ...
   P.opNewNumberSame = (s, pid, o, by) => {
     const p = P.byId(s, pid), snap = start(s, [pid]); if (p.phone && !P.same(p.phone, o.phone)) addPrev(p, p.phone, 'replaced'); dropPrev(p, o.phone); p.phone = P.fmt(o.phone); addNick(p, o.name);
-    return log(s, 'number', p.name + ' has a new main number: ' + P.fmt(o.phone), snap, { by, order: o.order, pids: [pid] });
+    return log(s, 'number', p.name + ' has a new main number: ' + P.fmt(o.phone), snap, { k: 'dc.newNum', a: { who: p.name, num: P.fmt(o.phone) }, by, order: o.order, pids: [pid] });
   };
   // ... or a different customer with the same name.
-  P.opNewCustomer = (s, o, by, why) => { const snap = start(s, []); const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key); return { profile: np, decision: log(s, 'new', clean(o.name) + ' (' + P.fmt(o.phone) + ') kept as a different customer', snap, { by, order: o.order, pids: [np.id], why: why || '' }) }; };
+  P.opNewCustomer = (s, o, by, why) => { const snap = start(s, []); const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key); return { profile: np, decision: log(s, 'new', clean(o.name) + ' (' + P.fmt(o.phone) + ') kept as a different customer', snap, { k: 'dc.diff', a: { name: clean(o.name), num: P.fmt(o.phone) }, by, order: o.order, pids: [np.id], why: why || '' }) }; };
   // an old number is used again by the same person: keep the main number (and note the name) or make the old one main again.
-  P.opOldKeep = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); addNick(p, o.name); return log(s, 'old', 'Old number ' + P.fmt(o.phone) + ' used by ' + p.name + '; main number kept', snap, { by, order: o.order, pids: [pid] }); };
-  P.opOldMain = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); if (p.phone) addPrev(p, p.phone, 'replaced'); dropPrev(p, o.phone); p.phone = P.fmt(o.phone); addNick(p, o.name); return log(s, 'number', p.name + ' went back to ' + P.fmt(o.phone), snap, { by, order: o.order, pids: [pid] }); };
+  P.opOldKeep = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); addNick(p, o.name); return log(s, 'old', 'Old number ' + P.fmt(o.phone) + ' used by ' + p.name + '; main number kept', snap, { k: 'dc.old', a: { num: P.fmt(o.phone), who: p.name }, by, order: o.order, pids: [pid] }); };
+  P.opOldMain = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); if (p.phone) addPrev(p, p.phone, 'replaced'); dropPrev(p, o.phone); p.phone = P.fmt(o.phone); addNick(p, o.name); return log(s, 'number', p.name + ' went back to ' + P.fmt(o.phone), snap, { k: 'dc.back', a: { who: p.name, num: P.fmt(o.phone) }, by, order: o.order, pids: [pid] }); };
   // an old number now belongs to a new customer: it leaves the old person's list.
-  P.opOldNew = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); const gone = (p.prev.find((e) => P.same(e.phone, o.phone)) || {}).phone; dropPrev(p, o.phone); const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key); return { profile: np, decision: log(s, 'taken', clean(o.name) + ' took ' + P.fmt(gone || o.phone) + ' (an old number of ' + p.name + ')', snap, { by, order: o.order, pids: [pid, np.id] }) }; };
+  P.opOldNew = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); const gone = (p.prev.find((e) => P.same(e.phone, o.phone)) || {}).phone; dropPrev(p, o.phone); const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key); return { profile: np, decision: log(s, 'taken', clean(o.name) + ' took ' + P.fmt(gone || o.phone) + ' (an old number of ' + p.name + ')', snap, { k: 'dc.takenOld', a: { name: clean(o.name), num: P.fmt(gone || o.phone), who: p.name }, by, order: o.order, pids: [pid, np.id] }) }; };
   // two people really share this number: a second profile on the same number, told apart by name.
-  P.opShared = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); p.shared = true; const np = newProfile(s, o.name, o.phone, snap); np.shared = true; keyIn(s, np.key); return { profile: np, decision: log(s, 'shared', clean(o.name) + ' shares ' + P.fmt(o.phone) + ' with ' + p.name, snap, { by, order: o.order, pids: [pid, np.id] }) }; };
+  P.opShared = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); p.shared = true; const np = newProfile(s, o.name, o.phone, snap); np.shared = true; keyIn(s, np.key); return { profile: np, decision: log(s, 'shared', clean(o.name) + ' shares ' + P.fmt(o.phone) + ' with ' + p.name, snap, { k: 'dc.shared', a: { name: clean(o.name), num: P.fmt(o.phone), who: p.name }, by, order: o.order, pids: [pid, np.id] }) }; };
   // not sure yet: the order goes ahead as a separate customer, flagged to check.
-  P.opLater = (s, o, by, withIds) => { const snap = start(s, withIds || []); const np = newProfile(s, o.name, '', snap); if (o.phone && !P.mainOwners(s, o.phone).length) np.phone = P.fmt(o.phone); keyIn(s, np.key); return { profile: np, decision: log(s, 'later', clean(o.name) + ' kept apart for now (check Possible duplicates)', snap, { by, order: o.order, pids: [np.id].concat(withIds || []), pending: true }) }; };
+  P.opLater = (s, o, by, withIds) => { const snap = start(s, withIds || []); const np = newProfile(s, o.name, '', snap); if (o.phone && !P.mainOwners(s, o.phone).length) np.phone = P.fmt(o.phone); keyIn(s, np.key); return { profile: np, decision: log(s, 'later', clean(o.name) + ' kept apart for now (check Possible duplicates)', snap, { k: 'dc.later', a: { name: clean(o.name) }, by, order: o.order, pids: [np.id].concat(withIds || []), pending: true }) }; };
   // a customer is new: a profile with the typed name and number.
-  P.opFresh = (s, o, by) => { const snap = start(s, []); const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key); return { profile: np, decision: log(s, 'created', clean(o.name) + ' added with ' + P.fmt(o.phone), snap, { by, order: o.order, pids: [np.id] }) }; };
-  P.opFill = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); p.phone = P.fmt(o.phone); return log(s, 'number', p.name + ' got a number: ' + p.phone, snap, { by, order: o.order, pids: [pid] }); };
+  P.opFresh = (s, o, by) => { const snap = start(s, []); const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key); return { profile: np, decision: log(s, 'created', clean(o.name) + ' added with ' + P.fmt(o.phone), snap, { k: 'dc.created', a: { name: clean(o.name), num: P.fmt(o.phone) }, by, order: o.order, pids: [np.id] }) }; };
+  P.opFill = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); p.phone = P.fmt(o.phone); return log(s, 'number', p.name + ' got a number: ' + p.phone, snap, { k: 'dc.got', a: { who: p.name, num: p.phone }, by, order: o.order, pids: [pid] }); };
 
   // A number typed by hand for a customer (the Add phone numbers list). {ok} or {conflict: [profiles that already have it]}.
   P.setNumber = (s, pid, phone, by) => {
@@ -133,7 +133,7 @@
     const others = P.mainOwners(s, phone).filter((q) => q.id !== pid); if (others.length) return { conflict: others };
     if (p.phone && P.same(p.phone, phone)) return { ok: true };   // already the main number: nothing to record
     const snap = start(s, [pid]); if (p.phone && !P.same(p.phone, phone)) addPrev(p, p.phone, 'replaced'); dropPrev(p, phone); p.phone = P.fmt(phone); p.noNumber = false;
-    return { ok: true, decision: log(s, 'number', p.name + ' main number: ' + p.phone, snap, { by, pids: [pid] }) };
+    return { ok: true, decision: log(s, 'number', p.name + ' main number: ' + p.phone, snap, { k: 'dc.set', a: { who: p.name, num: p.phone }, by, pids: [pid] }) };
   };
 
   /* ---------- merge and split (they re-key invoices and items) ---------- */
@@ -158,7 +158,7 @@
     if (f.free && f.free.on && !(t.free && t.free.on)) t.free = clone(f.free);
     s.people = s.people.filter((p) => p.id !== f.id); s.customers = (s.customers || []).filter((n) => n !== f.key); keyIn(s, t.key);
     if (!sameTotals(before, P.totals(s))) { P.restore(s, snap); throw new Error('totals'); }
-    return log(s, 'merge', f.name + ' merged into ' + t.name, snap, { by, pids: [intoId], removed: [fromId] });
+    return log(s, 'merge', f.name + ' merged into ' + t.name, snap, { k: 'dc.merge', a: { from: f.name, into: t.name }, by, pids: [intoId], removed: [fromId] });
   };
   // The ticked invoices (and their items) go to a new customer.
   P.split = (s, pid, o, by) => {
@@ -167,7 +167,7 @@
     const before = P.totals(s), snap = start(s, [pid]); const np = newProfile(s, o.name, o.phone, snap);
     mapKeys(s, snap, p.key, np.key, nos); keyIn(s, np.key);
     if (!sameTotals(before, P.totals(s))) { P.restore(s, snap); throw new Error('totals'); }
-    return { profile: np, decision: log(s, 'split', p.name + ' split: ' + nos.size + ' invoice' + (nos.size === 1 ? '' : 's') + ' moved to ' + np.name, snap, { by, pids: [pid, np.id] }) };
+    return { profile: np, decision: log(s, 'split', p.name + ' split: ' + nos.size + ' invoice' + (nos.size === 1 ? '' : 's') + ' moved to ' + np.name, snap, { k: nos.size === 1 ? 'dc.splitOne' : 'dc.splitMany', a: { who: p.name, n: nos.size, name: np.name }, by, pids: [pid, np.id] }) };
   };
   P.restore = (s, snap) => {
     (snap.created || []).forEach((id) => { const p = P.byId(s, id); if (p) { s.people = s.people.filter((q) => q.id !== id); s.customers = (s.customers || []).filter((n) => n !== p.key); } });

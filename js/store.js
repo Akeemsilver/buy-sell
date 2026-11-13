@@ -228,6 +228,7 @@
     sending = false; draw(); window.scrollTo(0, 0);
   }
 
+  if (window.SelectPicker) SelectPicker.install(() => ({ cancel: ES ? 'Cancelar' : 'Cancel', done: ES ? 'Listo' : 'Done', search: ES ? 'Buscar' : 'Search', choose: T.choose || (ES ? 'Elegir' : 'Choose'), none: ES ? 'Sin resultados' : 'No match' }));
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target && (e.target.id === 'f-phone' || e.target.id === 'q' || e.target.id === 'q2')) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('input', (e) => { if (e.target.id === 'q' || e.target.id === 'q2') { qs = e.target.value; refreshGrid(); } });
   document.addEventListener('click', (e) => {

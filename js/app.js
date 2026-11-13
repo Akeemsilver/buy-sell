@@ -1715,9 +1715,9 @@
     const b = batchOf(i), n = ids.indexOf(id);
     const strip = ids.map((x, k) => { const it = state.items.find((y) => y.id === x), gn = grpOf(it).length; return `<button class="qt ${x === id ? 'on' : ''} ${stripState(it)}" data-id="${x}" data-act="qe-go" data-b="${batchId}" aria-label="${x}">${it.photo ? `<img data-ph="${it.photo.id}" data-kind="thumb" alt="">` : `<em>${k + 1}</em>`}${gn > 1 ? `<u class="gx">×${gn}</u>` : ''}</button>`; }).join('');
     const blocked = L.needsSize(state, i);
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${navArrows(ids, id, 'qe-go')}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qe.title')}</b><small>${bl(b.id)} · ${esc(i.store)}</small></div>${ids.length > 1 && n >= 0 ? `<div class="nx qcount"><span class="c">${t('nav.ofN', { n: n + 1, total: ids.length })}</span></div>` : ''}<button class="dots" data-act="page-more" aria-label="${t('batch.more')}">⋮</button></div>
       <div class="qe"><div class="qstrip" id="qstrip">${strip}</div>
-      <div class="qbig">${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
+      <div class="qbig" data-qswipe="1">${n > 0 ? `<button type="button" class="qsw l" data-act="qe-go" data-id="${ids[n - 1]}" data-b="${batchId}" aria-label="${t('nav.prev')}">‹</button>` : ''}${n < ids.length - 1 ? `<button type="button" class="qsw r" data-act="qe-go" data-id="${ids[n + 1]}" data-b="${batchId}" aria-label="${t('nav.next')}">›</button>` : ''}${i.photo ? `<img data-ph="${i.photo.id}" data-kind="${i.photo.noFull ? 'thumb' : 'full'}" alt="">` : `<span class="qnone">${t('photo.noPhoto')}</span>`}</div>
       <div class="qf"><label>${t('item.desc')}</label><div class="dscrow"><input data-f="${esMode() ? 'descS' : 'desc'}" value="${esc(descShown(i))}" placeholder="${t('item.descPh')}" autocomplete="off" enterkeyhint="next">${micBtn()}${esBtn(i)}</div>
       <div class="mrow"><div class="costonly"><label>🔒 ${t('item.cost', { cur: b.currency })}</label><input data-f="cost" type="text" inputmode="decimal" value="${i.cost || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label>${t('qty.label')}</label>${qtyHtml(i)}</div></div>
       <div class="mrow"><div><label>${t('item.price')}</label><input data-f="price" type="text" inputmode="decimal" value="${i.price || ''}" placeholder="0.00" enterkeyhint="done"></div><div><label class="ghost">&nbsp;</label><button class="btn" type="button" data-act="use-rec" data-id="${i.id}">${t('item.recShort')}</button></div></div>
@@ -3426,6 +3426,13 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       const back = () => { const p = slideParts(); setParts(p.mv, '', '', 210); setParts(p.fd, '', '', 210); setTimeout(() => { [...p.mv, ...p.fd].forEach((x) => { x.style.transition = ''; x.style.transform = ''; x.style.opacity = ''; }); $('#sheet').style.overflowX = ''; }, 240); };
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) { if (was) back(); return; }
       const b = document.querySelector('#inavpill [data-dir="' + (dx < 0 ? 'next' : 'prev') + '"]'); if (b && !b.disabled) slideItem(b.dataset.id, dx < 0 ? 1 : -1); else if (was) back(); }, { passive: true });
+  })();
+  // Edit batch: swipe the photo left or right for the next or last item (typed text is already saved; it works like the side arrows)
+  (() => { let x0 = null, y0 = 0;
+    document.addEventListener('touchstart', (e) => { const b = e.target.closest && e.target.closest('[data-qswipe]'); if (!b || e.touches.length !== 1) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    document.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const b = document.querySelector('.qbig .qsw.' + (dx < 0 ? 'r' : 'l')); if (b) b.click(); }, { passive: true });
   })();
   // Delivery log calendar: swipe the month grid left or right for the next or last month
   (function () {

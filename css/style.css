@@ -1354,3 +1354,7 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .fbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}.fbar small{color:var(--mute);font-weight:600;font-size:12.5px}
 .fch{display:inline-flex;align-items:center;gap:8px;background:var(--tint);color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:7px 8px 7px 14px;font-weight:800;font-size:13px;min-height:0;box-shadow:none}
 .fch i{font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:11px}
+/* Edit batch: the count sits in the top bar, the arrows sit in the black strips beside the photo, a swipe on the photo moves on, the bottom buttons are a little smaller */
+.qe .qbig{position:relative;touch-action:pan-y}.qe .qbig .qsw{position:absolute;top:50%;margin-top:-19px;width:38px;height:38px;border:0;border-radius:50%;background:rgba(70,70,70,.85);color:#fff;font-size:22px;line-height:1;padding:0 0 2px;min-height:0;box-shadow:none;z-index:2;display:grid;place-items:center}.qe .qbig .qsw.l{left:6px}.qe .qbig .qsw.r{right:6px}
+.fullbar .nx.qcount{display:flex;align-items:center;margin-left:auto;padding-right:8px}.fullbar .nx.qcount .c{font-weight:800;white-space:nowrap}
+.qe .qgo button{min-height:46px;font-size:15px}

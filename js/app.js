@@ -601,7 +601,7 @@
       ${hid0 ? `<div class="warn"><span style="font-size:20px">⚠️</span><div><b>${tn('hub.hidden', hidden.length)}</b><br><small>${t('hub.hiddenSub')}</small></div><button class="fx" data-act="open-stock" data-id="${hid0.batchId}">${t('hub.fix')}</button></div>` : ''}
       <h4><span>${t('hub.settings')}</span></h4>
       <div class="box"><button class="rw2 tap" data-act="dlv-home"><div class="t"><b>📍 ${t('sset.loc')}</b><small>${dset().home ? esc(dset().home.name || t('ds.pinSet')) : t('sset.locNone')}</small></div><span class="chev">›</span></button>
-        <button class="rw2 tap" data-act="pickup-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
+        <button class="rw2 tap" data-act="pickup-open"><div class="t"><b>${t('hub.delivery')}</b><small>${pdSummary(c)}</small></div><span class="chev">›</span></button>
         <button class="rw2 tap" data-act="contact-open"><div class="t"><b>${t('hub.contact')}</b><small>${esc(c.name || bizName())} · ${esc(c.whatsapp) || t('store.whatsappSub')}</small></div><span class="chev">›</span></button>
         <button class="rw2 tap" data-act="words-open"><div class="t"><b>${t('hub.spanish')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div><span class="chev">›</span></button>
         <div class="rw2"><div class="t"><b>${t('store.prices')}</b><small>${t(c.showPrices ? 'store.pricesOn' : 'store.pricesOff')}</small></div>${swt('store-toggle', 'showPrices', c.showPrices)}</div>
@@ -2528,11 +2528,42 @@
     const c = storeCfg(), h = dset().home, row = (act, title, sub) => `<button class="rw2 tap" data-act="${act}"><div class="t"><b>${title}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.settings')}</b></div></div><div class="ap sth"><div class="box">
       ${row('dlv-home', '📍 ' + t('sset.loc'), h ? esc(h.name || t('ds.pinSet')) : `<span style="color:var(--bad,#cf4b4b)">${t('sset.locNone')}</span>`)}
-      ${row('pickup-open', t('hub.delivery'), esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone'))}
+      ${row('pickup-open', t('hub.delivery'), pdSummary(c))}
       ${row('dlv-settings', t('dlv.settings'), t('sset.ratesSub'))}
       ${row('contact-open', t('hub.contact'), esc(c.name || bizName()) + ' · ' + (esc(c.whatsapp) || t('store.whatsappSub')))}
       ${row('words-open', t('hub.spanish'), t('words.openLibSub', { n: wordList().length }))}
       ${row('store-open', t('hub.all'), '')}</div></div>`, null, true);
+  }
+  // One short line for the Store page: how many places, how many are switched off, how many zones.
+  const pdSummary = (c) => { if (!c.locations.length && !c.zones.length) return t('hub.deliveryNone'); const off = c.locations.filter((l) => { const b = SCore.bandOf(c, l); return l.off || (b && b.on === false); }).length; return t('pd.summary', { n: c.locations.length, off, z: SCore.areaZones(c.zones).length }); };
+  const placeRowH = (c, l) => { const b = SCore.bandOf(c, l), live = !l.off && !(b && b.on === false); return `<div class="pkr ${live ? '' : 'dim'}" data-n="${esc(l.name.toLowerCase())}"><button type="button" class="pkn" data-act="store-loc" data-id="${l.id}"><b>${esc(l.name)}</b><small>${l.pickup ? t('store.pickup') + ' · ' : ''}${l.delivery ? t('store.delivery') + ' ' + money(SCore.priceOf(c, l)) : ''}${SCore.needsPrice(c, l) ? ` <span class="rtag np">${t('pk.needsPrice')}</span>` : ''}${l.risk ? ` <span class="rtag">${t('pk.riskTag')}</span>` : ''}</small></button>${swt('place-on', l.id, !l.off)}</div>`; };
+  // Re-draw whichever of the three delivery pages is on top.
+  const refreshPick = () => { const k = pageStack.length ? pageStack[pageStack.length - 1].key : ''; return k.startsWith('places|') ? sheetPlaces(plF) : k.startsWith('risk|') ? sheetRisk() : sheetPickup(); };
+  let plF = 'all', plQ = '';
+  function sheetPlaces(f) {
+    if (f) plF = f; ensureZonePlaces(); enterPage('places', '', () => sheetPlaces());
+    const c = storeCfg(), liveOf = (l) => { const b = SCore.bandOf(c, l); return !l.off && !(b && b.on === false); };
+    const test = { all: () => true, needs: (l) => SCore.needsPrice(c, l), risk: (l) => l.risk, off: (l) => !liveOf(l) }, list = c.locations.filter(test[plF] || test.all).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const chip = (k, label, n) => `<button type="button" class="chip ${plF === k ? 'on' : ''}" data-act="pl-filter" data-id="${k}">${label} <b>${n}</b></button>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div></div>
+      <div class="pd"><div class="oqbar"><span aria-hidden="true">🔍</span><input id="pl-q" class="cq" type="search" enterkeyhint="search" autocomplete="off" placeholder="${esc(t('pl.search'))}" value="${esc(plQ)}"></div>
+      <div class="itchips" style="margin:10px 0">${chip('all', t('filter.all'), c.locations.length)}${chip('needs', t('pk.needsPrice'), c.locations.filter(test.needs).length)}${chip('risk', t('pk.riskTag'), c.locations.filter(test.risk).length)}${chip('off', t('pl.off'), c.locations.filter(test.off).length)}</div>
+      <div class="card pkc" id="pl-list">${list.map((l) => placeRowH(c, l)).join('') || `<p class="muted small">${t('pd.tip')}</p>`}</div>
+      <button type="button" class="pkadd" data-act="store-loc" data-id="new">＋ ${t('pd.add')}</button></div>`, null, true);
+    plSearch();
+  }
+  const plSearch = () => { const q = plQ.trim().toLowerCase(); document.querySelectorAll('#pl-list .pkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); };
+  function sheetRisk() {
+    enterPage('risk', '', () => sheetRisk());
+    const c = storeCfg(), risks = c.locations.filter((l) => l.risk).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pk.risk')}</b><small>${t('pk.riskCountN', { n: risks.length })}</small></div></div>
+      <div class="pd"><p class="muted small" style="margin:6px 2px 10px">${t('pk.riskSub')}</p><div class="card pkc">${risks.map((l) => `<div class="pkr"><span class="pkn"><b>${esc(l.name)}</b></span>${swt('risk-flag', l.id, true)}</div>`).join('') || `<p class="muted small">${t('pk.riskNone')}</p>`}</div>
+      <button type="button" class="pkadd" data-act="risk-add">＋ ${t('pk.riskAdd')}</button><p class="muted small">${t('pk.riskNote')}</p></div>`, null, true);
+  }
+  // Pick high-risk areas from your places (tick as many as you like), or type one that is not in the list.
+  function sheetRiskPick() {
+    const c = storeCfg(), cand = c.locations.filter((l) => !l.risk).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    openSmall(`<h3>${t('pk.riskAdd')}</h3><p>${t('pk.riskPickSub')}</p><form id="f-riskpick"><div class="oqbar" style="margin-bottom:8px"><span aria-hidden="true">🔍</span><input id="rp-q" class="cq" type="search" autocomplete="off" placeholder="${esc(t('pl.search'))}"></div><div class="fpl" id="rp-list">${cand.map((l) => `<label class="tkr" data-n="${esc(l.name.toLowerCase())}"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('') || `<p class="muted small">${t('pk.riskNoPlaces')}</p>`}</div><input name="name" type="text" autocomplete="off" placeholder="${esc(t('pk.riskOther'))}"><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
   function sheetPickup() {
     ensureZonePlaces();
@@ -2546,13 +2577,12 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.delivery')}</b><small>${t('pd.sub')}</small></div></div>
       <div class="pd">
       <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.count2', { n: SCore.areaZones(c.zones).length, h: c.zones.filter((z) => z.risk).length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
-      ${c.locations.some((l) => SCore.needsPrice(c, l)) ? `<button type="button" class="hnr zrow" data-act="places-jump"><span class="hic" style="background:var(--warnbg)">💲</span><div class="t"><b>${t('pk.needsRow', { n: c.locations.filter((l) => SCore.needsPrice(c, l)).length })}</b><small>${t('pk.needsSub')}</small></div><span class="chev">↓</span></button>` : ''}
-      <button type="button" class="hnr zrow" data-act="risk-jump"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${t('pk.riskRow', { n: risks.length })}</small></div><span class="chev">↓</span></button>
+      ${c.locations.some((l) => SCore.needsPrice(c, l)) ? `<button type="button" class="hnr zrow" data-act="places-needs"><span class="hic" style="background:var(--warnbg)">💲</span><div class="t"><b>${t('pk.needsRow', { n: c.locations.filter((l) => SCore.needsPrice(c, l)).length })}</b><small>${t('pk.needsSub')}</small></div><span class="chev">›</span></button>` : ''}
+      <button type="button" class="hnr zrow" data-act="places-page"><span class="hic" style="background:var(--okbg)">📍</span><div class="t"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><span class="chev">›</span></button>
+      <button type="button" class="hnr zrow" data-act="risk-page"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${t('pk.riskRow', { n: risks.length })}</small></div><span class="chev">›</span></button>
       ${c.bands.length ? '' : `<button type="button" class="addp towns" data-act="store-towns">🇹🇹 ${t('pk.towns')}</button><p class="lead" style="margin-top:8px">${t('pk.townsSub')}</p>`}
       ${c.locations.length ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
       ${c.bands.length ? `<h4 class="pkh">${t('pk.bands')}</h4><div class="card pkc">${c.bands.map(bandRow).join('')}<button type="button" class="pkadd" data-act="band-add">＋ ${t('pk.bandAdd')}</button><p class="muted small">${t('pk.bandsSub')}</p></div>` : ''}
-      <h4 class="pkh" id="pk-risk">${t('pk.risk')} <span class="rtag">${risks.length}</span></h4><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.riskSub')}</p>${risks.map((l) => `<div class="pkr"><span class="pkn"><b>${esc(l.name)}</b></span>${swt('risk-flag', l.id, true)}</div>`).join('')}<button type="button" class="pkadd" data-act="risk-add">＋ ${t('pk.riskAdd')}</button><p class="muted small">${t('pk.riskNote')}</p></div>
-      <h4 class="pkh" id="pk-places">${t('pk.placesH')}</h4><div class="card pkc">${c.locations.map(placeRow).join('') || `<p class="muted small">${t('pd.tip')}</p>`}<button type="button" class="pkadd" data-act="store-loc" data-id="new">＋ ${t('pd.add')}</button></div>
       <h4 class="pkh">${t('pk.spots')}</h4><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.spotsSub')}</p><div class="pkb"><span class="pkp">TT$</span><input class="pkin" id="pk-spotprice" inputmode="decimal" data-spotprice="1" value="${c.spotPrice || ''}" placeholder="0.00" aria-label="${t('pk.spotPrice')}"><div class="pkt"><b>${t('pk.spotPrice')}</b></div></div>${c.spots.map(spotRow).join('')}<button type="button" class="pkadd" data-act="spot-add">＋ ${t('pk.spotAdd')}</button></div>
       </div>`, null, true);
   }
@@ -2661,6 +2691,7 @@
         openSmall(`<h3>${t('xfer.t3')}</h3><p>${esc(t('xfer.q3', { name: nm }))}</p><input id="xfer-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="TRANSFER" style="margin-top:6px">
           <div class="btns"><button class="btn dsolid" id="xfer-go" data-act="xfer-go" disabled>${t('xfer.go')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card'); }); });
   }
+  document.addEventListener('input', (e) => { if (e.target.id === 'pl-q') { plQ = e.target.value; plSearch(); } else if (e.target.id === 'rp-q') { const q = e.target.value.trim().toLowerCase(); document.querySelectorAll('#rp-list .tkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); } });
   document.addEventListener('input', (e) => { if (e.target.id === 'xfer-in') { const b = $('#xfer-go'); if (b) b.disabled = e.target.value.trim().toUpperCase() !== 'TRANSFER'; } });
 
   /* ---------- notifications (the bell) ---------- */
@@ -3471,12 +3502,13 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       }
       case 'sl-band': { document.querySelectorAll('#sl-bands .chip').forEach((b) => b.classList.toggle('on', b === t_)); return; }
       case 'area-mode': { const c = storeCfg(), r = SCore.applyMode(c, id); storeSet({ areaMode: r.areaMode, locations: r.locations }); return sheetPickup(); }
-      case 'place-on': { const c = storeCfg(); storeSet({ areaMode: 'custom', locations: c.locations.map((l) => (l.id === id ? Object.assign({}, l, { off: !l.off }) : l)) }); return sheetPickup(); }
+      case 'place-on': { const c = storeCfg(); storeSet({ areaMode: 'custom', locations: c.locations.map((l) => (l.id === id ? Object.assign({}, l, { off: !l.off }) : l)) }); return refreshPick(); }
       case 'band-on': { const c = storeCfg(); storeSet({ bands: c.bands.map((b) => (b.id === id ? Object.assign({}, b, { on: !b.on }) : b)) }); return sheetPickup(); }
       case 'band-del': { const c = storeCfg(); storeSet({ bands: c.bands.filter((b) => b.id !== id) }); return sheetPickup(); }
       case 'band-add': return openSmall(`<h3>${t('pk.bandAdd')}</h3><form id="f-band"><label>${t('pk.bandPrice')}</label><input name="price" inputmode="decimal" placeholder="0.00" autocomplete="off" required><label>${t('pk.bandName')}</label><input name="name" autocomplete="off"><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
-      case 'risk-flag': { const c = storeCfg(), list = c.locations.map((l) => (l.id === id ? Object.assign({}, l, { risk: false }) : l)); storeSet({ locations: c.areaMode === 'safe' ? SCore.applyMode({ locations: list, bands: c.bands }, 'safe').locations : list }); return sheetPickup(); }
-      case 'risk-add': return openSmall(`<h3>${t('pk.riskAdd')}</h3><form id="f-risk"><label>${t('pk.riskName')}</label><input name="name" autocomplete="off" required><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
+      case 'risk-flag': { const c = storeCfg(), list = c.locations.map((l) => (l.id === id ? Object.assign({}, l, { risk: false }) : l)); storeSet({ locations: c.areaMode === 'safe' ? SCore.applyMode({ locations: list, bands: c.bands }, 'safe').locations : list }); return refreshPick(); }
+      case 'risk-add': return sheetRiskPick();
+      case 'risk-add-old': return openSmall(`<h3>${t('pk.riskAdd')}</h3><form id="f-risk"><label>${t('pk.riskName')}</label><input name="name" autocomplete="off" required><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
       case 'spot-on': { const c = storeCfg(); storeSet({ spots: c.spots.map((x) => (x.id === id ? Object.assign({}, x, { on: !x.on }) : x)) }); return sheetPickup(); }
       case 'spot-del': { const c = storeCfg(); storeSet({ spots: c.spots.filter((x) => x.id !== id) }); return sheetPickup(); }
       case 'spot-add': case 'spot-edit': { const x = t_.dataset.act === 'spot-edit' ? storeCfg().spots.find((q) => q.id === id) : null; return openSmall(`<h3>${t(x ? 'pk.spotEdit' : 'pk.spotAdd')}</h3><form id="f-spot"><input type="hidden" name="sid" value="${x ? esc(x.id) : ''}"><label>${t('pk.spotName')}</label><input name="name" value="${x ? esc(x.name) : ''}" placeholder="${t('pk.spotNamePh')}" autocomplete="off" required><label>${t('pk.spotNote')}</label><input name="note" value="${x ? esc(x.note) : ''}" placeholder="${t('pk.spotNotePh')}" autocomplete="off"><div class="btns"><button class="btn primary">${t('pk.spotSave')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet'); }
@@ -3567,8 +3599,10 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
       case 'zones-open': closeSheet(); return sheetZones();
       case 'zones-page': return sheetZones();
-      case 'places-jump': { const h = document.getElementById('pk-places'); if (h) h.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
-      case 'risk-jump': { const h = document.getElementById('pk-risk'); if (h) { h.scrollIntoView({ block: 'start', behavior: 'smooth' }); h.classList.add('flash'); setTimeout(() => h.classList.remove('flash'), 2000); } return; }
+      case 'places-page': plF = 'all'; return sheetPlaces();
+      case 'places-needs': return sheetPlaces('needs');
+      case 'pl-filter': plF = id; return sheetPlaces();
+      case 'risk-page': return sheetRisk();
       case 'zone-add': case 'zone-edit': return openZone(id, t_.dataset.risk === '1');
       case 'zone-starter-hot': return askCard(t('zn.hotAsk', { n: ZoneData.hot().length })).then((y) => { if (!y) return; const c = storeCfg(), have = new Set(c.zones.map((z) => z.name.toLowerCase())); storeSet({ zones: c.zones.concat(ZoneData.hot().filter((z) => !have.has(z.name.toLowerCase()))) }); toast(t('zn.added')); sheetZones(); });
       case 'zone-starter': return askCard(t('zn.starterAsk', { n: ZoneData.starter().length })).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ zones: c.zones.concat(ZoneData.starter()) }); toast(t('zn.added')); sheetZones(); });
@@ -3636,6 +3670,13 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (f.id === 'f-acct') { acctShow(t('acct.working')); homeAfterSignIn = true; const em = d.email.trim(); rememberEmail(em); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-quick') return quickSale(d);
     if (f.id === 'f-band') { const price = parseAmt(d.price), c = storeCfg(); if (!(price > 0)) return; storeSet({ bands: c.bands.concat({ id: SCore.newId(6), name: String(d.name || '').trim(), price, on: true }) }); closeSheet(); return sheetPickup(); }
+    if (f.id === 'f-riskpick') {
+      const c = storeCfg(), ticked = new Set([...f.querySelectorAll('input[type=checkbox]:checked')].map((x) => x.value)), name = L.cleanName(d.name);
+      let list = c.locations.map((l) => (ticked.has(l.id) ? Object.assign({}, l, { risk: true, off: true }) : l));
+      if (name) { const hit = list.find((l) => l.name.toLowerCase() === name.toLowerCase()); list = hit ? list.map((l) => (l === hit ? Object.assign({}, l, { risk: true, off: true }) : l)) : list.concat({ id: SCore.newId(8), name, pickup: false, delivery: true, price: 0, risk: true, off: true, band: '', zone: '', auto: false }); }
+      if (list.length === c.locations.length && !ticked.size && !name) return closeSheet();
+      storeSet({ locations: list }); closeSheet(); toast(t('pk.riskSaved')); return sheetRisk();
+    }
     if (f.id === 'f-risk') { const name = L.cleanName(d.name), c = storeCfg(); if (!name) return; const hit = c.locations.find((l) => l.name.toLowerCase() === name.toLowerCase()), list = hit ? c.locations.map((l) => (l === hit || l.id === hit.id ? Object.assign({}, l, { risk: true }) : l)) : c.locations.concat({ id: SCore.newId(8), name, pickup: false, delivery: true, price: 0, risk: true, off: true, band: '' }); storeSet({ locations: c.areaMode === 'safe' ? SCore.applyMode({ locations: list, bands: c.bands }, 'safe').locations : list.map((l) => (l.risk && !hit && l.name === name ? Object.assign({}, l, { off: true }) : l)) }); closeSheet(); return sheetPickup(); }
     if (f.id === 'f-spot') { const name = String(d.name || '').trim(), note = String(d.note || '').trim(), c = storeCfg(); if (!name) return; storeSet({ spots: d.sid ? c.spots.map((x) => (x.id === d.sid ? Object.assign({}, x, { name, note }) : x)) : c.spots.concat({ id: SCore.newId(6), name, note, on: true }) }); closeSheet(); return sheetPickup(); }
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; const sc = storeCfg(); if (sc.id && sc.autoNew && !sc.batches.includes(b.id)) storeSet({ batches: sc.batches.concat(b.id) }); } }

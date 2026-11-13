@@ -593,7 +593,7 @@
       <button class="pubbtn" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="pubnote">${t('hub.autoNote')}</p></div>`;
   }
   function Sell() {
-    if (!selected.size) return `<div class="sx"><div class="empty2"><div class="ic">🧾</div><h3>${t('sell.empty')}</h3><p>${t('sell.emptyText')}</p><button class="btn primary" data-act="goto-stock" style="width:100%">${t('sell.choose')}</button></div></div>`;
+    if (!selected.size) return `<div class="sx"><div class="empty2"><div class="ic">🧾</div><h3>${t('sell.empty')}</h3><p>${t('sell.emptyText')}</p><button class="btn primary" data-act="goto-stock" style="width:100%">${t('sell.choose')}</button><button class="btn qsbtn" data-act="quick-sale" style="width:100%;margin-top:10px">⚡ ${t('qs.btn')}</button></div></div>`;
     const items = [...selected].map((id) => state.items.find((i) => i.id === id)).filter(Boolean);
     const sub = items.reduce((n, i) => n + L.effectivePrice(i), 0), client = L.cleanName(invForm.client), fromOrder = !!pendingOrder;   // what a customer ordered cannot be edited or taken off here
     const row = (i) => { const eff = L.effectivePrice(i), sale = L.salePrice(i) > 0 && !L.isSold(i), was = Number(i.price) || 0;
@@ -610,6 +610,7 @@
     return `<div class="sx"><div class="steps"><button type="button" class="on" data-act="sx-go" data-id="items">① ${t('sell.s1')}</button><button type="button" class="${client ? 'on' : ''}" data-act="sx-go" data-id="customer">② ${t('sell.s2')}</button><button type="button" class="${client ? 'on' : ''}" data-act="sx-go" data-id="pay">③ ${t('sell.s3')}</button></div>
       <h4 id="sx-items"><span>${t('sell.items', { n: items.length })}</span>${fromOrder ? '' : `<span class="tapedit">${t('sell.tapEdit')}</span>`}</h4>
       <div class="card">${items.map(row).join('')}<div class="sub"><span>${t('sell.subtotal')}</span><b>${money(sub)}</b></div></div>
+      <button type="button" class="qsadd" data-act="quick-sale">⚡ ${t('qs.add')}</button>
       <h4 id="sx-customer"><span>${t('sell.customer')}</span></h4>
       ${orderCustomerCard() || `<div class="card"><div class="srch"><span>🔍</span><input id="client" name="client" value="${esc(invForm.client)}" placeholder="${t('sell.customerPh')}" autocomplete="off" enterkeyhint="done"></div><div class="people" id="combolist">${chipRows(invForm.client)}</div></div>`}
       <h4 id="sx-pay"><span>${t('sell.s3')}</span></h4>
@@ -1323,6 +1324,25 @@
   const currencyOpts = () => Object.keys(L.CURRENCIES).map((c) => `<option>${c}</option>`).join('');
   const batchOpts = (list) => list.map((b) => `<option value="${b.id}">${bl(b.id)}</option>`).join('');
 
+  // Quick sale: something that is not in your stock. It is kept as its own one-item batch so the cost and profit stay right.
+  function sheetQuickSale() {
+    enterPage('quicksale', '', () => sheetQuickSale());
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('qs.title')}</b><small>${t('qs.sub')}</small></div></div>
+      <div class="pd"><form id="f-quick"><div class="fld"><label for="qs-name">${t('qs.name')}</label><input id="qs-name" name="name" placeholder="${t('ex.label')} ${t('qs.namePh')}" autocomplete="off" required></div>
+      <div class="grid2"><div class="fld"><label for="qs-price">${t('qs.price')}</label><input id="qs-price" name="price" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" required></div>
+      <div class="fld"><label for="qs-cost">${t('qs.cost')}</label><input id="qs-cost" name="cost" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off"></div></div>
+      <p class="muted small">${t('qs.note')}</p>
+      <div class="btns"><button class="btn primary">${t('qs.go')}</button></div></form></div>`, null, true);
+  }
+  function quickSale(d) {
+    const name = String(d.name || '').trim(), price = parseAmt(d.price), cost = parseAmt(d.cost) || 0;
+    if (!name) return toast(t('qs.needName')); if (!(price > 0)) return toast(t('qs.needPrice'));
+    try {
+      const b = L.createBatch(state, { store: t('qs.batchName'), count: 1, totalCost: cost, currency: 'TTD', margin: 0 });
+      L.makeAvailable(state, b.id); const it = state.items.find((x) => x.batchId === b.id); it.desc = name; it.price = price; it.cost = cost;
+      selected.add(it.id); save(); closeSheet(); go({ tab: 'sell', moreView: 'invoice' }); render(); window.scrollTo(0, 0);
+    } catch (e) { toast('⚠️ ' + errMsg(e)); }
+  }
   function sheetNewBatch() {
     openSheet(`<h3>${t('batch.new')}</h3><p class="muted small">${t('batch.newNote')}</p>
       <form id="f-batch"><label>${t('batch.store')}</label><input name="store" value="SHEIN" required>
@@ -1941,7 +1961,13 @@
   const invDate = (d) => new Date(d).toLocaleDateString('en-GB');
   const esName = (it) => { const sp = Wd.spanish(it, wordList()); return sp.es || it.desc; };   // the Spanish name of an item (the saved one, or the word list's best translation)
   const dn = (i) => (I.getLang() === 'es' ? esName(i) : (i.desc || ''));   // an item's name on screen: Spanish when the app is in Spanish (the saved Spanish name, or the word list's translation)
-  const lineName = (l, lg) => { if ((lg || invoiceLang()) !== 'es') return l.desc; const m = String(l.desc).split(' · '), base = m[0].trim(), it = state.items.find((x) => String(x.desc || '').trim() === base); return it ? esName(it) + (m.length > 1 ? ' · ' + m.slice(1).join(' · ') : '') : l.desc; };
+  const lineName = (l, lg) => {
+    if ((lg || invoiceLang()) !== 'es') {   // an English invoice: a name that was written in Spanish (an imported sheet, say) is shown in English when the word list understands every word of it
+      const m = String(l.desc).split(' · '), base = m[0].trim(); if (!base) return l.desc;
+      try { const e = Wd.toEnglish(base, wordList()); if (e.en && !e.missing.length) return e.en + (m.length > 1 ? ' · ' + m.slice(1).join(' · ') : ''); } catch (err) { /* keep the saved name */ }
+      return l.desc;
+    }
+    const m = String(l.desc).split(' · '), base = m[0].trim(), it = state.items.find((x) => String(x.desc || '').trim() === base); return it ? esName(it) + (m.length > 1 ? ' · ' + m.slice(1).join(' · ') : '') : l.desc; };
   const invLines = (v) => (v.lines && v.lines.length ? v.lines : [{ desc: v.desc, qty: v.qty, price: v.total - v.delivery }]);
 
   // "PAID IN FULL" rubber stamp: double border, tilted, worn ink. Seeded by invoice number so it never changes.
@@ -2422,7 +2448,7 @@
     if (can('team')) joinReqs.forEach((r) => add({ key: 'join:' + r.uid, grp: 'attn', ic: '👥', always: true, title: t('notif.join', { name: esc(r.name || r.email || '') }), sub: t('notif.joinSub'), go: ['req-open', r.uid] }));
     if (window.Store) {
       Store.orders().filter((o) => o.status === 'confirmed').forEach((o) => { const lat = latestInvOf(o), cf = tsAt(o.confirmedAt); if (lat && o.invSentNo !== lat.no && cf && cf.getTime() > INV_FROM && Date.now() - cf.getTime() > 5 * 60000) add({ key: 'send:' + o.id + ':' + lat.no, grp: 'attn', ic: '📤', always: true, title: t('notif.sendInv', { name: esc(o.name) }), sub: t('notif.sendInvSub', { code: esc(o.code || SCore.orderCode(o.id)), no: lat.no }), go: ['order-open', o.id] }); });
-      Store.orders().filter((o) => o.status === 'new' || (Store.ageMs(o) > 0 && Store.ageMs(o) < 7 * DAY && o.status !== 'declined')).forEach((o) => add({ key: 'order:' + o.id, grp: 'orders', ic: '🛍️', always: o.status === 'new', title: t('notif.order', { code: esc(o.code || SCore.orderCode(o.id)), name: esc(o.name) }), sub: tn('notif.items', (o.items || []).length) + ' · ' + (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + money(o.total), when: Store.when(o) ? ago(Store.when(o)) : '', go: ['order-open', o.id] }));
+      Store.orders().filter((o) => o.status === 'new' || (Store.ageMs(o) > 0 && Store.ageMs(o) < 7 * DAY && o.status !== 'declined' && ['new', 'confirmed'].includes(stageOf(o)))).forEach((o) => add({ key: 'order:' + o.id, grp: 'orders', ic: '🛍️', always: o.status === 'new', title: t('notif.order', { code: esc(o.code || SCore.orderCode(o.id)), name: esc(o.name) }), sub: tn('notif.items', (o.items || []).length) + ' · ' + (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + money(o.total), when: Store.when(o) ? ago(Store.when(o)) : '', go: ['order-open', o.id] }));
     }
     state.batches.filter((b) => bStatus(b) !== 'Closed').forEach((b) => {
       const mine = state.items.filter((i) => i.batchId === b.id && !L.isSold(i));
@@ -2434,7 +2460,9 @@
       if (bStatus(b) === 'In Transit') { const days = Math.floor((now - new Date(b.datePurchased).getTime()) / DAY); if (days >= 30) add({ key: 'transit:' + b.id, grp: 'remind', ic: '📦', title: t('notif.transit', { b: bl(b.id), n: days }), sub: t('notif.transitSub'), go: ['batch', b.id] }); }
     });
     if (c.id && window.Store) { if (Store.info().error) add({ key: 'storeerr', grp: 'attn', ic: '⚠️', title: t('notif.storeErr'), sub: t('notif.storeErrSub'), go: ['store-open', ''] }); if (!c.open) add({ key: 'storeclosed', grp: 'attn', ic: '🔒', title: t('notif.storeClosed'), sub: t('notif.storeClosedSub'), go: ['store-open', ''] }); }
-    const owes = new Map(); state.invoices.forEach((v) => { if (Number(v.balance) > 0) { const o = owes.get(v.client) || { amt: 0, since: Infinity }; o.amt += Number(v.balance); o.since = Math.min(o.since, new Date(v.date).getTime() || Infinity); owes.set(v.client, o); } });
+    // Only invoices that are still current count: an older invoice that was replaced by an updated one (or returned) is cleared by it.
+    const owes = new Map(); state.invoices.forEach((v) => { if (v.updatedBy || v.void || !(Number(v.balance) > 0.004)) return; let root = v, g = 0; while (root.ref && g++ < 50) { const prev = state.invoices.find((x) => x.no === root.ref); if (!prev) break; root = prev; }
+      const o = owes.get(v.client) || { amt: 0, since: Infinity }; o.amt += Number(v.balance); o.since = Math.min(o.since, new Date(root.date).getTime() || Infinity); owes.set(v.client, o); });
     owes.forEach((o, name) => { if (o.since !== Infinity && now - o.since >= 7 * DAY) add({ key: 'owes:' + name, grp: 'remind', ic: '💳', title: t('notif.owes', { name: esc(name), amt: money(o.amt) }), sub: t('notif.owesSub', { date: new Date(o.since).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short' }) }), go: ['customer', name] }); });
     if (now > Date.UTC(2027, 0, 15) && now < Date.UTC(2027, 1, 10)) add({ key: 'billing', grp: 'remind', ic: '☁️', title: t('notif.billing'), sub: t('notif.billingSub'), go: ['', ''] });
     return out;
@@ -3100,6 +3128,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'qe-go': if (id) { qeTried = false; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); const it = state.items.find((x) => x.id === id); if (it) { sheetQuick(it.batchId, id, true); $('#sheet').scrollTop = 0; } } return;
       case 'qe-next': return quickNext(id, !!t_.dataset.skip);
       case 'open-stock': stockBatch = id; stockFilter = 'All'; closeSheet(); go({ tab: 'stock', moreView: null }); return render();
+      case 'quick-sale': return sheetQuickSale();
       case 'goto-stock': go({ tab: 'stock', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'grp-toggle': grpOpen.has(id) ? grpOpen.delete(id) : grpOpen.add(id); return render();
       case 'sel-all': { state.items.filter((i) => i.batchId === stockBatch && !L.isLocked(i)).forEach((i) => selected.add(i.id)); return render(); }
@@ -3310,6 +3339,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (f.id === 'f-join') { gateErr(''); return Cloud.joinByCode(d.code).catch((e) => gateErr(e && e.code === 'join/invalid' ? t('join.invalid') : e && e.code === 'join/short' ? t('join.short') : t('gate.err', { m: (e && e.message) || '' }))); }
     if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
     if (f.id === 'f-acct') { acctShow(t('acct.working')); homeAfterSignIn = true; const em = d.email.trim(); rememberEmail(em); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
+    if (f.id === 'f-quick') return quickSale(d);
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; const sc = storeCfg(); if (sc.id && sc.autoNew && !sc.batches.includes(b.id)) storeSet({ batches: sc.batches.concat(b.id) }); } }
     if (f.id === 'f-clear') { let failed = false; const wasOpen = clearOpen.has(d.batch); clearOpen.delete(d.batch); run(() => { try { return L.payClearing(state, d.batch, d.amount); } catch (err2) { failed = true; throw err2; } }, t('clear.recorded', { id: bl(d.batch) }), true); if (!failed) sheetBatch(d.batch); else if (wasOpen) clearOpen.add(d.batch); }
     if (f.id === 'f-receive') return askReceived(d.batch);

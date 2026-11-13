@@ -138,7 +138,23 @@
   const teamPerms = () => (team ? team.perms : (teamCache() || {}).perms) || null;
   const can = (cap) => Team.can(teamPerms(), myRank(), cap);
   const myName = () => (team && team.names && team.names[cloud.uid]) || (cloud.email || '').split('@')[0];
+  /* ---------- customers as people: a name, a number, nicknames and old numbers ---------- */
+  const PE = window.People;
+  let peopleOn = false;   // switched on once the customers have profiles (when signed in: after the cloud copy has arrived)
+  const peopleBlocked = () => (state.peopleV || 0) > PE.V;   // the cloud holds a newer shape than this app knows: customers are read-only until the app updates
   const rankName = (r) => t('rank.' + r);
+  // Turn the customer profiles on: once, on the owner's phone, after the cloud copy has arrived, and only after a backup is kept.
+  function peopleCheck() {
+    if (peopleOn || !window.People) return;
+    if (peopleBlocked()) return;
+    if (Array.isArray(state.people)) { peopleOn = true; return; }
+    if (cloud.status === 'loading' || (cloud.signedIn && cloud.status !== 'synced') || myRank() !== 'owner' || !hasData()) return;
+    const snap = JSON.stringify({ at: new Date().toISOString(), state });
+    let kept = false; try { localStorage.setItem('buy-sell-backup-before-people', snap); kept = true; } catch (e) { /* too big for the phone's storage: give a file instead */ }
+    if (!kept) { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([snap], { type: 'application/json' })); a.download = 'shopivo-backup-before-customers.json'; document.body.appendChild(a); a.click(); a.remove(); kept = true; } catch (e) { /* none */ } }
+    if (!kept) return;
+    try { PE.ensure(state); peopleOn = true; save(); setTimeout(() => toast(t('people.ready')), 600); } catch (e) { state.people = undefined; delete state.people; delete state.decisions; peopleOn = false; }
+  }
   const sharedBusiness = () => !!(team && Object.keys(team.members || {}).length > 1);
   function signInBanner() {
     if (cloud.signedIn || cloud.status === 'loading' || cloud.status === 'unavailable' || Date.now() - pref('signinDismissed', 0) < WEEK) return '';
@@ -298,7 +314,7 @@
     try { const raw = localStorage.getItem(KEY); if (raw) return L.migrate(JSON.parse(raw)); } catch (e) { /* use default */ }
     return L.defaultState();
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(t('err.save')); } if (window.Cloud) Cloud.changed(); if (window.Store) Store.schedule(); }
+  function save() { if (peopleOn) { try { PE.ensure(state); } catch (e) { /* ignore */ } } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(t('err.save')); } if (window.Cloud) Cloud.changed(); if (window.Store) Store.schedule(); }
   function toast(msg, ms) {
     const el = $('#toast'); el.textContent = plain(msg); el.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms || 3200);
@@ -349,7 +365,7 @@
     closeTopMenu();
     const row = (act, ic, label, on) => `<button type="button" class="tmi" data-act="${act}"><span class="tmic" aria-hidden="true">${ic}</span><span class="tml">${label}</span>${on ? '<i class="dot on"></i>' : ''}</button>`;
     const ss = row('store-settings', '🏪', t('hub.settings'), !dset().home);   // Store settings (with Store location) from the Store page and every log
-    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) + ss : kind === 'ord' ? ss : kind === 'dlv' ? row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + ss + row('dlv-settings', '🚚', t('dlv.settings'), false) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) + ss : (tab === 'promote' ? '' : row('filter', '☰', t('tool.filter'), filtered())) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + (tab === 'sell' && !moreView ? ss : '');
+    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) + ss : kind === 'ord' ? ss : kind === 'dlv' ? row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + ss + row('dlv-settings', '🚚', t('dlv.settings'), false) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) + ss : (tab === 'promote' ? '' : row('filter', '☰', t('tool.filter'), filtered())) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + (tab === 'sell' && !moreView ? ss : '') + (tab === 'people' && peopleOn ? row('fix-open', '🛠️', t('fx.title'), PE.missingNumber(state).length > 0) : '');
     const sc = document.createElement('div'); sc.id = 'tmscrim'; sc.className = 'tmscrim'; sc.dataset.close = '1';
     const m = document.createElement('div'); m.id = 'tmenu'; m.className = 'tmenu'; m.setAttribute('role', 'menu'); m.innerHTML = rows;
     const hd = document.querySelector('.appbar').getBoundingClientRect(); m.style.top = (hd.bottom - 6) + 'px';
@@ -421,6 +437,7 @@
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
     if (!state.settings.bizLogo && state.settings.businessName && state.settings.setupDone && !pref('logoNudgeOff', false)) rows.push(need('🖼️', 'var(--infobg)', t('hm.logoTitle'), t('hm.logoSub'), '+', 'logo-go', false));   // goes away once a logo is added (or once the page has been opened)
+    if (peopleOn && PE.missingNumber(state).length) rows.push(need('📞', 'var(--infobg)', t('hm.phoneTitle'), t('hm.phoneSub'), PE.missingNumber(state).length, 'phones-open', false));
     if (window.Store && Store.needsPublish && Store.needsPublish()) rows.unshift(need('📤', 'var(--warnbg)', t('hm.pubTitle'), t('hm.pubSub'), '!', 'goto-publish', true));
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-nopr', false));
     const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
@@ -431,7 +448,7 @@
     <div class="hkp"><div class="costonly"><small>${t('hm.salesPaid')}</small><b>${money(tot.sales)}</b></div><div class="ow"><small>${t('hm.owingTile')}</small><b>${money(tot.owing)}</b></div><div class="costonly"><small>${t('hm.expTile')}</small><b>${money(tot.expense)}</b></div></div>
     ${needs}
     <div class="hact"><button data-act="pay-clearing"><i>💳</i>${t('home.payClearing')}</button><button data-act="receive" ${inTransit.length ? '' : 'disabled'}><i>📦</i>${t('home.receive')}</button><button data-act="goto-stock"><i>🏷️</i>${t('home.priceItems')}</button></div>
-    ${owing.length ? `<div class="hsec"><h3>${t('home.whoOwes')}</h3><button class="hall" data-act="goto-owing">${t('hm.seeAll')}</button></div><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(c.name)}</b><small>${tn('home.itemsOwing', c.itemsOwing)}</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
+    ${owing.length ? `<div class="hsec"><h3>${t('home.whoOwes')}</h3><button class="hall" data-act="goto-owing">${t('hm.seeAll')}</button></div><div class="list">${owing.map((c) => `<button class="row tap" data-act="customer" data-id="${esc(c.name)}"><div class="grow"><b>${esc(clabel(c.name))}</b><small>${tn('home.itemsOwing', c.itemsOwing)}</small></div><div class="end"><b class="bad">${money(c.owing)}</b></div><span class="chev">›</span></button>`).join('')}</div>` : ''}
     <div class="hsec"><h3>${t('hm.latest')}</h3><button class="hall" data-act="more" data-id="batches">${t('hm.seeAll')}</button></div>
     <div class="hbs">${batches.map((b) => { const st = L.batchStats(state, b), pct = st.count ? Math.round(st.sold / st.count * 100) : 0; return `<button class="hbc" data-act="batch" data-id="${b.id}"><b>${esc(blShort(b.id))}</b><small>${esc(b.store)} · ${t('home.soldOf', { sold: st.sold, count: st.count })}</small><div class="bar"><i style="width:${pct}%"></i></div><span class="costonly ${st.profit < 0 ? 'neg' : 'pos'}">${st.profit < 0 ? '−' : '+'}${fmt2(Math.abs(st.profit))}</span></button>`; }).join('')}</div>
     ${recent.length ? `<div class="hsec"><h3>${t('hm.recent')}</h3><button class="hall" data-act="more" data-id="invoices">${t('hm.seeAll')}</button></div><div class="list">${recent.map(invoiceRow).join('')}</div>` : ''}<div style="height:70px"></div>`;
@@ -439,7 +456,7 @@
 
   function invoiceRow(v0) {
     const st = L.invoiceStatus(v0), v = v0.void ? Object.assign({}, v0, v0.void.was) : v0;
-    return `<button class="row tap" data-act="view-inv" data-id="${v0.no}"${v0.void ? ' style="opacity:.75"' : ''}><div class="grow"><b>${v0.no} · ${esc(v0.client)}</b><small>${esc(I.getLang() === 'es' ? (() => { try { return invLines(v0).map((l) => lineName(l, 'es')).join(', ') || v0.desc; } catch (e) { return v0.desc; } })() : v0.desc)}${v0.void ? ' · ' + t(v0.void.kind === 'cancelled' ? 'inv.voidCancelled' : 'inv.voidReturned', { date: dayMon(new Date(v0.void.date)) }) : ''}</small></div>
+    return `<button class="row tap" data-act="view-inv" data-id="${v0.no}"${v0.void ? ' style="opacity:.75"' : ''}><div class="grow"><b>${v0.no} · ${esc(clabel(v0.client))}</b><small>${esc(I.getLang() === 'es' ? (() => { try { return invLines(v0).map((l) => lineName(l, 'es')).join(', ') || v0.desc; } catch (e) { return v0.desc; } })() : v0.desc)}${v0.void ? ' · ' + t(v0.void.kind === 'cancelled' ? 'inv.voidCancelled' : 'inv.voidReturned', { date: dayMon(new Date(v0.void.date)) }) : ''}</small></div>
       <div class="end"><b${v0.void ? ' style="text-decoration:line-through"' : ''}>${money(v.total)}</b><span class="pill ${st}">${invStLabel(st)}</span></div></button>`;
   }
 
@@ -651,8 +668,150 @@
     }
   };
   const cuAl = { name: '', lastItem: 'l', lastDate: 'c' };
+  const custStats = () => L.customerStats(state).map((c) => { const p = PE.byKey(state, c.name); return Object.assign(c, { p, disp: p ? p.name : c.name, label: PE.label(state, c.name, L.place(state, c.name)), phone: p ? p.phone : '' }); });
+  const cdisp = (key) => PE.name(state, key);
+  const clabel = (key) => PE.label(state, key, L.place(state, key));
+  const pav = (c) => { const p = c.p || { id: c.name, key: c.name, phone: '' }; return `<span class="pav" style="background:${PE.color(p)}">${esc(((c.disp || c.name).trim().charAt(0) || '?').toUpperCase())}${p.phone ? `<i>${PE.last4(p.phone)}</i>` : ''}</span>`; };
+  const lastSeen = (key) => { const ds = state.invoices.filter((v) => v.client === key).map((v) => new Date(v.date).getTime()); return ds.length ? new Date(Math.max(...ds)) : null; };
+  const seenTxt = (key) => { const d = lastSeen(key); return d ? t('pp.lastOrder', { when: ago(d) }) : t('pp.noOrders'); };
+  const townOf = (p) => L.place(state, p.key) || ((window.Store ? Store.orders() : []).filter((x) => PE.same(x.phone, p.phone)).sort((a, b) => (Store.when(b) || 0) - (Store.when(a) || 0))[0] || {}).location || '';
+  const pside = (o, p, title2) => `<div class="pair"><div class="nw"><b>${t('pp.onOrder')}</b>${esc(o.name)}<br>📞 ${PE.fmt(o.phone) || '—'}${o.place ? '<br>📍 ' + esc(o.place) : ''}<br><small>${t('pp.thisOrder')}</small></div><div><b>${title2 || t('pp.yours')}</b>${esc(p.name)}<br>📞 ${esc(p.phone) || t('pp.noNumber')}${townOf(p) ? '<br>📍 ' + esc(townOf(p)) : ''}<br><small>${seenTxt(p.key)}</small></div></div>`;
+  const pbtn = (id, label, cls, note) => `<button type="button" class="btn ${cls}" data-act="pp-pick" data-id="${id}">${label}</button>${note ? `<p class="pnote">${note}</p>` : ''}`;
+  function askChoice(html) { return new Promise((ok) => { let done = false; window.__pp = (v) => { if (!done) { done = true; ok(v); } }; openSmall(html, 'card', () => { if (!done) { done = true; ok(''); } }); }); }
+  const pcard = (title, sub, body) => `<h3>${title}</h3><p>${sub}</p>${body}`;
+  // The number and place for a new customer (walk-ins and call-ins): a number is needed.
+  function askPhone(name) {
+    return askChoice(`<h3>${t('pp.newTitle', { name: esc(name) })}</h3><p>${t('pp.newSub')}</p><form id="f-pphone"><input name="phone" type="text" inputmode="tel" placeholder="${t('pp.number')}" autocomplete="off" required><input name="place" type="text" placeholder="${t('pp.place')}" autocomplete="off"><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`).then((v) => { try { return v ? JSON.parse(v) : null; } catch (e) { return null; } });
+  }
+  // Who is this order from? Returns the customer key the invoice goes to ('' when you backed out). Asks only when the number and name do not already agree.
+  async function resolveOrderCustomer(o) {
+    if (peopleBlocked()) { toast(t('people.update')); return ''; }
+    const ord = { name: L.cleanName(o.name), phone: o.phone, place: o.location || o.place || '', order: o.id || '' }, by = myName(), cls = PE.classify(state, ord);
+    let key = '', ch = '';
+    if (cls.kind === 'match') key = cls.profile.key;
+    else if (cls.kind === 'fill') { PE.opFill(state, cls.profile.id, ord, by); key = cls.profile.key; }
+    else if (cls.kind === 'new') key = PE.opFresh(state, ord, by).profile.key;
+    else if (cls.kind === 'newName') {
+      const p = cls.candidates[0];
+      ch = await askChoice(pcard(t('pp.aTitle', { name: esc(ord.name) }), t('pp.aSub'), pside(ord, p) + pbtn('same', t('pp.same'), 'primary', t('pp.sameNoteNick', { name: esc(ord.name), who: esc(p.name) })) + pbtn('diff', t('pp.diff'), 'alt', t('pp.diffNote', { name: esc(ord.name), who: esc(p.name) })) + pbtn('shared', t('pp.shared'), 'alt', t('pp.sharedNote')) + pbtn('later', t('pp.later'), '', t('pp.laterNote'))));
+      if (!ch) return '';
+      key = ch === 'same' ? (PE.opSame(state, p.id, ord, by), p.key) : ch === 'diff' ? PE.opDifferent(state, p.id, ord, by).profile.key : ch === 'shared' ? PE.opShared(state, p.id, ord, by).profile.key : PE.opLater(state, ord, by, [p.id]).profile.key;
+    } else if (cls.kind === 'newNumber') {
+      const p = cls.candidates[0];
+      ch = await askChoice(pcard(t('pp.bTitle'), t('pp.bSub'), pside(ord, p) + pbtn('same', t('pp.sameNew'), 'primary', t('pp.sameNewNote', { num: PE.fmt(ord.phone), old: esc(p.phone || t('pp.noNumber')) })) + pbtn('diff', t('pp.diffCust'), 'alt', t('pp.diffCustNote', { name: esc(ord.name) })) + pbtn('later', t('pp.later'), '', t('pp.laterNote'))));
+      if (!ch) return '';
+      key = ch === 'same' ? (PE.opNewNumberSame(state, p.id, ord, by), p.key) : ch === 'diff' ? PE.opNewCustomer(state, ord, by).profile.key : PE.opLater(state, ord, by, [p.id]).profile.key;
+    } else if (cls.kind === 'oldNumber') {
+      const p = cls.candidates[0];
+      ch = await askChoice(pcard(t('pp.cTitle'), t('pp.cSub', { num: PE.fmt(ord.phone), who: esc(p.name), main: esc(p.phone || t('pp.noNumber')) }), pside(ord, Object.assign({}, p, { phone: p.phone })) + pbtn('keep', t('pp.keep'), 'primary') + pbtn('main', t('pp.makeMain'), 'alt') + pbtn('new', t('pp.newCust'), '', t('pp.newCustNote', { num: PE.fmt(ord.phone), who: esc(p.name) }))));
+      if (!ch) return '';
+      key = ch === 'keep' ? (PE.opOldKeep(state, p.id, ord, by), p.key) : ch === 'main' ? (PE.opOldMain(state, p.id, ord, by), p.key) : PE.opOldNew(state, p.id, ord, by).profile.key;
+    }
+    save(); if (o.id && window.Store) Store.patch(o.id, { cust: key }).catch(() => {});
+    return key;
+  }
+  // A typed customer on a walk-in or call-in invoice: someone you already have, or a new customer who needs a number.
+  async function resolveWalkIn(raw) {
+    const name = L.cleanName(raw); if (!name || !peopleOn) return name;
+    const have = PE.byKey(state, name); if (have) return have.key;
+    const v = await askPhone(name); if (!v) return '';
+    if (!PE.valid(v.phone)) { toast(t('pp.badPhone')); return ''; }
+    return resolveOrderCustomer({ name, phone: v.phone, place: v.place });
+  }
+  /* "Add phone numbers": the customers who have no number yet */
+  function sheetPhones() {
+    enterPage('phones', '', () => sheetPhones());
+    const list = PE.missingNumber(state).slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })), sug = PE.suggest(state, window.Store ? Store.orders() : []);
+    const row = (p) => { const s = sug(p), town = townOf(p); return `<div class="card phc"><div class="t"><b>${esc(p.name)}</b>${town ? `<small>📍 ${esc(town)}</small>` : ''}</div><input class="pkin phin" type="text" inputmode="tel" data-phonefor="${p.id}" placeholder="${t('pp.number')}" autocomplete="off" enterkeyhint="done">${s ? `<button type="button" class="chip" data-act="phone-use" data-id="${p.id}" data-v="${esc(s)}">${t('ph.use', { num: s })}</button>` : ''}<button type="button" class="phno" data-act="no-number" data-id="${p.id}">${t('ph.none')}</button></div>`; };
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('ph.title')}</b><small>${t('ph.sub')}</small></div></div><div class="ap">${list.map(row).join('') || `<div class="empty"><b>${t('ph.done')}</b></div>`}</div>`, null, true);
+  }
+  async function savePhone(pid, value) {
+    if (peopleBlocked()) return toast(t('people.update'));
+    const r = PE.setNumber(state, pid, value, myName());
+    if (r.error) return toast(t('pp.badPhone'));
+    if (r.conflict) {
+      const me = PE.byId(state, pid), owner = r.conflict[0];
+      const ch = await askChoice(pcard(t('pp.tTitle', { who: esc(owner.name) }), t('pp.tSub', { name: esc(me.name) }), `<div class="pair"><div class="nw"><b>${t('pp.addingTo')}</b>${esc(me.name)}<br>${townOf(me) ? '📍 ' + esc(townOf(me)) + '<br>' : ''}<small>${seenTxt(me.key)}</small></div><div><b>${t('pp.alreadyHas')}</b>${esc(owner.name)}<br>${townOf(owner) ? '📍 ' + esc(townOf(owner)) + '<br>' : ''}<small>${seenTxt(owner.key)}</small></div></div>` + pbtn('merge', t('pp.merge'), 'primary') + pbtn('diff', t('pp.diff'), 'alt', t('pp.tDiffNote', { who: esc(owner.name), name: esc(me.name) }))));
+      if (ch === 'merge') { try { PE.merge(state, me.id, owner.id, myName()); save(); toast(t('mg.done')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } }
+      return sheetPhones();
+    }
+    save(); toast(t('ph.saved')); sheetPhones();
+  }
+
+  /* ---------- Fix customers: decisions, possible duplicates, missing numbers; profile tools; split and merge ---------- */
+  const custMatch = (c, q) => { const x = String(q || '').trim().toLowerCase(); if (!x) return true; const p = c.p, dg = PE.digits(x); return c.name.toLowerCase().includes(x) || (c.disp || '').toLowerCase().includes(x) || String(c.lastItem || '').toLowerCase().includes(x) || !!(p && (p.nicks.some((n) => n.toLowerCase().includes(x)) || (dg.length >= 3 && ([p.phone].concat(p.prev.map((e) => e.phone))).some((n) => PE.digits(n).includes(dg))))); };
+  const fxRow = (act, ic, bg, title, sub, n) => `<button class="hnr" data-act="${act}"><span class="hic" style="background:${bg}">${ic}</span><div class="t"><b>${title}</b><small>${sub}</small></div>${n ? `<span class="hcnt">${n}</span>` : ''}<span class="chev">›</span></button>`;
+  const dupKey = (x) => [x.a.id, x.b.id].sort().join('|');
+  const dupList = () => { const no = new Set(state.settings.dupNo || []); return PE.duplicates(state, (k) => L.place(state, k)).filter((x) => !no.has(dupKey(x))); };
+  function sheetFix() {
+    enterPage('fix', '', () => sheetFix());
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.title')}</b><small>${t('fx.sub')}</small></div></div><div class="ap"><div class="hneeds">${fxRow('fix-decisions', '🕘', 'var(--warnbg)', t('fx.decisions'), t('fx.decisionsSub'), (state.decisions || []).filter((d) => !d.undone).length)}${fxRow('fix-dups', '👥', 'var(--infobg)', t('fx.dups'), t('fx.dupsSub'), dupList().length)}${fxRow('phones-open', '📞', 'var(--okbg)', t('fx.noNum'), t('fx.noNumSub'), PE.missingNumber(state).length)}</div><p class="muted small" style="margin:12px 2px">${t('fx.profileNote')}</p></div>`, null, true);
+  }
+  function sheetDecisions() {
+    enterPage('fixdec', '', () => sheetDecisions());
+    const list = (state.decisions || []).filter((d) => !d.undone).slice(0, 80);
+    const row = (d) => `<div class="dec"><b>${esc(d.text)}</b><small>${esc(dayMon(new Date(d.at)))}${d.by ? ' · ' + t('fx.by', { who: esc(d.by) }) : ''}${d.order ? ' · ' + esc(d.order) : ''}</small>${PE.canUndo(state, d.id) ? `<button type="button" class="chg" data-act="dec-undo" data-id="${d.id}">${t(d.kind === 'merge' || d.kind === 'split' ? 'fx.separate' : 'fx.change')}</button>` : `<small class="muted">${t('fx.cannot')}</small>`}</div>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.decisions')}</b><small>${t('fx.decisionsSub')}</small></div></div><div class="ap">${list.length ? `<div class="card pkc">${list.map(row).join('')}</div>` : `<div class="empty"><b>${t('fx.none')}</b></div>`}</div>`, null, true);
+  }
+  function sheetDups() {
+    enterPage('fixdup', '', () => sheetDups());
+    const list = dupList(), side = (p) => `<div><b>${t('fx.customer')}</b>${esc(p.name)}<br>📞 ${esc(p.phone) || t('pp.noNumber')}<br>${townOf(p) ? '📍 ' + esc(townOf(p)) + ' · ' : ''}${tn('notif.items', state.items.filter((i) => i.customer === p.key).length)}</div>`;
+    const card = (x) => `<div class="card"><div class="pair">${side(x.a)}${side(x.b)}</div><div class="rtag" style="display:inline-block;margin:0 0 6px">${t(x.why === 'number' ? 'fx.sameNumber' : x.why === 'later' ? 'fx.pending' : 'fx.similar')}</div><button type="button" class="btn primary" data-act="dup-merge" data-id="${x.a.id}" data-b="${x.b.id}">${t('fx.mergeInto', { name: esc(x.a.name) })}</button><button type="button" class="btn" data-act="dup-no" data-id="${x.a.id}" data-b="${x.b.id}" data-d="${x.decision || ''}">${t('fx.notSame')}</button></div>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.dups')}</b><small>${tn('fx.pairs', list.length)}</small></div></div><div class="ap">${list.map(card).join('') || `<div class="empty"><b>${t('fx.none')}</b></div>`}</div>`, null, true);
+  }
+  // On a customer's page: number, nicknames, old numbers, and the tools (change number, nickname, split, merge).
+  function peopleBox(c) {
+    const p = c.p; if (!p || !peopleOn) return '';
+    const nicks = p.nicks.map((n) => `<span class="tag">${esc(n)}<button type="button" class="tx" data-act="pf-nick-del" data-id="${p.id}" data-n="${esc(n)}" aria-label="${t('pf.dropNick')}">✕</button></span>`).join('');
+    const prev = p.prev.map((e) => `<div class="row"><span>${esc(e.phone)}<small>${e.until ? t('pf.until', { d: esc(dayMon(new Date(e.until))) }) : ''}${e.note ? ' · ' + esc(e.note) : ''}</small></span><span class="tag warn">${t('pf.old')}</span></div>`).join('');
+    return `<div class="card pfc"><div class="row"><span>📞 ${p.phone ? `<b>${esc(p.phone)}</b> <small>(${t('pf.main')})</small>` : `<span class="bad">${t('pf.noNumber')}</span>`}${p.shared ? ` <span class="tag">${t('pp.shared')}</span>` : ''}</span><button type="button" class="chip" data-act="pf-number" data-id="${p.id}">${t('pf.setNumber')}</button></div>
+      <div class="row"><span>${t('pf.also')}<br>${nicks || '<small>—</small>'}</span><button type="button" class="chip" data-act="pf-nick-add" data-id="${p.id}">＋ ${t('pf.addNick')}</button></div>
+      ${prev ? `<div class="row"><b>${t('pf.before')}</b></div>${prev}` : ''}
+      <div class="pfb"><button type="button" class="btn" data-act="split-open" data-id="${p.id}">${t('pf.split')}</button><button type="button" class="btn" data-act="merge-open" data-id="${p.id}">${t('pf.merge')}</button></div></div>`;
+  }
+  function askText(title, sub, ph) {
+    return askChoice(`<h3>${title}</h3>${sub ? `<p>${sub}</p>` : ''}<form id="f-pf"><input name="v" type="text" placeholder="${esc(ph || '')}" autocomplete="off" required><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`).then((v) => { try { return String(v || '').trim(); } catch (e) { return ''; } });
+  }
+  window.__pf = (v) => { if (window.__pp) window.__pp(v); };
+  async function peopleAct(a, id, el) {
+    if (peopleBlocked()) return toast(t('people.update'));
+    const p = PE.byId(state, id);
+    if (a === 'split-open') return sheetSplit(id);
+    if (a === 'merge-open') return sheetMergePick(id);
+    if (!p && a !== 'split-go' && a !== 'merge-go') return;
+    if (a === 'pf-nick-add') { const v = await askText(t('pf.addNick'), t('pf.addNickSub', { name: esc(p.name) }), t('pf.nickPh')); if (!v) return; const n = L.cleanName(v), other = PE.list(state).find((q) => q.id !== p.id && PE.nameMatch(q, n)); PE.addNickTo ? PE.addNickTo(p, n) : (p.nicks.some((x) => x.toLowerCase() === n.toLowerCase()) || n.toLowerCase() === p.name.toLowerCase() || p.nicks.push(n)); save(); toast(other ? t('pf.nickShared') : t('cust.saved')); return sheetCustomer(p.key); }
+    if (a === 'pf-nick-del') { p.nicks = p.nicks.filter((x) => x !== el.dataset.n); save(); return sheetCustomer(p.key); }
+    if (a === 'pf-number') { const v = await askText(t('pf.setNumber'), t('pf.numberSub', { name: esc(p.name) }), t('pp.number')); if (!v) return; const r = PE.setNumber(state, p.id, v, myName()); if (r.error) return toast(t('pp.badPhone')); if (r.conflict) { const owner = r.conflict[0]; const ch = await askChoice(pcard(t('pp.tTitle', { who: esc(owner.name) }), t('pp.tSub', { name: esc(p.name) }), pbtn('merge', t('pp.merge'), 'primary') + pbtn('diff', t('pp.diff'), 'alt', t('pp.tDiffNote', { who: esc(owner.name), name: esc(p.name) })))); if (ch === 'merge') { try { PE.merge(state, p.id, owner.id, myName()); save(); toast(t('mg.done')); return sheetCustomer(owner.key); } catch (e) { return toast('⚠️ ' + t('fx.cannot')); } } return; } save(); toast(t('ph.saved')); return sheetCustomer(p.key); }
+    if (a === 'merge-go') { const b = PE.byId(state, el.dataset.b), me = PE.byId(state, id); if (!b || !me) return; const y = await askCard(t('mg.ask', { from: esc(me.name), into: esc(b.name) }), { ok: t('pp.merge') }); if (!y) return; try { PE.merge(state, me.id, b.id, myName()); save(); pageStack = pageStack.filter((x) => !/^(customer|mergepick|custedit)\|/.test(x.key)); toast(t('mg.done')); render(); return sheetCustomer(b.key); } catch (e) { return toast('⚠️ ' + t('fx.cannot')); } }
+    if (a === 'split-go') {
+      const nos = [...document.querySelectorAll('[data-split]:checked')].map((e) => e.dataset.split), name = L.cleanName($('#sp-name').value), phone = $('#sp-phone').value.trim();
+      if (!nos.length) return toast(t('sp.needInv')); if (!name) return toast(t('pp.needName')); if (!PE.valid(phone)) return toast(t('pp.badPhone'));
+      try { const r = PE.split(state, id, { nos, name, phone }, myName()); save(); pageStack = pageStack.filter((x) => !/^(customer|split|custedit)\|/.test(x.key)); toast(t('sp.done')); render(); return sheetCustomer(r.profile.key); } catch (e) { return toast('⚠️ ' + (e.message === 'totals' ? t('fx.totals') : t('fx.cannot'))); }
+    }
+  }
+  function sheetSplit(pid) {
+    const p = PE.byId(state, pid); if (!p) return;
+    enterPage('split', pid, () => sheetSplit(pid));
+    const invs = L.latestInvoices(state, p.key).sort((a, b) => new Date(b.date) - new Date(a.date));
+    const row = (v) => { const o = orderOfInvoice(v.no); return `<label class="tk"><input type="checkbox" data-split="${v.no}"><span>${esc(v.no)} · ${money(v.total)}${v.balance > 0 ? ' <span class="cu-ow">(' + t('cust.owingLabel').toLowerCase() + ')</span>' : ''}<small class="muted"> ${esc(dayMon(new Date(v.date)))}${o && o.phone ? ' · ' + esc(PE.fmt(o.phone)) : ''}</small></span></label>`; };
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('sp.title', { name: esc(p.name) })}</b><small>${t('sp.sub')}</small></div></div><div class="ap"><h4>${t('sp.tick')}</h4><div class="card pkc">${invs.map(row).join('') || `<p class="muted small">${t('cust.none')}</p>`}</div>
+      <div class="card"><label for="sp-name">${t('sp.name')}</label><input id="sp-name" value="${esc(p.name)}" autocomplete="off"><label for="sp-phone">${t('sp.phone')}</label><input id="sp-phone" type="text" inputmode="tel" autocomplete="off" placeholder="${t('pp.number')}"></div>
+      <div class="sum" id="sp-sum" hidden></div><div class="btns"><button class="btn primary" data-act="split-go" data-id="${pid}">${t('sp.go')}</button></div></div>`, null, true);
+  }
+  function splitSummary(pid) {
+    const p = PE.byId(state, pid), ticks = [...document.querySelectorAll('[data-split]:checked')].map((e) => e.dataset.split), box = $('#sp-sum'); if (!box || !p) return;
+    const owing = ticks.reduce((n, no) => { const v = state.invoices.find((x) => x.no === no); return n + (v ? Math.max(0, Number(v.balance) || 0) : 0); }, 0), nm = L.cleanName($('#sp-name').value), ph = PE.fmt($('#sp-phone').value);
+    box.hidden = !ticks.length; box.textContent = ticks.length ? t('sp.summary', { n: ticks.length, amt: 'TT$' + owing.toFixed(2), name: nm || '…', phone: ph || '…', old: p.name }) : '';
+  }
+  function sheetMergePick(pid) {
+    const p = PE.byId(state, pid); if (!p) return;
+    enterPage('mergepick', pid, () => sheetMergePick(pid));
+    const others = PE.list(state).filter((q) => q.id !== pid).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('mg.title', { name: esc(p.name) })}</b><small>${t('mg.pick')}</small></div></div><div class="ap"><div class="card pkc">${others.map((q) => `<button type="button" class="pkr tapr" data-act="merge-go" data-id="${pid}" data-b="${q.id}"><span class="pkn"><b>${esc(clabel(q.key))}</b><small>${esc(q.phone) || t('pp.noNumber')}</small></span><span class="chev">›</span></button>`).join('')}</div></div>`, null, true);
+  }
+
   function cuMain() {
-    const all = L.customerStats(state), q = cuQ.trim().toLowerCase(), base = all.filter((c) => !q || c.name.toLowerCase().includes(q) || String(c.lastItem || '').toLowerCase().includes(q));
+    const all = custStats(), q = cuQ.trim().toLowerCase(), base = all.filter((c) => custMatch(c, q));
     const list = base.filter((c) => cuStat === 'all' || (cuStat === 'owing') === (c.owing > 0));
     const col = cuSort.col, dir = cuSort.dir === 'asc' ? 1 : -1;
     const sorted = list.map((c) => ({ c, v: cuVal(c, col) })).sort((a, b) => { if (a.v === null && b.v === null) return a.c.name.localeCompare(b.c.name); if (a.v === null) return 1; if (b.v === null) return -1; const r = typeof a.v === 'string' ? a.v.localeCompare(b.v) : a.v - b.v; return r ? r * dir : a.c.name.localeCompare(b.c.name); }).map((x) => x.c);
@@ -664,8 +823,8 @@
     if (!sorted.length) return `${head}<div class="empty">${t('people.noMatch')}</div>`;
     if (cuTab === 'overview') {
       return `${head}<div class="itlist">${sorted.map((c) => {
-        const ow = c.owing > 0, sub = c.lastItem ? t('cu.lastBought', { item: esc(c.lastItem), d: c.lastDate && c.lastDate.getTime() > 0 ? day(c.lastDate) : '' }).replace(/ · $/, '') : (c.bought ? tn('notif.items', c.bought) : t('cu.noPurchases')), place = L.place(state, c.name);
-        return `<div class="itc" role="button" tabindex="0" data-act="customer" data-id="${esc(c.name)}" style="--c:${ow ? '#f0b34a' : '#4fc27a'}"><div class="t"><b>${esc(c.name)}</b><small>${sub}${place ? ' · 📍 ' + esc(place) : ''}</small></div><div class="e">${ow ? `<b class="cu-ow">${fmt2(c.owing)}</b><small class="itst">${t('cu.nOfOwing', { n: c.itemsOwing, m: c.bought })}</small>` : `<b class="cu-ok">${t('cust.UpToDate')}</b><small class="itst">${tn('notif.items', c.bought)}</small>`}</div></div>`; }).join('')}</div>`;
+        const ow = c.owing > 0, sub = c.lastItem ? t('cu.lastBought', { item: esc(c.lastItem), d: c.lastDate && c.lastDate.getTime() > 0 ? day(c.lastDate) : '' }).replace(/ · $/, '') : (c.bought ? tn('notif.items', c.bought) : t('cu.noPurchases')), place = c.p ? townOf(c.p) : L.place(state, c.name);
+        return `<div class="itc" role="button" tabindex="0" data-act="customer" data-id="${esc(c.name)}" style="--c:${ow ? '#f0b34a' : '#4fc27a'}">${peopleOn ? pav(c) : ''}<div class="t"><b>${esc(c.label)}</b>${peopleOn ? `<small>${c.phone ? '📞 ' + esc(c.phone) : '<span class="nonum">' + t('pp.noNumber') + '</span>'}${place ? ' · 📍 ' + esc(place) : ''}</small>` : ''}<small>${sub}${!peopleOn && place ? ' · 📍 ' + esc(place) : ''}</small></div><div class="e">${ow ? `<b class="cu-ow">${fmt2(c.owing)}</b><small class="itst">${t('cu.nOfOwing', { n: c.itemsOwing, m: c.bought })}</small>` : `<b class="cu-ok">${t('cust.UpToDate')}</b><small class="itst">${tn('notif.items', c.bought)}</small>`}</div></div>`; }).join('')}</div>`;
     }
     const costs = can('costs');
     const cols = cuTab === 'money' ? [['name', t('cu.h.customer')], ['owing', t('cu.h.owing')], ['sales', t('cu.h.sales')]].concat(costs ? [['profit', t('cu.h.profit')]] : [])
@@ -675,7 +834,7 @@
       profit: `<span class="n">${!c.bought || c.profit === 0 ? dsh : c.profit > 0 ? `<span class="gp">${fmt2(c.profit)}</span>` : `<span class="lossr">${fmt2(-c.profit)}</span>`}</span>`,
       bought: `<span class="n">${c.bought || dsh}</span>`, itemsOwing: `<span class="n">${c.itemsOwing ? `<span class="cu-ow">${c.itemsOwing}</span>` : dsh}</span>`,
       lastItem: `<span class="n l">${c.lastItem ? esc(c.lastItem) : dsh}</span>`, lastDate: `<span class="n c">${c.lastDate && c.lastDate.getTime() > 0 ? day(c.lastDate) : dsh}</span>` })[k];
-    const rows = sorted.map((c) => `<div class="itr" role="button" tabindex="0" data-act="customer" data-id="${esc(c.name)}" style="--c:${c.owing > 0 ? '#f0b34a' : '#4fc27a'}"><span class="itf"><i></i><span><b>${esc(c.name)}</b><small class="itst ${c.owing > 0 ? 'itst-Owing' : 'itst-Paid'}">${custStLabel(c)}</small></span></span>${cols.slice(1).map(([k]) => cell(c, k)).join('')}</div>`).join('');
+    const rows = sorted.map((c) => `<div class="itr" role="button" tabindex="0" data-act="customer" data-id="${esc(c.name)}" style="--c:${c.owing > 0 ? '#f0b34a' : '#4fc27a'}"><span class="itf"><i></i><span><b>${esc(c.label)}</b><small class="itst ${c.owing > 0 ? 'itst-Owing' : 'itst-Paid'}">${custStLabel(c)}</small></span></span>${cols.slice(1).map(([k]) => cell(c, k)).join('')}</div>`).join('');
     const sum = (f) => sorted.reduce((n, c) => n + f(c), 0), tot = { owing: fmt2(sum((c) => c.owing)), sales: fmt2(sum((c) => c.sales)), bought: sum((c) => c.bought), itemsOwing: sum((c) => c.itemsOwing), profit: (() => { const v = sum((c) => c.profit); return v >= 0 ? `<span class="gp">${fmt2(v)}</span>` : `<span class="lossr">${fmt2(-v)}</span>`; })() };
     const hd = cols.map(([k, label]) => `<button type="button" class="shd${cuSort.col === k ? ' on' : ''}${cuAl[k] ? ' ' + cuAl[k] : ''}" data-act="cu-sort" data-id="${k}" aria-label="${esc(label)}">${label}${cuSort.col === k ? `<i>${cuSort.dir === 'asc' ? '▲' : '▼'}</i>` : ''}</button>`).join('');
     const tr = `<div class="itr tt"><span class="itf"><b>${t('bl.total')}</b></span>${cols.slice(1).map(([k]) => `<span class="n">${tot[k] !== undefined && tot[k] !== '' && tot[k] !== 0 ? `<b>${tot[k]}</b>` : ''}</span>`).join('')}</div>`;
@@ -820,14 +979,14 @@
     if (invTab === 'items') {
       return list.map((v0) => { const st = L.invoiceStatus(v0), col = IL_COL[st], pu = L.purchaseOf(state, v0.no), its = (v0.void ? ((pu && pu.inv.void && pu.inv.void.items) || v0.void.items || []).map((r) => state.items.find((x) => x.id === r.id)) : pu ? pu.items : []).filter(Boolean).sort((a, b2) => (a.id < b2.id ? -1 : 1));
         const th = its.map((i) => `<button type="button" class="blth" data-act="edit-item" data-id="${esc(i.id)}" data-inv="${esc(pu ? pu.inv.no : v0.no)}" aria-label="${esc(dn(i) || i.id)}"><span class="blp">${i.photo ? `<img data-ph="${esc(i.photo.id)}" data-kind="thumb" alt="">` : `<em>${esc(String(i.id).split('-').pop())}</em>`}<span class="blpr">${Number(i.sold) > 0 || Number(i.price) > 0 ? fmt2(Number(i.sold) > 0 ? i.sold : L.salePrice(i) || i.price) : '—'}</span></span><small>${esc(i.id)}</small></button>`).join('');
-        return `<div class="bli${v0.void ? ' dim' : ''}" role="button" tabindex="0"><i class="stripe" style="background:${col}"></i><div class="blh" data-act="view-inv" data-id="${v0.no}"><b>${esc(v0.no)} · ${esc(v0.client)}</b><span class="chip2 s-${st}">${invStLabel(st)}</span><small>${tn('notif.items', its.length || Number(v0.qty) || 0)}</small></div>${its.length ? `<div class="blrail">${th}</div>` : `<div class="muted small">${t('il.noItems')}</div>`}</div>`; }).join('');
+        return `<div class="bli${v0.void ? ' dim' : ''}" role="button" tabindex="0"><i class="stripe" style="background:${col}"></i><div class="blh" data-act="view-inv" data-id="${v0.no}"><b>${esc(v0.no)} · ${esc(clabel(v0.client))}</b><span class="chip2 s-${st}">${invStLabel(st)}</span><small>${tn('notif.items', its.length || Number(v0.qty) || 0)}</small></div>${its.length ? `<div class="blrail">${th}</div>` : `<div class="muted small">${t('il.noItems')}</div>`}</div>`; }).join('');
     }
     return list.map((v0) => { const v = invEff(v0), st = L.invoiceStatus(v0), col = IL_COL[st], paidPct = v.total > 0 ? Math.max(0, Math.min(100, Math.round((v.total - v.balance) / v.total * 100))) : 0, qty = Number(v0.qty) || invLines(v0).reduce((n, l) => n + (Number(l.qty) || 0), 0);
       const desc = I.getLang() === 'es' ? (() => { try { return invLines(v0).map((l) => lineName(l, 'es')).join(', ') || v0.desc; } catch (e) { return v0.desc; } })() : v0.desc;
       const tags = [tn('notif.items', qty), v0.void ? t(v0.void.kind === 'cancelled' ? 'il.cancelledOn' : 'il.returnedOn', { d: ilDay(v0.void.date) }) : t('il.invoiced', { d: ilDay(v0.date) }), !v0.void && !v0.updatedBy && v0.due && v.balance > 0 ? t('il.due', { d: ilDay(v0.due) }) : '', v0.updatedBy ? t('il.updatedTo', { no: esc(v0.updatedBy) }) : ''].filter(Boolean);
       return `<div class="blr${v0.void ? ' cl' : ''}" role="button" tabindex="0" data-act="view-inv" data-id="${v0.no}"><i class="stripe" style="background:${col}"></i>
         <span class="ring" style="background:conic-gradient(${col} ${(v0.void ? 100 : paidPct) * 3.6}deg,color-mix(in srgb,var(--line) 80%,transparent) 0)"><b>${v0.void ? '↩' : v0.updatedBy ? '↻' : paidPct + '%'}</b></span>
-        <div class="mid"><div class="nm">${esc(v0.no)} · ${esc(v0.client)}</div><div class="sub idesc">${esc(desc)}</div><div class="itags">${tags.map((x) => `<span>${x}</span>`).join('')}</div></div>
+        <div class="mid"><div class="nm">${esc(v0.no)} · ${esc(clabel(v0.client))}</div><div class="sub idesc">${esc(desc)}</div><div class="itags">${tags.map((x) => `<span>${x}</span>`).join('')}</div></div>
         <div class="rt"><b class="ist s-${st}">${invStLabel(st)}</b>${v.balance > 0 && !v0.updatedBy ? `<small class="owes">${t('il.owes', { amt: fmt2(v.balance) })}</small>` : ''}<small class="invt${v0.void ? ' x' : ''}">${money(v.total)}</small></div></div>`; }).join('');
   }
   // the Money table: its title row sticks under the app bar while the page scrolls, and slides sideways together with the rows
@@ -1806,7 +1965,7 @@
     const i = state.items.find((x) => x.id === id); if (!i) return;
     enterPage('item', id, () => sheetItem(id), swap);
     const b = batchOf(i), sold = L.isSold(i), ord = !sold && L.isHeld(i), lock = sold || ord, ordr = ord ? Store.orders().find((o) => o.status === 'new' && (o.items || []).some((x) => x.id === i.id)) : null;
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : ord ? t('item.orderedTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(i.customer) : ''}</small></div><div class="tools">${(() => { const nb = notifCount(); return `<button class="round" data-act="bell" aria-label="${t('notif.title')}"><svg viewBox="0 0 24 24">${ICONS.bell}</svg>${nb ? `<b class="nb">${nb > 9 ? '9+' : nb}</b>` : ''}</button>`; })()}<button class="round" data-act="page-more" aria-label="${t('batch.more')}"><svg viewBox="0 0 24 24">${ICONS.dots}</svg></button></div></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${sold ? t('item.soldTitle') : ord ? t('item.orderedTitle') : t('item.editTitle')}</b><small>${i.id} · ${bl(b.id)} · ${esc(i.store)}${i.invoice ? t('item.invoice', { no: i.invoice }) : ''}${i.customer ? ' · ' + esc(clabel(i.customer)) : ''}</small></div><div class="tools">${(() => { const nb = notifCount(); return `<button class="round" data-act="bell" aria-label="${t('notif.title')}"><svg viewBox="0 0 24 24">${ICONS.bell}</svg>${nb ? `<b class="nb">${nb > 9 ? '9+' : nb}</b>` : ''}</button>`; })()}<button class="round" data-act="page-more" aria-label="${t('batch.more')}"><svg viewBox="0 0 24 24">${ICONS.dots}</svg></button></div></div>
       ${ord ? `<div class="lockbar">🔒 <div><b>${t('item.orderedLock')}</b><small>${t('item.orderedNote')}</small>${ordr ? `<button class="pay-btn" data-act="order-open" data-id="${ordr.id}">${t('item.viewOrder')}</button>` : ''}</div></div>` : ''}
       ${sold ? `<div class="lockbar">🔒 <div><b>${t('item.locked')}</b><small>${i.invoice ? t('item.lockedNote', { no: i.invoice }) : t('item.lockedNoInv')}</small>${(() => { const iv = state.invoices.find((x) => x.no === i.invoice); return iv && iv.balance > 0 && !iv.updatedBy ? `<button class="pay-btn" data-act="pay-inv" data-id="${iv.no}" data-back="item" data-item="${i.id}" style="margin-top:8px">${t('pay.btn')} · ${t('cust.stillOwes', { amt: money(iv.balance) })}</button>` : ''; })()}</div></div>` : ''}
       ${(() => { const ids = itemNavList(i), n = ids.indexOf(i.id); if (ids.length < 2 || n < 0) return PUI.photoBox(i); return `<div class="swbox" data-swipe="1">${PUI.photoBox(i)}${n > 0 ? `<button type="button" class="swe l" data-act="item-go" data-id="${ids[n - 1]}" aria-label="${t('nav.prev')}">‹</button>` : ''}${n < ids.length - 1 ? `<button type="button" class="swe r" data-act="item-go" data-id="${ids[n + 1]}" aria-label="${t('nav.next')}">›</button>` : ''}</div>`; })()}
@@ -2042,10 +2201,10 @@
     const hist = chain.length > 1 ? `<div class="hist"><h4>${t('inv.history')}</h4>${chain.slice().reverse().map((h) => `<button class="hrow ${h.no === v.no ? 'now' : ''}" data-act="inv-swap" data-id="${h.no}"><span class="hl"><b>${h.no}</b><small>${dShort(h.date)}${h.no === v.no ? ' · ' + t('inv.histNow') : ''}</small></span><span class="hr"><b>${t('inv.histPaid', { amt: money(h.amountPaid) })}</b><small class="${h.balance > 0 ? 'bad' : 'good'}">${h.balance > 0 ? t('inv.histOwes', { amt: money(h.balance) }) : t('inv.histFull')}</small></span></button>`).join('')}</div>` : '';
     const withPhoto = state.items.filter((x) => x.invoice === v.no && x.photo);
     const thumbs = withPhoto.length ? `<div class="thumbs"><h4>${t('inv.itemsOn')}</h4><div class="trow">${withPhoto.map((x) => { const d = L.photoDaysLeft(state, x, Date.now()); return `<button class="tb" data-act="edit-item" data-back="inv" data-inv="${v.no}" data-id="${x.id}" aria-label="${esc(dn(x) || x.id)}"><span class="im"><img data-ph="${x.photo.id}" data-kind="thumb" alt="">${offStrip(x)}${d != null && d > 0 ? `<span class="bd">${tn('inv.daysLeft', d)}</span>` : ''}</span><span class="nm">${esc(dn(x) || x.id)}</span></button>`; }).join('')}</div></div>` : '';
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(v.client)}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}${v0.returnNote.fee > 0 ? ' · ' + t('inv.feeIn', { amount: money(v0.returnNote.fee) }) : ''}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg three small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px"><button class="${autoActive() ? 'on' : ''}" role="radio" aria-checked="${autoActive()}" data-act="inv-lang" data-id="auto" data-no="${v.no}">${t('inv.auto')}</button>${Object.keys(I.LANGS).map((l) => `<button class="${lg === l && !autoActive() ? 'on' : ''}" role="radio" aria-checked="${lg === l && !autoActive()}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${v.no}</b><small>${esc(clabel(v.client))}</small></div></div>${voidBanner(v0)}${v0.returnNote ? `<div class="voidbar soft">↩ ${tn('inv.returnedFrom', v0.returnNote.items.length, { no: v0.returnNote.from })}${v0.returnNote.fee > 0 ? ' · ' + t('inv.feeIn', { amount: money(v0.returnNote.fee) }) : ''}</div>` : ''}${isLatest ? '' : `<div class="earlier"><span>${t('inv.earlier')}</span><button class="chip" data-act="inv-swap" data-id="${latest.no}">${t('inv.backLatest')}</button></div>`}<div class="seg three small" role="radiogroup" aria-label="${t('invUI.lang')}" style="margin-bottom:10px"><button class="${autoActive() ? 'on' : ''}" role="radio" aria-checked="${autoActive()}" data-act="inv-lang" data-id="auto" data-no="${v.no}">${t('inv.auto')}</button>${Object.keys(I.LANGS).map((l) => `<button class="${lg === l && !autoActive() ? 'on' : ''}" role="radio" aria-checked="${lg === l && !autoActive()}" data-act="inv-lang" data-id="${l}" data-no="${v.no}">${I.LANGS[l]['lang.name']}</button>`).join('')}</div>
       <div class="printable"><button class="fsbtn" data-act="inv-full" data-id="${v.no}" aria-label="${t('invd.full')}">⤢</button><div class="inv" style="--ih:${invDesign().head};--it:${invDesign().tint || 'transparent'};--ib:${invDesign().band}"><img class="inv-banner" src="${invDesignId() === 'classic' ? bannerSrc() : headerURL(invDesignId())}" alt="${ti('doc.bannerAlt')}">
       <div class="inv-body">
-        <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(v.client)}</div></div>
+        <div class="inv-top"><div><div class="lbl">${ti('doc.billTo')}</div><div class="client">${esc(cdisp(v.client))}</div></div>
           <div class="inv-meta"><div><span class="lbl">${ti('doc.invoiceNo')}</span><span>${v.no}</span></div><div><span class="lbl">${ti('doc.date')}</span><span>${invDate(v.date)}</span></div><div><span class="lbl">${ti('doc.due')}</span><span>${invDate(v.due)}</span></div></div></div>
         <table class="inv-t"><thead><tr><th>${ti('doc.desc')}</th><th class="r">${ti('doc.qty')}</th><th class="r">${ti('doc.price')}</th><th class="r">${ti('doc.amount')}</th></tr></thead><tbody>
           ${lines.map((l) => `<tr><td>${esc(lineName(l))}</td><td class="r">${l.qty}</td><td class="r">${invMoney(l.price)}</td><td class="r">${invMoney(l.qty * l.price)}</td></tr>`).join('')}</tbody></table>
@@ -2053,7 +2212,7 @@
         <div class="inv-terms"><b>${ti('doc.terms')}</b><span>${ti('doc.thanks')}</span></div></div><div class="inv-foot"></div></div></div>
       <div class="muted small" style="margin-top:8px">${t('invUI.status')} <span class="pill ${st}">${invStLabel(st)}</span>${v.by ? ` · ${t('inv.by', { name: esc(v.by) })}` : ''}${v.refundDue > 0 ? ` <b class="bad">${t('ret.refundDue', { amount: money(v.refundDue) })}</b>` : ''}${v.balance > 0 && !v.updatedBy && !v0.void ? ` <button class="pay-btn" data-act="pay-inv" data-id="${v.no}" data-back="inv" style="margin-left:6px">${t('pay.btn')}</button>` : ''}${!v0.void && v.profit ? `<span class="costonly"> · ${t('invUI.profit')} ${money(v.profit)}</span>` : ''}${!v0.void && v.loss ? `<span class="costonly"> · ${t('invUI.loss')} ${money(v.loss)}</span>` : ''}${!v0.void && v.tip ? `<span class="costonly"> · ${t('invUI.tip')} ${money(v.tip)}</span>` : ''}</div>
       ${hist}${thumbs}${spotRow}
-      ${(() => { const who = esc(v.client || ''), k = autoActive() ? knownLang(v.no, v.client) : invoiceLang(); return `<p class="muted small sendnote">${autoActive() ? (k ? t('inv.sendAuto', { lang: I.LANGS[k]['lang.name'], who }) : t('inv.sendAsk', { who })) : t('inv.sendFixed', { lang: I.LANGS[k]['lang.name'] })}</p>`; })()}<div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
+      ${(() => { const who = esc(clabel(v.client || '')), k = autoActive() ? knownLang(v.no, v.client) : invoiceLang(); return `<p class="muted small sendnote">${autoActive() ? (k ? t('inv.sendAuto', { lang: I.LANGS[k]['lang.name'], who }) : t('inv.sendAsk', { who })) : t('inv.sendFixed', { lang: I.LANGS[k]['lang.name'] })}</p>`; })()}<div class="b22"><button class="btn primary" data-act="share-pdf" data-id="${v.no}">${t('invUI.shareBtn')}</button><button class="btn primary" data-act="download-pdf" data-id="${v.no}">${t('invUI.download')}</button>
       ${(() => { const rr = isLatest && !v0.void && state.items.some((x) => x.invoice === v.no), cc = isLatest && !v0.void; return (rr ? `<button class="btn rs ${cc ? '' : 'span2'}" data-act="return-open" data-id="${v.no}">↩ ${t('ret.btn')}</button>` : '') + (cc ? `<button class="btn rs ${rr ? '' : 'span2'}" data-act="del-inv" data-id="${v.no}">${t('invUI.cancel')}</button>` : ''); })()}<button class="btn slim span2" data-act="close">${t('btn.close')}</button></div>`, null, true);
     const sheetInv = document.querySelector('#sheet .inv'); if (sheetInv) sheetInv.style.minHeight = Math.round(sheetInv.offsetWidth * 1.4142) + 'px';   // A4 portrait like the picture
     setTimeout(() => { if (!$('#sheet').hidden && $('#sheet .inv')) prefetchPdf(v.no); }, 600);   // build the PDF now, so Share answers the tap at once
@@ -2147,7 +2306,7 @@
     const blob = await invoiceCanvas(v, 'image/png', false, 2.6, undefined, lang);   // the sheet is drawn big (about 340 dots per inch at its printed size), then placed on a Letter page
     const card = await createImageBitmap(blob), page = letterPage(card), jpg = await new Promise((ok) => page.toBlob(ok, 'image/jpeg', 0.95));
     const pdf = Pdf.jpegToPdf(new Uint8Array(await jpg.arrayBuffer()), page.width, page.height, { w: 612, h: 792 });
-    return new File([pdf], `${v.no} ${v.client}.pdf`, { type: 'application/pdf' });
+    return new File([pdf], `${v.no} ${cdisp(v.client)}.pdf`, { type: 'application/pdf' });
   }
   function readyPdf(v, lang) {   // a promise for this invoice's PDF (in the given language, or the one on screen): the finished one, the one being drawn, or a new one
     const key = underLang(lang, () => pdfKey(v));
@@ -2222,7 +2381,7 @@
     enterPage('pay', no, () => sheetPay(no));
     payInv = v;
     const d = new Date(), iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pay.title')}</b><small>${v.no} · ${esc(v.client)}</small></div></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pay.title')}</b><small>${v.no} · ${esc(clabel(v.client))}</small></div></div>
       <div class="pm-sum"><div><span>${t('pay.total')}</span><b>${money(v.total)}</b></div><div><span>${t('pay.so')}</span><b>${money(v.amountPaid + v.previouslyPaid)}</b></div><div class="o"><span>${t('pay.owes')}</span><b>${money(v.balance)}</b></div></div>
       <label for="pay-amt">${t('pay.amount')}</label><div class="pm-row"><input id="pay-amt" class="pm-in" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off"><button class="btn" data-act="pay-full-amt">${t('pay.full')}</button></div>
       <label for="pay-date">${t('pay.date')}</label><input id="pay-date" type="date" value="${iso}" max="${iso}">
@@ -2265,10 +2424,11 @@
         <div class="c2-mid"><div class="c2-stack">${stack}</div><div class="c2-txt"><small>${day(v.date)}</small><b>${label}${nPay > 1 ? ' · ' + tn('cust.paymentsN', nPay) : ''}</b>${arr ? `<small class="arr">⏳ ${arr < its.length ? t('cust.arrN', { n: arr, m: its.length }) : t('ord.transit')}</small>` : ''}</div><div class="c2-r"><b>${money(v.total)}</b>${due ? `<span class="owes">${t('cust.stillOwes', { amt: money(v.balance) })}</span>` : `<span class="ok">● ${invStLabel(st)}</span>`}</div></div>
         ${due ? `<div class="c2-bar"><i style="width:${pct}%"></i></div>` : ''}${pinRow(orderOfInvoice(v.no))}</div>`;
     };
-    openSheet(`<div class="cpage"><div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(c.name)}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
-      <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(c.name)}</div><div class="lastrow"><small>${invs.length ? lastCap : since}</small><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div><div class="locrow"><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button><button class="lg-chip" data-act="cust-lang" data-id="${esc(name)}" aria-label="${t('cl.field')}"><i>🗣️</i>${(() => { const k = savedLang(name) || orderLangOf(name); return k ? k.toUpperCase() : t('cl.chipAuto'); })()}</button></div></div></div>
+    openSheet(`<div class="cpage"><div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(clabel(name))}</b><small>${since}</small></div><button class="fb-edit" data-act="cust-edit" data-id="${esc(name)}">${t('cust.edit')}</button></div>
+      <div class="cp-hero ${owing ? 'owe' : ''}"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase() || '?')}</div><div class="who"><div class="nm">${esc(clabel(name))}</div><div class="lastrow"><small>${invs.length ? lastCap : since}</small><span class="pill ${owing ? 'Owing' : 'Up'}">${owing ? t('cust.owes', { amt: money(c.owing) }) : custStLabel(c)}</span></div><div class="locrow"><button class="cp-loc ${L.place(state, name) ? '' : 'none'}" data-act="cust-edit" data-id="${esc(name)}">📍 ${L.place(state, name) ? esc(L.place(state, name)) : t('cust.addPlace')}</button><button class="lg-chip" data-act="cust-lang" data-id="${esc(name)}" aria-label="${t('cl.field')}"><i>🗣️</i>${(() => { const k = savedLang(name) || orderLangOf(name); return k ? k.toUpperCase() : t('cl.chipAuto'); })()}</button></div></div></div>
       <div class="cp-tiles"><div class="tile ${owing ? 'bad' : ''}"><small>${t('cust.owingLabel')}</small><b>${moneyBare(c.owing)}</b></div><div class="tile"><small>${t('cust.totalSales')}</small><b>${moneyBare(c.sales)}</b></div>
         <div class="tile"><small>${t('cust.itemsBought')}</small><b>${c.bought}</b>${c.itemsOwing ? `<small class="bad">${t('cust.itemsOwing', { n: c.itemsOwing })}</small>` : ''}</div><div class="tile costonly"><small>${t('cust.profit')}</small><b>${moneyBare(c.profit)}</b></div></div>
+      ${peopleOn ? peopleBox({ p: PE.byKey(state, name) }) : ''}
       <h2>${t('cust.invoices')} <span class="muted" style="float:right;text-transform:none;letter-spacing:0">${invs.length}</span></h2>${invs.map(card).join('') || `<div class="muted">${t('cust.none')}</div>`}
       <p class="muted small" style="margin:10px 2px 0">${invs.length ? t('cust.tapHint') : ''}</p></div>`, null, true);
     const nmEl = document.querySelector('#sheet .cp-hero .nm');   // a long name gets smaller type first, then a second line, so nothing is cut off
@@ -2473,12 +2633,13 @@
       if (c.id && !c.batches.includes(b.id)) { const hid = mine.filter((i) => i.status === 'Available' && String(i.desc || '').trim() && Number(i.price) > 0).length; if (hid) add({ key: 'nis:' + b.id + ':' + hid, grp: 'attn', ic: '🏪', title: t('notif.notIn', { b: bl(b.id) }), sub: tn('notif.hidden', hid), go: ['stock', b.id, 'All'] }); }
       if (bStatus(b) === 'In Transit') { const days = Math.floor((now - new Date(b.datePurchased).getTime()) / DAY); if (days >= 30) add({ key: 'transit:' + b.id, grp: 'remind', ic: '📦', title: t('notif.transit', { b: bl(b.id), n: days }), sub: t('notif.transitSub'), go: ['batch', b.id] }); }
     });
+    if (peopleOn && PE.missingNumber(state).length) add({ key: 'phones:' + PE.missingNumber(state).length, grp: 'attn', ic: '📞', title: t('hm.phoneTitle'), sub: t('hm.phoneSub'), go: ['phones-open', ''] });
     if (c.id && window.Store && Store.needsPublish && Store.needsPublish()) add({ key: 'needpub', grp: 'attn', ic: '📤', always: true, title: t('hm.pubTitle'), sub: t('hm.pubSub'), go: ['goto-publish', ''] });
     if (c.id && window.Store) { if (Store.info().error) add({ key: 'storeerr', grp: 'attn', ic: '⚠️', title: t('notif.storeErr'), sub: t('notif.storeErrSub'), go: ['store-open', ''] }); if (!c.open) add({ key: 'storeclosed', grp: 'attn', ic: '🔒', title: t('notif.storeClosed'), sub: t('notif.storeClosedSub'), go: ['store-open', ''] }); }
     // Only invoices that are still current count: an older invoice that was replaced by an updated one (or returned) is cleared by it.
     const owes = new Map(); state.invoices.forEach((v) => { if (v.updatedBy || v.void || !(Number(v.balance) > 0.004)) return; let root = v, g = 0; while (root.ref && g++ < 50) { const prev = state.invoices.find((x) => x.no === root.ref); if (!prev) break; root = prev; }
       const o = owes.get(v.client) || { amt: 0, since: Infinity }; o.amt += Number(v.balance); o.since = Math.min(o.since, new Date(root.date).getTime() || Infinity); owes.set(v.client, o); });
-    owes.forEach((o, name) => { if (o.since !== Infinity && now - o.since >= 7 * DAY) add({ key: 'owes:' + name, grp: 'remind', ic: '💳', title: t('notif.owes', { name: esc(name), amt: money(o.amt) }), sub: t('notif.owesSub', { date: new Date(o.since).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short' }) }), go: ['customer', name] }); });
+    owes.forEach((o, name) => { if (o.since !== Infinity && now - o.since >= 7 * DAY) add({ key: 'owes:' + name, grp: 'remind', ic: '💳', title: t('notif.owes', { name: esc(clabel(name)), amt: money(o.amt) }), sub: t('notif.owesSub', { date: new Date(o.since).toLocaleDateString(I.locale(I.getLang()), { day: 'numeric', month: 'short' }) }), go: ['customer', name] }); });
     if (now > Date.UTC(2027, 0, 15) && now < Date.UTC(2027, 1, 10)) add({ key: 'billing', grp: 'remind', ic: '☁️', title: t('notif.billing'), sub: t('notif.billingSub'), go: ['', ''] });
     return out;
   }
@@ -2867,11 +3028,12 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       <div class="btns">${gp ? `<a class="btn navopen" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener">🧭 ${t('loc.open')}</a>` : ''}<button class="btn primary" data-act="loc-yes" data-id="${o.id}">${t('loc.yes')}</button><button class="btn rs" data-act="loc-no" data-id="${o.id}">${t('loc.no')}</button><button class="btn" data-act="close">${t('loc.later')}</button></div>`, 'card');
   }
   // Confirms the order, makes its invoice (nothing paid yet) and opens WhatsApp with the confirmation message
-  function doConfirmOrder(o) {
+  async function doConfirmOrder(o) {
     const its = orderItemsLeft(o); if (!its.length) return toast(t('ord.noneLeft'));
+    let who = o.name; if (peopleOn) { who = await resolveOrderCustomer(o); if (!who) return; if (!orderItemsLeft(o).length) return toast(t('ord.noneLeft')); }
     try {
       if ((o.option === 'delivery' || o.option === 'pickup') && o.deliveryPrice > 0) its[0].delivery = o.deliveryPrice;   // a pickup spot carries its small fee too
-      const inv = L.createInvoice(state, { itemIds: its.map((x) => x.id), client: o.name, paying: '0', allowZero: true });
+      const inv = L.createInvoice(state, { itemIds: its.map((x) => x.id), client: who, paying: '0', allowZero: true });
       if (sharedBusiness()) inv.by = myName();   // who made it, once there is more than one person in the business
       save(); tidyPhotos();
       Store.setStatus(o.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError')));
@@ -3058,7 +3220,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
         payPending = { id, amt, dv, text: $('#pay-amt').value, date };
         const left = Math.round((inv0.balance - amt) * 100) / 100, paidOff = left <= 0.004;
         const row = (a, b, c) => `<div class="pcr"><span>${a}</span><b${c ? ` class="${c}"` : ''}>${b}</b></div>`;
-        return openSmall(`<h3>${t('pay.cfTitle')}</h3><p class="muted small" style="margin:0 0 6px">${esc(inv0.no)} · ${esc(inv0.client)}</p>${row(t('pay.cfNow'), money(amt))}${row(t('pay.cfAfter'), money(Math.max(0, left)), paidOff ? 'ok' : 'owe')}${row(t('pay.cfStatus'), paidOff ? '✓ ' + t('pay.afterPaid') : t('ord.pl.owing'), paidOff ? 'ok' : 'owe')}
+        return openSmall(`<h3>${t('pay.cfTitle')}</h3><p class="muted small" style="margin:0 0 6px">${esc(inv0.no)} · ${esc(clabel(inv0.client))}</p>${row(t('pay.cfNow'), money(amt))}${row(t('pay.cfAfter'), money(Math.max(0, left)), paidOff ? 'ok' : 'owe')}${row(t('pay.cfStatus'), paidOff ? '✓ ' + t('pay.afterPaid') : t('ord.pl.owing'), paidOff ? 'ok' : 'owe')}
           <div class="btns"><button class="btn primary" data-act="pay-go" data-id="${esc(id)}">${t('pay.cfYes')}</button><button class="btn" data-act="pay-no">${t('pay.cfNo')}</button></div>`, 'card');
       }
       case 'pay-no': { const pp = payPending; closeSheet(); setTimeout(() => { const el = $('#pay-amt'); if (el && pp) { el.value = pp.text; payUpdate(); } }, 380); return; }
@@ -3313,17 +3475,35 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'combo-toggle': comboOpen = !comboOpen; render(); if (comboOpen) { const f = $('#client'); if (f) f.focus(); } return;
       case 'combo-new': comboOpen = false; return render();
       case 'pay-full': { const p = preview(); invForm.paying = String(Math.max(0, L.r2(p.total - p.prev))); return render(); }
-      case 'make-invoice': return run(() => { const nv = L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying, allowZero: !!pendingOrder }); if (sharedBusiness()) nv.by = myName(); return nv; }, (inv) => {
+      case 'make-invoice': {
+        if (peopleOn && !t_.dataset.go) {
+          const po = pendingOrder && Store.orders().find((x) => x.id === pendingOrder), nm = L.cleanName(invForm.client);
+          if (po) return resolveOrderCustomer(po).then((k) => { if (!k) return; invForm.client = k; const b = document.createElement('button'); b.dataset.act = 'make-invoice'; b.dataset.go = '1'; document.body.appendChild(b); b.click(); b.remove(); });
+          if (nm && !PE.byKey(state, nm)) return resolveWalkIn(nm).then((k) => { if (!k) return; invForm.client = k; const b = document.createElement('button'); b.dataset.act = 'make-invoice'; b.dataset.go = '1'; document.body.appendChild(b); b.click(); b.remove(); });
+        }
+        return run(() => { const nv = L.createInvoice(state, { itemIds: [...selected], client: invForm.client, paying: invForm.paying, allowZero: !!pendingOrder }); if (sharedBusiness()) nv.by = myName(); return nv; }, (inv) => {
         const po = pendingOrder && Store.orders().find((x) => x.id === pendingOrder); selected = new Set(); invForm = { client: '', paying: '' }; pendingOrder = null; custLock = false; go({ tab: 'sell', moreView: null });
         if (po) { Store.setStatus(po.id, 'confirmed', { invoice: inv.no }).catch(() => toast(t('store.pubError'))); waOpen(po, 'ord.waConfirm', inv); pdfPrompt = inv.no; clearTimeout(pdfPromptTimer); pdfPromptTimer = setTimeout(() => { if (document.visibilityState === 'visible') showPdfPrompt(); }, 3500); }
-        setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); });
+        setTimeout(() => sheetInvoice(inv.no), 0); return t('inv.created', { no: inv.no, amount: money(inv.balance) }); }); }
       case 'customer': return sheetCustomer(id);
+      case 'pp-pick': { const f = window.__pp; if (f) f(id); return closeSheet(); }
+      case 'fix-open': return sheetFix();
+      case 'fix-decisions': return sheetDecisions();
+      case 'fix-dups': return sheetDups();
+      case 'phones-open': return sheetPhones();
+      case 'phone-use': return savePhone(id, t_.dataset.v);
+      case 'no-number': { const p = PE.byId(state, id); if (p) { p.noNumber = true; save(); toast(t('ph.saved')); sheetPhones(); } return; }
+      case 'dec-undo': { try { PE.undo(state, id); save(); toast(t('fx.undone')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } return sheetDecisions(); }
+      case 'dup-merge': { try { PE.merge(state, t_.dataset.b, id, myName()); save(); toast(t('mg.done')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } return sheetDups(); }
+      case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
+      case 'pf-number': case 'pf-nick-add': case 'pf-nick-del': case 'split-open': case 'merge-open': case 'merge-go': case 'split-go': return peopleAct(t_.dataset.act, id, t_);
       case 'cust-edit': return sheetCustEdit(id);
       case 'cust-lang': { clName = id; return sheetChoice(t('cl.popTitle', { who: esc(id) }), 'cl-set', savedLang(id) || 'auto', [['auto', t('cl.optAuto')], ['en', I.LANGS.en['lang.name'] + ' · EN'], ['es', I.LANGS.es['lang.name'] + ' · ES']], t('cl.popNote', { who: esc(id) })); }
       case 'cl-set': { setClientLang(clName, id === 'auto' ? '' : id); closeSheet(); return; }
       case 'ce-lang': { ceLang = id; document.querySelectorAll('#sheet .lg-seg button').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); return; }
       case 'cust-save': {
         const to = $('#ce-name').value, loc = $('#ce-loc').value;
+        if (peopleOn) { const pr = PE.byKey(state, id), nm = L.cleanName(to); if (!pr || !nm) return toast(t('cust.saved')); pr.name = nm; L.setPlace(state, id, loc); setClientLang(id, ceLang); save(); pageStack = pageStack.filter((p) => p.key !== 'custedit|' + id && p.key !== 'customer|' + id); toast(t('cust.saved')); render(); return sheetCustomer(id); }
         const save2 = () => { try {
           const final = L.renameCustomer(state, id, to); L.setPlace(state, final, loc); if (clientKey(id) !== clientKey(final)) setClientLang(id, ''); setClientLang(final, ceLang); save(); tidyPhotos();
           pageStack = pageStack.filter((p) => p.key !== 'custedit|' + id && p.key !== 'customer|' + id); toast(t('cust.saved')); render(); return sheetCustomer(final);
@@ -3366,6 +3546,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target, d = Object.fromEntries(new FormData(f));
+    if (f.id === 'f-pphone') { const v = JSON.stringify({ phone: d.phone, place: d.place }); if (!PE.valid(d.phone)) return toast(t('pp.badPhone')); const fn = window.__pp; if (fn) fn(v); return closeSheet(); }
+    if (f.id === 'f-pf') { const fn = window.__pf; if (fn) fn(d.v); return closeSheet(); }
     if (f.id === 'f-chpw') { acctShow(''); return Cloud.changePassword(d.cur, d.password).then(() => { toast(t('acct.pwChanged')); f.reset(); }).catch((e) => acctShow(/wrong-password|invalid-credential/.test((e && e.code) || '') ? t('acct.err.curPw') : acctErr(e))); }
     if (f.id === 'f-addpw') { acctShow(''); return Cloud.addPassword(d.password).then(() => { toast(t('acct.pwAdded')); closeSheet(); render(); }).catch((e) => acctShow(/requires-recent-login/.test((e && e.code) || '') ? t('acct.pwRecent') : /provider-already-linked|credential-already-in-use|email-already-in-use/.test((e && e.code) || '') ? t('acct.pwHave') : acctErr(e))); }
     if (f.id === 'f-forgot') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return Cloud.reset(em).then(() => { const e = $('#g-err'); if (e) { e.textContent = t('fp.sent', { email: em }); e.hidden = false; e.classList.add('ok'); } }, (e) => gateErr(acctErr(e))); }
@@ -3395,6 +3577,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   }
   document.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.dataset && el.dataset.phonefor) { const v = el.value.trim(); if (v) savePhone(el.dataset.phonefor, v); return; }
+    if (el.id === 'sp-name' || el.id === 'sp-phone') { const b = $('#sheet').querySelector('[data-act="split-go"]'); return b && splitSummary(b.dataset.id); }
+    if (el.dataset && el.dataset.split !== undefined) { const pid = ($('#sheet').querySelector('[data-act="split-go"]') || {}).dataset; return pid && splitSummary(pid.id); }
     if (el.id === 'gate-logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { gateDraft.logo = d; const pv = $('#gate-logo-pv'), bt = $('#gate-logo-btn'); if (pv) pv.innerHTML = `<img src="${d}" alt="">`; if (bt) bt.textContent = t('gate.logoChange'); }).catch(() => toast(t('logo.err'))); return; }
     if (el.id === 'logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { state.settings.bizLogo = d; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); }).catch(() => toast(t('logo.err'))); return; }
     if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isLocked(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
@@ -3671,8 +3856,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     onTeam: (tm) => { team = tm; try { if (tm) localStorage.setItem('buy-sell-team', JSON.stringify({ uid: cloud.uid, rank: tm.rank, perms: tm.perms })); else localStorage.removeItem('buy-sell-team'); } catch (e) { /* ignore */ } updateGate(); render(); refreshTeamSheets(); },
     onRequests: (list) => { joinReqs = list; renderTools(); refreshTeamSheets(); },
     onRequestsError: (code) => { reqErr = code || ''; refreshTeamSheets(); },
-    onStatus: (i) => { const was = cloud.signedIn; cloud = i; if (i.status === 'synced' && window.PhotoSync) PhotoSync.soon(3000); if (i.signedIn && !was && homeAfterSignIn) { homeAfterSignIn = false; closeSheet(); tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; pageStack = []; render(); } if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
-    onRemote: () => { L.migrate(state); wordList(); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
+    onStatus: (i) => { const was = cloud.signedIn; cloud = i; peopleCheck(); if (i.status === 'synced' && window.PhotoSync) PhotoSync.soon(3000); if (i.signedIn && !was && homeAfterSignIn) { homeAfterSignIn = false; closeSheet(); tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; pageStack = []; render(); } if (i.status === 'synced' && window.Store) { Store.schedule(); Store.listen(); } else if (!i.signedIn && window.Store) Store.stopListen(); updateGate(); const el = $('#acct-st'); if (el && was === i.signedIn) { el.textContent = acctStatus(); el.parentNode.className = i.status === 'synced' ? 'good' : /error|rules|unavailable/.test(i.status) ? 'bad' : ''; } else if (tab === 'home' || (tab === 'more' && moreView === 'settings')) render(); },
+    onRemote: () => { L.migrate(state); peopleCheck(); wordList(); updateGate(); if (state.settings.palette) { Theme.apply(state.settings.palette); applyTheme(); } try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && $('#view').contains(a)) return setTimeout(render, 2000); render(); },
   });
   setTimeout(() => { const e = Cloud.redirectError && Cloud.redirectError(); if (e) toast(acctErr(e)); }, 4000);   // a Google sign-in that came back from Google's page with an error
   setInterval(() => { if (!document.hidden) renderTools(); }, 60000);   // an invoice reminder appears 5 minutes after confirming, even if nothing else redraws the bell
@@ -3681,6 +3866,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   if (state.settings.palette) Theme.apply(state.settings.palette);
   applyTheme();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  peopleCheck();
   render();
   setTimeout(() => PUI.sweep(photoKeep()), 3000);   // timers on screenshots and on sold items' photos run when the app opens
 })();

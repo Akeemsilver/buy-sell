@@ -16,6 +16,7 @@
     ['batches', 'items', 'invoices'].forEach((c) => (s[c] || []).forEach((o) => { out[c][KEY[c](o)] = JSON.stringify(o); }));
     out.meta.settings = JSON.stringify(s.settings || {});
     out.meta.customers = JSON.stringify({ list: s.customers || [] });
+    if (s.people) out.meta.people = JSON.stringify({ v: s.peopleV || 1, people: s.people, decisions: s.decisions || [] });   // customers as people (numbers, nicknames, decisions)
     return out;
   };
   S.emptyLast = () => ({ batches: {}, items: {}, invoices: {}, meta: {} });
@@ -26,7 +27,7 @@
     if (col === 'meta') {
       if (json == null) return;
       const o = JSON.parse(json);
-      if (id === 'settings') s.settings = Object.assign({}, s.settings, o); else if (id === 'customers') s.customers = o.list || [];
+      if (id === 'settings') s.settings = Object.assign({}, s.settings, o); else if (id === 'customers') s.customers = o.list || []; else if (id === 'people') { s.people = o.people || []; s.decisions = o.decisions || []; s.peopleV = o.v || 1; }
       return;
     }
     const arr = s[col], i = arr.findIndex((o) => KEY[col](o) === id);

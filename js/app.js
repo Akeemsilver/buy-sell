@@ -38,10 +38,11 @@
     home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
     stock: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
     sell: '<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9v10h16V9"/><path d="M4 9a3 3 0 0 0 5.3 1.8A3 3 0 0 0 12 12a3 3 0 0 0 2.7-1.2A3 3 0 0 0 20 9"/><path d="M10 19v-5h4v5"/>',
+    promote: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6"/><path d="M17.5 6.5a8 8 0 0 1 0 11"/>',
     people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .8 3.5 2.8 3.5 6"/>',
     more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   };
-  const TABS = ['home', 'stock', 'sell', 'people', 'more'];
+  const TABS = ['home', 'stock', 'sell', 'promote', 'more'];   // Customers moved into More; the Customer log page still works as an internal tab 'people'
 
   const PUI = window.PhotoUI;
   let state = load();
@@ -347,7 +348,7 @@
     closeTopMenu();
     const row = (act, ic, label, on) => `<button type="button" class="tmi" data-act="${act}"><span class="tmic" aria-hidden="true">${ic}</span><span class="tml">${label}</span>${on ? '<i class="dot on"></i>' : ''}</button>`;
     const ss = row('store-settings', '🏪', t('hub.settings'), !dset().home);   // Store settings (with Store location) from the Store page and every log
-    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) + ss : kind === 'ord' ? ss : kind === 'dlv' ? row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + ss + row('dlv-settings', '🚚', t('dlv.settings'), false) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) + ss : row('filter', '☰', t('tool.filter'), filtered()) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + (tab === 'sell' && !moreView ? ss : '');
+    const rows = kind === 'inv' ? row('filter', '☰', t('tool.filter'), filtered()) + ss : kind === 'ord' ? ss : kind === 'dlv' ? row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + ss + row('dlv-settings', '🚚', t('dlv.settings'), false) : kind === 'bl' ? row('bl-filter-open', '☰', t('tool.filter'), blCount(blF) > 0) + ss : (tab === 'promote' ? '' : row('filter', '☰', t('tool.filter'), filtered())) + row('settings', '⚙️', t(isSettings() ? 'tm.closeSet' : 'tool.settings'), false) + (tab === 'sell' && !moreView ? ss : '');
     const sc = document.createElement('div'); sc.id = 'tmscrim'; sc.className = 'tmscrim'; sc.dataset.close = '1';
     const m = document.createElement('div'); m.id = 'tmenu'; m.className = 'tmenu'; m.setAttribute('role', 'menu'); m.innerHTML = rows;
     const hd = document.querySelector('.appbar').getBoundingClientRect(); m.style.top = (hd.bottom - 6) + 'px';
@@ -358,22 +359,23 @@
     closeTopMenu();
     cleanSelected();
     const moreTitles = { deliveries: 'more.deliveries', orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch && stockFilter !== 'NoPrice' ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('cu.title'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch && stockFilter !== 'NoPrice' ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('cu.title'), promote: t('nav.promote'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
     $('#brand').hidden = !showBrand || customBrand; $('#brandtxt').hidden = !showBrand || !customBrand; $('#brandtxt').textContent = initials(bizName());
-    $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
+    $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab || (k === 'more' && tab === 'people') ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     renderTools(); syncAppbarH();
     document.body.classList.toggle('hide-amounts', hideAmounts); document.body.classList.toggle('nocosts', !can('costs'));
     const chipX = tab === 'stock' && $('.stchips') ? $('.stchips').scrollLeft : 0;   // a tap on a filter chip keeps the row where it was scrolled
-    $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, more: More }[tab]();
+    $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, promote: Promote, more: More }[tab]();
     if (chipX && $('.stchips')) $('.stchips').scrollLeft = chipX;
     renderActionBar();
     syncHistory();
     showVersion();
     PUI.hydrate();
     if (tab === 'more' && moreView === 'items') itFitBar();
+    if (tab === 'promote') prPreview();
     if (restoreY !== null) { const y = restoreY; restoreY = null; window.scrollTo(0, y); requestAnimationFrame(() => window.scrollTo(0, y)); }
   }
 
@@ -581,6 +583,7 @@
         <button class="rw2 tap" data-act="pickup-open"><div class="t"><b>${t('hub.delivery')}</b><small>${esc(c.locations.map((l) => l.name).join(', ')) || t('hub.deliveryNone')}</small></div><span class="chev">›</span></button>
         <button class="rw2 tap" data-act="contact-open"><div class="t"><b>${t('hub.contact')}</b><small>${esc(c.name || bizName())} · ${esc(c.whatsapp) || t('store.whatsappSub')}</small></div><span class="chev">›</span></button>
         <button class="rw2 tap" data-act="words-open"><div class="t"><b>${t('hub.spanish')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></div><span class="chev">›</span></button>
+        <div class="rw2"><div class="t"><b>${t('store.prices')}</b><small>${t(c.showPrices ? 'store.pricesOn' : 'store.pricesOff')}</small></div>${swt('store-toggle', 'showPrices', c.showPrices)}</div>
         <div class="rw2"><div class="t"><b>${t('store.left')}</b><small>${t('hub.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div>
         <div class="rw2"><div class="t"><b>${t('store.transit')}</b><small>${t('hub.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div>
         <div class="rw2"><div class="t"><b>${t('store.autoNew')}</b><small>${t('hub.autoSub')}</small></div>${swt('store-toggle', 'autoNew', c.autoNew)}</div>
@@ -677,6 +680,104 @@
   function People() {
     if (!L.customerStats(state).length) return `<div class="empty"><b>${t('people.none')}</b>${t('people.noneText')}</div>`;
     return `<div class="oqbar"><span aria-hidden="true">🔍</span><input class="cq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('people.search'))}" aria-label="${esc(t('people.search'))}" value="${esc(cuQ)}"></div><div id="cumain">${cuMain()}</div>`;
+  }
+
+  /* ---------- Promote: pick items, make a picture (collage or one each), share it or the store link to WhatsApp, Facebook, TikTok ---------- */
+  let prMode = 'pictures', prWhich = 'new', prPicks = null, prFormat = 'collage', prPrices = null, prCaption = null, prFiles = { sig: '', files: [], url: '' }, prBusy = false;
+  const PR_ICON = { whatsapp: 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z', facebook: 'M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z', tiktok: 'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z' };
+  const prGlyph = (k, size) => `<svg viewBox="0 0 24 24" width="${size || 26}" height="${size || 26}" fill="#fff" aria-hidden="true"><path d="${PR_ICON[k]}"/></svg>`;
+  const prPool = () => { const seen = new Set(); return state.items.filter((i) => i.photo && (i.status === 'Available' || i.status === 'In Transit') && String(i.desc || '').trim()).filter((i) => { if (!i.grp) return true; if (seen.has(i.grp)) return false; seen.add(i.grp); return true; }); };
+  const prList = () => {
+    const pool = prPool();
+    if (prWhich === 'sale') return pool.filter((i) => L.salePrice(i) > 0);
+    if (prWhich === 'new') { const nums = state.batches.slice().sort((a, b) => b.num - a.num).slice(0, 2).map((b) => b.id); return pool.filter((i) => nums.includes(i.batchId)); }
+    return pool;
+  };
+  const prShowPrices = () => (prPrices === null ? storeCfg().showPrices : prPrices);
+  const prChosen = () => { const l = prList(); if (prPicks === null) return l.slice(0, 6); return l.filter((i) => prPicks.has(i.id)); };
+  const prWaNumber = () => { const c = storeCfg(); return SCore.validPhone(c.whatsapp) ? SCore.waLink(c.whatsapp) : ''; };
+  function prAutoCaption() {
+    const c = storeCfg(), name = c.name || bizName(), head = t(prWhich === 'sale' ? 'pr.capSale' : prWhich === 'new' ? 'pr.capNew' : 'pr.capAll', { name });
+    if (prMode === 'link' || prShowPrices()) return c.id ? `${head} ${t('pr.order')} ${Store.link(c)}` : head;
+    const wa = prWaNumber(); return wa ? `${head} ${t('pr.msg')} ${wa}` : head;
+  }
+  const prCaptionNow = () => (prCaption !== null ? prCaption : prAutoCaption());
+  const loadImg = (u) => new Promise((ok) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => ok(null); im.src = u; });
+  const cover = (g, im, x, y, w, h) => { const k = Math.max(w / im.width, h / im.height), sw = w / k, sh = h / k; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, x, y, w, h); g.restore(); };
+  const rrect = (g, x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  const brandNow = () => (window.Theme && Theme.brand ? Theme.brand() : '#741b47');
+  function pricePill(g, x, y, i, k) {   // a white pill with the price (and the old price crossed out on a sale); never a cost
+    const sale = L.salePrice(i), now = plain(money(sale > 0 ? sale : Number(i.price) || 0)), was = sale > 0 ? plain(money(Number(i.price) || 0)) : '';
+    g.font = `800 ${Math.round(30 * k)}px system-ui,Arial`; const w1 = g.measureText(now).width; g.font = `600 ${Math.round(22 * k)}px system-ui,Arial`; const w2 = was ? g.measureText(was).width + 14 * k : 0;
+    const w = w1 + w2 + 36 * k, h = 52 * k; g.fillStyle = 'rgba(255,255,255,.96)'; rrect(g, x, y - h, w, h, h / 2); g.fill();
+    g.fillStyle = brandNow(); g.textBaseline = 'middle'; g.font = `800 ${Math.round(30 * k)}px system-ui,Arial`; g.fillText(now, x + 18 * k, y - h / 2 + 1);
+    if (was) { g.fillStyle = '#7b7080'; g.font = `600 ${Math.round(22 * k)}px system-ui,Arial`; const wx = x + 18 * k + w1 + 14 * k; g.fillText(was, wx, y - h / 2 + 1); g.fillRect(wx, y - h / 2 + 1, g.measureText(was).width, 2 * k); }
+  }
+  const toBlob = (cv) => new Promise((ok) => cv.toBlob(ok, 'image/jpeg', 0.9));
+  async function prMake() {   // the pictures to share: one collage, or one picture per item
+    const list = prChosen(), prices = prShowPrices(), c = storeCfg(), name = c.name || bizName(), sub = t(prWhich === 'sale' ? 'pr.subSale' : prWhich === 'new' ? 'pr.subNew' : 'pr.subAll');
+    const foot = prices ? t('pr.footPrices') : t('pr.footMsg'), imgs = await Promise.all(list.map((i) => PUI.url(i.photo.id, 'full').then((u) => (u ? loadImg(u) : null)).then((im) => im || PUI.url(i.photo.id, 'thumb').then((u) => (u ? loadImg(u) : null)))));
+    const items = list.map((i, n) => ({ i, im: imgs[n] })).filter((x) => x.im), out = [];
+    if (!items.length) return out;
+    if (prFormat === 'each') {
+      for (const { i, im } of items) { const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350; const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 1080, 1350); cover(g, im, 0, 0, 1080, 1350);
+        const gr = g.createLinearGradient(0, 1000, 0, 1350); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.65)'); g.fillStyle = gr; g.fillRect(0, 1000, 1080, 350);
+        g.fillStyle = '#fff'; g.textBaseline = 'alphabetic'; g.font = '800 48px system-ui,Arial'; g.fillText(dn(i), 40, 1262, 1000); g.font = '600 28px system-ui,Arial'; g.fillText(name, 40, 1310, 1000);
+        if (prices && (Number(i.price) > 0 || L.salePrice(i) > 0)) pricePill(g, 40, 1212, i, 1);
+        out.push(new File([await toBlob(cv)], 'promo-' + i.id + '.jpg', { type: 'image/jpeg' })); }
+      return out;
+    }
+    const n = Math.min(items.length, 6), odd = n % 2 === 1, rows = Math.ceil(n / 2), cw = 530, ch = n === 1 ? 1100 : 660, W = 1080, H = 170 + (n === 1 ? ch + 16 : rows * (ch + 8) + 8) + 100, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    const hg = g.createLinearGradient(0, 0, W, 170); hg.addColorStop(0, brandNow()); hg.addColorStop(1, '#2a0b1d'); g.fillStyle = hg; g.fillRect(0, 0, W, 170);
+    g.fillStyle = '#fff'; g.textBaseline = 'alphabetic'; g.font = '800 60px system-ui,Arial'; g.fillText(name, 40, 84, 1000); g.font = '600 30px system-ui,Arial'; g.globalAlpha = .85; g.fillText(sub, 40, 130, 1000); g.globalAlpha = 1;
+    items.slice(0, n).forEach(({ i, im }, k) => { const last = odd && k === n - 1, x = last ? 8 : 8 + (k % 2) * (cw + 8), y = 170 + 8 + Math.floor(k / 2) * (ch + 8), w = last ? W - 16 : cw; cover(g, im, x, y, w, ch); if (prices && (Number(i.price) > 0 || L.salePrice(i) > 0)) pricePill(g, x + 16, y + ch - 16, i, 1); });   // an odd last picture spreads across the whole width
+    g.fillStyle = brandNow(); g.textAlign = 'center'; g.font = '700 32px system-ui,Arial'; g.fillText(foot, W / 2, H - 38, 1000); out.push(new File([await toBlob(cv)], 'promo-' + Date.now() + '.jpg', { type: 'image/jpeg' }));
+    return out;
+  }
+  function prSig() { return [prFormat, prShowPrices(), prChosen().map((i) => i.id + ':' + (i.price || '') + ':' + (i.discount || '') + ':' + (i.saleOn ? 1 : 0)).join(','), (storeCfg().name || '')].join('|'); }
+  async function prEnsure() { const sig = prSig(); if (prFiles.sig === sig && prFiles.files.length) return prFiles.files; const files = await prMake(); if (prFiles.url) URL.revokeObjectURL(prFiles.url); prFiles = { sig, files, url: files[0] ? URL.createObjectURL(files[0]) : '' }; return files; }
+  let prTimer = null;
+  function prPreview() { clearTimeout(prTimer); prTimer = setTimeout(async () => { const box = $('#prprev'); if (!box || prMode !== 'pictures') return; if (!prChosen().length) { box.innerHTML = ''; return; } box.innerHTML = `<div class="muted small">${t('pr.making')}</div>`; try { await prEnsure(); const b2 = $('#prprev'); if (b2 && prFiles.url) b2.innerHTML = `<img src="${prFiles.url}" alt="" class="prpimg"><div class="muted small" style="margin-top:6px">${prFormat === 'each' ? tn('pr.pictures', prFiles.files.length) : t('pr.oneCollage')}</div>`; } catch (e) { /* the preview is optional */ } }, 250); }
+  function prRefresh() { const el = $('#promote'); if (!el) return; el.innerHTML = prBody(); PUI.hydrate(); prPreview(); }
+  function prBody() {
+    const c = storeCfg(), list = prList(), chosen = prChosen(), sel = new Set(chosen.map((i) => i.id)), prices = prShowPrices();
+    const chip = (act, id, label, on) => `<button type="button" class="itchip${on ? ' on' : ''}" data-act="${act}" data-id="${id}">${label}</button>`;
+    const grid = list.slice(0, 60).map((i) => `<button type="button" class="prt${sel.has(i.id) ? ' on' : ''}" data-act="pr-pick" data-id="${esc(i.id)}" aria-label="${esc(dn(i))}" aria-pressed="${sel.has(i.id)}">${PUI.thumb(i)}</button>`).join('');
+    const plat = (k, label, bg) => `<button type="button" class="prp" data-act="pr-share" data-id="${k}"><i style="background:${bg}">${k === 'more' ? '⋯' : prGlyph(k)}</i>${label}</button>`;
+    const noStore = !c.id;
+    return `<div class="prseg"><button type="button" class="${prMode === 'pictures' ? 'on' : ''}" data-act="pr-mode" data-id="pictures">${t('pr.pictures')}</button><button type="button" class="${prMode === 'link' ? 'on' : ''}" data-act="pr-mode" data-id="link">${t('pr.storeLink')}</button></div>
+      ${prMode === 'pictures' ? `<div class="hsec"><h3>${t('pr.choose')}</h3></div><div class="itchips" style="margin:0 0 6px">${chip('pr-which', 'new', t('pr.new'), prWhich === 'new')}${chip('pr-which', 'sale', t('pr.sale'), prWhich === 'sale')}${chip('pr-which', 'all', t('pr.all'), prWhich === 'all')}${chip('pr-which', 'picks', t('pr.picks'), prWhich === 'picks')}</div>
+        ${list.length ? `<div class="prgrid">${grid}</div><div class="muted small" style="margin:6px 2px 0">${t('pr.n', { n: chosen.length })}</div>` : `<div class="empty">${t('pr.noItems')}</div>`}
+        <div class="hsec"><h3>${t('pr.options')}</h3></div>
+        <div class="rw2 prrow"><div class="t"><b>${t('pr.showPrices')}</b><small>${t('pr.showPricesSub')}</small></div>${swt('pr-prices', 'x', prices)}</div>
+        <div class="hsec"><h3>${t('pr.format')}</h3></div><div class="itchips" style="margin:0">${chip('pr-format', 'collage', t('pr.collage'), prFormat === 'collage')}${chip('pr-format', 'each', t('pr.each'), prFormat === 'each')}</div>
+        <div id="prprev" class="prprev"></div>` : `<div class="hsec"><h3>${t('pr.linkHead')}</h3></div>${noStore ? `<div class="warn"><span style="font-size:20px">🏪</span><div><b>${t('pr.noStore')}</b></div><button class="fx" data-act="store-open">${t('hub.fix')}</button></div>` : `<div class="prlink">${esc(Store.link(c))}</div>`}`}
+      <div class="hsec"><h3>${t('pr.caption')}</h3></div><textarea id="pr-cap" class="prcap" rows="4" spellcheck="true">${esc(prCaptionNow())}</textarea>
+      <div class="hsec"><h3>${t('pr.shareTo')}</h3></div><div class="prplat">${plat('whatsapp', 'WhatsApp', '#25D366')}${plat('facebook', 'Facebook', '#0866FF')}${plat('tiktok', 'TikTok', '#000')}${plat('more', t('pr.more'), 'var(--tint)')}</div>
+      <div class="prplat prsec2"><button type="button" class="btn" data-act="pr-copy">📋 ${t('pr.copy')}</button>${prMode === 'pictures' ? `<button type="button" class="btn" data-act="pr-save">⬇️ ${t('pr.save')}</button>` : ''}</div>
+      <p class="muted small" style="margin:12px 2px 0">${t('pr.waHint')}</p><div style="height:90px"></div>`;
+  }
+  function Promote() { return `<div id="promote">${prBody()}</div>`; }
+  async function prShare(k) {
+    const c = storeCfg(), text = prCaptionNow(), link = c.id ? Store.link(c) : '', name = c.name || bizName(), enc = encodeURIComponent;
+    if (prMode === 'link') {
+      if (!link) return toast(t('pr.noStore'));
+      if (k === 'whatsapp') return void window.open('https://wa.me/?text=' + enc(text), '_blank', 'noopener');
+      if (k === 'facebook') return void window.open('https://www.facebook.com/sharer/sharer.php?u=' + enc(link), '_blank', 'noopener');
+      if (k === 'tiktok') return copyText(link).then(() => toast(t('pr.ttLink')));
+      if (navigator.share) return navigator.share({ title: name, text, url: link }).catch((e) => { if (e && e.name !== 'AbortError') toast('⚠️ ' + errMsg(e)); });
+      return copyText(text).then(() => toast(t('store.copied')));
+    }
+    if (!prChosen().length) return toast(t('pr.noItems'));
+    if (prBusy) return; prBusy = true; toast(t('pr.making'));
+    try {
+      const files = await prEnsure(); if (!files.length) return toast(t('pr.noItems'));
+      if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files, text, title: name }).catch((e) => { if (e && e.name !== 'AbortError') throw e; }); return; }
+      files.forEach((f) => { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); });   // no share sheet here: the pictures are saved instead
+      if (k === 'whatsapp') window.open('https://wa.me/?text=' + enc(text), '_blank', 'noopener');
+      toast(t('pr.saved'));
+    } catch (e) { toast('⚠️ ' + errMsg(e)); } finally { prBusy = false; }
   }
 
   /* ---------- Invoice log: four tabs like the Batch Log. Overview, Money and Profit / Loss carry the spreadsheet's columns; Items shows each invoice's thumbnails ---------- */
@@ -2170,7 +2271,8 @@
       ${(() => { const n = SCore.shown(state, c).length; return n ? `<p class="muted small" style="margin:-2px 2px 10px">${t('store.willShow', { n })}</p>` : `<div class="err" style="margin:-2px 0 10px">${t('store.noneShown')}</div>`; })()}
       <div class="card"><div class="rw"><div class="t"><b>${t('store.autoNew')}</b><small>${t('store.autoNewSub')}</small></div>${swt('store-toggle', 'autoNew', c.autoNew)}</div></div>
       <div class="card"><div class="rw"><div class="t"><b>${t('store.transit')}</b><small>${t('store.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div></div>
-      <div class="card"><div class="rw"><div class="t"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div></div>
+      <div class="card"><div class="rw"><div class="t"><b>${t('store.prices')}</b><small>${t(c.showPrices ? 'store.pricesOn' : 'store.pricesOff')}</small></div>${swt('store-toggle', 'showPrices', c.showPrices)}</div>
+        <div class="rw"><div class="t"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div></div>
       <button class="libbtn" data-act="words-open"><span class="ic">🔤</span><span class="tx"><b>${t('words.title')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></span><span class="chev">›</span></button>
       <h4><span>${t('store.locations')}</span></h4><div class="card">${c.locations.map((l) => `<button class="rw sloc" data-act="store-loc" data-id="${l.id}"><div class="t"><b>${esc(l.name)}</b><small>${[l.pickup ? t('store.pickup') + ' · ' + t('store.free') : '', l.delivery ? t('store.delivery') + ' ' + money(l.price) : ''].filter(Boolean).join(' · ')}</small></div><span class="chev">›</span></button>`).join('')}<button class="rw sloc add" data-act="store-loc" data-id="new">＋ ${t('store.addLoc')}</button></div>
       <div class="card"><div class="rw"><div class="t"><b>${t('store.name')}</b></div><input class="sfield" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"></div><div class="rw"><div class="t"><b>${t('store.whatsapp')}</b><small>${t('store.whatsappSub')}</small></div><input class="sfield" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="868 555 0100" autocomplete="off" enterkeyhint="done"></div></div>
@@ -3020,13 +3122,22 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'contact-open': return sheetContact();
       case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
-      case 'store-toggle': { const c = storeCfg(); storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
+      case 'store-toggle': { const c = storeCfg(); if (id === 'showPrices' && c.showPrices && !SCore.validPhone(c.whatsapp)) { toast(t('store.pricesNeedWa')); return; }   // with prices off, customers need a WhatsApp number to reach you
+        storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }
       case 'batch-edit-jump': { const h = $('#bpg-items'); if (h) h.scrollIntoView({ behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
       case 'bl-tab': blTab = id; if (blSort.col !== 'batch' && !({ pl: ['invested', 'sales', 'pl'], owing: ['owing', 'people', 'waiting'] }[id] || []).includes(blSort.col)) blSort = { col: 'batch', dir: 'desc' }; return render();
       case 'goto-customers': go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'goto-transit': blF = { store: [], status: ['transit'], items: [] }; blTab = 'overview'; go({ tab: 'more', moreView: 'batches' }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'goto-nopr': { stockFilter = 'NoPrice'; go({ tab: 'stock', moreView: null }); render(); window.scrollTo(0, 0); const end = () => { const c = $('.stchips'); if (c) c.scrollLeft = c.scrollWidth; }; end(); return requestAnimationFrame(() => { window.scrollTo(0, 0); end(); }); }   // the chip row is scrolled to the end so No price is in view
       case 'goto-owing': cuStat = 'owing'; cuQ = ''; go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));   // from Home: the Customer log already filtered to who owes
+      case 'pr-mode': prMode = id; prCaption = null; return prRefresh();
+      case 'pr-which': prWhich = id; prPicks = id === 'picks' ? new Set() : null; prCaption = null; return prRefresh();
+      case 'pr-pick': { const cur = new Set(prChosen().map((x) => x.id)); if (cur.has(id)) cur.delete(id); else cur.add(id); prPicks = cur; return prRefresh(); }
+      case 'pr-format': prFormat = id; return prRefresh();
+      case 'pr-prices': prPrices = !prShowPrices(); prCaption = null; return prRefresh();
+      case 'pr-share': return prShare(id);
+      case 'pr-copy': return copyText(prCaptionNow()).then(() => toast(t('store.copied')));
+      case 'pr-save': return prEnsure().then((files) => { if (!files.length) return toast(t('pr.noItems')); files.forEach((f) => { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); }); toast(t('pr.saved')); }).catch((e) => toast('⚠️ ' + errMsg(e)));
       case 'cu-tab': cuTab = id; return cuRefresh();
       case 'cu-chip': cuStat = id; return cuRefresh();
       case 'cu-sort': { if (cuSort.col === id) cuSort.dir = cuSort.dir === 'desc' ? 'asc' : 'desc'; else cuSort = { col: id, dir: id === 'name' || id === 'lastItem' ? 'asc' : 'desc' }; return cuRefresh(); }
@@ -3226,6 +3337,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if (el.dataset && el.dataset.dsshow !== undefined) saveDset({ showRate: !!el.checked });
     else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
     else if (el.classList.contains('iq')) { invQ = el.value; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); }
+    else if (el.id === 'pr-cap') { prCaption = el.value; }
     else if (el.id === 'reset-word') { const g = $('#reset-go'); if (g) g.disabled = el.value.trim().toUpperCase() !== 'RESET'; }
     else if (el.classList.contains('itbq')) { itBQ = el.value; itPickRefresh(); }
     else if (el.classList.contains('itq')) { itQ = el.value; itLimit = 100; itRefresh(); }

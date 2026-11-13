@@ -461,7 +461,7 @@
 
   root.PhotoUI = {
     init: (api) => { A = api; },
-    hydrate, retry, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer, sweep, freeOriginals, removeOldThumbs,
+    url: urlFor, hydrate, retry, thumb, noTile, photoBox, act, isOpen, layers, back, closeEditor, share, openViewer, sweep, freeOriginals, removeOldThumbs,
     // forget photos that no item points to any more (deleted items, batches, replaced photos)
     cleanup: () => { if (busy || ed) return Promise.resolve(); const used = new Set(A.state().items.filter((i) => i.photo).map((i) => i.photo.id)); return S.clean(used).catch(() => {}); },
   };

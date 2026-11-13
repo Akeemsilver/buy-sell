@@ -132,3 +132,5 @@ a{color:inherit;cursor:pointer}
 .leaflet-container{font-family:inherit}.mp .leaflet-control-attribution{font-size:10px;margin-bottom:0}
 /* hints inside empty fields are clearly fainter than typed text */
 input::placeholder,textarea::placeholder{color:currentColor;opacity:.4}
+/* prices off: Message seller (WhatsApp) instead of Add to cart */
+.btn.wa{background:#25D366;color:#fff}.now.ask{font-size:16px;font-weight:700;color:var(--mute)}

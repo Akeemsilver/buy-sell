@@ -54,7 +54,7 @@
     if (running && Date.now() - runStart < TUNE.stale) return false;   // one at a time (a run stuck for over a minute is given up)
     running = true; runStart = Date.now(); info.busy = true; info.error = '';
     try {
-      const list = SC.shown(A.state(), c, reserved()), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
+      const list = SC.shown(A.state(), c, reserved()), head = { open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, showPrices: c.showPrices !== false, color: root.Theme ? Theme.brand() : '#741b47', locations: c.locations };
       const storage = root.Cloud && Cloud.storage ? Cloud.storage() : null; try { if (storage) { storage.setMaxUploadRetryTime(8000); storage.setMaxOperationRetryTime(8000); } } catch (e) { /* older SDK */ }
       const retry = localStorage.getItem('buy-sell-store-mode') === 'small' ? Math.floor(Date.now() / DAY) : 0;   // while only small pictures work, try the sharp ones again once a day
       const sig = SC.hash({ head, list, retry, pv: 3 }), key = 'buy-sell-store-sig:' + c.id;

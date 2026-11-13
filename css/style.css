@@ -1435,3 +1435,12 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .phc .chip{display:inline-block;margin:0 10px 4px 0}
 .phc .phno{display:inline-block;padding:8px 2px}
 #f-pphone input,#f-pf input,#f-free input,#sp-name,#sp-phone,.phc input.phin{font-size:16px}
+/* delivery zones map */
+.zmw .mp-bot{padding-top:12px}.zm-seg{display:flex;gap:6px;margin-bottom:8px}.zm-seg button{flex:1;height:38px;border-radius:12px;border:1.5px solid #ddd5e0;background:#fff;color:#241b27;font-weight:800;font-size:14px}.zm-seg button.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,#fff);color:var(--brand)}
+.zm-name{width:100%;box-sizing:border-box;height:46px;border:1px solid #ddd5e0;border-radius:12px;padding:0 14px;font-size:16px;background:#fff;color:#241b27;margin-bottom:8px}
+.zm-rad label{display:flex;justify-content:space-between;font-size:13px;color:#7b7080;font-weight:700}.zm-rad input{width:100%;margin:6px 0 10px}
+.zm-corners{display:flex;gap:8px;align-items:center;margin-bottom:10px}.zm-corners .btn{flex:1;min-height:40px;font-size:14px;padding:6px}.zm-corners small{color:#7b7080;white-space:nowrap}
+.zm-row{display:flex;justify-content:center;gap:18px}.zm-del{color:#c0392b!important}
+.zm-tip{background:rgba(255,255,255,.8);border:0;box-shadow:none;color:#741b47;font-weight:800;font-size:11px;padding:1px 4px}
+.zmw .mp-cur{bottom:calc(330px + env(safe-area-inset-bottom,0px))}
+.zmw #mpm{bottom:340px}.zmw .mp-cur{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px))}

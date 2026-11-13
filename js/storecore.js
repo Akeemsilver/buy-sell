@@ -167,6 +167,17 @@
     if (/^(\d{1,2}\s*[a-z]{3,}|[a-z]{3,}\s*\d{1,2})$/.test(raw) && months.some((m) => raw.includes(m))) return dtext.toLowerCase().includes(raw.replace(/\s+/g, ' ').trim());   // "6 nov" or "nov 6" is a date: it has to be that day
     const hayNum = hay.replace(/[^a-z0-9]/g, ''); return raw.split(/\s+/).every((w) => hay.includes(w) || hayNum.includes(w.replace(/[^a-z0-9]/g, ''))); };
 
-  const api = { bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  /* ---- free delivery for regulars: a published list of scrambled "number | place" keys (nobody can read a number from it) ---- */
+  const phoneKey = (v) => { const d = digits(v); if (!d) return ''; if (d.length === 7) return 'tt' + d; if (d.length === 10 && d.startsWith('868')) return 'tt' + d.slice(3); if (d.length === 11 && d.startsWith('1868')) return 'tt' + d.slice(4); return 'x' + d; };
+  const placeKey = (v) => String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim();
+  const slowHash = (str) => { const s = 'shopivo-free|' + str; let h1 = 0xdeadbeef | 0, h2 = 0x41c6ce57 | 0; for (let r = 0; r < 30000; r++) for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); h1 ^= h2 >>> 13; h2 ^= h1 >>> 11; } return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36); };
+  const freeKey = (phone, place) => { const k = phoneKey(phone), pl = placeKey(place); return k && pl ? slowHash(k + '|' + pl) : ''; };
+  const freeMemo = {};
+  const freeKeyM = (phone, place) => { const id = phoneKey(phone) + '|' + placeKey(place); return freeMemo[id] || (freeMemo[id] = freeKey(phone, place)); };
+  // profiles with free delivery switched on -> the list that goes in the store document
+  const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.places || []).forEach((pl) => { const k = freeKeyM(p.phone, pl); if (k) out.add(k); }); }); return [...out].sort(); };
+  const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
+
+  const api = { phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

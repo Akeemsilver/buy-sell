@@ -1425,3 +1425,6 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .ap .card label.tk input{margin:0}
 .pfbox{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px 16px 14px;margin:14px 0;box-sizing:border-box}.pfbox .row{background:none;border:0;box-shadow:none;border-radius:0;margin:0}.cpage .pfb{margin:0 0 6px}
 .pfbox b,.pfbox small{display:inline}.pfbox .row>span{display:block}
+.owho{display:block;margin-top:2px}.ofree{color:var(--brand)}
+.fpl{max-height:240px;overflow:auto;margin:6px 0}
+.pfrule{flex:1;min-width:0;font-size:12.5px;color:var(--mute);white-space:normal!important}

@@ -1349,3 +1349,4 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .stlist .item{padding:0 8px 0 4px}.stlist .item .main{padding:7px 0;gap:9px}.stlist .item .ph{width:48px;height:56px;border-radius:11px}.stlist .item .side{padding:8px 4px}.stlist .item .share-btn{width:36px;height:36px}
 .nopr{color:#d98a1c;font-weight:800;font-size:12.5px}.bl2{font-weight:800;font-size:11px;color:var(--brand);background:var(--tint);padding:2px 7px;border-radius:7px;margin-left:6px}
 .itbar+.blhero{margin-top:10px}.phrow .grow b{font-size:12.5px}
+.phrow .chip:disabled{opacity:.4}

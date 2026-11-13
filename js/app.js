@@ -810,8 +810,8 @@
   function sheetFreePlaces(pid) {
     const p = PE.byId(state, pid); if (!p) return;
     const cur = (p.free && p.free.zones) || [], zs = storeZones().slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }));
-    if (!zs.length) return openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.noZones')}</p><div class="btns"><button class="btn primary" data-act="zones-open">${t('zn.open')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card');
-    openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${zs.map((z) => `<label class="tk"><input type="checkbox" value="${esc(z.id)}" ${cur.includes(z.id) ? 'checked' : ''}><span>${esc(z.name)}</span></label>`).join('')}</div><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'card');
+    if (!zs.length) return openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.noZones')}</p><div class="btns"><button class="btn primary" data-act="zones-open">${t('zn.open')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
+    openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${zs.map((z) => `<label class="tkr"><input type="checkbox" value="${esc(z.id)}" ${cur.includes(z.id) ? 'checked' : ''}><span>${esc(z.name)}</span></label>`).join('')}</div><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
   function sheetZones() {
     enterPage('zones', '', () => sheetZones());
@@ -831,7 +831,7 @@
     const p = PE.byId(state, pid); if (!p) return;
     enterPage('split', pid, () => sheetSplit(pid));
     const invs = L.latestInvoices(state, p.key).sort((a, b) => new Date(b.date) - new Date(a.date));
-    const row = (v) => { const o = orderOfInvoice(v.no); return `<label class="tk"><input type="checkbox" data-split="${v.no}"><span>${esc(v.no)} · ${money(v.total)}${v.balance > 0 ? ' <span class="cu-ow">(' + t('cust.owingLabel').toLowerCase() + ')</span>' : ''}<small class="muted"> ${esc(dayMon(new Date(v.date)))}${o && o.phone ? ' · ' + esc(PE.fmt(o.phone)) : ''}</small></span></label>`; };
+    const row = (v) => { const o = orderOfInvoice(v.no); return `<label class="tkr"><input type="checkbox" data-split="${v.no}"><span>${esc(v.no)} · ${money(v.total)}${v.balance > 0 ? ' <span class="cu-ow">(' + t('cust.owingLabel').toLowerCase() + ')</span>' : ''}<small class="muted"> ${esc(dayMon(new Date(v.date)))}${o && o.phone ? ' · ' + esc(PE.fmt(o.phone)) : ''}</small></span></label>`; };
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('sp.title', { name: esc(p.name) })}</b><small>${t('sp.sub')}</small></div></div><div class="ap"><h4>${t('sp.tick')}</h4><div class="card pkc">${invs.map(row).join('') || `<p class="muted small">${t('cust.none')}</p>`}</div>
       <div class="card"><label for="sp-name">${t('sp.name')}</label><input id="sp-name" value="${esc(p.name)}" autocomplete="off"><label for="sp-phone">${t('sp.phone')}</label><input id="sp-phone" type="text" inputmode="tel" autocomplete="off" placeholder="${t('pp.number')}"></div>
       <div class="sum" id="sp-sum" hidden></div><div class="btns"><button class="btn primary" data-act="split-go" data-id="${pid}">${t('sp.go')}</button></div></div>`, null, true);

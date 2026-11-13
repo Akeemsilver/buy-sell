@@ -358,7 +358,7 @@
     closeTopMenu();
     cleanSelected();
     const moreTitles = { deliveries: 'more.deliveries', orders: 'more.orders', batches: 'more.batches', invoices: 'title.invoices', items: 'title.items', summary: 'title.summary', settings: 'title.settings' };
-    const titles = { home: bizName(), stock: stockBatch ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('cu.title'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
+    const titles = { home: bizName(), stock: stockBatch && stockFilter !== 'NoPrice' ? bl(stockBatch) : t('nav.stock'), sell: moreView === 'invoice' ? (pendingOrder ? t('ord.confirmTitle') : t('sell.newInv')) : t('nav.sell'), people: t('cu.title'), more: moreView ? (moreView.startsWith('set-') ? { 'set-theme': t('set.theme'), 'set-business': t('set.business'), 'set-invdesign': t('set.invDesign'), 'set-backup': t('set.backupRow'), 'set-about': t('set.storageRow'), 'set-password': t('acct.chPw') }[moreView] : t(moreTitles[moreView])) : t('nav.more') };
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
     const customBrand = !!state.settings.businessName, showBrand = $('#back').hidden;
@@ -405,7 +405,7 @@
     if (!state.batches.length) return `<div class="empty"><b>${t('home.welcome')}</b>${t('home.welcomeText')}</div>
       <div class="list"><button class="btn primary" data-act="new-batch">${t('btn.newBatch')}</button><button class="btn" data-act="import-xlsx">${t('btn.importXlsx')}</button></div>`;
     const hr = new Date().getHours(), greet = t(hr < 12 ? 'hm.morning' : hr < 18 ? 'hm.afternoon' : 'hm.evening'), nm = String(myName() || '').trim(), who = nm ? nm.charAt(0).toUpperCase() + nm.slice(1) : '';
-    const noPrice = state.items.filter((i) => i.status === 'Available' && String(i.desc || '').trim() && !(Number(i.price) > 0) && !(L.salePrice(i) > 0)).length;
+    const noPrice = state.items.filter(isNoPrice).length;
     const orders = window.Store && storeCfg().id ? Store.newCount() : 0, oweTotal = owingAll.reduce((n, c) => n + c.owing, 0);
     const need = (icon, bg, title, sub, n, act, hot) => `<button class="hnr" data-act="${act}"><span class="hic" style="background:${bg}">${icon}</span><div class="t"><b>${title}</b><small>${sub}</small></div><span class="hcnt${hot ? ' hot' : ''}">${n}</span><span class="chev">›</span></button>`;
     const rows = [];
@@ -414,7 +414,7 @@
     if (inTransit.length) rows.push(need('📦', 'var(--infobg)', t('hm.wayTitle'), wayTxt(oldest), inTransit.length, 'goto-transit', wayDays(oldest) >= TRANSIT_LATE_DAYS));
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
-    if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-stock', false));
+    if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-nopr', false));
     const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
     const batches = L.filterBatches(state, flt).slice().sort((a, b) => b.num - a.num).slice(0, 3);
     return `${filtered() ? `<button class="row tap" data-act="filter" style="margin-bottom:10px;background:var(--tint)"><div class="grow"><b>${t('home.filtered', { label: esc(filterLabel()) })}</b><small>${t('home.filteredHint')}</small></div><span class="chev">›</span></button>` : ''}
@@ -437,6 +437,7 @@
 
   /* ---------- Stock ---------- */
 
+  const isNoPrice = (i) => (i.status === 'In Transit' || i.status === 'Available') && String(i.desc || '').trim() && !(Number(i.price) > 0) && !(L.salePrice(i) > 0);   // waiting for a price
   function Stock() {
     if (!state.batches.length) return `<div class="empty"><b>${t('stock.none')}</b>${t('stock.noneText')}</div>`;
     const open = state.batches.filter((b) => bStatus(b) !== 'Closed' || b.id === stockBatch).sort((a, b) => b.num - a.num);
@@ -446,17 +447,18 @@
     const all = state.items.filter((i) => i.batchId === b.id);
     const ps = L.photoStats(state, b.id);
     if (stockFilter === 'NeedCheck' && !ps.needCheck) stockFilter = 'All';
-    const items = all.filter((i) => (stockFilter === 'All' ? true : stockFilter === 'NeedCheck' ? i.photo && !i.photo.checked : i.status === stockFilter));
+    const noPr = state.items.filter(isNoPrice), nop = stockFilter === 'NoPrice';   // the No price filter looks across every batch
+    const items = nop ? noPr.slice().sort((x, y) => (state.batches.find((z) => z.id === y.batchId) || {}).num - (state.batches.find((z) => z.id === x.batchId) || {}).num || String(x.id).localeCompare(String(y.id))) : all.filter((i) => (stockFilter === 'All' ? true : stockFilter === 'NeedCheck' ? i.photo && !i.photo.checked : i.status === stockFilter));
     const st = L.batchStats(state, b);
-    const chips = (arr, cur, act, label) => arr.map((x) => `<button class="chip ${x === cur ? 'on' : ''}" data-act="${act}" data-id="${esc(x)}">${esc(label ? label(x) : x)}</button>`).join('');
-    return `<div class="bpk"><button class="drop" data-act="batch-pick" aria-label="${t('bp.title')}">${esc(bl(b.id))} <span aria-hidden="true">▾</span></button><div class="chips">${chips(open.filter((x) => x.id !== stockBatch).map((x) => x.id), stockBatch, 'pick-batch', bl)}<button class="chip" data-act="new-batch">${t('stock.addBatch')}</button></div></div>
-      <div class="row tap" role="button" tabindex="0" data-act="batch-info" data-id="${b.id}" style="margin-bottom:10px"><div class="grow"><b>${t('stock.invested', { status: stLabel(bStatus(b)), amount: money(st.investment) })}</b><small>${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</small></div>
-        <div class="end costonly"><b>${money(st.profit)}</b><small>${t('home.profitWord')}</small></div><span class="go" aria-hidden="true">›</span></div>
-      <div class="row" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow" style="flex:1 1 100%"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>
-        ${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button><button class="chip" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.short')}</button></div>
-      ${(() => { const sc = storeCfg(); return sc.id && !sc.batches.includes(b.id) && all.some((i) => i.status === 'Available' && String(i.desc || '').trim()) ? `<div class="row notin" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow"><b>${t('store.notIn')}</b><small>${t('store.notInSub')}</small></div><button class="chip on" data-act="store-addbatch" data-id="${b.id}">${t('store.addBatch')}</button></div>` : ''; })()}
-      <div class="chips">${chips(['All', ...STATUSES, ...(ps.needCheck ? ['NeedCheck'] : [])], stockFilter, 'pick-filter', (x) => (x === 'All' ? t('filter.all') : x === 'NeedCheck' ? t('filter.needCheck') + ' (' + ps.needCheck + ')' : stLabel(x)))}</div>
-      ${selBar(items)}<div class="list">${stockRows(b, items) || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
+    const cnt = (x) => all.filter((i) => i.status === x).length;
+    const chip = (act, id, label, n, extra) => `<button type="button" class="itchip${extra ? ' ' + extra : ''}${stockFilter === id ? ' on' : ''}" data-act="${act}" data-id="${esc(id)}">${label}${n !== undefined ? ` <b>${n}</b>` : ''}</button>`;
+    const chips = chip('pick-filter', 'All', t('filter.all'), all.length) + STATUSES.map((x) => chip('pick-filter', x, x === 'In Transit' ? t('it.arriving') : stLabel(x), cnt(x))).join('') + (noPr.length || nop ? chip('pick-filter', 'NoPrice', t('stock.noPrice'), noPr.length, 'warn') : '') + (ps.needCheck ? chip('pick-filter', 'NeedCheck', t('filter.needCheck'), ps.needCheck) : '');
+    const bar = `<div class="itbar"><button type="button" class="itsel${nop ? '' : ' on'}" data-act="batch-pick"><span class="v">${t('it.batch')}<small>${nop ? t('it.allBatches') : esc(blShort(b.id).replace(/^\D+\s*/, ''))}</small></span><span class="dd">▾</span></button><button type="button" class="itgb" data-act="new-batch">${t('btn.newBatch')}</button></div>`;
+    const hero = nop ? `<div class="blhero i3"><div><small>${t('it.items')}</small><b>${items.length}</b></div><div class="mid"><small>${t('stock.needPrice')}</small><b>${items.length}</b></div><div class="rt"><small>${t('hm.batchesN')}</small><b>${new Set(items.map((i) => i.batchId)).size}</b></div></div>`
+      : `<div class="blhero i3 sthero" role="button" tabindex="0" data-act="batch-info" data-id="${b.id}"><div><small>${t('stock.invested2')}</small><b>${money(st.investment)}</b></div><div class="mid costonly"><small>${t('stock.profitAll')}</small><b>${money(st.profit)}</b></div><div class="rt"><small>${t('it.items')}</small><b>${all.length}</b></div><div class="sub">${stLabel(bStatus(b))} · ${t('stock.clearingLine', { amount: money(b.clearingPaid), pct: (st.clearingPct * 100).toFixed(0), left: st.left })}</div></div>`;
+    const photo = nop ? '' : `<div class="phrow"><div class="grow"><b>${t('photo.progress', { n: ps.withPhoto, total: ps.total })}</b>${ps.needCheck ? `<small class="bad">${tn('photo.needCheck', ps.needCheck)}</small>` : ''}</div>${ps.needCheck ? `<button class="chip on" data-act="photo-check-all" data-id="${b.id}">${t('photo.checkAll')}</button>` : ''}<button class="chip" data-act="photo-add" data-id="${b.id}">📷 ${t('photo.add')}</button><button class="chip" data-act="qe-open" data-id="${b.id}">✏️ ${t('qe.short')}</button></div>`;
+    const notin = nop ? '' : (() => { const sc = storeCfg(); return sc.id && !sc.batches.includes(b.id) && all.some((i) => i.status === 'Available' && String(i.desc || '').trim()) ? `<div class="row notin" style="margin-bottom:10px;flex-wrap:wrap"><div class="grow"><b>${t('store.notIn')}</b><small>${t('store.notInSub')}</small></div><button class="chip on" data-act="store-addbatch" data-id="${b.id}">${t('store.addBatch')}</button></div>` : ''; })();
+    return `${bar}${hero}${photo}${notin}<div class="itchips stchips">${chips}</div>${selBar(items)}<div class="list stlist">${stockRows(nop ? null : b, items) || `<div class="empty">${t('stock.noMatch')}</div>`}</div>`;
   }
 
   // The discount a sold item was bought with (shown as a red strip on its picture): the sale percentage, or the real percentage off the selling price if Sold for was changed by hand.
@@ -494,8 +496,9 @@
     const done = new Set(); let out = '';
     items.forEach((i) => {
       const big = i.grp && !L.isLocked(i) && counts[i.grp] > GRP_BIG;
-      if (!big) { out += itemCard(b, i); return; }
-      if (grpOpen.has(i.grp)) { if (!done.has(i.grp)) { done.add(i.grp); out += `<button class="row tap grpclose" data-act="grp-toggle" data-id="${i.grp}">▲ ${grpName(i)} ×${counts[i.grp]} · ${t('grp.collapse')}</button>`; } out += itemCard(b, i); return; }
+      const bb = b || state.batches.find((x) => x.id === i.batchId), tag = !b;
+      if (!big) { out += itemCard(bb, i, tag); return; }
+      if (grpOpen.has(i.grp)) { if (!done.has(i.grp)) { done.add(i.grp); out += `<button class="row tap grpclose" data-act="grp-toggle" data-id="${i.grp}">▲ ${grpName(i)} ×${counts[i.grp]} · ${t('grp.collapse')}</button>`; } out += itemCard(bb, i, tag); return; }
       if (done.has(i.grp)) return; done.add(i.grp);
       const mem = items.filter((x) => x.grp === i.grp && !L.isLocked(x)), all = mem.every((x) => selected.has(x.id)), cnt = L.sizeCounts(state, i), sale = L.salePrice(i);
       out += `<div class="item grp ${all ? 'sel' : ''}" data-grp="${i.grp}"><label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-selgrp="${i.grp}" ${all ? 'checked' : ''}></label>
@@ -516,14 +519,15 @@
     return Math.abs(sold - L.salePrice(i)) < 0.01 ? Number(i.discount) : Math.round((1 - sold / price) * 100);
   };
   const offStrip = (i) => { const p = boughtOffPct(i); return p > 0 ? `<small class="saleoff ph-sale">−${p}%</small>` : ''; };
-  function itemCard(b, i) {
+  function itemCard(b, i, tag) {
     const c = L.itemCalc(b, i), sel = selected.has(i.id), noPhoto = L.shareStatus(i) === 'noPhoto';
     const sale = L.salePrice(i), priceHtml = i.sold ? money(i.sold) : sale ? money(sale) : i.price ? money(i.price) : c.recommended ? '<span class="muted">' + money(c.recommended) + '</span>' : '';
+    const noPriceTag = isNoPrice(i) ? `<span class="nopr">${t('stock.noPrice')}</span>` : '';
     return `<div class="item ${sel ? 'sel' : ''} ${i.status === 'Paid' ? 'paid' : ''}" data-id="${i.id}">
       <label class="chk" aria-label="${t('aria.selectItem')}"><input type="checkbox" data-sel ${sel ? 'checked' : ''}></label>
       <button class="main" data-act="edit-item" data-id="${i.id}">${PUI.thumb(i).replace(/<\/span>$/, (sale && !L.isSold(i) ? `<small class="saleoff ph-sale">−${Number(i.discount)}%</small>` : offStrip(i)) + '</span>')}<span class="txt"><b>${esc(dn(i)) || `<span class="muted">${t('item.untitled')}</span>`}${String(i.desc || '').trim() && !String(i.size || '').trim() && !L.isSold(i) ? ` <i class="szwarn" title="${t('size.missingTip')}">!</i>` : ''}</b>
-        <small>${i.id}${i.size ? ' · <b class="szb">' + esc(szLabel(i.size)) + '</b>' : ''}</small>${i.customer || i.invoice || (L.isHeld(i) && !L.isSold(i)) ? `<small>${[i.customer ? esc(i.customer) : '', i.invoice || '', L.isHeld(i) && !L.isSold(i) ? '🔒 ' + t('stock.ordered') : ''].filter(Boolean).join(' · ')}</small>` : ''}</span></button>
-      <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${priceHtml}</b></div>
+        <small>${i.id}${i.size ? ' · <b class="szb">' + esc(szLabel(i.size)) + '</b>' : ''}${tag ? `<span class="bl2">${esc(blShort(i.batchId))}</span>` : ''}</small>${i.customer || i.invoice || (L.isHeld(i) && !L.isSold(i)) ? `<small>${[i.customer ? esc(i.customer) : '', i.invoice || '', L.isHeld(i) && !L.isSold(i) ? '🔒 ' + t('stock.ordered') : ''].filter(Boolean).join(' · ')}</small>` : ''}</span></button>
+      <div class="side"><span class="pill ${i.status.replace(' ', '')}">${stLabel(i.status)}</span><b>${isNoPrice(i) ? noPriceTag : priceHtml}</b></div>
       <button class="share-btn" data-act="photo-share" data-id="${i.id}" aria-label="${t('photo.share')}" ${noPhoto ? 'disabled' : ''}>${SHARE}</button></div>`;
   }
 
@@ -2783,6 +2787,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
 
   function openInvoiceFromSheet(no) { closeSheet(); sheetInvoice(no); }
 
+  if (window.SelectPicker) SelectPicker.install(() => ({ cancel: t('btn.cancel'), done: t('btn.done'), search: t('pick.search'), choose: t('pick.choose'), none: t('people.noMatch') }));   // our own picker instead of the browser's list
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     if (e.target.id === 'tmscrim') return closeTopMenu();
@@ -2983,7 +2988,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'sale-off': { const n = L.clearSale(state, [...selected]); save(); closeSheet(); render(); return toast(tn('sale.off', n)); }
       case 'split-group': { const it = state.items.find((x) => x.id === id); if (it) { L.splitFromGroup(state, id); save(); closeSheet(); render(); toast(t('grp.splitDone')); } return; }
       case 'goto-sell': go({ tab: 'sell', moreView: 'invoice' }); window.scrollTo(0, 0); return render();
-      case 'pick-batch': stockBatch = id; return render();
+      case 'pick-batch': stockBatch = id; if (stockFilter === 'NoPrice') stockFilter = 'All'; return render();
       case 'batch-pick': return sheetBatchPick();
       case 'batch-pick-do': stockBatch = id; stockFilter = 'All'; closeSheet(); window.scrollTo(0, 0); return render();
       case 'batch-info': return sheetBatchInfo(id);
@@ -3010,6 +3015,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'bl-tab': blTab = id; if (blSort.col !== 'batch' && !({ pl: ['invested', 'sales', 'pl'], owing: ['owing', 'people', 'waiting'] }[id] || []).includes(blSort.col)) blSort = { col: 'batch', dir: 'desc' }; return render();
       case 'goto-customers': go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'goto-transit': blF = { store: [], status: ['transit'], items: [] }; blTab = 'overview'; go({ tab: 'more', moreView: 'batches' }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
+      case 'goto-nopr': stockFilter = 'NoPrice'; go({ tab: 'stock', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));
       case 'goto-owing': cuStat = 'owing'; cuQ = ''; go({ tab: 'people', moreView: null }); render(); window.scrollTo(0, 0); return requestAnimationFrame(() => window.scrollTo(0, 0));   // from Home: the Customer log already filtered to who owes
       case 'cu-tab': cuTab = id; return cuRefresh();
       case 'cu-chip': cuStat = id; return cuRefresh();

@@ -129,3 +129,30 @@ console.log('details tests passed');
   assert.strictEqual(SC.norm({ slug: 'bruiz' }).slug, 'bruiz'); assert.strictEqual(SC.norm({}).slug, '');
   console.log('slug tests passed');
 })();
+
+// delivery ranges, quick selection, starter pack and pickup spots
+(() => {
+  const SC = require('../js/storecore.js'); const assert = require('assert');
+  let c = SC.norm({ locations: [{ id: 'a', name: 'Chaguanas', pickup: true, delivery: true, price: 40 }] });
+  assert.strictEqual(c.areaMode, 'custom'); assert.deepStrictEqual(c.bands, []); assert.deepStrictEqual(c.spots, []);   // old settings load unchanged
+  const seeded = SC.seedTT(c); c = SC.norm(Object.assign({}, c, seeded, { areaMode: 'safe' }));
+  assert.ok(c.locations.length > 20); assert.strictEqual(c.locations.filter((l) => l.name === 'Chaguanas').length, 1);   // no duplicate of a place you already had
+  assert.strictEqual(c.locations.find((l) => l.name === 'Chaguanas').pickup, true);   // its pickup choice is kept
+  const safe = SC.applyMode(c, 'safe'); c = SC.norm(Object.assign({}, c, safe));
+  const pub = SC.publicLocs(c), names = pub.map((l) => l.name);
+  assert.ok(names.includes('Chaguanas') && names.includes('San Fernando') && names.includes('Penal'));
+  assert.ok(!names.includes('Laventille') && !names.includes('Morvant') && !names.includes('Diego Martin: La Puerta'));   // high-risk left out
+  assert.ok(!names.includes('Point Fortin'));   // its range (very far) is switched off
+  assert.strictEqual(pub.find((l) => l.name === 'Penal').price, 80); assert.strictEqual(pub.find((l) => l.name === 'Chaguanas').price, 40);
+  const all = SC.publicLocs(SC.norm(Object.assign({}, c, SC.applyMode(c, 'all')))).map((l) => l.name);
+  assert.ok(all.includes('Laventille') && !all.includes('Point Fortin'));   // "all" turns places on; a range that is off still hides its places
+  // a range price change moves every place in it
+  const band = c.bands.map((b) => (b.id === 'r50' ? Object.assign({}, b, { price: 55 }) : b)); assert.strictEqual(SC.publicLocs(Object.assign({}, c, { bands: band })).find((l) => l.name === 'Couva').price, 55);
+  // pickup spots
+  const sp = SC.norm({ spotPrice: 20, spots: [{ name: 'KFC, Chaguanas', note: 'by the highway' }, { name: ' ' }, { name: 'Price Plaza', on: false }] });
+  assert.strictEqual(sp.spots.length, 2); assert.deepStrictEqual(SC.publicSpots(sp).map((x) => x.name), ['KFC, Chaguanas']);
+  const loc = { pickup: true, delivery: true, price: 40 }, spots = SC.publicSpots(sp);
+  assert.deepStrictEqual(SC.options(loc, spots, 20).map((o) => o.key), ['pickup', 'delivery', 'spot']); assert.deepStrictEqual(SC.options(loc, [], 20).map((o) => o.key), ['pickup', 'delivery']);
+  const items = [{ price: 100, sale: 0 }]; const tt = SC.totals(items, loc, 'spot', spots, 20); assert.strictEqual(tt.total, 120); assert.ok(tt.valid);
+  console.log('delivery area tests passed');
+})();

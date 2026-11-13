@@ -1374,3 +1374,4 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 
 .slugrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.slugrow input{width:100%;min-width:0;box-sizing:border-box}.slugrow .btn{width:auto;min-width:84px;margin:0;padding:0 20px}
 #ct-slug{text-transform:lowercase}
+.prcar{position:relative;display:inline-block;max-width:100%}.prar{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0 0 3px}.prar.l{left:8px}.prar.r{right:8px}

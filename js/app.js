@@ -320,11 +320,11 @@
     const btn = (act, label, icon, extra, id) => `<button class="round" data-act="${act}"${id ? ` data-id="${id}"` : ''} aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg>${extra || ''}</button>`;
     const n = ($('#back').hidden || isSettings()) ? notifCount() : 0, sel = pageSearchSel(), active = sel === '.oq' ? ordQ.trim() : sel === '.dq' ? dlvQ.trim() : sel === '.iq' ? invQ.trim() : sel === '.itq' ? itQ.trim() : sel === '.cq' ? cuQ.trim() : '';
     const sbtn = sel ? btn('tsearch-open', t('tool.search'), 'search', active ? '<i class="dot"></i>' : '') : '';
-    if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', k ? `<b class="nb">${k}</b>` : '', 'bl')}</div>`; return; }
+    if (tab === 'more' && moreView === 'batches') { const k = blCount(blF); el.innerHTML = `<div class="tools">${sbtn}${k ? btn('bl-filter-open', t('tool.filter'), 'filter', `<b class="nb">${k}</b>`) : ''}${btn('tmenu', t('tool.more'), 'dots', '', 'bl')}</div>`; return; }   // the funnel shows only while a filter is on
     if (tab === 'more' && moreView === 'deliveries') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', !dset().home ? '<i class="dot"></i>' : '', 'dlv')}</div>`; return; }   // same ⋮ menu as the other logs, plus a Delivery settings shortcut
     if (tab === 'more' && moreView === 'orders') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', !dset().home ? '<i class="dot"></i>' : '', 'ord')}</div>`; return; }
     if (tab === 'more' && moreView === 'items') { el.innerHTML = `<div class="tools">${sbtn}</div>`; return; }
-    if (tab === 'more' && moreView === 'invoices') { el.innerHTML = `<div class="tools">${sbtn}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'inv')}</div>`; return; }
+    if (tab === 'more' && moreView === 'invoices') { const k = (flt.period !== 'all' ? 1 : 0) + (flt.batch !== 'all' ? 1 : 0); el.innerHTML = `<div class="tools">${sbtn}${k ? btn('filter', t('tool.filter'), 'filter', `<b class="nb">${k}</b>`) : ''}${btn('tmenu', t('tool.more'), 'dots', '', 'inv')}</div>`; return; }
     el.innerHTML = ($('#back').hidden || isSettings()) ? `<div class="tools">${sbtn}${btn('bell', t('notif.title'), 'bell', n ? `<b class="nb">${n > 9 ? '9+' : n}</b>` : '')}${btn('tmenu', t('tool.more'), 'dots', filtered() ? '<i class="dot"></i>' : '', 'main')}</div>` : '';
   }
   /* search over the top bar: it types into the page's own search box (hidden), so every page keeps its own search logic */
@@ -729,7 +729,8 @@
   document.addEventListener('scroll', (e) => { const w = e.target; if (w && w.id === 'imwrap') { const h = document.getElementById('imhd'); if (h) h.scrollLeft = w.scrollLeft; } }, true);
   function InvoiceLog() {
     const all = L.filterInvoices(state, flt).filter(invLiveOnly), billed = all.reduce((n, v) => n + (Number(v.total) || 0), 0), bal = all.reduce((n, v) => n + (Number(v.balance) || 0), 0);
-    return `<div class="blhero i3"><div><small>${t('il.billed')}</small><b>${money(billed)}</b></div><div class="pg"><small>${t('il.paid')}</small><b>${money(billed - bal)}</b></div><div class="ow"><small>${t('il.balDue')}</small><b>${money(bal)}</b></div></div>
+    const ifb = filtered() ? filterBar(filterLabel(), 'filter', 'filter-clear-all', t('fil.invoices', { x: all.length, y: state.invoices.filter(invLiveOnly).length })) : '';
+    return `${ifb}<div class="blhero i3"><div><small>${t('il.billed')}</small><b>${money(billed)}</b></div><div class="pg"><small>${t('il.paid')}</small><b>${money(billed - bal)}</b></div><div class="ow"><small>${t('il.balDue')}</small><b>${money(bal)}</b></div></div>
       <div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="iq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('tool.search'))}" aria-label="${esc(t('tool.search'))}" value="${esc(invQ)}"></div>
       <div class="blseg">${[['overview', 'bl.tabOverview'], ['money', 'il.tabMoney'], ['pl', 'bl.tabPL'], ['items', 'bl.tabItems']].map(([k, l]) => `<button class="${invTab === k ? 'on' : ''}" data-act="inv-tab" data-id="${k}">${t(l)}</button>`).join('')}</div>
       <div id="ilog">${invoiceLogRows(invQ)}</div>`;
@@ -804,10 +805,14 @@
         <div class="mid"><div class="nm">${esc(bl(b.id))}<span class="chip2" style="color:${col}"><i></i>${stLabel(bs)}</span></div><div class="sub">${esc(b.store)} · ${dayLong(b.datePurchased)}</div><div class="sub"><b>${st.sold}</b> ${t('bl.ofSold', { n: st.count })}</div></div>
         <div class="rt"><div class="swl ${on ? 'on' : ''}">${swt('store-batch', b.id, on)}<span>${t(on ? 'bl.inStore' : 'bl.hidden')}</span></div><small class="costonly">${money(st.investment)}<span class="invl">${t('bl.invested')}</span></small></div></div>`; }).join('');
   }
+  // "In transit ✕ · 6 of 9 batches": names what is filtered and clears it in one tap (the funnel in the top bar opens the panel)
+  const filterBar = (label, openAct, clearAct, line) => `<div class="fbar"><button type="button" class="fch" data-act="${openAct}">${esc(label)}<i role="button" data-act="${clearAct}" aria-label="${t('bl.clear')}">✕</i></button><small>${esc(line)}</small></div>`;
   function BatchLog() {
     const c = storeCfg(), n = state.batches.length, inN = state.batches.filter((b) => c.batches.includes(b.id)).length;
     const hero = true ? `<div class="blhero"><div><small>${t('bl.customersSee')}</small><b>${t('bl.xOfY', { x: inN, y: n })}</b></div>${n ? `<div class="sa">${t('store.selAll')}${swt('store-batch-all', 'all', n > 0 && inN === n)}</div>` : ''}</div>` : '';
-    return `${hero}<div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
+    const fl = [...blF.store.map((k) => t(k === 'in' ? 'bl.f.in' : 'bl.f.out')), ...blF.status.map((k) => stLabel({ transit: 'In Transit', received: 'Received', closed: 'Closed' }[k])), ...blF.items.map((k) => t(k === 'avail' ? 'bl.avail' : 'bl.notAvail'))];
+    const fbar = fl.length ? filterBar(fl.length === 1 ? fl[0] : t('fil.n', { n: fl.length }), 'bl-filter-open', 'bl-clear-all', t('fil.batches', { x: blList('').length, y: n })) : '';
+    return `${fbar}${hero}<div class="oqbar" style="margin-top:2px"><span aria-hidden="true">🔍</span><input class="blq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('bp.search'))}" aria-label="${esc(t('bp.search'))}"></div>
       <div class="blseg">${[['overview', 'bl.tabOverview'], ['pl', 'bl.tabPL'], ['owing', 'bl.tabOwing'], ['items', 'bl.tabItems']].map(([k, l]) => `<button class="${blTab === k ? 'on' : ''}" data-act="bl-tab" data-id="${k}">${t(l)}</button>`).join('')}</div>
       <div id="blog">${batchLogRows('')}</div>`;
   }
@@ -2915,6 +2920,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'apply-palette': if (!themeDraft) return; state.settings.palette = themeDraft; Theme.apply(themeDraft); themeDraft = null; applyTheme(); save(); toast(t('set.applied')); return render();
       case 'set-period': flt.period = id; setPref('filter', flt); render(); return sheetFilter();
       case 'set-fbatch': flt.batch = id; setPref('filter', flt); render(); return sheetFilter();
+      case 'bl-clear-all': blF = { store: [], status: [], items: [] }; return render();
+      case 'filter-clear-all': flt = { period: 'all', batch: 'all' }; setPref('filter', flt); return render();
       case 'clear-filter': flt = { period: 'all', batch: 'all' }; setPref('filter', flt); render(); return sheetFilter();
       case 'csv': return confirmDownload(`b-ruiz-${id}.csv`, () => download(`b-ruiz-${id}.csv`, csvOf(id), 'text/csv'));
       case 'new-batch': return sheetNewBatch();

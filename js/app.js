@@ -819,7 +819,7 @@
     openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${zs.map((z) => `<label class="tkr"><input type="checkbox" value="${esc(z.id)}" ${cur.includes(z.id) ? 'checked' : ''}><span>${esc(z.name)}</span></label>`).join('')}</div><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
   function sheetZones() {
-    enterPage('zones', '', () => sheetZones());
+    seedHot(); enterPage('zones', '', () => sheetZones());
     const c = storeCfg(), byName = (x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }), zs = SCore.areaZones(c.zones).slice().sort(byName), hot = c.zones.filter((z) => z.risk).sort(byName);
     const row = (z) => `<div class="pkr"><button type="button" class="pkn" data-act="zone-edit" data-id="${z.id}"><b>${z.risk ? '⚠️ ' : ''}${esc(z.name)}</b><small>${z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') })}</small></button></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('zn.title')}</b><small>${t('zn.count2', { n: zs.length, h: hot.length })}</small></div></div><div class="ap"><p class="muted small" style="margin:6px 2px 10px">${t('zn.sub')}</p>
@@ -2494,6 +2494,15 @@
   const storeCfg = () => SCore.norm(state.settings.store);
   function storeSet(patch) { const c = Object.assign(storeCfg(), patch); if (!c.id) c.id = SCore.newId(20); if (patch && 'zones' in patch) Object.assign(c, SCore.syncZonePlaces(c)); state.settings.store = c; save(); }
   // Every delivery zone is also a place customers can pick: keep the two in step (also fixes what existed before this was added).
+  // The starter high-risk spots go in once (the seller can edit or delete any of them; a deleted one does not come back).
+  function seedHot() {
+    try {
+      const c = storeCfg(); if (!c.id || c.hotSeeded) return false;
+      const have = new Set(c.zones.map((z) => z.name.toLowerCase())), link = (z) => { const m = c.locations.filter((l) => z.name.toLowerCase().startsWith(l.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0]; return m ? Object.assign({}, z, { place: m.id }) : z; };
+      const add = ZoneData.hot().filter((z) => !have.has(z.name.toLowerCase())).map(link);
+      storeSet({ zones: c.zones.concat(add), hotSeeded: true }); if (add.length) setTimeout(() => toast(t('hot.seeded', { n: add.length })), 400); return true;
+    } catch (e) { return false; }
+  }
   function ensureZonePlaces() { try { const c = storeCfg(); if (!c.id || !c.zones.length) return false; const sy = SCore.syncZonePlaces(c); if (!sy.changed) return false; storeSet({ locations: sy.locations, bands: sy.bands }); return true; } catch (e) { return false; } }
   // 3-letter month in the app language ("Nov", "ene"), and the day in the phone's own time zone
   const mon3 = (d) => d.toLocaleDateString(I.locale(I.getLang()), { month: 'short' }).replace('.', '').slice(0, 3);
@@ -2562,7 +2571,7 @@
   }
   const plSearch = () => { const q = plQ.trim().toLowerCase(); document.querySelectorAll('#pl-list .pkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); };
   function sheetRisk() {
-    enterPage('risk', '', () => sheetRisk());
+    seedHot(); enterPage('risk', '', () => sheetRisk());
     const c = storeCfg(), byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }), spots = c.zones.filter((z) => z.risk).sort(byName), legacy = c.locations.filter((l) => l.risk && !hotOf(l.id)).sort(byName);
     const pName = (z) => { const l = c.locations.find((x) => x.id === z.place); return l ? t('hot.fromPlace', { p: esc(l.name) }) : ''; };
     const sizeOf = (z) => (z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') }));
@@ -2578,7 +2587,7 @@
     openSmall(`<h3>${t('pk.riskAdd')}</h3><p>${t('pk.riskPickSub')}</p><form id="f-riskpick"><div class="oqbar" style="margin-bottom:8px"><span aria-hidden="true">🔍</span><input id="rp-q" class="cq" type="search" autocomplete="off" placeholder="${esc(t('pl.search'))}"></div><div class="fpl" id="rp-list">${cand.map((l) => `<label class="tkr" data-n="${esc(l.name.toLowerCase())}"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('') || `<p class="muted small">${t('pk.riskNoPlaces')}</p>`}</div><input name="name" type="text" autocomplete="off" placeholder="${esc(t('pk.riskOther'))}"><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
   function sheetPickup() {
-    ensureZonePlaces();
+    ensureZonePlaces(); seedHot();
     enterPage('pickup', '', () => sheetPickup());
     const c = storeCfg(), on = (l) => { const b = SCore.bandOf(c, l); return !l.off && !(b && b.on === false); }, nOn = c.locations.filter(on).length, nOff = c.locations.length - nOn;
     const mode = (k) => `<button type="button" class="chip ${c.areaMode === k ? 'on' : ''}" data-act="area-mode" data-id="${k}">${t('pk.' + k)}</button>`;
@@ -3226,6 +3235,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function openInvoiceFromSheet(no) { closeSheet(); sheetInvoice(no); }
 
   if (window.SelectPicker) SelectPicker.install(() => ({ cancel: t('btn.cancel'), done: t('btn.done'), search: t('pick.search'), choose: t('pick.choose'), none: t('people.noMatch') }));   // our own picker instead of the browser's list
+  const KEEP_SCROLL = new Set(['area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     if (e.target.id === 'tmscrim') return closeTopMenu();
@@ -3236,6 +3246,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const id = t_.dataset.id;
     if (/^(photo|ed|viewer)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
     { const a = t_.dataset.act, need = a === 'more' && /^(set-business|set-invdesign)$/.test(id || '') ? 'storeSettings' : ACT_NEEDS[a]; if (/^(team|perm|xfer|req)-/.test(a) || a === 'reset' ? !can('team') : need && !can(need)) return toast(t('team.noAccess')); }
+    // These switches redraw their page; the page must stay exactly where it was scrolled.
+    if (KEEP_SCROLL.has(t_.dataset.act)) { const sh0 = $('#sheet'), y0 = sh0.scrollTop, w0 = window.scrollY; queueMicrotask(() => { sh0.scrollTop = y0; if (window.scrollY !== w0) window.scrollTo(0, w0); }); }
     switch (t_.dataset.act) {
       case 'team-open': return sheetTeam();
       case 'req-open': return sheetRequest(id);

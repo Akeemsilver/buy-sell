@@ -1,5 +1,5 @@
 rules_version = '2';
-// B Ruiz Firestore rules 1.05
+// B Ruiz Firestore rules 1.06
 // Paste this into Firebase console > Firestore Database > Rules > Publish.
 // Only signed-in people can touch data, only their own user record, and only workspaces they are a member of.
 // 1.01 adds the online store: anyone with the store's link can read the published catalogue and send an order; only the owner can read orders or change the store.
@@ -7,6 +7,7 @@ rules_version = '2';
 // 1.03 lets a delivery order carry a map pin (lat, lng, and a short place name), so the seller can open it in Google Maps or Waze.
 // 1.04 lets a delivery order carry short delivery notes (gate colour, house number, a landmark).
 // 1.05 shares a business between people: a business code (codes/{CODE}) that anyone signed in can look up one at a time, requests to join (workspaces/{w}/joinRequests/{uid}) that only the Owner can answer, and the online store can be read and changed by every member of the business (not only the person who created it).
+// 1.06 adds short store link names: names/{name} (3-30 lowercase letters, digits, hyphens) points at a store; anyone can read one, only the store's owner or a member of its business can claim, move or release it.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -48,6 +49,12 @@ service cloud.firestore {
         allow create: if validOrder(sid);
         allow read, update, delete: if storeOwner(sid);
       }
+    }
+    // ---- short store link names (rules 1.06) ----
+    match /names/{n} {
+      allow get: if true;
+      allow create: if signedIn() && n.matches('[a-z0-9]+(-[a-z0-9]+)*') && n.size() >= 3 && n.size() <= 30 && request.resource.data.keys().hasOnly(['sid']) && storeOwner(request.resource.data.sid);
+      allow delete: if signedIn() && storeOwner(resource.data.sid);
     }
     // ---- sharing a business (rules 1.05) ----
     // A business code points to its workspace. Anyone signed in can look one code up (never list them); only the Owner creates, replaces or removes it.

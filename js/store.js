@@ -17,7 +17,7 @@
   const nm = (i) => (ES && i.nameEs ? i.nameEs : i.name);
   const det = (i) => String((ES && i.detailsEs) || i.details || '').trim();
   const money = (n) => 'TT$ ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const sid = new URLSearchParams(location.search).get('s') || '';
+  let sid = new URLSearchParams(location.search).get('s') || '';   // a store code, or the short name that points at one
   const wide = () => window.matchMedia && window.matchMedia('(min-width: 900px)').matches;
   let db = null, store = null, items = [], cart = new Map(), filter = 'all', view = 'shop', cur = null, pick = { s: '', q: 1, tried: false }, qs = '', sortBy = 'def', onlySaved = false, drawer = false, searchOpen = false, shopY = 0, toastT = null;
   let form = { loc: '', option: '', area: '', name: '', phone: '', geo: null, note: '' }, geoErr = '', linkOpen = false, locating = false, err = '', sending = false, done = null;
@@ -295,6 +295,7 @@
     if (!sid) return msg(T.nf, T.nfText);
     try {
       firebase.initializeApp(CONFIG); db = firebase.firestore();
+      try { const nm = await db.collection('names').doc(sid).get(); if (nm.exists && nm.data().sid) sid = nm.data().sid; } catch (e) { /* not a short name: use it as a store code */ }
       const snap = await db.collection('stores').doc(sid).get(); if (!snap.exists) return msg(T.nf, T.nfText);
       store = snap.data(); document.title = store.name || 'Store';
       if (store.color) { document.documentElement.style.setProperty('--brand', store.color); document.documentElement.style.setProperty('--tint', 'color-mix(in srgb,' + store.color + ' 10%,#fff)'); }

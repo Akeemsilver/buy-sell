@@ -804,7 +804,7 @@
   function sheetFreePlaces(pid) {
     const p = PE.byId(state, pid); if (!p) return;
     const cur = (p.free && p.free.places) || [], known = SCore.publicLocs(storeCfg()).map((l) => l.name), extra = cur.filter((x) => !known.some((k) => placeNorm(k) === placeNorm(x)));
-    openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${known.map((n) => `<label class="tk"><input type="checkbox" value="${esc(n)}" ${cur.some((x) => placeNorm(x) === placeNorm(n)) ? 'checked' : ''}><span>${esc(n)}</span></label>`).join('')}</div><input name="extra" type="text" value="${esc(extra.join(', '))}" placeholder="${t('fd.other')}" autocomplete="off"><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'card');
+    openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${known.map((n) => `<label class="tk"><input type="checkbox" value="${esc(n)}" ${cur.some((x) => placeNorm(x) === placeNorm(n)) ? 'checked' : ''}><span>${esc(n)}</span></label>`).join('')}</div><input name="extra" type="text" value="${esc(extra.join(', '))}" placeholder="${t('fd.otherPlace')}" autocomplete="off"><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'card');
   }
   function sheetSplit(pid) {
     const p = PE.byId(state, pid); if (!p) return;

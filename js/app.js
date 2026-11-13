@@ -750,7 +750,7 @@
   function sheetDecisions() {
     enterPage('fixdec', '', () => sheetDecisions());
     const list = (state.decisions || []).filter((d) => !d.undone).slice(0, 80);
-    const row = (d) => `<div class="dec"><b>${esc(d.text)}</b><small>${esc(dayMon(new Date(d.at)))}${d.by ? ' · ' + t('fx.by', { who: esc(d.by) }) : ''}${d.order ? ' · ' + esc(d.order) : ''}</small>${PE.canUndo(state, d.id) ? `<button type="button" class="chg" data-act="dec-undo" data-id="${d.id}">${t(d.kind === 'merge' || d.kind === 'split' ? 'fx.separate' : 'fx.change')}</button>` : `<small class="muted">${t('fx.cannot')}</small>`}</div>`;
+    const row = (d) => `<div class="dec"><b>${esc(d.k ? t(d.k, d.a || {}) : d.text)}</b><small>${esc(dayMon(new Date(d.at)))}${d.by ? ' · ' + t('fx.by', { who: esc(d.by) }) : ''}${d.order ? ' · ' + esc(d.order) : ''}</small>${PE.canUndo(state, d.id) ? `<button type="button" class="chg" data-act="dec-undo" data-id="${d.id}">${t(d.kind === 'merge' || d.kind === 'split' ? 'fx.separate' : 'fx.change')}</button>` : `<small class="muted">${t('fx.cannot')}</small>`}</div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.decisions')}</b><small>${t('fx.decisionsSub')}</small></div></div><div class="ap">${list.length ? `<div class="card pkc">${list.map(row).join('')}</div>` : `<div class="empty"><b>${t('fx.none')}</b></div>`}</div>`, null, true);
   }
   function sheetDups() {
@@ -760,10 +760,11 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.dups')}</b><small>${tn('fx.pairs', list.length)}</small></div></div><div class="ap">${list.map(card).join('') || `<div class="empty"><b>${t('fx.none')}</b></div>`}</div>`, null, true);
   }
   // On a customer's page: number, nicknames, old numbers, and the tools (change number, nickname, split, merge).
+  const noteTxt = (n) => { const m = /^(taken by|merged from) (.+)$/.exec(n); return n === 'replaced' ? t('pf.replaced') : m ? t(m[1] === 'taken by' ? 'pf.takenBy' : 'pf.mergedFrom', { name: m[2] }) : n; };
   function peopleBox(c) {
     const p = c.p; if (!p || !peopleOn) return '';
     const nicks = p.nicks.map((n) => `<span class="tag">${esc(n)}<button type="button" class="tx" data-act="pf-nick-del" data-id="${p.id}" data-n="${esc(n)}" aria-label="${t('pf.dropNick')}">✕</button></span>`).join('');
-    const prev = p.prev.map((e) => `<div class="row"><span>${esc(e.phone)}<small>${e.until ? t('pf.until', { d: esc(dayMon(new Date(e.until))) }) : ''}${e.note ? ' · ' + esc(e.note) : ''}</small></span><span class="tag warn">${t('pf.old')}</span></div>`).join('');
+    const prev = p.prev.map((e) => `<div class="row"><span>${esc(e.phone)}<small>${e.until ? t('pf.until', { d: esc(dayMon(new Date(e.until))) }) : ''}${e.note ? ' · ' + esc(noteTxt(e.note)) : ''}</small></span><span class="tag warn">${t('pf.old')}</span></div>`).join('');
     return `<div class="pfbox"><div class="row"><span>📞 ${p.phone ? `<b>${esc(p.phone)}</b> <small>(${t('pf.main')})</small>` : `<span class="bad">${t('pf.noNumber')}</span>`}${p.shared ? ` <span class="tag">${t('pp.shared')}</span>` : ''}</span><button type="button" class="chip" data-act="pf-number" data-id="${p.id}">${t('pf.setNumber')}</button></div>
       <div class="row"><span>${t('pf.also')}<br>${nicks || '<small>—</small>'}</span><button type="button" class="chip" data-act="pf-nick-add" data-id="${p.id}">＋ ${t('pf.addNick')}</button></div>
       ${prev ? `<div class="row"><b>${t('pf.before')}</b></div>${prev}` : ''}

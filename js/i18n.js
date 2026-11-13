@@ -17,7 +17,7 @@
     /* navigation + top bar */
     'nav.home': 'Home', 'nav.stock': 'Stock', 'nav.sell': 'Store', 'nav.people': 'Customers', 'nav.more': 'More',
     'title.invoices': 'Invoice log', 'title.items': 'Item log', 'title.summary': 'Summary', 'title.settings': 'Settings',
-    'aria.back': 'Back', 'aria.main': 'Main', 'aria.logo': 'B-RUIZ Tienda Online',
+    'aria.back': 'Back', 'aria.main': 'Main', 'aria.logo': 'Shopivo',
     'tool.show': 'Show amounts', 'tool.hide': 'Hide amounts', 'tool.download': 'Download or export', 'tool.filter': 'Filter', 'tool.settings': 'Settings',
     /* statuses (display only) */
     'status.InTransit': 'In Transit', 'status.Available': 'Available', 'status.Owing': 'Owing', 'status.Paid': 'Paid', 'status.Closed': 'Closed', 'status.Received': 'Received',
@@ -28,7 +28,7 @@
     'btn.save': 'Save', 'btn.delete': 'Delete', 'btn.cancel': 'Cancel', 'btn.close': 'Close', 'btn.done': 'Done', 'btn.gotIt': 'Got it', 'btn.newBatch': '+ New batch', 'btn.importXlsx': 'Import my .xlsx workbook',
     'aria.dismiss': 'Dismiss', 'aria.remove': 'Remove', 'aria.selectItem': 'Select for invoice',
     /* install banner + guides */
-    'install.title': 'Install the B-RUIZ app', 'install.sub.prompt': 'Works offline, opens like a normal app', 'install.sub.add': 'Add it to your home screen',
+    'install.title': 'Install the Shopivo app', 'install.sub.prompt': 'Works offline, opens like a normal app', 'install.sub.add': 'Add it to your home screen',
     'install.btn': 'Install', 'install.how': 'How', 'install.done': 'App installed 🎉',
     'ig.android.title': 'Install the app', 'ig.android.note': 'Your browser installs it from its menu:',
     'ig.android.chrome': '<b>Chrome / Edge (Android):</b> tap <b>⋮</b> → <b>Install app</b> (or <b>Add to Home screen</b>)',
@@ -459,7 +459,7 @@
     'lang.name': 'Español',
     'nav.home': 'Inicio', 'nav.stock': 'Inventario', 'nav.sell': 'Tienda', 'nav.people': 'Clientes', 'nav.more': 'Más',
     'title.invoices': 'Registro de facturas', 'title.items': 'Registro de artículos', 'title.summary': 'Resumen', 'title.settings': 'Ajustes',
-    'aria.back': 'Atrás', 'aria.main': 'Principal', 'aria.logo': 'B-RUIZ Tienda Online',
+    'aria.back': 'Atrás', 'aria.main': 'Principal', 'aria.logo': 'Shopivo',
     'tool.show': 'Mostrar montos', 'tool.hide': 'Ocultar montos', 'tool.download': 'Descargar o exportar', 'tool.filter': 'Filtrar', 'tool.settings': 'Ajustes',
     'status.InTransit': 'En tránsito', 'status.Available': 'Disponible', 'status.Owing': 'Debe', 'status.Paid': 'Pagado', 'status.Closed': 'Cerrado', 'status.Received': 'Recibido',
     'invstatus.Paid': 'Pagada', 'invstatus.Owing': 'Pendiente', 'invstatus.Updated': 'Actualizada',
@@ -467,7 +467,7 @@
     'filter.all': 'Todos',
     'btn.save': 'Guardar', 'btn.delete': 'Eliminar', 'btn.cancel': 'Cancelar', 'btn.close': 'Cerrar', 'btn.done': 'Listo', 'btn.gotIt': 'Entendido', 'btn.newBatch': '+ Nuevo lote', 'btn.importXlsx': 'Importar mi libro .xlsx',
     'aria.dismiss': 'Descartar', 'aria.remove': 'Quitar', 'aria.selectItem': 'Seleccionar para facturar',
-    'install.title': 'Instala la app B-RUIZ', 'install.sub.prompt': 'Funciona sin internet y se abre como una app normal', 'install.sub.add': 'Agrégala a tu pantalla de inicio',
+    'install.title': 'Instala la app Shopivo', 'install.sub.prompt': 'Funciona sin internet y se abre como una app normal', 'install.sub.add': 'Agrégala a tu pantalla de inicio',
     'install.btn': 'Instalar', 'install.how': 'Cómo', 'install.done': 'App instalada 🎉',
     'ig.android.title': 'Instala la app', 'ig.android.note': 'Tu navegador la instala desde su menú:',
     'ig.android.chrome': '<b>Chrome / Edge (Android):</b> toca <b>⋮</b> → <b>Instalar app</b> (o <b>Agregar a la pantalla principal</b>)',

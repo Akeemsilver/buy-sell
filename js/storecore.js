@@ -27,7 +27,7 @@
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
       batches: Array.isArray(c.batches) ? c.batches.slice() : [],
-      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || '') })).filter((l) => l.name && (l.pickup || l.delivery)),
+      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || ''), zone: String(l.zone || ''), auto: !!l.auto })).filter((l) => l.name && (l.pickup || l.delivery)),
       bands: (Array.isArray(c.bands) ? c.bands : []).map((b) => ({ id: String(b.id || newId(6)), name: String(b.name || '').trim(), price: Math.max(0, r2(num(b.price))), on: b.on !== false })),
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
@@ -50,6 +50,23 @@
     ['r80', 'Penal', 0], ['r100', 'Point Fortin', 0],
     ['r60', 'Laventille', 1], ['r60', 'Morvant', 1], ['r60', 'Beetham', 1], ['r60', 'Cocorite', 1], ['r60', 'Sea Lots', 1], ['r60', 'East Dry River (Port of Spain)', 1], ['r60', 'Carenage', 1], ['r60', 'Gonzales', 1],
     ['r50', 'Tunapuna North (Fairley St, Maingot Rd)', 1], ['r60', 'Diego Martin: La Puerta', 1], ['r60', 'Diego Martin: River Estate', 1]];
+  // Every delivery zone is also a place in the customer's "Where are you?" list (kept in step with the zones). A zone that matches the starter pack takes its price range
+  // and high-risk mark; any other zone starts switched off with no price ("auto"), so nothing is delivered free by accident until a price is set.
+  const nameKey = (v) => String(v || '').toLowerCase().replace(/[.\u2019']/g, '').replace(/\s+/g, ' ').trim();
+  const syncZonePlaces = (cfgIn) => {
+    const cfg = norm(cfgIn), bands = cfg.bands.slice(); let changed = false, locs = cfg.locations.map((l) => Object.assign({}, l));
+    const ids = new Set(cfg.zones.map((z) => z.id)), n0 = locs.length; locs = locs.filter((l) => !l.zone || ids.has(l.zone)); if (locs.length !== n0) changed = true;
+    cfg.zones.forEach((z) => {
+      let l = locs.find((x) => x.zone === z.id);
+      if (!l) { l = locs.find((x) => !x.zone && nameKey(x.name) === nameKey(z.name)); if (l) { l.zone = z.id; changed = true; } }
+      if (l) { if (l.name !== z.name) { l.name = z.name; changed = true; } return; }
+      const hit = TT_PLACES.find((q) => nameKey(q[1]) === nameKey(z.name));
+      if (hit && !bands.some((b) => b.id === hit[0])) { const bd = TT_BANDS.find((b) => b.id === hit[0]); if (bd) bands.push(Object.assign({}, bd)); }
+      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: hit ? hit[0] : '', zone: z.id, auto: !hit }); changed = true;
+    });
+    return { locations: locs, bands, changed };
+  };
+  const needsPrice = (cfg, l) => !!l.auto && !l.band && !(Number(l.price) > 0) && l.delivery;
   // Adds the starter pack to the owner's settings: bands are added when missing, places already in the list keep their pickup choice but take the range and risk mark.
   const seedTT = (cfgIn) => {
     const cfg = norm(cfgIn), bands = cfg.bands.slice(), have = new Map(cfg.locations.map((l) => [l.name.toLowerCase(), l]));
@@ -192,6 +209,6 @@
   const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

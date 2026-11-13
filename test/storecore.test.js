@@ -167,5 +167,17 @@ console.log('details tests passed');
   assert.deepStrictEqual(SC.zonesAt(zs, 10.31, -61.45), []); assert.deepStrictEqual(SC.zonesAt(zs, 10.3015, -61.45).map((z) => z.id), ['b']); assert.deepStrictEqual(SC.zonesAt(zs, 10.3015, -61.45, 0), []);
   assert.deepStrictEqual(SC.zonesAt(zs, undefined, undefined), []);
   assert.strictEqual(SC.norm({ zones: zs }).zones.length, 2);
+  // zones become places: starter matches take their range and risk mark, others start off with no price; renames follow; deleting a zone removes its place
+  const zc = { zones: [{ id: 'z1', name: 'Couva', lat: 10.42, lng: -61.45, r: 4000 }, { id: 'z2', name: 'Laventille', lat: 10.66, lng: -61.485, r: 2000 }, { id: 'z3', name: 'Valencia', lat: 10.63, lng: -61.2, r: 4000 }], locations: [{ id: 'old', name: 'couva', pickup: true, delivery: true, price: 55 }] };
+  let sy = SC.syncZonePlaces(zc); assert.ok(sy.changed);
+  const byName = (n) => sy.locations.find((l) => l.name === n);
+  assert.strictEqual(byName('Couva').id, 'old'); assert.strictEqual(byName('Couva').zone, 'z1'); assert.strictEqual(byName('Couva').price, 55);
+  assert.ok(byName('Laventille').risk && byName('Laventille').off && byName('Laventille').band === 'r60');
+  assert.ok(byName('Valencia').off && byName('Valencia').auto && SC.needsPrice({}, byName('Valencia')));
+  assert.ok(sy.bands.some((b) => b.id === 'r60'));
+  assert.ok(!SC.syncZonePlaces(Object.assign({}, zc, { locations: sy.locations, bands: sy.bands })).changed);
+  const ren = SC.syncZonePlaces({ zones: [{ id: 'z1', name: 'Couva Town', lat: 10.42, lng: -61.45, r: 4000 }], locations: sy.locations, bands: sy.bands });
+  assert.ok(ren.locations.some((l) => l.zone === 'z1' && l.name === 'Couva Town')); assert.ok(!ren.locations.some((l) => l.name === 'Valencia'));
+  assert.ok(SC.publicLocs(Object.assign({}, zc, { locations: sy.locations, bands: sy.bands })).every((l) => l.name !== 'Valencia' && l.name !== 'Laventille'));
   console.log('delivery area tests passed');
 })();

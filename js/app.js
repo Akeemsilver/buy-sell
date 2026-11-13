@@ -882,7 +882,7 @@
         date: `<span class="n c">${(() => { const v = i.invoice && state.invoices.find((x) => x.no === i.invoice); return v && v.date ? day(v.date) : dsh; })()}</span>`,
         sold: `<span class="n">${Number(i.sold) > 0 ? fmt2(i.sold) : dsh}</span>`, paid: `<span class="n c">${itPaidCell(i, dsh)}</span>`, owing: `<span class="n">${Number(i.owing) > 0 ? `<span class="ow">${fmt2(i.owing)}</span>` : dsh}</span>`,
         cost: `<span class="n">${Number(i.cost) > 0 ? fmt2(i.cost) : dsh}</span>`, ttd: `<span class="n">${c.costTTD > 0 ? fmt2(c.costTTD) : dsh}</span>`, landed: `<span class="n">${c.landed > 0 ? fmt2(c.landed) : dsh}</span>`, sug: `<span class="n">${c.recommended > 0 ? fmt2(c.recommended) : dsh}</span>`,
-        pct: `<span class="n">${prof === null ? dsh : Math.round(prof / c.landed * 100) + '%'}</span>`, pl: `<span class="n">${prof === null ? dsh : prof >= 0 ? `<span class="gp">${fmt2(prof)}</span>` : `<span class="lossr">${fmt2(-prof)}</span>`}</span>` })[k];
+        pct: `<span class="n">${prof === null ? dsh : (prof / c.landed * 100).toFixed(1) + '%'}</span>`, pl: `<span class="n">${prof === null ? dsh : prof >= 0 ? `<span class="gp">${fmt2(prof)}</span>` : `<span class="lossr">${fmt2(-prof)}</span>`}</span>` })[k];
       return `<div class="itr" role="button" tabindex="0" data-act="edit-item" data-id="${esc(i.id)}" style="--c:${col}"><span class="itf"><i></i>${itThumb(i)}<span><b>${esc(i.id)}</b><small class="itst itst-${st.replace(' ', '')}">${itStLabel(st)}</small></span></span>${cols.slice(1).map(([k]) => cell(k)).join('')}</div>`;
     };
     let out = '', last = null;

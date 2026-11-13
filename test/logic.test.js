@@ -456,3 +456,25 @@ console.log('sale price tests passed');
   const all = L4.owingFor(s, [b1, b2], now); assert.deepStrictEqual(all, { owing: 262, items: 3, people: 2, oldestDays: 30 }, 'the same person owing in two batches counts once');
   assert.deepStrictEqual(L4.batchOwing({ items: [], invoices: [] }, b1, now), { owing: 0, items: 0, people: 0, oldestDays: null });
 }
+
+// Importing a workbook: the asking price of an unsold item is its selling price (not a sold price), and an invoice that was later updated keeps no profit or loss of its own
+{
+  const d = '2026-08-01T00:00:00';
+  const hid = (id, desc, soldFor, status, cust, inv) => ['BATCH-001', id, d, 'SHEIN', desc, 10, 7, 70, 30, 100, 200, soldFor, 0, status, cust, null, 0, false, inv, 100, 30, d, 'USD'];
+  const sheets = {
+    'Hidden Master Log': [['h'], hid('001-001', 'Dress', 150, 'Available', '', null), hid('001-002', 'Top', 200, 'Paid', 'Ann', 'INV00002'), hid('001-003', 'Hat', 90, 'Owing', 'Bo', 'INV00003')],
+    'Batch Log': [['x'], ['h'], ['BATCH-001', 'SHEIN', d, 'Received', 'US$   30.00', 7, 0, 30, 0, 0, 0, 3, 0, 0, d]],
+    'Invoice Log': [['x'], ['h'],
+      ['INV00001', 'Ann', 'Top', 'Updated', 200, 0, 0, 200, 0, d, d, 1, 'INV00002', null, -100, null],
+      ['INV00002', 'Ann', 'Top', 'Paid', 200, 200, 0, 0, 0, d, d, 1, null, 100, null, null],
+      ['INV00003', 'Bo', 'Hat', 'Owing', 90, 40, 0, 50, 0, d, d, 1, null, null, -60, null]],
+  };
+  const s = L.importWorkbook(sheets), it = (id) => s.items.find((x) => x.id === id), inv = (no) => s.invoices.find((x) => x.no === no);
+  assert.strictEqual(it('001-001').price, 150, 'an item still for sale keeps its asking price as the selling price');
+  assert.strictEqual(it('001-001').sold, 0, 'and has not been sold for anything');
+  assert.strictEqual(it('001-002').sold, 200); assert.strictEqual(it('001-003').sold, 90);
+  assert.strictEqual(inv('INV00001').loss, 0, 'the updated invoice no longer counts its loss');
+  assert.strictEqual(inv('INV00002').profit, 100); assert.strictEqual(inv('INV00003').loss, -60);
+  assert.strictEqual(L.monthlySummary(s, 2026)[7].profit, 40, 'profit is the live invoices only: 100 - 60');
+  console.log('workbook import tests passed');
+}

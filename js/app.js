@@ -683,7 +683,7 @@
   }
 
   /* ---------- Promote: pick items, make a picture (collage or one each), share it or the store link to WhatsApp, Facebook, TikTok ---------- */
-  let prMode = 'pictures', prWhich = 'new', prPicks = null, prFormat = 'collage', prPrices = null, prCaption = null, prFiles = { sig: '', files: [], url: '' }, prBusy = false;
+  let prMode = 'pictures', prWhich = 'new', prPicks = null, prFormat = 'collage', prPrices = null, prCaption = null, prFiles = { sig: '', files: [], urls: [] }, prIdx = 0, prBusy = false;
   const PR_ICON = { whatsapp: 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z', facebook: 'M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z', tiktok: 'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z' };
   const prGlyph = (k, size) => `<svg viewBox="0 0 24 24" width="${size || 26}" height="${size || 26}" fill="#fff" aria-hidden="true"><path d="${PR_ICON[k]}"/></svg>`;
   const prPool = () => { const seen = new Set(); return state.items.filter((i) => i.photo && (i.status === 'Available' || i.status === 'In Transit') && String(i.desc || '').trim()).filter((i) => { if (!i.grp) return true; if (seen.has(i.grp)) return false; seen.add(i.grp); return true; }); };
@@ -736,9 +736,9 @@
     return out;
   }
   function prSig() { return [prFormat, prShowPrices(), prChosen().map((i) => i.id + ':' + (i.price || '') + ':' + (i.discount || '') + ':' + (i.saleOn ? 1 : 0)).join(','), (storeCfg().name || '')].join('|'); }
-  async function prEnsure() { const sig = prSig(); if (prFiles.sig === sig && prFiles.files.length) return prFiles.files; const files = await prMake(); if (prFiles.url) URL.revokeObjectURL(prFiles.url); prFiles = { sig, files, url: files[0] ? URL.createObjectURL(files[0]) : '' }; return files; }
+  async function prEnsure() { const sig = prSig(); if (prFiles.sig === sig && prFiles.files.length) return prFiles.files; const files = await prMake(); (prFiles.urls || []).forEach((u) => URL.revokeObjectURL(u)); prFiles = { sig, files, urls: files.map((f) => URL.createObjectURL(f)) }; prIdx = Math.min(prIdx, Math.max(0, files.length - 1)); return files; }
   let prTimer = null;
-  function prPreview() { clearTimeout(prTimer); prTimer = setTimeout(async () => { const box = $('#prprev'); if (!box || prMode !== 'pictures') return; if (!prChosen().length) { box.innerHTML = ''; return; } box.innerHTML = `<div class="muted small">${t('pr.making')}</div>`; try { await prEnsure(); const b2 = $('#prprev'); if (b2 && prFiles.url) b2.innerHTML = `<img src="${prFiles.url}" alt="" class="prpimg"><div class="muted small" style="margin-top:6px">${prFormat === 'each' ? tn('pr.pictures', prFiles.files.length) : t('pr.oneCollage')}</div>`; } catch (e) { /* the preview is optional */ } }, 250); }
+  function prPreview() { clearTimeout(prTimer); prTimer = setTimeout(async () => { const box = $('#prprev'); if (!box || prMode !== 'pictures') return; if (!prChosen().length) { box.innerHTML = ''; return; } box.innerHTML = `<div class="muted small">${t('pr.making')}</div>`; try { await prEnsure(); const b2 = $('#prprev'); if (b2 && prFiles.urls.length) { const n = prFiles.urls.length, many = prFormat === 'each' && n > 1; b2.innerHTML = `<div class="prcar">${many ? `<button type="button" class="prar l" data-act="pr-prev" aria-label="${t('nav.prev')}">‹</button>` : ''}<img src="${prFiles.urls[prIdx] || prFiles.urls[0]}" alt="" class="prpimg" data-prswipe="1">${many ? `<button type="button" class="prar r" data-act="pr-next" aria-label="${t('nav.next')}">›</button>` : ''}</div><div class="muted small" style="margin-top:6px">${prFormat === 'each' ? (many ? (prIdx + 1) + ' / ' + n : tn('pr.pictures', n)) : t('pr.oneCollage')}</div>`; } } catch (e) { /* the preview is optional */ } }, 250); }
   function prRefresh() { const el = $('#promote'); if (!el) return; el.innerHTML = prBody(); PUI.hydrate(); prPreview(); }
   function prBody() {
     const c = storeCfg(), list = prList(), chosen = prChosen(), sel = new Set(chosen.map((i) => i.id)), prices = prShowPrices();
@@ -3136,7 +3136,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'pr-mode': prMode = id; prCaption = null; return prRefresh();
       case 'pr-which': prWhich = id; prPicks = id === 'picks' ? new Set() : null; prCaption = null; return prRefresh();
       case 'pr-pick': { const cur = new Set(prChosen().map((x) => x.id)); if (cur.has(id)) cur.delete(id); else cur.add(id); prPicks = cur; return prRefresh(); }
-      case 'pr-format': prFormat = id; return prRefresh();
+      case 'pr-format': prFormat = id; prIdx = 0; return prRefresh();
+      case 'pr-prev': case 'pr-next': { const n = prFiles.urls.length; if (n > 1) { prIdx = (prIdx + (t_.dataset.act === 'pr-next' ? 1 : n - 1)) % n; const im = $('#prprev .prpimg'), ct = $('#prprev .muted'); if (im) im.src = prFiles.urls[prIdx]; if (ct) ct.textContent = (prIdx + 1) + ' / ' + n; } return; }
       case 'pr-prices': prPrices = !prShowPrices(); prCaption = null; return prRefresh();
       case 'pr-share': return prShare(id);
       case 'pr-copy': return copyText(prCaptionNow()).then(() => toast(t('store.copied')));
@@ -3548,6 +3549,13 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     document.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
       const b = document.querySelector('.qbig .qsw.' + (dx < 0 ? 'r' : 'l')); if (b) b.click(); }, { passive: true });
+  })();
+  // Promote: swipe the picture left or right for the next or last one
+  (() => { let x0 = null, y0 = 0;
+    document.addEventListener('touchstart', (e) => { const b = e.target.closest && e.target.closest('[data-prswipe]'); if (!b || e.touches.length !== 1) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    document.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const b = document.querySelector('#prprev .prar.' + (dx < 0 ? 'r' : 'l')); if (b) b.click(); }, { passive: true });
   })();
   // Delivery log calendar: swipe the month grid left or right for the next or last month
   (function () {

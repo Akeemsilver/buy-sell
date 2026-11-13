@@ -12,7 +12,7 @@
   // The owner's store settings (kept in the workspace settings, so they sync between phones).
   const norm = (c) => {
     c = c || {};
-    return { id: String(c.id || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
+    return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
       batches: Array.isArray(c.batches) ? c.batches.slice() : [],
       locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))) })).filter((l) => l.name && (l.pickup || l.delivery)) };
   };
@@ -68,6 +68,10 @@
   const orderCode = (id) => 'ORD-' + String(id || '').slice(0, 5).toUpperCase();
   // wa.me link: a 7-digit local number is taken as a Trinidad and Tobago number (+1 868).
   // The WhatsApp message a customer sends from "Message seller": which item (and size, how many) and a question about the price.
+  // The short name in the store link (store.html?s=bruiz): 3-30 lowercase letters, digits and hyphens.
+  const SLUG_BAD = ['store', 'shop', 'admin', 'www', 'api', 'index', 'app', 'null', 'undefined', 'login', 'test'];
+  const slugify = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30).replace(/-+$/, '');
+  const slugError = (s) => { s = String(s || ''); if (s.length < 3) return 'short'; if (s.length > 30 || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s)) return 'chars'; if (SLUG_BAD.includes(s)) return 'reserved'; return ''; };
   const askMessage = (es, store, item, size, qty) => { const who = String(store || '').trim(), n = Number(qty) > 1 ? Number(qty) : 0, sz = String(size || '').trim();
     return es ? `¡Hola${who ? ' ' + who : ''}! Me interesa ${n ? n + ' de ' : 'la '}${item}${sz ? ' (talla ' + sz + ')' : ''}. ¿Cuál es el precio?` : `Hi${who ? ' ' + who : ''}! I'm interested in ${n ? n + ' of the ' : 'the '}${item}${sz ? ' (size ' + sz + ')' : ''}. What is the price?`; };
   const waLink = (phone, text) => { let d = digits(phone); if (d.length === 7) d = '1868' + d; else if (d.length === 10 && d.startsWith('868')) d = '1' + d; return 'https://wa.me/' + d + (text ? '?text=' + encodeURIComponent(text) : ''); };
@@ -135,6 +139,6 @@
     if (/^(\d{1,2}\s*[a-z]{3,}|[a-z]{3,}\s*\d{1,2})$/.test(raw) && months.some((m) => raw.includes(m))) return dtext.toLowerCase().includes(raw.replace(/\s+/g, ' ').trim());   // "6 nov" or "nov 6" is a date: it has to be that day
     const hayNum = hay.replace(/[^a-z0-9]/g, ''); return raw.split(/\s+/).every((w) => hay.includes(w) || hayNum.includes(w.replace(/[^a-z0-9]/g, ''))); };
 
-  const api = { askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

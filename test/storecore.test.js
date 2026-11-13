@@ -119,3 +119,13 @@ console.log('details tests passed');
   assert.strictEqual(SCm.norm({ showPrices: false }).showPrices, false);
   console.log('message seller tests passed');
 }
+
+// short store link names
+(() => {
+  const SC = require('../js/storecore.js'); const assert = require('assert');
+  assert.strictEqual(SC.slugify('B-RUIZ'), 'b-ruiz'); assert.strictEqual(SC.slugify('  Café Niña!! '), 'cafe-nina');
+  assert.strictEqual(SC.slugError('bruiz'), ''); assert.strictEqual(SC.slugError('ab'), 'short'); assert.strictEqual(SC.slugError('Bad Name'), 'chars');
+  assert.strictEqual(SC.slugError('admin'), 'reserved'); assert.strictEqual(SC.slugError('a--b'), 'chars');
+  assert.strictEqual(SC.norm({ slug: 'bruiz' }).slug, 'bruiz'); assert.strictEqual(SC.norm({}).slug, '');
+  console.log('slug tests passed');
+})();

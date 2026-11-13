@@ -16,7 +16,7 @@
   const bizName = () => state.settings.businessName || 'B-RUIZ';
   const initials = (n) => String(n).trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toUpperCase() || '·';
   // Versions shown in Settings > About. APP_VERSION goes up by 0.01 with each release; RULES_VERSION must match the header of firestore.rules (a test checks).
-  const APP_VERSION = '1.00', RULES_VERSION = '1.05', CLOUD_LIMIT = 1073741824;
+  const APP_VERSION = '1.00', RULES_VERSION = '1.06', CLOUD_LIMIT = 1073741824;
   const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
@@ -2306,6 +2306,7 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.contact')}</b><small>${t('ct.sub')}</small></div></div>
       <div class="pd"><div class="fld"><label for="ct-name">${t('store.name')}</label><input id="ct-name" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"><small>${t('ct.nameSub')}</small></div>
       <div class="fld"><label for="ct-wa">${t('store.whatsapp')}</label><input id="ct-wa" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="${t('ex.label')} 1 868 555 0100" autocomplete="off" enterkeyhint="done"><small>${t('ct.waSub')}</small></div>
+      <div class="fld"><label for="ct-slug">${t('slug.label')}</label><div class="slugrow"><input id="ct-slug" data-slug="1" value="${esc(c.slug || '')}" placeholder="${esc(SCore.slugify(c.name || bizName()))}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done"><button class="btn" data-act="store-slug">${t('slug.save')}</button></div><small id="ct-slugmsg">${c.slug ? '' : t('slug.sub')}</small><div class="prlink" id="ct-slugurl">${esc(Store.link(c) || '')}</div></div>
       <div class="pvw"><div class="cap">${t('ct.how')}</div><div class="top"><span class="lg" id="ct-pl">${esc((nm.trim().charAt(0) || '?').toUpperCase())}</span><span id="ct-pn">${esc(nm)}</span></div><div class="wab">${t('ct.wa')}</div></div>
       <p class="lead" style="margin-top:14px">${t('ct.saves')}</p></div>`, null, true);
   }
@@ -3120,7 +3121,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-settings': closeSheet(); return sheetStoreSettings();
       case 'pickup-open': return sheetPickup();
       case 'contact-open': return sheetContact();
-      case 'store-create': storeSet({}); Store.publish(true); return sheetStore();
+      case 'store-create': storeSet({}); Store.publish(true).then(async () => { const c = storeCfg(), want = SCore.slugify(c.name || bizName()); if (c.slug || SCore.slugError(want) || !Store.claim) return; if (!(await Store.claim(want))) { storeSet({ slug: want }); Store.publish(true); if (!$('#sheet').hidden) sheetStore(); } }); return sheetStore();
+      case 'store-slug': { const inp = $('#ct-slug'), name = SCore.slugify(inp ? inp.value : ''), msg = $('#ct-slugmsg'); if (inp) inp.value = name; if (msg) msg.textContent = t('slug.checking');
+        return Store.claim(name).then((e) => { if (e) { if (msg) msg.textContent = t('slug.e.' + e); return; } storeSet({ slug: name }); Store.publish(true); toast(t('slug.saved')); if (msg) msg.textContent = ''; const u = $('#ct-slugurl'); if (u) u.textContent = Store.link(storeCfg()); }); }
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
       case 'store-toggle': { const c = storeCfg(); if (id === 'showPrices' && c.showPrices && !SCore.validPhone(c.whatsapp)) { toast(t('store.pricesNeedWa')); return; }   // with prices off, customers need a WhatsApp number to reach you
         storeSet({ [id]: !c[id] }); return hubOpen() ? render() : sheetStore(); }

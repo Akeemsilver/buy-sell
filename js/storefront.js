@@ -12,7 +12,18 @@
   const cfg = () => SC.norm(A.state().settings.store);
   // Items inside an order nobody has answered yet: they are held back from the store until the order is accepted (then they are sold) or declined.
   const reserved = () => orders.filter((o) => o.status === 'new').flatMap((o) => (o.items || []).map((i) => i.id)).filter(Boolean);
-  const link = (c) => { const id = (c || cfg()).id; return id ? new URL('store.html?s=' + id, location.href).href : ''; };
+  const link = (c) => { c = c || cfg(); const id = c.slug || c.id; return id ? new URL('store.html?s=' + id, location.href).href : ''; };
+  // Claims a short link name for this store (names/{name} points at the store). Resolves '' when done, or a reason: short, chars, reserved, taken, offline.
+  async function claim(name) {
+    const c = cfg(), e = SC.slugError(name); if (e) return e; if (!c.id || !root.Cloud || !Cloud.ready()) return 'offline';
+    try {
+      const ref = Cloud.db().collection('names').doc(name), cur = await ref.get();
+      if (cur.exists && cur.data().sid !== c.id) return 'taken';
+      if (!cur.exists) await ref.set({ sid: c.id });
+      if (c.slug && c.slug !== name) await Cloud.db().collection('names').doc(c.slug).delete().catch(() => {});
+      return '';
+    } catch (x) { return x && x.code === 'permission-denied' ? 'rules' : 'offline'; }
+  }
   const ts = (o) => (o.createdAt && o.createdAt.toMillis ? o.createdAt.toMillis() : 0);
 
   async function smallPicture(id) {
@@ -122,6 +133,6 @@
   const remove = (id) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).delete();
   const setStatus = (id, status, extra) => Cloud.db().collection('stores').doc(cfg().id).collection('orders').doc(id).update(Object.assign({ status }, status === 'new' ? {} : { [status + 'At']: Cloud.stamp() }, extra || {}));
 
-  root.Store = { init: (api) => { A = api; }, cfg, link, publish, schedule, listen, stopListen, setStatus, remove, measure, patch, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
+  root.Store = { init: (api) => { A = api; }, cfg, link, claim, publish, schedule, listen, stopListen, setStatus, remove, measure, patch, info: () => info, tune: (o) => Object.assign(TUNE, o), orders: () => orders, reserved, newCount: () => orders.filter((o) => o.status === 'new').length,
     ageMs: (o) => (ts(o) ? Date.now() - ts(o) : 0), when: (o) => (ts(o) ? new Date(ts(o)) : null) };
 })(window);

@@ -202,7 +202,7 @@
 
   /* ---------- welcome / create account / sign in / business setup (neutral look, not the business's colors) ---------- */
 
-  let gateForgot = false, gateJoin = false, reqRank = {}, gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null }, gateForced = false;   // gateForced: opened on purpose from the app (Settings, the Home banner)
+  let gateForgot = false, gateJoin = false, reqRank = {}, gateView = null, gateMode = 'create', gateDraft = { name: '', palette: null, logo: '' }, gateForced = false;   // gateForced: opened on purpose from the app (Settings, the Home banner)
   const GOOGLE_G = '<svg class="glogo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.2 5.6c4.3-3.9 7.1-9.7 7.1-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.2-5.6c-2 1.4-4.6 2.3-8.7 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
   const hasData = () => window.Sync.hasData(state);
   function wantedGate() {
@@ -256,6 +256,7 @@
       return `<div class="g-wrap"><h1 style="font-size:24px">${t('gate.setup.title')}</h1><p class="g-mute">${t('gate.setup.sub')}</p>
         <form id="f-setup"><label>${t('gate.bizName')}</label><input name="biz" value="${esc(gateDraft.name)}" placeholder="${t('gate.bizPh')}" autocomplete="off" required>
         <div id="g-err" class="g-err" hidden></div>
+        <label>${t('gate.logo')}</label><div class="glrow"><span class="glpv" id="gate-logo-pv">${gateDraft.logo ? `<img src="${gateDraft.logo}" alt="">` : esc(initials(gateDraft.name || '?'))}</span><div><button type="button" class="g-btn" data-act="gate-logo-pick" id="gate-logo-btn">${t(gateDraft.logo ? 'gate.logoChange' : 'gate.logoAdd')}</button><small>${t('gate.logoSub')}</small></div><input type="file" id="gate-logo-file" accept="image/*" hidden></div>
         <label>${t('gate.pickColor')}</label>${swatchRow(cur)}
         <div style="margin-top:14px">${themePreview(cur, gateDraft.name || t('gate.bizPh'))}</div>
         <button class="g-btn primary" style="margin-top:18px">${t('gate.continue')}</button></form></div>`;
@@ -419,6 +420,7 @@
     if (inTransit.length) rows.push(need('📦', 'var(--infobg)', t('hm.wayTitle'), wayTxt(oldest), inTransit.length, 'goto-transit', wayDays(oldest) >= TRANSIT_LATE_DAYS));
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
+    if (!state.settings.bizLogo && state.settings.businessName && state.settings.setupDone && !pref('logoNudgeOff', false)) rows.push(need('🖼️', 'var(--infobg)', t('hm.logoTitle'), t('hm.logoSub'), '+', 'logo-go', false));   // goes away once a logo is added (or once the page has been opened)
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-nopr', false));
     const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
     const batches = L.filterBatches(state, flt).slice().sort((a, b) => b.num - a.num).slice(0, 3);
@@ -3175,6 +3177,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'pr-mode': prMode = id; prCaption = null; return prRefresh();
       case 'pr-which': prWhich = id; prPicks = id === 'picks' ? new Set() : null; prCaption = null; return prRefresh();
       case 'pr-pick': { const cur = new Set(prChosen().map((x) => x.id)); if (cur.has(id)) cur.delete(id); else cur.add(id); prPicks = cur; return prRefresh(); }
+      case 'gate-logo-pick': { const f = $('#gate-logo-file'); if (f) f.click(); return; }
+      case 'logo-go': try { localStorage.setItem('buy-sell-pref:logoNudgeOff', 'true'); } catch (e) { /* shown again next time */ } go({ tab: 'more', moreView: 'set-business' }); window.scrollTo(0, 0); return render();
       case 'logo-pick': { const f = $('#logo-file'); if (f) f.click(); return; }
       case 'logo-remove': state.settings.bizLogo = ''; save(); Store.publish && Store.publish(true); return render();
       case 'pr-format': prFormat = id; prIdx = 0; return prRefresh();
@@ -3337,7 +3341,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (f.id === 'f-forgot') { gateErr(''); const em = d.email.trim(); rememberEmail(em); return Cloud.reset(em).then(() => { const e = $('#g-err'); if (e) { e.textContent = t('fp.sent', { email: em }); e.hidden = false; e.classList.add('ok'); } }, (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-gate') { gateErr(''); homeAfterSignIn = true; const em = d.email.trim(); rememberEmail(em); return (gateMode === 'create' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)).then(() => toast(t('acct.signedIn')), (e) => gateErr(acctErr(e))); }
     if (f.id === 'f-join') { gateErr(''); return Cloud.joinByCode(d.code).catch((e) => gateErr(e && e.code === 'join/invalid' ? t('join.invalid') : e && e.code === 'join/short' ? t('join.short') : t('gate.err', { m: (e && e.message) || '' }))); }
-    if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
+    if (f.id === 'f-setup') { const name = (d.biz || '').trim(); if (!name) return gateErr(t('gate.bizNeed')); state.settings.businessName = /^b-?ruiz$/i.test(name) ? '' : name; if (gateDraft.logo) state.settings.bizLogo = gateDraft.logo; state.settings.palette = gateDraft.palette || Theme.current(); Theme.apply(state.settings.palette); applyTheme(); state.settings.setupDone = true; save(); gateView = null; updateGate(); return render(); }
     if (f.id === 'f-acct') { acctShow(t('acct.working')); homeAfterSignIn = true; const em = d.email.trim(); rememberEmail(em); return acctDone(d.mode === 'up' ? Cloud.signUp(em, d.password) : Cloud.signIn(em, d.password)); }
     if (f.id === 'f-quick') return quickSale(d);
     if (f.id === 'f-batch') { const b = run(() => L.createBatch(state, d), (x) => t('batch.created', { id: bl(x.id) })); if (b) { stockBatch = b.id; stockFilter = 'All'; const sc = storeCfg(); if (sc.id && sc.autoNew && !sc.batches.includes(b.id)) storeSet({ batches: sc.batches.concat(b.id) }); } }
@@ -3358,6 +3362,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   }
   document.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.id === 'gate-logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { gateDraft.logo = d; const pv = $('#gate-logo-pv'), bt = $('#gate-logo-btn'); if (pv) pv.innerHTML = `<img src="${d}" alt="">`; if (bt) bt.textContent = t('gate.logoChange'); }).catch(() => toast(t('logo.err'))); return; }
     if (el.id === 'logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { state.settings.bizLogo = d; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); }).catch(() => toast(t('logo.err'))); return; }
     if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isLocked(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
     if (el.hasAttribute('data-sel')) {

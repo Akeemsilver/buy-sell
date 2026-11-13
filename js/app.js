@@ -3160,7 +3160,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
       case 'export-json': return confirmDownload('buy-sell-backup.json', () => download('buy-sell-backup.json', JSON.stringify(state, null, 2)));
-      case 'reset': return askCard(t('confirm.reset1'), { danger: true, ok: t('btn.continue') }).then((y) => y && askCard(t('confirm.reset2'), { danger: true, ok: t('more.erase') })).then((y) => { if (y) { state = L.defaultState(); selected = new Set(); run(() => 0, t('toast.cleared')); } });
+      case 'reset': return sheetReset();
+      case 'reset-go': { const w = $('#reset-word'); if (!w || w.value.trim().toUpperCase() !== 'RESET') return; closeSheet(); resetToDefault(); return; }
     }
   });
   $('#back').addEventListener('click', () => { themeDraft = null; if (!placeBack()) go({ tab: 'home', moreView: null }); render(); });
@@ -3218,6 +3219,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if (el.dataset && el.dataset.dsshow !== undefined) saveDset({ showRate: !!el.checked });
     else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
     else if (el.classList.contains('iq')) { invQ = el.value; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); }
+    else if (el.id === 'reset-word') { const g = $('#reset-go'); if (g) g.disabled = el.value.trim().toUpperCase() !== 'RESET'; }
     else if (el.classList.contains('itbq')) { itBQ = el.value; itPickRefresh(); }
     else if (el.classList.contains('itq')) { itQ = el.value; itLimit = 100; itRefresh(); }
     else if (el.classList.contains('blq')) { const l = $('#blog'); if (l) l.innerHTML = batchLogRows(el.value); }
@@ -3263,6 +3265,20 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function importJson(file) {
     file.text().then((t) => { const s = JSON.parse(t); if (!s.batches || !s.items) throw coded('notBackup'); state = L.migrate(s); selected = new Set(); save(); toast(t('toast.restored')); render(); }).catch((e) => toast('⚠️ ' + errMsg(e)));
   }
+  // Reset to default: the app becomes empty, as if no batch had ever been added. Settings (business name, theme, store, delivery location) stay.
+  function sheetReset() {
+    openSmall(`<h3>${t('reset.title')}</h3><p>${t('reset.text')}</p>
+      <button type="button" class="btn" data-act="export-json" style="width:100%;margin-bottom:12px">💾 ${t('reset.backup')}</button>
+      <label for="reset-word">${t('reset.type')}</label><input id="reset-word" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="RESET" style="margin-bottom:12px">
+      <div class="btns"><button class="btn dsolid" id="reset-go" data-act="reset-go" disabled>${t('reset.go')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card');
+  }
+  function resetToDefault() {
+    const keep = state.settings, fresh = L.defaultState(); fresh.settings = keep;
+    state = fresh; selected = new Set(); stockBatch = null; stockFilter = 'All'; itBatches = []; itQ = ''; itStat = 'all'; cuStat = 'all'; cuQ = ''; blF = { store: [], status: [], items: [] }; invQ = '';
+    tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; pageStack = [];
+    try { if (window.PhotoStore) PhotoStore.keys().then((ks) => Promise.all((ks || []).map(PhotoStore.del))).catch(() => {}); } catch (e) { /* photos are tidied later */ }
+    save(); toast(t('toast.cleared')); render();
+  }
   function importXlsx(file) {
     if (state.batches.length) return askCard(t('confirm.import'), { danger: true, ok: t('btn.continue') }).then((y) => { if (y) importXlsx2(file); });
     importXlsx2(file);
@@ -3273,7 +3289,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       const wb = X.read(buf, { type: 'array', cellDates: true }), sheets = {};
       ['Batch Log', 'Hidden Master Log', 'Invoice Log'].forEach((n) => { if (wb.Sheets[n]) sheets[n] = X.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }); });
       if (!sheets['Hidden Master Log'] || !sheets['Batch Log']) throw coded('notWorkbook');
-      const imp = L.importWorkbook(sheets); imp.settings.year = state.settings.year; imp.settings.rates = state.settings.rates;
+      const imp = L.importWorkbook(sheets); imp.settings = state.settings;   // only the data is replaced; your settings (business, theme, store, delivery) stay
       state = imp; selected = new Set(); stockBatch = null; tab = 'home'; moreView = null; places = [{ tab: 'home', moreView: null }]; save();
       toast(t('toast.imported', { b: state.batches.length, i: state.items.length, v: state.invoices.length })); render();
     })).catch((e) => toast('⚠️ ' + errMsg(e)));
@@ -3281,8 +3297,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function loadSheetJS() {
     if (window.XLSX) return Promise.resolve(window.XLSX);
     return new Promise((ok, no) => {
-      const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      s.onload = () => ok(window.XLSX); s.onerror = () => no(coded('sheetjs')); document.head.appendChild(s);
+      const add = (src, fail) => { const s = document.createElement('script'); s.src = src; s.onload = () => ok(window.XLSX); s.onerror = fail; document.head.appendChild(s); };
+      add('vendor/sheetjs/xlsx.full.min.js', () => add('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', () => no(coded('sheetjs'))));   // the copy that ships with the app first, the internet only as a fallback
     });
   }
 

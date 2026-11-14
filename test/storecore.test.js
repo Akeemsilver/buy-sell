@@ -195,3 +195,22 @@ console.log('details tests passed');
   const nzr = SC.nearestZone(baseZ, 10.455, -61.30); assert.ok(nzr && nzr.zone && nzr.m > 0); assert.strictEqual(SC.nearestZone(baseZ, 10.5167, -61.4112).m, 0);
   console.log('delivery area tests passed');
 })();
+// regions: five areas, no overlap and no gap; base fee + distance from the hub
+{ const ZD = require('../js/zonedata.js');
+  const ids = ZD.starter().filter((z) => !/Tobago/.test(z.name)).map((z) => SC.regionAt(z.lat, z.lng));
+  assert.ok(ids.every((x) => 'NWECS'.includes(x) && x), 'every Trinidad starter zone lands in exactly one region');
+  assert.strictEqual(SC.regionAt(10.28, -61.467), 'S'); assert.strictEqual(SC.regionAt(10.5167, -61.4112), 'C'); assert.strictEqual(SC.regionAt(10.6377, -61.2825), 'E');
+  assert.strictEqual(SC.regionAt(10.6549, -61.5019), 'N'); assert.strictEqual(SC.regionAt(10.677, -61.636), 'W'); assert.strictEqual(SC.regionAt(NaN, 1), '');
+  const regions = [{ id: 'E', base: 50, free: 4, perKm: 2, cap: 40 }, { id: 'S', base: 60 }];
+  const hub = SC.normRegions(regions).find((r) => r.id === 'E').hub;
+  assert.strictEqual(SC.regionFee(regions, hub[0], hub[1]).fee, 50, 'at the hub the base fee');
+  assert.strictEqual(SC.regionFee(regions, 10.6377, -61.2825).fee, 65, 'Arima (11.1 km from the hub): base + km beyond the first 4 km x 2, to the nearest 5'); assert.strictEqual(SC.regionFee(regions, 10.5867, -61.13).fee, 90, 'Sangre Grande: the extra stops at the cap');
+  assert.strictEqual(SC.regionFee(regions, 10.6549, -61.5019), null, 'a region with no base fee gives none');
+  
+  const cfg = SC.norm({ regions, zones: [{ id: 'z1', name: 'Arima', lat: 10.6377, lng: -61.2825, r: 3000 }], locations: [{ id: 'a', name: 'Arima', delivery: true, zone: 'z1', price: 0, auto: true }, { id: 'b', name: 'Own', delivery: true, price: 35 }, { id: 'c', name: 'Pick', delivery: true, price: 35, rm: true, rg: 'S' }] });
+  const [a, b, c] = cfg.locations;
+  assert.strictEqual(SC.priceOf(cfg, a), 50, 'no price of its own: the region base fee (region from the zone)'); assert.strictEqual(SC.priceOf(cfg, b), 35, 'own price stays');
+  assert.strictEqual(SC.priceOf(cfg, c), 60, 'region price chosen: the chosen region base'); assert.ok(!SC.needsPrice(cfg, a), 'a region fee settles "needs a price"');
+  assert.ok(SC.feeAt(cfg, a, 10.6377, -61.2825) === 65 && SC.feeAt(cfg, b, 10.6377, -61.2825) === 35, 'the pin sets the fee only for region-price places');
+  assert.ok(SC.publicLocs(cfg).find((l) => l.name === 'Arima').rm && !SC.publicLocs(cfg).find((l) => l.name === 'Own').rm);
+  assert.deepStrictEqual(SC.publicRegions(cfg).map((r) => r.id), ['E', 'S']); }

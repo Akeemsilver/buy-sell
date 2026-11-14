@@ -2637,7 +2637,7 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.delivery')}</b><small>${t('pd.sub')}</small></div></div>
       <div class="pd">
       <h4 class="pkh first">${t('pd.secWhere')}</h4>
-      <button type="button" class="hnr zrow" data-act="regions-page"><span class="hic" style="background:var(--infobg)">🧭</span><div class="t"><b>${t('rg.title')}</b><small>${c.regions.some((r) => r.base > 0) ? tn('rg.rowSet', c.regions.filter((r) => r.base > 0).length) : t('rg.rowNone')}</small></div><span class="chev">›</span></button>
+      <button type="button" class="card rgcard rgtap" data-act="regions-page">${rgMap(c.regions)}<div class="rgcap"><b>${t('rg.title')}</b><small>${c.regions.some((r) => r.base > 0) ? tn('rg.rowSet', c.regions.filter((r) => r.base > 0).length) : t('rg.rowNone')}</small><span class="chev">›</span></div></button>
       <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.count2', { n: SCore.areaZones(c.zones).length, h: c.zones.filter((z) => z.risk).length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
       ${c.locations.some((l) => SCore.needsPrice(c, l)) ? `<button type="button" class="hnr zrow" data-act="places-needs"><span class="hic" style="background:var(--warnbg)">💲</span><div class="t"><b>${t('pk.needsRow', { n: c.locations.filter((l) => SCore.needsPrice(c, l)).length })}</b><small>${t('pk.needsSub')}</small></div><span class="chev">›</span></button>` : ''}
       <button type="button" class="hnr zrow" data-act="places-page"><span class="hic" style="background:var(--okbg)">📍</span><div class="t"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><span class="chev">›</span></button>
@@ -2646,9 +2646,10 @@
       <h4 class="pkh">${t('pd.secSafety')}</h4>
       <button type="button" class="hnr zrow" data-act="risk-page"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${tn('pk.riskCountN', c.zones.filter((z) => z.risk).length + risks.filter((l) => !hotOf(l.id)).length)}</small></div><span class="chev">›</span></button>
       ${c.locations.some((l) => l.risk) ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
-      <h4 class="pkh">${t('pd.secPrices')}</h4>
       ${c.bands.length ? '' : `<button type="button" class="addp towns" data-act="store-towns">🇹🇹 ${t('pk.towns')}</button><p class="lead" style="margin-top:8px">${t('pk.townsSub')}</p>`}
+      ${c.bands.length || c.locations.some((l) => l.band) ? `<details class="oldr"><summary>${t('pd.oldRanges')}</summary><p class="muted small" style="margin:8px 2px">${t('pd.oldRangesSub')}</p>
       ${c.bands.length ? `<h4 class="pkh">${t('pk.bands')}</h4><div class="card pkc">${c.bands.map(bandRow).join('')}<button type="button" class="pkadd" data-act="band-add">＋ ${t('pk.bandAdd')}</button><p class="muted small">${t('pk.bandsSub')}</p></div>` : ''}
+      </details>` : ''}
       <h4 class="pkh">${t('pk.spots')}</h4><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.spotsSub')}</p><div class="pkb"><span class="pkp">TT$</span><input class="pkin" id="pk-spotprice" inputmode="decimal" data-spotprice="1" value="${c.spotPrice || ''}" placeholder="0.00" aria-label="${t('pk.spotPrice')}"><div class="pkt"><b>${t('pk.spotPrice')}</b></div></div>${c.spots.map(spotRow).join('')}<button type="button" class="pkadd" data-act="spot-add">＋ ${t('pk.spotAdd')}</button></div>
       </div>`, null, true);
   }

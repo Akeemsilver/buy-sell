@@ -686,7 +686,12 @@
     if (cls.kind === 'match') key = cls.profile.key;
     else if (cls.kind === 'fill') { PE.opFill(state, cls.profile.id, ord, by); key = cls.profile.key; }
     else if (cls.kind === 'new') key = PE.opFresh(state, ord, by).profile.key;
-    else if (cls.kind === 'newName') {
+    else if (cls.kind === 'sharedPick') {
+      ch = await askChoice(pcard(t('pp.pickTitle', { name: esc(ord.name) }), t('pp.pickSub', { list: cls.candidates.map((x) => esc(x.name)).join(', ') }), cls.candidates.map((x, n) => pbtn('p:' + x.id, esc(x.name), n ? 'alt' : 'primary')).join('') + `<p class="pnote">${t('pp.pickNote')}</p>`));
+      if (!ch) return '';
+      const pk = cls.candidates.find((x) => 'p:' + x.id === ch); if (!pk) return '';
+      PE.opSame(state, pk.id, ord, by); key = pk.key;
+    } else if (cls.kind === 'newName') {
       const p = cls.candidates[0];
       ch = await askChoice(pcard(t('pp.aTitle', { name: esc(ord.name) }), t('pp.aSub'), pside(ord, p) + pbtn('same', t('pp.same'), 'primary', t('pp.sameNoteNick', { name: esc(ord.name), who: esc(p.name) })) + pbtn('diff', t('pp.diff'), 'alt', t('pp.diffNote', { name: esc(ord.name), who: esc(p.name) })) + pbtn('shared', t('pp.shared'), 'alt', t('pp.sharedNote')) + pbtn('later', t('pp.later'), '', t('pp.laterNote'))));
       if (!ch) return '';
@@ -720,16 +725,14 @@
     const row = (p) => { const s = sug(p), town = townOf(p); return `<div class="card phc"><div class="t"><b>${esc(p.name)}</b>${town ? `<small>📍 ${esc(town)}</small>` : ''}</div><input class="pkin phin" type="text" inputmode="tel" data-phonefor="${p.id}" placeholder="${t('pp.number')}" autocomplete="off" enterkeyhint="done">${s ? `<button type="button" class="chip" data-act="phone-use" data-id="${p.id}" data-v="${esc(s)}">${t('ph.use', { num: s })}</button>` : ''}<button type="button" class="phno" data-act="no-number" data-id="${p.id}">${t('ph.none')}</button></div>`; };
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('ph.title')}</b><small>${t('ph.sub')}</small></div></div><div class="ap">${list.map(row).join('') || `<div class="empty"><b>${t('ph.done')}</b></div>`}</div>`, null, true);
   }
+  // A number someone else already has: merge them, keep both on one shared number, or leave the number off.
+  const numberTaken = (me, owner, num) => askChoice(pcard(t('pp.tTitle', { who: esc(owner.name) }), t('pp.tSub', { name: esc(me.name) }), `<div class="pair"><div class="nw"><b>${t('pp.addingTo')}</b>${esc(me.name)}<br>${townOf(me) ? '📍 ' + esc(townOf(me)) + '<br>' : ''}<small>${seenTxt(me.key)}</small></div><div><b>${t('pp.alreadyHas')}</b>${esc(owner.name)}<br>${townOf(owner) ? '📍 ' + esc(townOf(owner)) + '<br>' : ''}<small>${seenTxt(owner.key)}</small></div></div>` + pbtn('merge', t('pp.merge2'), 'primary', t('pp.merge2Note')) + pbtn('shared', t('pp.shareBtn'), 'alt', t('pp.shareBtnNote', { name: esc(me.name), who: esc(owner.name) })) + pbtn('diff', t('pp.diff'), 'alt', t('pp.tDiffNote', { who: esc(owner.name), name: esc(me.name) })) + `<p class="pnote">${t('pp.undoNote')}</p>`));
+  const numberTakenDo = (ch, me, owner, num) => { if (ch === 'merge') { try { PE.merge(state, me.id, owner.id, myName()); save(); toast(t('mg.done')); return 'merged'; } catch (e) { toast('⚠️ ' + t('fx.cannot')); return ''; } } if (ch === 'shared') { PE.opShareNumber(state, me.id, owner.id, num, myName()); save(); toast(t('pp.sharedDone')); return 'shared'; } return ''; };
   async function savePhone(pid, value) {
     if (peopleBlocked()) return toast(t('people.update'));
     const r = PE.setNumber(state, pid, value, myName());
     if (r.error) return toast(t('pp.badPhone'));
-    if (r.conflict) {
-      const me = PE.byId(state, pid), owner = r.conflict[0];
-      const ch = await askChoice(pcard(t('pp.tTitle', { who: esc(owner.name) }), t('pp.tSub', { name: esc(me.name) }), `<div class="pair"><div class="nw"><b>${t('pp.addingTo')}</b>${esc(me.name)}<br>${townOf(me) ? '📍 ' + esc(townOf(me)) + '<br>' : ''}<small>${seenTxt(me.key)}</small></div><div><b>${t('pp.alreadyHas')}</b>${esc(owner.name)}<br>${townOf(owner) ? '📍 ' + esc(townOf(owner)) + '<br>' : ''}<small>${seenTxt(owner.key)}</small></div></div>` + pbtn('merge', t('pp.merge'), 'primary') + pbtn('diff', t('pp.diff'), 'alt', t('pp.tDiffNote', { who: esc(owner.name), name: esc(me.name) }))));
-      if (ch === 'merge') { try { PE.merge(state, me.id, owner.id, myName()); save(); toast(t('mg.done')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } }
-      return sheetPhones();
-    }
+    if (r.conflict) { const me = PE.byId(state, pid), owner = r.conflict[0]; numberTakenDo(await numberTaken(me, owner, value), me, owner, value); return sheetPhones(); }
     save(); toast(t('ph.saved')); sheetPhones();
   }
 
@@ -760,8 +763,8 @@
     const p = c.p; if (!p || !peopleOn) return '';
     const nicks = p.nicks.map((n) => `<span class="tag">${esc(n)}<button type="button" class="tx" data-act="pf-nick-del" data-id="${p.id}" data-n="${esc(n)}" aria-label="${t('pf.dropNick')}">✕</button></span>`).join('');
     const prev = p.prev.map((e) => `<div class="row"><span>${esc(e.phone)}<small>${e.until ? t('pf.until', { d: esc(dayMon(new Date(e.until))) }) : ''}${e.note ? ' · ' + esc(noteTxt(e.note)) : ''}</small></span><span class="tag warn">${t('pf.old')}</span></div>`).join('');
-    return `<div class="pfbox"><div class="row"><span>📞 ${p.phone ? `<b>${esc(p.phone)}</b> <small>(${t('pf.main')})</small>` : `<span class="bad">${t('pf.noNumber')}</span>`}${p.shared ? ` <span class="tag">${t('pp.shared')}</span>` : ''}</span><button type="button" class="chip" data-act="pf-number" data-id="${p.id}">${t('pf.setNumber')}</button></div>
-      <div class="row"><span>${t('pf.also')}<br>${nicks || '<small>—</small>'}</span><button type="button" class="chip" data-act="pf-nick-add" data-id="${p.id}">＋ ${t('pf.addNick')}</button></div>
+    return `<div class="pfbox"><div class="pfsum"><div class="pfn"><b>${p.phone ? esc(p.phone) : `<span class="bad">${t('pf.noNumber')}</span>`}</b><small>${p.phone ? t('pf.mainNum') : ''}${p.shared ? ` <span class="tag">${t('pp.shared')}</span>` : ''}</small></div><div class="pfqa${p.phone ? '' : ' nonum'}"><button type="button" class="pfc" data-act="cust-call" data-id="${esc(p.key)}" aria-label="${t('cc.call')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></button><button type="button" class="pfc wa" data-act="cust-wa" data-id="${esc(p.key)}" aria-label="${t('cc.wa')}">${prGlyph('whatsapp', 26)}</button></div></div>
+      <div class="pfak"><span class="aka">${t('pf.also')}: ${nicks || '—'}</span><button type="button" class="chip" data-act="pf-number" data-id="${p.id}">${t('pf.setNumber')}</button><button type="button" class="chip" data-act="pf-nick-add" data-id="${p.id}">＋ ${t('pf.addNick')}</button></div>
       ${prev ? `<div class="row"><b>${t('pf.before')}</b></div>${prev}` : ''}
       ${(() => { const fr = p.free || { on: false, zones: [] }, zn = (fr.zones || []).map(zoneName).filter(Boolean); return `<div class="row"><span>🎁 <b>${t('fd.title')}</b><br><small>${fr.on ? (zn.length ? esc(zn.join(', ')) : t('fd.noPlaces')) : t('fd.off')}</small></span>${swt('pf-free', p.id, fr.on)}</div>${fr.on ? `<div class="row"><span class="pfrule">${t('fd.rule')}</span><button type="button" class="chip" data-act="pf-free-places" data-id="${p.id}">${t('fd.choose')}</button></div>` : ''}`; })()}
       <div class="pfb"><button type="button" class="btn" data-act="split-open" data-id="${p.id}">${t('pf.split')}</button><button type="button" class="btn" data-act="merge-open" data-id="${p.id}">${t('pf.merge')}</button></div></div>`;
@@ -780,7 +783,7 @@
     if (a === 'pf-free-places') return sheetFreePlaces(p.id);
     if (a === 'pf-nick-add') { const v = await askText(t('pf.addNick'), t('pf.addNickSub', { name: esc(p.name) }), t('pf.nickPh')); if (!v) return; const n = L.cleanName(v), other = PE.list(state).find((q) => q.id !== p.id && PE.nameMatch(q, n)); PE.addNickTo ? PE.addNickTo(p, n) : (p.nicks.some((x) => x.toLowerCase() === n.toLowerCase()) || n.toLowerCase() === p.name.toLowerCase() || p.nicks.push(n)); save(); toast(other ? t('pf.nickShared') : t('cust.saved')); return sheetCustomer(p.key); }
     if (a === 'pf-nick-del') { p.nicks = p.nicks.filter((x) => x !== el.dataset.n); save(); return sheetCustomer(p.key); }
-    if (a === 'pf-number') { const v = await askText(t('pf.setNumber'), t('pf.numberSub', { name: esc(p.name) }), t('pp.number')); if (!v) return; const r = PE.setNumber(state, p.id, v, myName()); if (r.error) return toast(t('pp.badPhone')); if (r.conflict) { const owner = r.conflict[0]; const ch = await askChoice(pcard(t('pp.tTitle', { who: esc(owner.name) }), t('pp.tSub', { name: esc(p.name) }), pbtn('merge', t('pp.merge'), 'primary') + pbtn('diff', t('pp.diff'), 'alt', t('pp.tDiffNote', { who: esc(owner.name), name: esc(p.name) })))); if (ch === 'merge') { try { PE.merge(state, p.id, owner.id, myName()); save(); toast(t('mg.done')); return sheetCustomer(owner.key); } catch (e) { return toast('⚠️ ' + t('fx.cannot')); } } return; } save(); toast(t('ph.saved')); return sheetCustomer(p.key); }
+    if (a === 'pf-number') { const v = await askText(t('pf.setNumber'), t('pf.numberSub', { name: esc(p.name) }), t('pp.number')); if (!v) return; const r = PE.setNumber(state, p.id, v, myName()); if (r.error) return toast(t('pp.badPhone')); if (r.conflict) { const owner = r.conflict[0], res = numberTakenDo(await numberTaken(p, owner, v), p, owner, v); return res === 'merged' ? sheetCustomer(owner.key) : res === 'shared' ? sheetCustomer(p.key) : undefined; } save(); toast(t('ph.saved')); return sheetCustomer(p.key); }
     if (a === 'merge-go') { const b = PE.byId(state, el.dataset.b), me = PE.byId(state, id); if (!b || !me) return; const y = await askCard(t('mg.ask', { from: esc(me.name), into: esc(b.name) }), { ok: t('pp.merge') }); if (!y) return; try { PE.merge(state, me.id, b.id, myName()); save(); pageStack = pageStack.filter((x) => !/^(customer|mergepick|custedit)\|/.test(x.key)); toast(t('mg.done')); render(); return sheetCustomer(b.key); } catch (e) { return toast('⚠️ ' + t('fx.cannot')); } }
     if (a === 'split-go') {
       const nos = [...document.querySelectorAll('[data-split]:checked')].map((e) => e.dataset.split), name = L.cleanName($('#sp-name').value), phone = $('#sp-phone').value.trim();
@@ -795,7 +798,7 @@
   const pinZones = (o) => (SCore.geo(o.lat, o.lng) ? SCore.zonesAt(SCore.areaZones(storeZones()), Number(o.lat), Number(o.lng)) : []);
   const pinHot = (o) => (o.option === 'delivery' && SCore.geo(o.lat, o.lng) ? SCore.hotAt(storeZones(), Number(o.lat), Number(o.lng)) : []);   // the order's pin is inside one of your high-risk spots
   // the customer whose free zones include the zone the order's pin is in (and whose main number is on the order)
-  const freeProfile = (o) => { if (!peopleOn || o.option !== 'delivery') return null; const hit = pinZones(o).map((z) => z.id); return PE.mainOwners(state, o.phone).find((p) => p.free && p.free.on && (p.free.zones || []).some((id) => hit.includes(id))) || null; };
+  const freeProfile = (o) => { if (!peopleOn || o.option !== 'delivery') return null; const hit = pinZones(o).map((z) => z.id); return PE.mainOwners(state, o.phone).find((p) => p.free && p.free.on && (p.free.zones || []).some((id) => hit.includes(id)) && (!p.shared || PE.nameMatch(p, o.name))) || null; };
   // The zone behind the place the customer picked, how far the pin is outside it, and the place (and price) of the zone the pin is really in.
   const pickedZone = (o) => { const l = storeCfg().locations.find((x) => placeNorm(x.name) === placeNorm(o.location)); return l && l.zone ? storeZones().find((z) => z.id === l.zone && !z.risk) || null : null; };
   const pinGap = (o, z) => { const g = SCore.geo(o.lat, o.lng); return g && z ? (z.poly ? SCore.nearestZone([z], g.lat, g.lng).m : Math.max(0, Math.round(SCore.metres(g.lat, g.lng, z.lat, z.lng) - z.r))) : 0; };
@@ -3901,6 +3904,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'fee-charge': { const o = Store.orders().find((x) => x.id === id); if (!o) return; const fee = normalFee(o); return askCard(t('fee.ask', { fee: money(fee), name: esc(o.name) }), { ok: t('fee.ok') }).then((y) => { if (!y) return; Store.patch(o.id, { deliveryPrice: fee, total: Math.round((Number(o.total) + fee) * 100) / 100, feeChanged: true }).then(() => { toast(t('fee.done')); setTimeout(() => sheetOrder(o.id, true), 300); }).catch(() => toast(t('store.pubError'))); }); }
       case 'pf-free': case 'pf-free-places': case 'pf-number': case 'pf-nick-add': case 'pf-nick-del': case 'split-open': case 'merge-open': case 'merge-go': case 'split-go': return peopleAct(t_.dataset.act, id, t_);
       case 'cust-edit': return sheetCustEdit(id);
+      case 'cust-call': case 'cust-wa': { const pr = PE.byKey(state, id), ph = pr && pr.phone; if (!ph) { toast(t('cc.noNum')); return sheetPhones(); } const wl = SCore.waLink(ph); if (t_.dataset.act === 'cust-wa') return void window.open(wl, '_blank', 'noopener'); window.location.href = 'tel:+' + wl.replace(/^.*wa\.me\//, ''); return; }
       case 'cust-lang': { clName = id; return sheetChoice(t('cl.popTitle', { who: esc(id) }), 'cl-set', savedLang(id) || 'auto', [['auto', t('cl.optAuto')], ['en', I.LANGS.en['lang.name'] + ' · EN'], ['es', I.LANGS.es['lang.name'] + ' · ES']], t('cl.popNote', { who: esc(id) })); }
       case 'cl-set': { setClientLang(clName, id === 'auto' ? '' : id); closeSheet(); return; }
       case 'ce-lang': { ceLang = id; document.querySelectorAll('#sheet .lg-seg button').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); return; }

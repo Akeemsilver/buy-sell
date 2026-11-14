@@ -1510,3 +1510,11 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .appshare>small{display:block;color:var(--mute);font-size:12.5px;margin:0 12px 6px}
 .appshare .lkurl{margin-bottom:8px}
 .appshare .approw{display:flex;gap:8px;margin:0 10px}.appshare .approw .btn{flex:1;margin:0;padding:10px}
+
+
+.pfsum{display:flex;align-items:center;gap:10px;padding:12px 0 4px}.pfsum .pfn{flex:1;min-width:0}.pfsum .pfn b{display:block;font-size:20px}.pfsum .pfn small{color:var(--mute)}
+.pfqa{display:flex;gap:10px}.pfc{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;padding:0;margin:0;min-height:0;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink);box-shadow:none}
+.pfc svg{width:24px;height:24px}.pfc.wa{background:#25D366;border-color:#25D366;color:#fff}.pfqa.nonum .pfc{opacity:.4}
+.pfak{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0 12px;border-bottom:1px solid var(--line)}.pfak .aka{flex:1 1 100%;color:var(--mute);font-size:13.5px}.pfak .aka .tag{margin:0 4px 4px 0}.pfak .chip{flex:none}
+.btn[data-act="pp-pick"]+.pnote+.btn[data-act="pp-pick"],.btn[data-act="pp-pick"]+.btn[data-act="pp-pick"]{margin-top:10px}
+.sheet.small .pnote,.small .pnote{font-size:13.5px;line-height:1.35;margin:6px 2px 12px}

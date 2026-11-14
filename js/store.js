@@ -152,7 +152,7 @@
       <div class="pr"><b>${money(SC.payPrice(l))}</b><div class="qty"><button class="rm" data-a="rm" data-k="${esc(l.key)}" aria-label="−">${l.n === 1 ? '×' : '−'}</button><span>${l.n}</span><button data-a="inc" data-k="${esc(l.key)}" aria-label="+" ${l.n >= max ? 'disabled' : ''}>+</button></div></div></div></div>`; };
   // Regular customers: delivery is free when their number and the chosen place are on the seller's published list.
   const validPh = () => SC.digits(form.phone).length >= 7;
-  const regularZones = () => (store.free && store.free.length && validPh() ? (store.zones || []).filter((z) => SC.isFree(store.free, form.phone, z.id)) : []);   // the zones this number has free delivery in
+  const regularZones = () => (store.free && store.free.length && validPh() ? (store.zones || []).filter((z) => SC.isFree(store.free, form.phone, z.id, form.name)) : []);   // the zones this number has free delivery in
   const reachPt = () => { if (form.geo) return form.geo; const l = loc(), z = l && l.zone ? (store.zones || []).find((q) => q.id === l.zone) : null; return z ? { lat: z.lat, lng: z.lng } : null; };   // the pin, or the centre of the place they chose
   const ruleState = () => { const its = chosen(); return SC.ruleCheck(store.rule, its.length, SC.totals(its, null, '').sub, reachPt()); };   // the seller's ladder: more items reach further
   const freeNow = () => { const l = loc(); if (l && form.option === 'delivery' && ruleState().ok) return true; if (!l || form.option !== 'delivery' || !form.geo) return false; const rz = regularZones(); if (!rz.length) return false; const here = SC.zonesAt(store.zones, form.geo.lat, form.geo.lng).map((z) => z.id); return rz.some((z) => here.includes(z.id)); };

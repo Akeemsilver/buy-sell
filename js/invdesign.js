@@ -64,9 +64,11 @@
     const F = (w, s) => { x.font = `${w} ${s}px "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif`; };
     let tx = 40;
     if (info.logo) {
-      x.fillStyle = '#fff'; x.fillRect(36, (H - 110) / 2, 110, 110);
-      const l = info.logo, k = Math.min(94 / l.width, 94 / l.height); x.drawImage(l, 36 + (110 - l.width * k) / 2, (H - 110) / 2 + (110 - l.height * k) / 2, l.width * k, l.height * k);
-      tx = 172;
+      // the logo sits in a white box: square for ordinary logos, wider for a wide one (so it is not squeezed small)
+      const l = info.logo, asp = l.width / Math.max(1, l.height), bw = asp >= 1.6 ? Math.min(300, Math.round(94 * asp) + 16) : 110;
+      x.fillStyle = '#fff'; x.fillRect(36, (H - 110) / 2, bw, 110);
+      const k = Math.min((bw - 16) / l.width, 94 / l.height); x.drawImage(l, 36 + (bw - l.width * k) / 2, (H - 110) / 2 + (110 - l.height * k) / 2, l.width * k, l.height * k);
+      tx = 36 + bw + 26;
     }
     const lines = info.lines || [], total = 26 + lines.length * 22, y0 = (H - total) / 2 + 20;
     x.textAlign = 'left'; x.fillStyle = c.ink; F('700', 24); x.fillText(info.name, tx, y0); F('400', 16); lines.forEach((l, i) => x.fillText(l, tx, y0 + 28 + i * 22));

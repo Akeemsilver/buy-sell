@@ -229,7 +229,8 @@
     if (cloud.signedIn) {
       gateForced = false;
       if (state.settings.setupDone || hasData()) return null;
-      return /synced|syncing/.test(cloud.status) ? 'setup' : 'wait';
+      if (/synced|syncing/.test(cloud.status)) { gdStartNew(); return null; }
+      return 'wait';
     }
     if (gateForgot && cloud.status === 'signedOut') return 'forgot';
     if (gateForced) return 'auth';
@@ -389,8 +390,9 @@
     renderTools(); syncAppbarH();
     document.body.classList.toggle('hide-amounts', hideAmounts); document.body.classList.toggle('nocosts', !can('costs'));
     const chipX = tab === 'stock' && $('.stchips') ? $('.stchips').scrollLeft : 0;   // a tap on a filter chip keeps the row where it was scrolled
-    $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, promote: Promote, more: More }[tab]();
+    $('#view').innerHTML = (tab === 'home' ? installBanner() + signInBanner() + gdBanner() : '') + { home: Home, stock: Stock, sell: SellTab, people: People, promote: Promote, more: More }[tab]();
     if (chipX && $('.stchips')) $('.stchips').scrollLeft = chipX;
+    gdSync();
     renderActionBar();
     syncHistory();
     showVersion();
@@ -1331,6 +1333,7 @@
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
         ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}
         ${trow('💳', t('bc.row'), t('bc.rowSub'), 'data-act="bc-open"')}
+        ${gdSt() && !gdSt().finished ? trow('✨', t('gd.banner'), tn('gd.left', gdPending().length), 'data-act="gd-open"') : ''}
         <div class="row srow"><span class="tile">🛍️</span><div class="grow"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div>
       ${cloud.signedIn && team ? (can('team') ? `<h2>${t('team.sec')}</h2><div class="list grp">${trow('👥', t('team.row'), t('team.rowSub', { n: Object.keys(team.members || {}).length }) + (joinReqs.length ? ' · ' + t('team.waiting', { n: joinReqs.length }) : ''), 'data-act="team-open"')}${trow('🔑', t('perm.row'), t('perm.sub'), 'data-act="perm-open"')}</div>` : `<h2>${t('team.sec')}</h2><div class="list grp"><div class="row srow"><span class="tile">🏷️</span><div class="grow"><b>${t('team.mine')}</b><small>${rankName(team.rank)}</small></div></div></div>`) : ''}
       <h2>${t('set.sec.data')}</h2><div class="list grp">
@@ -1594,6 +1597,90 @@
       return c.toDataURL('image/jpeg', 0.82);
     } finally { URL.revokeObjectURL(url); }
   }
+
+  /* ---------- logo maker (initials) ---------- */
+  let lm = null;
+  const lmFonts = { bold: '800 {s}px Inter, Arial, sans-serif', serif: 'italic 700 {s}px Georgia, Caladea, serif', round: '700 {s}px "Trebuchet MS", Inter, sans-serif', slim: '300 {s}px Inter, Arial, sans-serif' };
+  function lmCanvas(size) {
+    const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), n = Math.max(1, lm.text.length);
+    g.fillStyle = lm.bg; if (lm.shape === 'circle') { g.beginPath(); g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); g.fill(); } else if (lm.shape === 'rounded') { g.beginPath(); if (g.roundRect) g.roundRect(0, 0, size, size, size * 0.24); else g.rect(0, 0, size, size); g.fill(); } else g.fillRect(0, 0, size, size);
+    const fs = Math.round(size * (n === 1 ? 0.56 : n === 2 ? 0.44 : 0.34)); g.fillStyle = lm.fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = lmFonts[lm.style].replace('{s}', fs);
+    g.fillText(lm.text, size / 2, size / 2 + fs * 0.04); return c;
+  }
+  function lmPaint() { const cv = $('#lm-cv'); if (!cv || !lm) return; cv.width = cv.height = 240; cv.getContext('2d').drawImage(lmCanvas(240), 0, 0); }
+  function sheetLogoMaker() {
+    const brand = Theme.brand(); lm = { text: initials(bizName()).replace(/[^A-Za-z0-9]/g, '').slice(0, 3) || 'B', style: 'bold', shape: 'circle', bg: brand, fg: '#ffffff' };
+    const chips = (k, opts) => `<div class="chiprow">${opts.map(([v, l]) => `<button type="button" class="chip ${lm[k] === v ? 'on' : ''}" data-act="lm-set" data-id="${k}=${v}">${l}</button>`).join('')}</div>`;
+    openSmall(`<h3>${t('lm.title')}</h3><p class="muted small">${t('lm.sub')}</p><canvas id="lm-cv" width="240" height="240" style="width:150px;height:150px;display:block;margin:6px auto 10px;border-radius:12px;background:repeating-conic-gradient(#e9e4e8 0 25%,#fff 0 50%) 0 0/14px 14px"></canvas>
+      <div class="ihr"><label>${t('lm.letters')}</label><input type="text" id="lm-text" value="${esc(lm.text)}" maxlength="3" autocomplete="off" style="text-transform:uppercase"></div>
+      <div class="ihr"><label>${t('lm.style')}</label>${chips('style', [['bold', t('lm.st.bold')], ['serif', t('lm.st.serif')], ['round', t('lm.st.round')], ['slim', t('lm.st.slim')]])}</div>
+      <div class="ihr"><label>${t('lm.shape')}</label>${chips('shape', [['circle', t('ih.sh.circle')], ['rounded', t('ih.sh.rounded')], ['square', t('ih.sh.square')]])}</div>
+      <div class="ihr col"><label>${t('lm.bg')}</label><input type="color" id="lm-bg" value="${lm.bg}"></div><div class="ihr col"><label>${t('lm.fg')}</label><input type="color" id="lm-fg" value="${lm.fg}"></div>
+      <div class="btns"><button class="btn primary" data-act="lm-use">${t('lm.use')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet', () => { lm = null; });
+    lmPaint();
+  }
+  function lmUse() {
+    if (!lm) return; const cv = lmCanvas(256); state.settings.bizLogo = cv.toDataURL('image/png'); state.settings.bizLogoShape = lm.shape === 'circle' ? 'circle' : lm.shape === 'rounded' ? 'rounded' : 'square'; state.settings.bizLogoPick = 'auto';
+    save(); Store.publish && Store.publish(true); toast(t('logo.saved')); closeSheet(); render(); refreshLogoUI(); if (gdOn()) gdDraw(false);
+  }
+
+  /* ---------- default places for a new business: the same places, no prices; the high-risk areas come marked ---------- */
+  function seedDefaultPlaces() {
+    const c0 = storeCfg(); if (c0.zones && c0.zones.length) return false;
+    storeSet({ zones: ZoneData.starter() }, { noPrices: true });
+    const c = storeCfg(), link = (z) => { const m = c.locations.filter((l) => z.name.toLowerCase().startsWith(l.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0]; return m ? Object.assign({}, z, { place: m.id }) : z; };
+    storeSet({ zones: c.zones.concat(ZoneData.hot().map(link)) }, { noPrices: true });
+    return true;
+  }
+
+  /* ---------- the setup guide: full-screen steps that slide; every step can be skipped and done later ---------- */
+  const GD_STEPS = ['biz', 'wa', 'logo', 'invoice', 'store', 'settings', 'done'];
+  const gdSt = () => state.settings.guide || null;
+  const gdOn = () => { const g = gdSt(); return !!(g && g.on && !g.finished); };
+  const gdDoneKey = (k) => { const s = state.settings, c = storeCfg(); return k === 'biz' ? !!s.businessName : k === 'wa' ? !!(s.bizPhone && SCore.validPhone(s.bizPhone)) : k === 'logo' ? !!s.bizLogo : k === 'invoice' ? s.invoiceDesign === 'custom' : k === 'store' ? !!c.id : k === 'settings' ? !!(dset().home && c.locations.some((l) => l.delivery) && !c.locations.some((l) => needsP(c, l))) : false; };
+  const gdPending = () => GD_STEPS.slice(0, 6).filter((k) => !gdDoneKey(k));
+  function gdStartNew() { if (!state.settings.guide) { state.settings.guide = { on: true, step: 0, finished: false }; save(); } }
+  function gdOpen(step) { const g = gdSt() || (state.settings.guide = { on: true, step: 0, finished: false }); g.on = true; g.finished = false; g.step = typeof step === 'number' ? step : Math.max(0, GD_STEPS.indexOf(gdPending()[0])); if (g.step < 0) g.step = 0; save(); gdDraw(true); }
+  let gdDir = 1, gdFirst = true;
+  const gdArt = (k) => `<div class="gdart a-${k}"><span>${{ biz: '🏪', wa: '💬', logo: '🎨', invoice: '🧾', store: '🛍️', settings: '🚚', done: '🎉' }[k]}</span><i></i><i></i><i></i></div>`;
+  function gdBody(k) {
+    const s = state.settings, c = storeCfg(), cur = gateDraft.palette || s.palette || Theme.current();
+    if (k === 'biz') return `<h2>${t('gd.biz.t')}</h2><p>${t('gd.biz.p')}</p><input id="gd-name" value="${esc(s.businessName || '')}" placeholder="${t('gate.bizPh')}" autocomplete="off" enterkeyhint="next"><label>${t('gate.pickColor')}</label>${swatchRow(cur)}<div style="margin-top:12px">${themePreview(cur, s.businessName || t('gate.bizPh'))}</div>`;
+    if (k === 'wa') return `<h2>${t('gd.wa.t')}</h2><p>${t('gd.wa.p')}</p><input id="gd-wa" type="tel" inputmode="tel" value="${esc(s.bizPhone || '')}" placeholder="${t('ex.label')} 1 868 555 0100" autocomplete="off" enterkeyhint="next"><small class="muted">${t('ct.waSub')}</small>`;
+    if (k === 'logo') return `<h2>${t('gd.logo.t')}</h2><p>${t('gd.logo.p')}</p><div class="gdlogo"><span class="lgpv fit ${logoShape()}">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span></div><div class="gdbtns"><button type="button" class="btn primary" data-act="gd-logo-pick">📎 ${t(s.bizLogo ? 'logo.change' : 'ih.upload')}</button><button type="button" class="btn" data-act="lm-open">✨ ${t('lm.open')}</button></div><small class="muted">${t('ih.uploadSub')}</small><input type="file" id="logo-file" accept="image/*,.zip,application/zip" multiple hidden>`;
+    if (k === 'invoice') { const looks = [['A', 'blush'], ['D', 'rosegold'], ['C', 'wine'], ['E', 'plain']]; return `<h2>${t('gd.inv.t')}</h2><p>${t('gd.inv.p')}</p><div class="gdlooks">${looks.map(([l, p], i) => `<button type="button" class="gdlook ${s.invoiceDesign === 'custom' && ihCfg().layout === l ? 'on' : ''}" data-act="gd-look" data-id="${l}|${p}"><canvas data-look="${l}|${p}" width="800" height="190"></canvas></button>`).join('')}</div><button type="button" class="btn" data-act="ih-open" style="margin-top:10px">🎨 ${t('ih.open')}</button>`; }
+    if (k === 'store') return c.id ? `<h2>${t('gd.store.done')}</h2><p>${t('gd.store.link')}</p><div class="lkurl"><span class="lku">${esc(Store.link(c).replace(/^https?:\/\//, ''))}</span><button type="button" class="lkc" data-act="store-link">${t('store.copy')}</button></div><button type="button" class="btn" data-act="contact-open" style="margin-top:10px">✏️ ${t('hub.contact')}</button>` : `<h2>${t('gd.store.t')}</h2><p>${t('gd.store.p')}</p><button type="button" class="btn primary" data-act="gd-store">🛍️ ${t('gd.store.create')}</button>`;
+    if (k === 'settings') { const st = guideSteps(c).slice(0, 3); const row = (act, ic, label, done) => `<button type="button" class="gdrow2" data-act="${act}"><span class="gdck ${done ? 'on' : ''}">${done ? '✓' : ''}</span><span class="gdt"><b>${ic} ${label}</b></span><span class="chev">›</span></button>`; return `<h2>${t('gd.set.t')}</h2><p>${t('gd.set.p')}</p>${c.id ? `${row('dlv-home', '📍', t('guide.s.loc'), !!dset().home)}${row('pickup-open', '🛵', t('hub.delivery'), c.locations.some((l) => l.pickup || l.delivery))}${row('pricing-open', '💲', t('pr.title'), !c.locations.some((l) => needsP(c, l)) && c.locations.length > 0)}${row('pz-open', '📋', t('guide.s.places'), st[2] && st[2].done)}<small class="muted">${t('gd.set.note')}</small>` : `<p class="muted">${t('gd.set.needStore')}</p>`}`; }
+    return `<h2>${t('gd.done.t')}</h2><p>${t('gd.done.p')}</p>`;
+  }
+  function gdDraw(slide) {
+    const g = gdSt(); if (!g || !g.on || g.finished) return gdClose();
+    let el = $('#gd'); if (!el) { el = document.createElement('div'); el.id = 'gd'; el.className = 'gd'; document.body.appendChild(el); document.body.classList.add('gd-open'); }
+    const k = GD_STEPS[g.step] || 'done', n = GD_STEPS.length - 1, last = k === 'done';
+    el.innerHTML = `<div class="gdtop"><div class="gdbar"><i style="width:${Math.round(g.step / n * 100)}%"></i></div><div class="gdhdr"><button type="button" class="gdback" data-act="gd-back" ${g.step ? '' : 'hidden'} aria-label="${t('aria.back')}">‹</button><span>${t('gd.step', { n: Math.min(g.step + 1, n), m: n })}</span><button type="button" class="gdlater" data-act="gd-later">${t('gd.later')}</button></div></div>
+      <div class="gdc ${slide ? (gdDir > 0 ? 'in-r' : 'in-l') : ''}" data-k="${k}">${gdArt(k)}<div class="gdtxt">${gdBody(k)}</div></div>
+      <div class="gdbot">${last ? `<button type="button" class="btn primary" data-act="gd-finish">${t('gd.start')}</button>` : `<button type="button" class="btn primary" data-act="gd-next">${t('gd.next')}</button><button type="button" class="btn" data-act="gd-skip">${t('gd.skip')}</button>`}</div>`;
+    el.querySelectorAll('canvas[data-look]').forEach((cv) => { const [l, p] = cv.dataset.look.split('|'); const cfg = InvHeader.applyPreset(InvHeader.applyLayout(ihCfg(), l), p); const x = cv.getContext('2d'); InvHeader.draw(x, cfg, ihInfo(), ihImages(cfg)); });
+    if (k === 'done') el.classList.add('fin'); else el.classList.remove('fin');
+  }
+  function gdClose() { const el = $('#gd'); if (el) el.remove(); document.body.classList.remove('gd-open'); }
+  function gdSync() { if (gdOn()) { gdDraw(!$('#gd') && gdFirst); gdFirst = false; } else gdClose(); }
+  async function gdSaveStep(k) {
+    const s = state.settings;
+    if (k === 'biz') { const el = $('#gd-name'), nm = (el && el.value.trim()) || ''; s.businessName = nm || t('gd.defaultName'); s.palette = gateDraft.palette || s.palette || Theme.current(); Theme.apply(s.palette); applyTheme(); s.setupDone = true; }
+    if (k === 'wa') { const el = $('#gd-wa'), v = (el && el.value.trim()) || ''; if (v) { if (!SCore.validPhone(v)) { toast(t('pp.badPhone')); return false; } s.bizPhone = v; if (storeCfg().id) storeSet({ whatsapp: v }); } }
+    save(); return true;
+  }
+  async function gdCreateStore() {
+    const c0 = storeCfg(); storeSet({ name: c0.name || bizName(), whatsapp: c0.whatsapp || state.settings.bizPhone || '' }); seedDefaultPlaces();
+    await Store.publish(true).catch(() => {});
+    const c = storeCfg(), want = SCore.slugify(c.name || bizName());
+    if (!c.slug && !SCore.slugError(want) && Store.claim) { try { if (!(await Store.claim(want))) { storeSet({ slug: want }); await Store.publish(true); } } catch (e) { /* the name can be chosen later */ } }
+    gdDir = 1; gdDraw(false);
+  }
+  function gdSaveStepSkip() { const k = GD_STEPS[gdSt().step]; if (k === 'biz' && !state.settings.businessName) { state.settings.businessName = t('gd.defaultName'); state.settings.setupDone = true; save(); } gdGo(1); }
+  const gdBanner = () => { const g = gdSt(); if (!g || g.finished || g.on) return ''; const n = gdPending().length; return n ? `<button type="button" class="row tap gdbanner" data-act="gd-open"><span style="font-size:22px">✨</span><div class="grow"><b>${t('gd.banner')}</b><small>${tn('gd.left', n)}</small></div><span class="chev">›</span></button>` : ''; };
+  function gdGo(d, skipped) { const g = gdSt(); if (!g) return; gdDir = d; g.step = Math.max(0, Math.min(GD_STEPS.length - 1, g.step + d)); save(); gdDraw(true); }
 
   /* ---------- business card editor: colours, what is on it, QR link, print files (PDF + PNG) ---------- */
   let bcOn = false, bcRaf = 0, bcSide = 'front';
@@ -2739,7 +2826,7 @@
   /* ---------- online store: settings, orders ---------- */
   const SCore = window.StoreCore;
   const storeCfg = () => SCore.norm(state.settings.store);
-  function storeSet(patch) { const c = Object.assign(storeCfg(), patch); if (!c.id) c.id = SCore.newId(20); if (patch && 'zones' in patch) Object.assign(c, SCore.syncZonePlaces(c)); state.settings.store = c; save(); }
+  function storeSet(patch, opts) { const c = Object.assign(storeCfg(), patch); if (!c.id) c.id = SCore.newId(20); if (patch && 'zones' in patch) Object.assign(c, SCore.syncZonePlaces(c, opts)); state.settings.store = c; save(); }
   // Every delivery zone is also a place customers can pick: keep the two in step (also fixes what existed before this was added).
   // The starter high-risk spots go in once (the seller can edit or delete any of them; a deleted one does not come back).
   function seedHot() {
@@ -3734,7 +3821,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'gate-removed-ok': gateJoin = false; return Cloud.cancelJoin();
       case 'gate-forgot': case 'acct-forgot': { const em = ($('#f-gate [name=email]') || $('#f-acct [name=email]') || {}).value; if (em) rememberEmail(em.trim()); closeSheet(); gateForgot = true; gateView = null; updateGate(); return; }
       case 'gate-forgotback': gateForgot = false; gateMode = 'in'; gateView = 'auth'; $('#gate').innerHTML = gateHTML('auth'); return;
-      case 'gate-color': gateDraft.palette = id; regate(); return;
+      case 'gate-color': gateDraft.palette = id; if (gdOn()) { const el = $('#gd-name'); const keep = el ? el.value : ''; state.settings.palette = id; Theme.apply(id); applyTheme(); gdDraw(false); const e2 = $('#gd-name'); if (e2) e2.value = keep; return; } regate(); return;
       case 'acct-open': if (cloud.signedIn) return sheetAccount(); closeSheet(); gateForced = true; gateMode = hasData() ? 'in' : 'create'; gateView = null; updateGate(); return;
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
       case 'acct-google': homeAfterSignIn = true; return acctDone(Cloud.signInGoogle());
@@ -3901,7 +3988,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-settings': closeSheet(); return sheetStoreSettings();
       case 'pickup-open': return sheetPickup();
       case 'contact-open': return sheetContact();
-      case 'store-create': storeSet({}); Store.publish(true).then(async () => { const c = storeCfg(), want = SCore.slugify(c.name || bizName()); if (c.slug || SCore.slugError(want) || !Store.claim) return; if (!(await Store.claim(want))) { storeSet({ slug: want }); Store.publish(true); if (!$('#sheet').hidden) sheetStore(); } }); return sheetStore();
+      case 'store-create': storeSet({}); seedDefaultPlaces(); Store.publish(true).then(async () => { const c = storeCfg(), want = SCore.slugify(c.name || bizName()); if (c.slug || SCore.slugError(want) || !Store.claim) return; if (!(await Store.claim(want))) { storeSet({ slug: want }); Store.publish(true); if (!$('#sheet').hidden) sheetStore(); } }); return sheetStore();
       case 'store-slug': { const inp = $('#ct-slug'), name = SCore.slugify(inp ? inp.value : ''), msg = $('#ct-slugmsg'); if (inp) inp.value = name; if (msg) msg.textContent = t('slug.checking');
         return Store.claim(name).then((e) => { if (e) { if (msg) msg.textContent = t('slug.e.' + e); return; } storeSet({ slug: name }); Store.publish(true); toast(t('slug.saved')); if (msg) msg.textContent = ''; const u = $('#ct-slugurl'); if (u) u.textContent = Store.link(storeCfg()); }); }
       case 'store-addbatch': { const sc = storeCfg(); if (!sc.batches.includes(id)) storeSet({ batches: sc.batches.concat(id) }); toast(t('store.batchAdded')); return render(); }
@@ -3918,6 +4005,18 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'pr-pick': { const cur = new Set(prChosen().map((x) => x.id)); if (cur.has(id)) cur.delete(id); else cur.add(id); prPicks = cur; return prRefresh(); }
       case 'gate-logo-pick': { const f = $('#gate-logo-file'); if (f) f.click(); return; }
       case 'logo-go': try { localStorage.setItem('buy-sell-pref:logoNudgeOff', 'true'); } catch (e) { /* shown again next time */ } go({ tab: 'more', moreView: 'set-business' }); window.scrollTo(0, 0); return render();
+      case 'gd-open': return gdOpen(id === '' || id === undefined ? undefined : Number(id));
+      case 'gd-next': return gdSaveStep(GD_STEPS[gdSt().step]).then((ok) => { if (ok) gdGo(1); });
+      case 'gd-skip': return gdSaveStepSkip();
+      case 'gd-back': return gdGo(-1);
+      case 'gd-later': { const g = gdSt(); g.on = false; save(); gdClose(); toast(t('gd.laterToast')); return render(); }
+      case 'gd-finish': { const g = gdSt(); g.finished = true; g.on = false; state.settings.setupDone = true; save(); gdClose(); return render(); }
+      case 'gd-logo-pick': { const f = $('#logo-file'); if (f) f.click(); return; }
+      case 'gd-store': return gdCreateStore();
+      case 'gd-look': { const [l, p] = id.split('|'); state.settings.invoiceDesign = 'custom'; ihSave(InvHeader.applyPreset(InvHeader.applyLayout(ihCfg(), l), p)); gdDraw(false); return; }
+      case 'lm-open': return sheetLogoMaker();
+      case 'lm-set': { if (!lm) return; const i = id.indexOf('='); lm[id.slice(0, i)] = id.slice(i + 1); const keepT = $('#lm-text'); document.querySelectorAll('[data-act=lm-set]').forEach((b) => { const j = b.dataset.id.indexOf('='); b.classList.toggle('on', lm[b.dataset.id.slice(0, j)] === b.dataset.id.slice(j + 1)); }); return lmPaint(); }
+      case 'lm-use': return lmUse();
       case 'bc-open': return sheetCard();
       case 'bc-tog': bcSet(id, !bcPath(id)); return bcRefresh();
       case 'bc-set': { const i = id.indexOf('='), p = id.slice(0, i), v = id.slice(i + 1); if (p === 'scheme') { bcSave(CardMaker.applyScheme(bcCfg(), v, InvHeader.colours(ihCfg()).head)); } else bcSet(p, v); return bcRefresh(); }
@@ -4286,6 +4385,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const el = e.target;
     if (el.closest && el.closest('#tsearch')) { const pi = $(pageSearchSel()); if (pi) { pi.value = el.value; pi.dispatchEvent(new Event('input', { bubbles: true })); } return; }
     if (el.id === 'cr-zoom' && ihCr) { const ar = InvHeader.W / InvHeader.H, maxW = Math.min(ihCr.iw, ihCr.ih * ar), cx = ihCr.fx + ihCr.fw / 2, cy = ihCr.fy + ihCr.fw / ar / 2; ihCr.fw = maxW * Number(el.value) / 100; ihCr.fx = cx - ihCr.fw / 2; ihCr.fy = cy - ihCr.fw / ar / 2; ihCrClamp(); ihCrDraw(); return; }
+    if (lm && el.id === 'lm-text') { lm.text = el.value.toUpperCase().replace(/\s/g, '').slice(0, 3) || 'B'; lmPaint(); return; }
+    if (lm && (el.id === 'lm-bg' || el.id === 'lm-fg')) { lm[el.id === 'lm-bg' ? 'bg' : 'fg'] = el.value; lmPaint(); return; }
     if (el.dataset.bc) { bcSet(el.dataset.bc, el.value); return; }
     if (el.dataset.ih) { const p = el.dataset.ih; let v = el.value; if (el.type === 'range') { v = Number(v); const lb = el.parentElement && el.parentElement.querySelector('.v'); if (lb) lb.textContent = Math.round(v * 100) / 100; } ihSet(p, v); return; }
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }

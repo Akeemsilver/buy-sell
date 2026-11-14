@@ -69,7 +69,8 @@
   function updStrip() { const sh = $('#sheet'), bar = sh && sh.querySelector('.stk'), tr = sh && sh.querySelector('.fstep'), fb = sh && sh.querySelector('.fullbar'); if (!bar || !tr || !fb) return; const gone = tr.getBoundingClientRect().bottom < fb.getBoundingClientRect().bottom + 4; if (bar.hidden === gone) { bar.hidden = !gone; bar.setAttribute('aria-hidden', String(!gone)); } }
   document.addEventListener('DOMContentLoaded', () => { const sh = $('#sheet'); if (sh) sh.addEventListener('scroll', updStrip, { passive: true }); });
   function restoreSheetY(y) { if (!y) return; const sh = $('#sheet'), go = () => { sh.scrollTop = y; updStrip(); }; go(); requestAnimationFrame(go); setTimeout(go, 150); }
-  function enterPage(kind, arg, open, swap) {   // every full-screen page calls this when it opens. swap: replace the page on top (no new step on the Back trail)
+  function enterPage(kind, arg, open, swap) {
+    if (sheetHook) return;   // every full-screen page calls this when it opens. swap: replace the page on top (no new step on the Back trail)
     if (reopening) return;
     if (!swap) { const cur = pageStack[pageStack.length - 1], sh = $('#sheet'); if (cur && !sh.hidden && !sh.classList.contains('small')) cur.y = sh.scrollTop; }
     const key = kind + '|' + arg;
@@ -590,7 +591,7 @@
     const batchRow = (b) => { const a = state.items.filter((i) => i.batchId === b.id && i.status === 'Available').length, tr = state.items.filter((i) => i.batchId === b.id && i.status === 'In Transit').length; return `<div class="rw2"><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a, t: tr })}</small></div>${swt('store-batch', b.id, c.batches.includes(b.id))}</div>`; };
     const link = (act, ic, label) => `<button data-act="${act}">${ic} ${label}</button>`;
     return `<div class="sth"><div class="box"><div class="rw2"><div class="t"><div class="live ${c.open ? '' : 'off'}"><i></i>${c.open ? t('hub.open2') : t('hub.closed')}</div><small>${esc(c.open ? t('hub.liveSub', { n: live }) : t('store.openSub'))}</small></div>${swt('store-toggle', 'open', c.open)}</div>
-      <div class="lnk">${link('store-link', '🔗', t('store.copy') + ' ' + t('hub.link'))}${link('store-share', '📤', t('hub.share'))}${link('store-preview', '👁', t('hub.preview'))}</div></div>
+      <div class="lnk">${link('store-link', '🔗', t('store.copy') + ' ' + t('hub.link'))}${link('store-share', '📤', t('hub.share'))}${link('store-preview', '👁', t('hub.preview'))}</div>${c.id ? `<div class="lkurl"><span class="lku" tabindex="0">${esc(Store.link(c).replace(/^https?:\/\//, ''))}</span><button type="button" class="lkc" data-act="store-link" aria-label="${t('store.copy')} ${t('hub.link')}">${t('store.copy')}</button></div>` : ''}</div>
       <h4><span>${t('store.orders')}</span><span class="ha">${toDeliver().length ? `<a data-act="deliveries-open">🚚 ${t('dv.btn')} (${toDeliver().length})</a>` : ''}<a data-act="orders-open">${t('hub.seeAll')}</a></span></h4>
       ${ordHead(true)}
       <div class="ordp" data-lim="5">${ordPanel(5)}</div>
@@ -819,7 +820,7 @@
     return `<svg viewBox="10 10 1110 940" class="rgmap" role="img" aria-label="${t('rg.title')}"><defs><clipPath id="rgclip"><polygon points="${P(shape)}"/></clipPath></defs><polygon points="${P(shape)}" class="rgland"/><g clip-path="url(#rgclip)">${Object.keys(polys).map((k) => `<polygon points="${P(polys[k])}" fill="${RG_COL[k]}" fill-opacity=".3" stroke="#fff" stroke-width="4"/>`).join('')}</g><polygon points="${P(shape)}" class="rgedge"/>`
       + rs.map((r) => `<circle cx="${X(r.hub[1])}" cy="${Y(r.hub[0])}" r="9" fill="#fff" stroke="${RG_COL[r.id]}" stroke-width="5"/><text x="${X(at[r.id][1])}" y="${Y(at[r.id][0])}" class="rgt" fill="${RG_COL[r.id]}">${esc(t('rg.' + r.id))}</text><text x="${X(at[r.id][1])}" y="${Y(at[r.id][0]) + 38}" class="rgs" fill="${RG_COL[r.id]}">${r.base > 0 ? esc(moneyText(r.base).replace('TT$ ', 'TT$').replace(/\.00$/, '')) : esc(t('rg.notSet'))}</text>`).join('') + '</svg>';
   }
-  function sheetRegions() {
+  function regionsRaw() {
     enterPage('regions', '', () => sheetRegions());
     const c = storeCfg(), rs = c.regions, cnt = (id) => c.locations.filter((l) => l.delivery && SCore.regionOfPlace(c, l) === id).length, none = rs.every((r) => !(r.base > 0));
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('rg.title')}</b><small>${t('rg.sub')}</small></div></div>
@@ -834,13 +835,13 @@
     enterPage('region', id, () => sheetRegion(id));
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('rg.' + id)}</b><small>${t('rg.hub', { h: RG_HUB[id] })}</small></div></div>
       <div class="ap"><div class="fld"><label for="rg-base">${t('rg.base')}</label><input id="rg-base" data-rg="1" inputmode="decimal" value="${r.base || ''}" placeholder="0" autocomplete="off" enterkeyhint="done"></div>
-      <div class="fld"><label for="rg-free">${t('rg.free')}</label><input id="rg-free" data-rg="1" inputmode="decimal" value="${r.free}" autocomplete="off" enterkeyhint="done"><small>${t('rg.freeSub')}</small></div>
+      ${dset().charge ? `<p class="muted small" style="margin:4px 2px 10px">${t('rg.distOn')}</p>` : `      <div class="fld"><label for="rg-free">${t('rg.free')}</label><input id="rg-free" data-rg="1" inputmode="decimal" value="${r.free}" autocomplete="off" enterkeyhint="done"><small>${t('rg.freeSub')}</small></div>
       <div class="fld"><label for="rg-perkm">${t('rg.perKm')}</label><input id="rg-perkm" data-rg="1" inputmode="decimal" value="${r.perKm}" autocomplete="off" enterkeyhint="done"></div>
-      <div class="fld"><label for="rg-cap">${t('rg.cap')}</label><input id="rg-cap" data-rg="1" inputmode="decimal" value="${r.cap}" autocomplete="off" enterkeyhint="done"><small>${t('rg.capSub')}</small></div>
-      <div class="card hotinfo" id="rg-ex">${rgExample(r.base, r.free, r.perKm, r.cap)}</div>
+      <div class="fld"><label for="rg-cap">${t('rg.cap')}</label><input id="rg-cap" data-rg="1" inputmode="decimal" value="${r.cap}" autocomplete="off" enterkeyhint="done"><small>${t('rg.capSub')}</small></div>`}
+      ${dset().charge ? '' : `<div class="card hotinfo" id="rg-ex">${rgExample(r.base, r.free, r.perKm, r.cap)}</div>`}
       <div class="btns"><button class="btn primary" data-act="region-save" data-id="${id}">${t('btn.save')}</button></div></div>`, null, true);
   }
-  function sheetZones() {
+  function zonesRaw() {
     seedHot(); enterPage('zones', '', () => sheetZones());
     const c = storeCfg(), byName = (x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }), zs = SCore.areaZones(c.zones).slice().sort(byName), hot = c.zones.filter((z) => z.risk).sort(byName);
     const row = (z) => `<div class="pkr"><button type="button" class="pkn" data-act="zone-edit" data-id="${z.id}"><b>${z.risk ? '⚠️ ' : ''}${esc(z.name)}</b><small>${z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') })}</small></button></div>`;
@@ -860,7 +861,7 @@
         if (nz.risk && pl) nz.place = pl;
         if (i >= 0) list[i] = nz; else list.push(nz);
         let locs = cfg.locations; if (nz.risk && pl) locs = locs.map((l) => (l.id === pl && l.risk ? Object.assign({}, l, { risk: false, off: false }) : l));   // an old "hidden" mark becomes the spot: the place shows again at its normal price
-        storeSet({ zones: list, locations: locs }); toast(t(nz.risk ? 'hot.saved' : 'zn.saved')); if ($('#sheet').hidden) return; const k = pageStack.length ? pageStack[pageStack.length - 1].key : ''; if (k.startsWith('storeloc|') || k.startsWith('risk|') || k.startsWith('places|')) return refreshHot(); sheetZones();
+        storeSet({ zones: list, locations: locs }); toast(t(nz.risk ? 'hot.saved' : 'zn.saved')); if ($('#sheet').hidden) return; const k = pageStack.length ? pageStack[pageStack.length - 1].key : ''; if (k.startsWith('storeloc|') || k.startsWith('pz|') || k.startsWith('risk|') || k.startsWith('places|')) return refreshHot(); sheetZones();
       },
       onDelete: (zid) => askCard(t('zn.delAsk'), { danger: true, ok: t('zn.del') }).then((y) => { if (!y) return; storeSet({ zones: storeCfg().zones.filter((x) => x.id !== zid) }); PE.list(state).forEach((p) => { if (p.free && p.free.zones) p.free.zones = p.free.zones.filter((x) => x !== zid); }); save(); sheetZones(); }),
       onError: (m) => toast(m) });
@@ -1532,7 +1533,12 @@
         <div class="btns"><button class="btn ${opts.danger ? 'dsolid' : 'primary'}" data-act="ask-yes">${opts.ok || t('btn.yes')}</button><button class="btn" data-act="close">${opts.no || t('btn.cancel')}</button></div>`, 'card', () => finish(false));
     });
   }
+  // A page can be built by borrowing the body of another page: capture(fn) runs fn and returns the HTML it would have opened, without opening it.
+  let sheetHook = null;
+  const capture = (fn) => { const prev = sheetHook; let out = ''; sheetHook = (h) => { out = h; }; try { fn(); } finally { sheetHook = prev; } return out; };
+  const bodyOf = (h) => { const i = h.search(/<div class="(pd|ap)[ "]/); return i < 0 ? h : h.slice(i); };
   function openSheet(html, onClose, full) {
+    if (sheetHook) { sheetHook(html); return; }
     voiceStop(); removeItemPill();
     if (keepGhost) keepGhost = false; else removeGhost();
     const kind = full === 'card' || full === 'sheet' ? full : null;
@@ -2548,36 +2554,27 @@
       <div class="ap">${signed ? '' : `<div class="card"><div class="rw"><div class="t"><b>${t('store.needAccount')}</b><small>${t('store.needAccountSub')}</small></div><button class="pbtn" data-act="acct-open">${t('acct.signIn')}</button></div></div>`}
       ${c.id ? `<div class="link"><span>${esc(link)}</span><button data-act="store-link">${t('store.copy')}</button></div>` : `<button class="btn primary" style="width:100%" data-act="store-create" ${signed ? '' : 'disabled'}>${t('store.create')}</button>`}
       ${c.id ? stat : ''}
-      ${c.id ? `<div class="card"><div class="rw"><div class="t"><b>${t('store.open')}</b><small>${t('store.openSub')}</small></div>${swt('store-toggle', 'open', c.open)}</div></div>
-      <h4><span>${t('store.batches')}</span></h4><div class="card">${state.batches.map((b) => { const n = cnt(b), on = c.batches.includes(b.id); return `<button class="rw sbat" data-act="store-batch" data-id="${b.id}"><span class="ck ${on ? 'on' : ''}">${on ? '✓' : ''}</span><div class="t"><b>${bl(b.id)}</b><small>${t('store.batchCount', { a: n.a, t: n.t })}</small></div></button>`; }).join('') || `<div class="rw muted">${t('store.noBatches')}</div>`}</div>
-      ${(() => { const n = SCore.shown(state, c).length; return n ? `<p class="muted small" style="margin:-2px 2px 10px">${t('store.willShow', { n })}</p>` : `<div class="err" style="margin:-2px 0 10px">${t('store.noneShown')}</div>`; })()}
-      <div class="card"><div class="rw"><div class="t"><b>${t('store.autoNew')}</b><small>${t('store.autoNewSub')}</small></div>${swt('store-toggle', 'autoNew', c.autoNew)}</div></div>
-      <div class="card"><div class="rw"><div class="t"><b>${t('store.transit')}</b><small>${t('store.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div></div>
-      <div class="card"><div class="rw"><div class="t"><b>${t('store.prices')}</b><small>${t(c.showPrices ? 'store.pricesOn' : 'store.pricesOff')}</small></div>${swt('store-toggle', 'showPrices', c.showPrices)}</div>
-        <div class="rw"><div class="t"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div></div>
-      <button class="libbtn" data-act="words-open"><span class="ic">🔤</span><span class="tx"><b>${t('words.title')}</b><small>${t('words.openLibSub', { n: wordList().length })}</small></span><span class="chev">›</span></button>
-      <h4><span>${t('store.locations')}</span></h4><div class="card">${c.locations.map((l) => `<button class="rw sloc" data-act="store-loc" data-id="${l.id}"><div class="t"><b>${esc(l.name)}</b><small>${[l.pickup ? t('store.pickup') + ' · ' + t('store.free') : '', l.delivery ? t('store.delivery') + ' ' + money(l.price) : ''].filter(Boolean).join(' · ')}</small></div><span class="chev">›</span></button>`).join('')}<button class="rw sloc add" data-act="store-loc" data-id="new">＋ ${t('store.addLoc')}</button></div>
-      <div class="card"><div class="rw"><div class="t"><b>${t('store.name')}</b></div><input class="sfield" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"></div><div class="rw"><div class="t"><b>${t('store.whatsapp')}</b><small>${t('store.whatsappSub')}</small></div><input class="sfield" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="868 555 0100" autocomplete="off" enterkeyhint="done"></div></div>
-      <button class="btn" style="width:100%;margin-top:6px" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="muted small" style="margin:10px 2px">${t('store.note')}</p>` : ''}</div>`, null, true);
+      ${c.id ? `<button class="btn" style="width:100%;margin-top:6px" data-act="store-publish" ${signed ? '' : 'disabled'}>${t('store.publishNow')}</button><p class="muted small" style="margin:10px 2px">${t('store.note')}</p>` : ''}</div>`, null, true);
   }
   // Pickup and delivery: only the places, with what each offers; tap one to change it, or add a place.
   // The store settings rows, in groups: the store, delivery, and (on the Store page) the store-page switches.
   const setRow = (act, title, sub, kw) => `<button class="rw2 tap" data-act="${act}" data-kw="${esc((title + ' ' + sub + ' ' + (kw || '')).replace(/<[^>]*>/g, ' '))}"><div class="t"><b>${title}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
   const spotsSub = (c) => (c.spots.length ? tn('sset.spotsN', c.spots.length) : t('sset.spotsNone'));
   const settingsGroups = (c, withSwitches) => {
-    const h = dset().home, riskN = c.zones.filter((z) => z.risk).length, st = guideSteps(c), gdone = st.filter((x) => x.done).length, needsN = c.locations.filter((l) => SCore.needsPrice(c, l)).length, grp = (title, rows) => `<div class="sgrp"><h4><span>${title}</span></h4><div class="box">${rows}</div></div>`;
+    const h = dset().home, st = guideSteps(c), gdone = st.filter((x) => x.done).length, riskN = c.zones.filter((z) => z.risk).length, grp = (title, rows) => `<div class="sgrp"><h4><span>${title}</span></h4><div class="box">${rows}</div></div>`;
+    const offN = (c.freeRule.tiers.length || c.freeRule.spend.on ? 1 : 0) + (c.couponRule.on ? 1 : 0), d = dset();
     return `<div class="ssq"><input id="sset-q" type="search" placeholder="${esc(t('sset.search'))}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search"></div><p class="muted small ssnone" id="sset-none" hidden>${t('sset.noMatch')}</p>
-      ${grp(t('sset.yours'), setRow('dlv-home', '📍 ' + t('sset.loc'), h ? esc(h.name || t('ds.pinSet')) : `<span style="color:var(--bad,#cf4b4b)">${t('sset.locNone')}</span>`, 'store location pin home hub ubicación tienda') + setRow('contact-open', t('hub.contact'), esc(c.name || bizName()) + ' · ' + (esc(c.whatsapp) || t('store.whatsappSub')), 'name whatsapp phone contact nombre') + setRow('words-open', t('hub.spanish'), t('words.openLibSub', { n: wordList().length }), 'spanish words español palabras'))}
+      ${grp(t('sset.yours'), setRow('dlv-home', '📍 ' + t('sset.loc'), h ? esc(h.name || t('ds.pinSet')) : `<span style="color:var(--bad,#cf4b4b)">${t('sset.locNone')}</span>`, 'store location pin home hub where driving starts ubicación tienda') + setRow('contact-open', t('hub.contact'), esc(c.name || bizName()) + ' · ' + (esc(c.whatsapp) || t('store.whatsappSub')), 'name whatsapp phone contact link slug short name nombre enlace') + setRow('words-open', t('hub.spanish'), t('words.openLibSub', { n: wordList().length }), 'spanish words español palabras'))}
       ${grp(t('sset.secGuide'), setRow('guide-open', '🧭 ' + t('guide.title'), t('sset.guideSub', { n: gdone, m: st.length }), 'setup guide start steps first time guía pasos empezar'))}
-      ${grp(t('sset.secAreas'), setRow('regions-page', t('rg.title'), c.regions.some((r) => r.base > 0) ? tn('rg.rowSet', c.regions.filter((r) => r.base > 0).length) : t('rg.rowNone'), 'regions north south east west central fee base price map regiones norte sur este oeste centro tarifa') + setRow('places-page', t('pk.placesH'), pdSummary(c), 'places list prices search lugares precios buscar') + (needsN ? setRow('places-needs', t('pk.needsRow', { n: needsN }), t('pk.needsSub'), 'needs price missing sin precio') : '') + setRow('zones-page', t('zn.title'), c.zones.length ? t('zn.count2', { n: SCore.areaZones(c.zones).length, h: riskN }) : t('zn.rowNone'), 'zones circles map areas draw zonas círculos mapa') + setRow('spots-page', t('pk.spots'), spotsSub(c), 'pickup spots collect meeting point recoger puntos'))}
-      ${grp(t('sset.secTools'), setRow('price-helper', t('prh.title'), t('prh.row'), 'price helper distance road km calculator how much to charge distancia carretera calculadora cuánto cobrar') + setRow('pricecheck', t('prc.title'), t('prc.sub'), 'price check pattern chart compare revisión precios comparar'))}
-      ${grp(t('sset.secOffers'), setRow('free-rule', t('fr.title'), freeSum(c), 'free delivery items ladder spend regulars km entrega gratis artículos') + setRow('coupons-page', t('cp.title'), cpSum(c), 'coupon discount code percent voucher cupón descuento código'))}
-      ${grp(t('sset.secMore'), setRow('risk-page', t('pk.risk'), tn('pk.riskCountN', riskN), 'high risk dangerous unsafe areas alto riesgo peligro zonas') + setRow('dlv-settings', t('dlv.settings'), t('sset.ratesSub'), 'delivery costs routes rate per km export route stats past deliveries costos rutas tarifa') + setRow('pickup-open', t('sset.more'), t('sset.moreSub'), 'more options quick selection price ranges starter pack bands rangos paquete inicial'))}
+      ${grp(t('sset.delivery'), setRow('pricing-open', t('pr.title'), d.charge ? t('dc.rowOn', { rate: moneyText(d.perKm) + (d.count === 'both' ? ' ' + t('dc.bothShort') : '') }) : t('pr.row'), 'pricing price prices fee fees distance rate per km round trip region regions base map price check price helper try spot charge precio tarifa distancia región regiones')
+        + setRow('pz-open', t('pz.title'), pdSummary(c), 'places zones list circles map areas pickup spots collect high risk dangerous unsafe needs price lugares zonas puntos recogida alto riesgo peligro precio')
+        + setRow('offers-open', t('off.page'), offN ? t('off.on', { n: offN }) : t('fr.none'), 'offers free delivery items ladder spend coupon discount code percent voucher banner sticker regulars entrega gratis cupón descuento oferta')
+        + setRow('dlv-settings', t('dlv.settings'), t('dcost.row'), 'delivery costs cost per km fuel stats past deliveries route export costos rutas estadísticas'))}
       ${withSwitches ? grp(t('sset.page'), `<div class="rw2" data-kw="prices show store page precios"><div class="t"><b>${t('store.prices')}</b><small>${t(c.showPrices ? 'store.pricesOn' : 'store.pricesOff')}</small></div>${swt('store-toggle', 'showPrices', c.showPrices)}</div>
         <div class="rw2" data-kw="items left quedan"><div class="t"><b>${t('store.left')}</b><small>${t('hub.leftSub')}</small></div>${swt('store-toggle', 'showLeft', c.showLeft)}</div>
         <div class="rw2" data-kw="transit tránsito"><div class="t"><b>${t('store.transit')}</b><small>${t('hub.transitSub')}</small></div>${swt('store-toggle', 'inTransit', c.inTransit)}</div>
         <div class="rw2" data-kw="batches automatically lotes"><div class="t"><b>${t('store.autoNew')}</b><small>${t('hub.autoSub')}</small></div>${swt('store-toggle', 'autoNew', c.autoNew)}</div>
-        <button class="rw2 tap" data-act="store-open" data-kw="all store settings link name logo todos ajustes"><div class="t"><b>${t('hub.all')}</b></div><span class="chev">›</span></button>`) : grp(t('sset.page'), setRow('store-open', t('hub.all'), '', 'all store settings link name logo'))}`;
+        <button class="rw2 tap" data-act="store-open" data-kw="publish share link create store publicar compartir"><div class="t"><b>${t('hub.all')}</b></div><span class="chev">›</span></button>`) : grp(t('sset.page'), setRow('store-open', t('hub.all'), t('hub.allSub'), 'publish share link create store publicar compartir') + `<p class="muted small" style="margin:8px 14px">${t('sset.switchesNote')}</p>`)}`;
   };
   // Typing in the settings search keeps only the rows that match every word (in English or Spanish).
   const fold2 = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -2590,14 +2587,31 @@
   // One short line for the Store page: how many places, how many are switched off, how many zones.
   const pdSummary = (c) => { if (!c.locations.length && !c.zones.length) return t('hub.deliveryNone'); const off = c.locations.filter((l) => { const b = SCore.bandOf(c, l); return l.off || (b && b.on === false); }).length; return t('pd.summary', { n: c.locations.length, off, z: SCore.areaZones(c.zones).length }); };
   const hotOf = (placeId) => storeCfg().zones.find((z) => z.risk && z.place === placeId) || null;   // the high-risk spot drawn for this place, if any
-  const placeRowH = (c, l) => { const b = SCore.bandOf(c, l), live = !l.off && !(b && b.on === false); return `<div class="pkr ${live ? '' : 'dim'}" data-n="${esc(l.name.toLowerCase())}"><button type="button" class="pkn" data-act="store-loc" data-id="${l.id}"><b>${esc(l.name)}</b><small>${l.pickup ? t('store.pickup') + ' · ' : ''}${l.delivery ? t('store.delivery') + ' ' + money(SCore.priceOf(c, l)) : ''}${SCore.needsPrice(c, l) ? ` <span class="rtag np">${t('pk.needsPrice')}</span>` : ''}${hotOf(l.id) || l.risk ? ` <span class="rtag">${t('pk.riskTag')}</span>` : ''}</small></button>${swt('place-on', l.id, !l.off)}</div>`; };
+  const placeRowH = (c, l) => { const b = SCore.bandOf(c, l), live = !l.off && !(b && b.on === false); return `<div class="pkr ${live ? '' : 'dim'}" data-n="${esc(l.name.toLowerCase())}"><button type="button" class="pkn" data-act="store-loc" data-id="${l.id}"><b>${esc(l.name)}</b><small>${l.pickup ? t('store.pickup') + ' · ' : ''}${l.delivery ? t('store.delivery') + ' ' + money(placeFee(c, l)) + (SCore.usesDistance(l, distRateOwner()) ? ' 📏' : '') : ''}${needsP(c, l) ? ` <span class="rtag np">${t('pk.needsPrice')}</span>` : ''}${hotOf(l.id) || l.risk ? ` <span class="rtag">${t('pk.riskTag')}</span>` : ''}</small></button>${swt('place-on', l.id, !l.off)}</div>`; };
   // Re-draw whichever of the three delivery pages is on top.
-  const refreshPick = () => { const k = pageStack.length ? pageStack[pageStack.length - 1].key : ''; return k.startsWith('places|') ? sheetPlaces(plF) : k.startsWith('risk|') ? sheetRisk() : k.startsWith('spots|') ? sheetSpots() : sheetPickup(); };
+  const refreshPick = () => sheetPlacesZones();
+  /* ---------- Places and zones: places, zones, high-risk areas and pickup spots are tabs of one page ---------- */
+  let pzTab = 'places';
+  function sheetPlacesZones(tab) {
+    if (tab) pzTab = tab; enterPage('pz', '', () => sheetPlacesZones());
+    const c = storeCfg(), tabs = [['places', t('pz.places')], ['zones', t('pz.zones')], ['risk', t('pz.risk')], ['spots', t('pz.spots')]];
+    const raw = pzTab === 'zones' ? zonesRaw : pzTab === 'risk' ? riskRaw : pzTab === 'spots' ? spotsRaw : placesRaw, body = bodyOf(capture(raw)), old = c.locations.filter((l) => l.band);
+    const search = pzTab === 'places' ? `<button type="button" class="fb-s" data-act="pl-search-open" aria-label="${esc(t('tool.search'))}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.search}</svg>${plQ ? '<i class="dot"></i>' : ''}</button><label class="fbs"><span aria-hidden="true">🔍</span><input id="pl-q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('pl.search'))}" value="${esc(plQ)}"><button type="button" class="fbx" data-act="pl-search-close" aria-label="${t('tool.closeSearch')}">✕</button></label>` : '';
+    openSheet(`<div class="fullbar${plQ && pzTab === 'places' ? ' searching' : ''}"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div class="fbt"><b>${t('pz.title')}</b><small>${pdSummary(c)}</small></div>${search}</div>
+      <div class="tabrow">${tabs.map((x) => `<button type="button" class="chip ${pzTab === x[0] ? 'on' : ''}" data-act="pz-tab" data-id="${x[0]}">${x[1]}</button>`).join('')}</div>${old.length ? bandsBanner(old.length) : ''}${body}`, null, true);
+    if (pzTab === 'places') plSearch();
+  }
+  const bandsBanner = (n) => `<div class="pd" style="padding-bottom:0"><div class="card bandban"><div class="t"><b>${tn('rb.n', n)}</b><small>${t('rb.sub')}</small></div><button type="button" class="btn alt" data-act="bands-migrate">${t('rb.btn')}</button></div></div>`;
+  function sheetPlaces(f) { if (f) plF = f; return sheetPlacesZones('places'); }
+  function sheetZones() { return sheetPlacesZones('zones'); }
+  function sheetRisk() { return sheetPlacesZones('risk'); }
+  function sheetSpots() { return sheetPlacesZones('spots'); }
+  function sheetPickup() { return sheetPlacesZones('places'); }
   let plF = 'all', plQ = '';
-  function sheetPlaces(f) {
+  function placesRaw(f) {
     if (f) plF = f; ensureZonePlaces(); enterPage('places', '', () => sheetPlaces());
     const c = storeCfg(), liveOf = (l) => { const b = SCore.bandOf(c, l); return !l.off && !(b && b.on === false); }, hotOfP = (l) => !!hotOf(l.id) || l.risk;
-    const test = { all: () => true, needs: (l) => SCore.needsPrice(c, l), risk: hotOfP, off: (l) => !liveOf(l) }, list = c.locations.filter(test[plF] || test.all).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const test = { all: () => true, needs: (l) => needsP(c, l), risk: hotOfP, off: (l) => !liveOf(l) }, list = c.locations.filter(test[plF] || test.all).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     const chip = (k, label, n) => `<button type="button" class="chip ${plF === k ? 'on' : ''}" data-act="pl-filter" data-id="${k}">${label} <b>${n}</b></button>`;
     openSheet(`<div class="fullbar${plQ ? ' searching' : ''}"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div class="fbt"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><button type="button" class="fb-s" data-act="pl-search-open" aria-label="${esc(t('tool.search'))}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.search}</svg>${plQ ? '<i class="dot"></i>' : ''}</button>
         <label class="fbs"><span aria-hidden="true">🔍</span><input id="pl-q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('pl.search'))}" value="${esc(plQ)}"><button type="button" class="fbx" data-act="pl-search-close" aria-label="${t('tool.closeSearch')}">✕</button></label></div>
@@ -2607,7 +2621,7 @@
     plSearch();
   }
   const plSearch = () => { const q = plQ.trim().toLowerCase(); document.querySelectorAll('#pl-list .pkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); };
-  function sheetRisk() {
+  function riskRaw() {
     seedHot(); enterPage('risk', '', () => sheetRisk());
     const c = storeCfg(), byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }), spots = c.zones.filter((z) => z.risk).sort(byName), legacy = c.locations.filter((l) => l.risk && !hotOf(l.id)).sort(byName);
     const pName = (z) => { const l = c.locations.find((x) => x.id === z.place); return l ? t('hot.fromPlace', { p: esc(l.name) }) : ''; };
@@ -2629,16 +2643,15 @@
   const reachName = (c) => { const g = SCore.reachCentre(c, dset().home); return g ? g.name || '' : ''; };
   // one switch for the sticker and the floating line on the store page; they only show when free delivery rules or coupons are on
   const offerSwitchCard = (c) => `<div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('off.title')}</b><small>${t((c.freeRule.tiers.length || c.freeRule.spend.on || c.couponRule.on) ? 'off.sub' : 'off.subNone')}</small></div>${swt('offer-toggle', 'showOffer', c.showOffer)}</div></div>`;
-  function sheetFreeRule() {
+  function freeRuleRaw() {
     enterPage('freerule', '', () => sheetFreeRule());
     const c = storeCfg(), r = c.freeRule, centre = reachName(c);
     const tier = (x, i) => `<div class="tierr"><span class="pkp">${t('fr.tierN')}</span><input class="pkin tn" inputmode="numeric" data-tier="n" data-i="${i}" value="${x.n}" aria-label="${t('fr.itemsU')}"><span class="pkp">${t('fr.itemsU')}</span><span class="arr">→</span><input class="pkin tk2" inputmode="decimal" data-tier="km" data-i="${i}" value="${x.km || ''}" placeholder="∞" aria-label="km"><span class="pkp">km</span><button type="button" class="tx" data-act="fr-tier-del" data-id="${i}" aria-label="${t('btn.delete')}">×</button></div><div class="tsub">${x.n} ${t('fr.itemsU')} · ${kmLabel(x.km)} <button type="button" class="lnk" data-act="fr-places" data-id="${x.km || 0}">${t('fr.seePlaces', { n: SCore.placesInReach(c, x.km, dset().home).length })} ›</button></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fr.title')}</b><small>${t('fr.sub')}</small></div></div>
-      <div class="ap">${offerSwitchCard(c)}<p class="lead" style="margin:0 2px 10px">${t('fr.how')}</p>
+      <div class="ap"><p class="lead" style="margin:0 2px 10px">${t('fr.how')}</p>
       <div class="card" style="margin-bottom:12px"><div class="t" style="padding:14px 16px 4px"><b>${t('fr.items')}</b><small>${t('fr.itemsSub')}</small></div><div class="tiers">${r.tiers.map(tier).join('') || `<p class="muted small" style="margin:6px 16px">${t('fr.noTiers')}</p>`}</div>
         <div class="btns" style="padding:0 16px 14px"><button type="button" class="btn alt" data-act="fr-tier-add">＋ ${t('fr.addLevel')}</button>${r.tiers.length ? '' : `<button type="button" class="btn alt" data-act="fr-suggest">✨ ${t('fr.suggest')}</button>`}</div></div>
       <div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('fr.spend')}</b><small>${t('fr.spendSub')}</small></div>${swt('fr-on', 'spend', r.spend.on)}</div><div class="pkb ${r.spend.on ? '' : 'dim'}"><span class="pkp">TT$</span><input class="pkin" inputmode="decimal" data-rule="amt" value="${r.spend.amt}" aria-label="${t('fr.spend')}"><span class="arr">→</span><input class="pkin tk2" inputmode="decimal" data-rule="km" value="${r.spend.km || ''}" placeholder="∞" aria-label="km"><span class="pkp">km</span></div>${r.spend.on ? `<div class="tsub"><button type="button" class="lnk" data-act="fr-places" data-id="${r.spend.km || 0}">${t('fr.seePlaces', { n: SCore.placesInReach(c, r.spend.km, dset().home).length })} ›</button></div>` : ''}</div>
-      <div class="card" style="margin-bottom:12px"><button type="button" class="rw2 tap" data-act="fr-centre"><div class="t"><b>${t('fr.from')}</b><small>${centre ? esc(centre) : t('fr.fromNone')}</small></div><span class="chev">›</span></button></div>
       <p class="muted small" style="margin:6px 2px">${t('fr.kmNote')}</p></div>`, null, true);
   }
   function sheetReachCentre() {
@@ -2656,16 +2669,16 @@
   const roadCache = () => { const rc = dset().roadCache; return rc && rc.from === homeKey() && rc.km ? rc.km : {}; };
   // the road distance if the routing service answers, else an estimate (straight line x 1.3), marked as such
   const roadOrEst = async (a, b) => { const r = await Store.road(a, b), line = SCore.lineKm(a, b); return r != null ? { km: r, src: 'road', line } : { km: Math.round(line * 1.3 * 10) / 10, src: 'est', line }; };
-  const placeRows = () => { const c = storeCfg(), h = dset().home, cache = roadCache(); if (!h) return []; return c.locations.filter((l) => l.delivery && !l.risk && l.zone && SCore.priceOf(c, l) > 0).map((l) => { const z = c.zones.find((q) => q.id === l.zone); if (!z) return null; const line = SCore.lineKm(h, { lat: z.lat, lng: z.lng }), road = cache[l.id]; return { id: l.id, name: l.name, price: SCore.priceOf(c, l), line, km: road != null ? road : Math.round(line * 1.3 * 10) / 10, road: road != null, lat: z.lat, lng: z.lng, off: !!l.off }; }).filter(Boolean).sort((a, b) => a.km - b.km); };
+  const placeRows = () => { const c = storeCfg(), h = dset().home, cache = roadCache(); if (!h) return []; return c.locations.filter((l) => l.delivery && !l.risk && l.zone && placeFee(c, l) > 0).map((l) => { const z = c.zones.find((q) => q.id === l.zone); if (!z) return null; const line = SCore.lineKm(h, { lat: z.lat, lng: z.lng }), road = cache[l.id]; return { id: l.id, name: l.name, price: placeFee(c, l), line, km: road != null ? road : Math.round(line * 1.3 * 10) / 10, road: road != null, lat: z.lat, lng: z.lng, off: !!l.off }; }).filter(Boolean).sort((a, b) => a.km - b.km); };
   const noHomeCard = () => `<div class="card" style="padding:16px"><p style="margin:0 0 10px">${t('prh.noHome')}</p><button class="btn primary" data-act="dlv-home">📍 ${t('prh.setHome')}</button></div>`;
   let ph = null, pcRun = false;
   const topKey = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
   function phCompute(g) {
     const h = dset().home; if (!h) return; ph = { g, busy: true }; sheetPriceHelper();
-    roadOrEst(h, g).then((r) => { ph = { g, busy: false, km: r.km, src: r.src, line: r.line }; if (topKey().startsWith('pricehelper|')) { const y = window.scrollY; sheetPriceHelper(); window.scrollTo(0, y); } });
-    if (!g.name) MapPick.nameOf(g.lat, g.lng, I.getLang()).then((n) => { if (n && ph && ph.g === g) { g.name = n; if (topKey().startsWith('pricehelper|')) { const y = window.scrollY; sheetPriceHelper(); window.scrollTo(0, y); } } });
+    roadOrEst(h, g).then((r) => { ph = { g, busy: false, km: r.km, src: r.src, line: r.line }; if (topKey().startsWith('pricing|')) { const y = window.scrollY; sheetPriceHelper(); window.scrollTo(0, y); } });
+    if (!g.name) MapPick.nameOf(g.lat, g.lng, I.getLang()).then((n) => { if (n && ph && ph.g === g) { g.name = n; if (topKey().startsWith('pricing|')) { const y = window.scrollY; sheetPriceHelper(); window.scrollTo(0, y); } } });
   }
-  function sheetPriceHelper() {
+  function priceHelperRaw() {
     enterPage('pricehelper', '', () => sheetPriceHelper());
     const c = storeCfg(), h = dset().home;
     let body = '';
@@ -2681,7 +2694,7 @@
         if (rf) addS(t('prh.suggRegion'), rf.fee);
         body += `<div class="card phres"><div class="phbig">${ph.src === 'road' ? '' : '≈ '}${ph.km} km <small>${t(ph.src === 'road' ? 'prh.byRoad' : 'prh.est')}</small></div><div class="mut">${t('prh.line', { km: ph.line })}${g.name ? ' · ' + esc(g.name) : ''}</div>
           <div class="phln"><span>${t('prh.region')}</span><b>${t('rg.' + rid)}${rf ? ' · ' + moneyText(rf.fee) : ''}</b></div>
-          <div class="phln"><span>${t('prh.nearest')}</span><b>${nz ? esc(nz.name) + (inz ? '' : ' (' + t('prh.outside') + ')') : '–'}${place ? ' · ' + t('prh.priceNow', { p: moneyText(SCore.priceOf(c, place)) }) : ''}</b></div></div>
+          <div class="phln"><span>${t('prh.nearest')}</span><b>${nz ? esc(nz.name) + (inz ? '' : ' (' + t('prh.outside') + ')') : '–'}${place ? ' · ' + t('prh.priceNow', { p: moneyText(placeFee(c, place)) }) : ''}</b></div></div>
           <h4 class="pkh">${t('prh.near')}</h4><div class="card pkc">${near.map((r) => `<div class="pkr"><span class="pkn"><b>${esc(r.name)}</b><small>${r.road ? '' : '≈ '}${r.km} km</small></span><span class="pkp">${moneyText(r.price)}</span></div>`).join('') || `<p class="muted small" style="margin:8px 14px">${t('prh.nearNone')}</p>`}<button type="button" class="pkadd" data-act="pricecheck">📊 ${t('prh.open')}</button></div>
           ${sug.length ? `<h4 class="pkh">${t('prh.sugg')}</h4><div class="card" style="padding:12px 14px">${sug.map((x) => `<div class="phsg"><span><b>${moneyText(x.price)}</b><small>${x.label}</small></span>${place ? `<button type="button" class="btn alt" data-act="ph-set" data-id="${x.price}" data-ord="${place.id}">${t('prh.use', { z: esc(place.name) })}</button>` : ''}</div>`).join('')}</div>` : ''}
           <button type="button" class="btn" style="width:100%;margin-top:10px" data-act="ph-add">＋ ${t('prh.add')}</button>`;
@@ -2690,7 +2703,27 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('prh.title')}</b><small>${t('prh.sub')}</small></div></div><div class="pd">${body}</div>`, null, true);
   }
   const pcChart = (rows, flags) => { if (!rows.length) return ''; const W = 330, H = 150, mk = Math.max(10, ...rows.map((r) => r.km)), mp = Math.max(20, ...rows.map((r) => r.price)), X = (k) => 20 + k / mk * (W - 30), Y = (p) => H - 18 - p / mp * (H - 30); return `<svg viewBox="0 0 ${W} ${H}" class="pcchart"><polyline points="${rows.map((r) => X(r.km) + ',' + Y(r.price)).join(' ')}" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="2"/>${rows.map((r) => `<circle cx="${X(r.km)}" cy="${Y(r.price)}" r="5" fill="${flags[r.id] ? '#d6336c' : 'var(--brand)'}"/>`).join('')}<text x="20" y="${H - 3}" font-size="10" fill="currentColor" fill-opacity=".6">0 km</text><text x="${W - 46}" y="${H - 3}" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(mk)} km</text><text x="2" y="12" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(mp)}</text></svg>`; };
-  function sheetPriceCheck() {
+  /* ---------- Pricing: distance rate, region fees, price check and "try a spot" are tabs of one page ---------- */
+  let prTab = 'distance';
+  const distBody = () => { const d = dset(), inp = (k, v, label) => `<div class="ln"><span>${label}</span><input class="dinp" data-dset="${k}" type="text" inputmode="decimal" autocomplete="off" value="${v ? v : ''}" placeholder="0"></div>`;
+    return `<div class="ap dsp"><div class="dcard"><h5>${t('dc.title')}</h5><div class="rw"><div class="t"><b>${t('dc.on')}</b><small>${t('dc.onSub')}</small></div>${swt('ds-charge', 'charge', d.charge)}</div>
+        <label style="margin-top:8px">${t('dc.count')}</label><div class="chips" style="margin:0"><button type="button" class="chip ${d.count === 'both' ? 'on' : ''}" data-act="ds-count" data-id="both">${t('dc.both')}</button><button type="button" class="chip ${d.count === 'both' ? '' : 'on'}" data-act="ds-count" data-id="one">${t('dc.oneWay')}</button></div>
+        <label>${t('dc.mode')}</label><div class="chips" style="margin:0"><button type="button" class="chip ${d.mode === 'up' ? 'on' : ''}" data-act="ds-mode" data-id="up">${t('dc.up', { s: d.round || 5 })}</button><button type="button" class="chip ${d.mode === 'near' ? 'on' : ''}" data-act="ds-mode" data-id="near">${t('dc.near', { s: d.round || 5 })}</button><button type="button" class="chip ${d.mode === 'none' ? 'on' : ''}" data-act="ds-mode" data-id="none">${t('dc.none')}</button></div>
+        <p class="muted small" style="margin:8px 0 0">${t('dc.how')}</p></div>
+      <div class="dcard"><h5>${t('ds.rates')}</h5>${inp('base', d.base, t('ds.base'))}${inp('perKm', d.perKm, t('ds.perKm'))}${inp('freeKm', d.freeKm, t('ds.free'))}${inp('round', d.round, t('ds.round'))}</div>
+      <div class="dcard"><h5>${t('dc.try')}</h5><div class="ln"><span>${t('dc.tryOne')}</span><input class="dinp" id="ds-try" type="text" inputmode="decimal" autocomplete="off" value="19" aria-label="${t('dc.tryOne')}"></div><div id="ds-trybox">${dcTry(d, 19)}</div></div></div>`; };
+  function sheetPricing(tab) {
+    if (tab) prTab = tab; enterPage('pricing', '', () => sheetPricing());
+    const c = storeCfg(), tabs = [['distance', t('pr.distance')], ['regions', t('pr.regions')], ['check', t('pr.check')], ['spot', t('pr.spot')]], old = c.locations.filter((l) => l.band);
+    const body = prTab === 'regions' ? bodyOf(capture(regionsRaw)) : prTab === 'check' ? bodyOf(capture(priceCheckRaw)) : prTab === 'spot' ? bodyOf(capture(priceHelperRaw)) : distBody();
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div class="fbt"><b>${t('pr.title')}</b><small>${t('pr.sub')}</small></div></div><div class="tabrow">${tabs.map((x) => `<button type="button" class="chip ${prTab === x[0] ? 'on' : ''}" data-act="pr-tab" data-id="${x[0]}">${x[1]}</button>`).join('')}</div>${old.length ? bandsBanner(old.length) : ''}${body}`, null, true);
+  }
+  function sheetRegions() { return sheetPricing('regions'); }
+  function sheetPriceCheck() { return sheetPricing('check'); }
+  function sheetPriceHelper() { return sheetPricing('spot'); }
+  // under each place: what the distance rule would charge (red = more than now, green = less)
+  const byDist = (r) => { const rate = distRateOwner(); if (!(rate.perKm > 0 || rate.base > 0)) return ''; const x = SCore.distanceFee(rate, r.km); if (x.fee == null) return ''; return `<small class="${x.fee > r.price ? 'pcup' : x.fee < r.price ? 'pcdn' : ''}">📏 ${t('dc.byDist')}: ${moneyText(x.fee)} · ${x.both} km ${t('dc.bothShort')}</small>`; };
+  function priceCheckRaw() {
     enterPage('pricecheck', '', () => sheetPriceCheck());
     const h = dset().home; let body = '';
     if (!h) body = noHomeCard();
@@ -2698,20 +2731,20 @@
       const rows = placeRows(), fl = Object.fromEntries(SCore.priceFlags(rows).map((x) => [x.id, x.flag])), done = rows.filter((r) => r.road).length, sm = SCore.smoothPrices(rows, 5), changes = sm.filter((x) => x.price !== (rows.find((r) => r.id === x.id) || {}).price);
       body = `<div class="card pccard"><div class="pct">${t('prc.chart')}</div>${pcChart(rows, fl)}<div class="mut" style="padding:0 4px 4px">${t('prc.chartSub')}</div></div>
         <div class="card pkc" style="margin-top:10px"><div class="pkr"><span class="pkn"><b id="pc-prog">${pcRun ? t('prc.measuring', { done, total: rows.length }) : t('prc.measured', { n: done, t: rows.length })}</b><small>${t('prc.est')}</small></span><button type="button" class="chip" data-act="pc-measure" ${pcRun ? 'disabled' : ''}>${t('prc.measure')}</button></div></div>
-        <div class="card pkc" style="margin-top:10px">${rows.map((r) => `<div class="pkr"><span class="pkn"><b>${esc(r.name)}</b>${fl[r.id] ? `<small class="pcfl">⚠ ${t(fl[r.id] === 'dear' ? 'prc.dear' : 'prc.cheap')}</small>` : ''}</span><span class="pck">${r.road ? '' : '≈ '}${r.km} km</span><span class="pkp">${moneyText(r.price)}</span></div>`).join('') || `<p class="muted small" style="margin:8px 14px">${t('prc.none')}</p>`}</div>
-        ${rows.length ? `<button type="button" class="btn" style="width:100%;margin-top:10px" data-act="pc-smooth">${t('prc.smooth')}${changes.length ? ' (' + changes.length + ')' : ''}</button>` : ''}`;
+        <div class="card pkc" style="margin-top:10px">${rows.map((r) => `<div class="pkr"><span class="pkn"><b>${esc(r.name)}</b>${fl[r.id] ? `<small class="pcfl">⚠ ${t(fl[r.id] === 'dear' ? 'prc.dear' : 'prc.cheap')}</small>` : ''}${byDist(r)}</span><span class="pck">${r.road ? '' : '≈ '}${r.km} km</span><span class="pkp">${moneyText(r.price)}</span></div>`).join('') || `<p class="muted small" style="margin:8px 14px">${t('prc.none')}</p>`}</div>
+        ${rows.length && !dset().charge && (dset().perKm > 0 || dset().base > 0) ? `<button type="button" class="btn" style="width:100%;margin-top:10px" data-act="ds-charge-pc">📏 ${t('dc.pcBtn')}</button>` : ''}${rows.length ? `<button type="button" class="btn" style="width:100%;margin-top:10px" data-act="pc-smooth">${t('prc.smooth')}${changes.length ? ' (' + changes.length + ')' : ''}</button>` : ''}`;
     }
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('prc.title')}</b><small>${t('prc.sub')}</small></div></div><div class="pd">${body}</div>`, null, true);
   }
   async function pcMeasure() {
     const h = dset().home; if (!h || pcRun) return; pcRun = true; const rows = placeRows(); let done = rows.filter((r) => r.road).length, fails = 0; const prog = () => { const el = document.getElementById('pc-prog'); if (el) el.textContent = t('prc.measuring', { done, total: rows.length }); }; prog();
     for (const r of rows) {
-      if (r.road) continue; if (!topKey().startsWith('pricecheck|')) break;
+      if (r.road) continue; if (!topKey().startsWith('pricing|')) break;
       const km = await Store.road(h, { lat: r.lat, lng: r.lng });
       if (km != null) { const rc = dset().roadCache, cur = rc && rc.from === homeKey() && rc.km ? Object.assign({}, rc.km) : {}; cur[r.id] = km; saveDset({ roadCache: { from: homeKey(), km: cur } }); done++; prog(); } else if (++fails >= 3) break;
       await new Promise((ok) => setTimeout(ok, 1100));
     }
-    pcRun = false; if (fails) toast(t('prc.partial')); if (topKey().startsWith('pricecheck|')) { const y = window.scrollY; sheetPriceCheck(); window.scrollTo(0, y); }
+    pcRun = false; if (fails) toast(t('prc.partial')); if (topKey().startsWith('pricing|')) { const y = window.scrollY; sheetPriceCheck(); window.scrollTo(0, y); }
   }
   function sheetReach(km) {
     enterPage('reachlist', String(km), () => sheetReach(km));
@@ -2720,12 +2753,12 @@
       <div class="pd"><div class="card pkc">${list.map((x) => `<div class="pkr ${x.off ? 'dim' : ''}"><span class="pkn"><b>${esc(x.name)}</b>${x.off ? `<small>${t('fr.placeOff')}</small>` : ''}</span><span class="pkp">${x.km == null ? '' : x.km + ' km'}</span></div>`).join('') || `<p class="muted small" style="margin:8px 14px">${t('fr.placesNone')}</p>`}</div>
       ${km > 0 ? `<p class="muted small" style="margin:8px 2px">${t('fr.placesNote')}</p>` : ''}</div>`, null, true);
   }
-  function sheetCoupons() {
+  function couponsRaw() {
     enterPage('coupons', '', () => sheetCoupons());
     const c = storeCfg(), r = c.couponRule, use = SCore.couponUse(ordersAt()), now = Date.now(), list = c.coupons.slice().sort((x, y) => y.made - x.made);
     const chip = (k) => `<button type="button" class="chip ${r.kind === k ? 'on' : ''}" data-act="cp-kind" data-id="${k}">${t(k === 'delivery' ? 'cp.kDel' : k === 'pct' ? 'cp.kPct' : 'cp.kOff')}</button>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('cp.title')}</b><small>${t('cp.sub')}</small></div></div>
-      <div class="ap">${offerSwitchCard(c)}<div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('cp.on')}</b><small>${t('cp.onSub')}</small></div>${swt('cp-on', 'on', r.on)}</div></div>
+      <div class="ap"><div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('cp.on')}</b><small>${t('cp.onSub')}</small></div>${swt('cp-on', 'on', r.on)}</div></div>
       <div class="card ${r.on ? '' : 'dimcard'}" style="margin-bottom:12px"><div class="fld" style="padding:14px 16px 0"><label>${t('cp.min')}</label><input class="pkin wide" inputmode="decimal" data-cpr="min" value="${r.min}"><small>${t('cp.minSub')}</small></div>
         <div style="padding:6px 16px 0"><label>${t('cp.kind')}</label><div class="chips">${chip('pct')}${chip('off')}${chip('delivery')}</div></div>
         ${r.kind === 'pct' ? `<div class="fld" style="padding:12px 16px 0"><label>${t('cp.valPct')}</label><input class="pkin wide" inputmode="decimal" data-cpr="value" value="${r.value}"></div><div class="fld" style="padding:12px 16px 0"><label>${t('cp.cap')}</label><input class="pkin wide" inputmode="decimal" data-cpr="cap" value="${r.cap || ''}" placeholder="${t('cp.noCap')}"><small>${t('cp.capSub')}</small></div>` : r.kind === 'off' ? `<div class="fld" style="padding:12px 16px 0"><label>${t('cp.valOff')}</label><input class="pkin wide" inputmode="decimal" data-cpr="value" value="${r.value}"></div>` : `<div class="fld" style="padding:12px 16px 0"><label>${t('cp.km')}</label><input class="pkin wide" inputmode="decimal" data-cpr="km" value="${r.km || ''}" placeholder="${t('fr.anywhere')}"><small>${t('cp.kmSub')}</small><button type="button" class="lnk" data-act="fr-places" data-id="${r.km || 0}">${t('fr.seePlaces', { n: SCore.placesInReach(c, r.km, dset().home).length })} ›</button></div>`}
@@ -2742,34 +2775,27 @@
     const st = SCore.couponState(mine, SCore.couponUse(ordersAt()), Date.now());
     return `<div class="card cpcard"><div class="t"><b>🎟 ${esc(mine.code)}</b><small>${esc(cpOffer(mine))} · ${t('cp.st.' + st)}${st === 'live' ? ' · ' + t('cp.until', { d: cpDate(mine.exp) }) : ''}</small></div><button type="button" class="btn wa" data-act="cpn-send" data-id="${o.id}">${t('cp.send')}</button></div>`;
   };
-  function sheetPickup() {
-    ensureZonePlaces(); seedHot();
-    enterPage('pickup', '', () => sheetPickup());
-    const c = storeCfg(), on = (l) => { const b = SCore.bandOf(c, l); return !l.off && !(b && b.on === false); }, nOn = c.locations.filter(on).length, nOff = c.locations.length - nOn;
-    const mode = (k) => `<button type="button" class="chip ${c.areaMode === k ? 'on' : ''}" data-act="area-mode" data-id="${k}">${t('pk.' + k)}</button>`;
-    const price = (l) => money(SCore.priceOf(c, l)), risks = c.locations.filter((l) => l.risk);
-    const bandRow = (b) => { const n = c.locations.filter((l) => l.band === b.id).length; return `<div class="pkb ${b.on ? '' : 'dim'}"><span class="pkp">TT$</span><input class="pkin" inputmode="decimal" data-bandprice="${b.id}" value="${b.price}" aria-label="${t('pk.bandPrice')}"><div class="pkt"><b>${esc(b.name || t('pk.range'))}</b><small>${tn('pk.nPlaces', n)}</small></div>${swt('band-on', b.id, b.on)}${n ? '' : `<button type="button" class="pkx" data-act="band-del" data-id="${b.id}" aria-label="${t('btn.delete')}">✕</button>`}</div>`; };
-    const placeRow = (l) => `<div class="pkr ${on(l) ? '' : 'dim'}"><button type="button" class="pkn" data-act="store-loc" data-id="${l.id}"><b>${esc(l.name)}</b><small>${l.pickup ? t('store.pickup') + ' · ' : ''}${l.delivery ? t('store.delivery') + ' ' + price(l) : ''}${SCore.needsPrice(c, l) ? ` <span class="rtag np">${t('pk.needsPrice')}</span>` : ''}${l.risk ? ` <span class="rtag">${t('pk.riskTag')}</span>` : ''}</small></button>${swt('place-on', l.id, !l.off)}</div>`;
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('sset.more')}</b><small>${t('sset.moreSub')}</small></div></div>
-      <div class="pd">
-      ${c.locations.some((l) => l.risk) ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
-      ${c.bands.length ? '' : `<button type="button" class="addp towns" data-act="store-towns">🇹🇹 ${t('pk.towns')}</button><p class="lead" style="margin-top:8px">${t('pk.townsSub')}</p>`}
-      ${c.bands.length || c.locations.some((l) => l.band) ? `<details class="oldr" open><summary>${t('pd.oldRanges')}</summary><p class="muted small" style="margin:8px 2px">${t('pd.oldRangesSub')}</p>
-      ${c.bands.length ? `<h4 class="pkh">${t('pk.bands')}</h4><div class="card pkc">${c.bands.map(bandRow).join('')}<button type="button" class="pkadd" data-act="band-add">＋ ${t('pk.bandAdd')}</button><p class="muted small">${t('pk.bandsSub')}</p></div>` : ''}
-      </details>` : ''}
-      ${!c.locations.some((l) => l.risk) && c.bands.length && !c.locations.some((l) => l.band) ? `<p class="muted small" style="margin:8px 2px">${t('sset.moreNone')}</p>` : ''}
-      </div>`, null, true);
-  }
   // Pickup spots: the meeting points for pickup orders, as their own page.
   const spotRowH = (x) => `<div class="pkr ${x.on ? '' : 'dim'}"><button type="button" class="pkn" data-act="spot-edit" data-id="${x.id}"><b>${esc(x.name)}</b>${x.note ? `<small>${esc(x.note)}</small>` : ''}</button>${swt('spot-on', x.id, x.on)}<button type="button" class="pkx" data-act="spot-del" data-id="${x.id}" aria-label="${t('pk.spotDel')}">✕</button></div>`;
-  function sheetSpots() {
+  function spotsRaw() {
     enterPage('spots', '', () => sheetSpots());
     const c = storeCfg();
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pk.spots')}</b><small>${t('sset.spotsSub')}</small></div></div>
       <div class="pd"><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.spotsSub')}</p><div class="pkb"><span class="pkp">TT$</span><input class="pkin" id="pk-spotprice" inputmode="decimal" data-spotprice="1" value="${c.spotPrice || ''}" placeholder="0.00" aria-label="${t('pk.spotPrice')}"><div class="pkt"><b>${t('pk.spotPrice')}</b></div></div>${c.spots.map(spotRowH).join('')}<button type="button" class="pkadd" data-act="spot-add">＋ ${t('pk.spotAdd')}</button></div></div>`, null, true);
   }
+  /* ---------- Offers: the free-delivery ladder, the spend rule, coupons and the one banner switch ---------- */
+  function sheetOffers() {
+    enterPage('offers', '', () => sheetOffers());
+    const c = storeCfg();
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div class="fbt"><b>${t('off.page')}</b><small>${t('off.pageSub')}</small></div></div>
+      <div class="ap" style="padding-bottom:0">${offerSwitchCard(c)}</div>
+      <div class="ap" style="padding-bottom:0"><h4 class="pkh" style="margin:6px 2px 0">${t('fr.title')}</h4></div>${bodyOf(capture(freeRuleRaw))}
+      <div class="ap" style="padding-bottom:0"><h4 class="pkh" style="margin:6px 2px 0">${t('cp.title')}</h4></div>${bodyOf(capture(couponsRaw))}`, null, true);
+  }
+  function sheetFreeRule() { return sheetOffers(); }
+  function sheetCoupons() { return sheetOffers(); }
   // The delivery setup guide: each step ticked when done; tap any step, or the Next button.
-  const guideSteps = (c) => { const needs = c.locations.some((l) => SCore.needsPrice(c, l)), hasP = c.locations.some((l) => l.delivery); return [
+  const guideSteps = (c) => { const needs = c.locations.some((l) => needsP(c, l)), hasP = c.locations.some((l) => l.delivery); return [
     { act: 'dlv-home', title: t('guide.s.loc'), done: !!dset().home }, { act: 'regions-page', title: t('guide.s.regions'), done: c.regions.some((r) => r.base > 0) },
     { act: needs ? 'places-needs' : 'places-page', title: t('guide.s.places'), done: hasP && !needs }, { act: 'spots-page', title: t('guide.s.spots'), done: c.spots.length > 0, opt: true },
     { act: 'free-rule', title: t('guide.s.free'), done: c.freeRule.tiers.length > 0 || c.freeRule.spend.on, opt: true }, { act: 'coupons-page', title: t('guide.s.coupons'), done: c.couponRule.on, opt: true }]; };
@@ -2797,9 +2823,9 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t(id === 'new' ? 'store.addLoc' : 'store.editLoc')}</b><small>${esc(l.name)}</small></div></div>
       <div class="ap"><label for="sl-name">${t('store.locName')}</label><input id="sl-name" value="${esc(l.name)}" placeholder="${t('store.locPh')}" autocomplete="off" enterkeyhint="done">
       <div class="card" style="margin-top:12px"><div class="rw"><div class="t"><b>${t('store.pickup')}</b><small>${t('store.pickupSub')}</small></div>${swt('sl-flag', 'pickup', l.pickup)}</div><div class="rw"><div class="t"><b>${t('store.delivery')}</b><small>${t('store.deliverySub')}</small></div>${swt('sl-flag', 'delivery', l.delivery)}</div></div>
-      ${(() => { const rgId = SCore.regionOfPlace(c, l), rgr = c.regions.find((r) => r.id === rgId), hasBase = !!(rgr && rgr.base > 0), mode = l.band ? 'b:' + l.band : (l.rm || (!(l.price > 0) && hasBase) ? 'region' : 'own'), o = (v, txt) => `<option value="${v}" ${mode === v ? 'selected' : ''}>${txt}</option>`;
-        return `<label for="sl-mode">${t('sl.price')}</label><select id="sl-mode">${o('region', hasBase ? t('sl.modeRegionFee', { r: t('rg.' + rgId), f: moneyText(rgr.base) }) : t('sl.modeRegion'))}${c.bands.map((b) => o('b:' + b.id, `TT$ ${b.price}${b.name ? ' · ' + esc(b.name) : ''}`)).join('')}${o('own', t('sl.modeOwn'))}</select>
-        <p class="muted small" id="sl-rnote" style="margin:6px 2px;${mode === 'region' ? '' : 'display:none'}">${hasBase || !rgId ? t('sl.regionNote') : t('sl.noBase')}</p>
+      ${(() => { const rgId = SCore.regionOfPlace(c, l), rgr = c.regions.find((r) => r.id === rgId), hasBase = !!(rgr && rgr.base > 0), rate = distRateOwner(), canDist = (rate.perKm > 0 || rate.base > 0), dp = canDist ? SCore.distPlace(c, Object.assign({}, l, { dm: true }), rate, dset().home, roadCache()) : null, mode = l.dm ? 'dist' : l.band ? 'b:' + l.band : (l.rm || (!(l.price > 0) && hasBase) ? 'region' : 'own'), o = (v, txt) => `<option value="${v}" ${mode === v ? 'selected' : ''}>${txt}</option>`;
+        return `<label for="sl-mode">${t('sl.price')}</label><select id="sl-mode">${o('region', hasBase ? t('sl.modeRegionFee', { r: t('rg.' + rgId), f: moneyText(rgr.base) }) : t('sl.modeRegion'))}${canDist ? o('dist', dp && dp.fee != null ? t('dc.optDist', { fee: moneyText(dp.fee), km: dp.both }) : t('dc.optDistNo')) : ''}${c.bands.filter((b) => b.id === l.band).map((b) => o('b:' + b.id, `TT$ ${b.price}${b.name ? ' · ' + esc(b.name) : ''} (${t('rb.old')})`)).join('')}${o('own', t('sl.modeOwn'))}</select>
+        <p class="muted small" id="sl-rnote" style="margin:6px 2px;${mode === 'region' || mode === 'dist' ? '' : 'display:none'}">${mode === 'dist' ? t('dc.distNote') : hasBase || !rgId ? t('sl.regionNote') : t('sl.noBase')}</p>
         ${l.zone ? '' : `<label for="sl-rg">${t('sl.region')}</label><select id="sl-rg"><option value="">${t('sl.regionAuto', { r: rgId ? t('rg.' + rgId) : '-' })}</option>${SCore.REGIONS.map((r) => `<option value="${r.id}" ${l.rg === r.id ? 'selected' : ''}>${t('rg.' + r.id)}</option>`).join('')}</select>`}
         <div id="sl-own" style="${mode === 'own' ? '' : 'display:none'}"><label for="sl-price">${t('store.deliveryPrice')}</label><input id="sl-price" type="text" inputmode="decimal" value="${l.price || ''}" placeholder="0.00" autocomplete="off" enterkeyhint="done"></div>`; })()}
       <div class="btns"><button class="btn primary" data-act="store-loc-save" data-id="${id}">${t('btn.save')}</button>${id === 'new' ? '' : `<button class="btn danger" data-act="store-loc-del" data-id="${id}">${t('btn.delete')}</button>`}</div>
@@ -2817,7 +2843,7 @@
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
-    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'regions-page', 'offer-toggle', 'guide-open', 'spots-page', 'price-helper', 'pricecheck', 'ph-pick', 'ph-set', 'ph-add', 'pc-measure', 'pc-smooth', 'free-rule', 'fr-on', 'fr-tier-add', 'fr-tier-del', 'fr-suggest', 'fr-centre', 'fr-centre-pick', 'coupons-page', 'fr-places', 'cp-on', 'cp-kind', 'cpn-make', 'cpn-send', 'region-edit', 'region-suggest', 'region-save', 'region-all', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
+    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'regions-page', 'pz-tab', 'pz-open', 'offers-open', 'pr-tab', 'pricing-open', 'bands-migrate', 'ds-charge', 'ds-charge-pc', 'ds-count', 'ds-mode', 'offer-toggle', 'guide-open', 'spots-page', 'price-helper', 'pricecheck', 'ph-pick', 'ph-set', 'ph-add', 'pc-measure', 'pc-smooth', 'free-rule', 'fr-on', 'fr-tier-add', 'fr-tier-del', 'fr-suggest', 'fr-centre', 'fr-centre-pick', 'coupons-page', 'fr-places', 'cp-on', 'cp-kind', 'cpn-make', 'cpn-send', 'region-edit', 'region-suggest', 'region-save', 'region-all', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
   }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
   /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
   const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
@@ -2888,7 +2914,7 @@
         openSmall(`<h3>${t('xfer.t3')}</h3><p>${esc(t('xfer.q3', { name: nm }))}</p><input id="xfer-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="TRANSFER" style="margin-top:6px">
           <div class="btns"><button class="btn dsolid" id="xfer-go" data-act="xfer-go" disabled>${t('xfer.go')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card'); }); });
   }
-  document.addEventListener('input', (e) => { if (e.target.id === 'sset-q') { filterSettings(e.target.value); return; } if (e.target.dataset && e.target.dataset.rg) { const g = (i) => parseAmt(($('#' + i) || {}).value), ex = $('#rg-ex'); if (ex) ex.textContent = rgExample(g('rg-base'), g('rg-free'), g('rg-perkm'), g('rg-cap')); return; } if (e.target.id === 'pl-q') { plQ = e.target.value; plSearch(); } else if (e.target.id === 'rp-q') { const q = e.target.value.trim().toLowerCase(); document.querySelectorAll('#rp-list .tkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); } });
+  document.addEventListener('input', (e) => { if (e.target.id === 'ds-try') { const b = document.getElementById('ds-trybox'); if (b) b.innerHTML = dcTry(dset(), e.target.value); return; } if (e.target.id === 'sset-q') { filterSettings(e.target.value); return; } if (e.target.dataset && e.target.dataset.rg) { const g = (i) => parseAmt(($('#' + i) || {}).value), ex = $('#rg-ex'); if (ex) ex.textContent = rgExample(g('rg-base'), g('rg-free'), g('rg-perkm'), g('rg-cap')); return; } if (e.target.id === 'pl-q') { plQ = e.target.value; plSearch(); } else if (e.target.id === 'rp-q') { const q = e.target.value.trim().toLowerCase(); document.querySelectorAll('#rp-list .tkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); } });
   document.addEventListener('input', (e) => { if (e.target.id === 'xfer-in') { const b = $('#xfer-go'); if (b) b.disabled = e.target.value.trim().toUpperCase() !== 'TRANSFER'; } });
 
   /* ---------- notifications (the bell) ---------- */
@@ -3016,7 +3042,11 @@
   }
   /* ---------- delivery log: every delivery and pickup, by day, with the distance driven ---------- */
   let dlvTab = 'deliveries', dlvView = 'list', dlvQ = '', dlvDay = '', dlvMonth = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })(), dlvLink = false;
-  function dset() { return Object.assign({ home: null, base: 0, perKm: 0, freeKm: 0, round: 5, costKm: 0, showRate: true }, state.settings.delivery || {}); }
+  function dset() { return Object.assign({ home: null, base: 0, perKm: 0, freeKm: 0, round: 5, costKm: 0, showRate: true, charge: false, count: 'one', mode: 'up' }, state.settings.delivery || {}); }
+  // Distance pricing: the seller's rate (settings.delivery) decides what a place charges when it is priced by distance.
+  const distRateOwner = () => Object.assign({}, dset(), { charge: !!dset().charge });
+  const placeFee = (c, l) => { const dp = SCore.distPlace(c, l, distRateOwner(), dset().home, roadCache()); return dp && dp.fee != null ? dp.fee : SCore.priceOf(c, l); };
+  const needsP = (c, l) => SCore.needsPrice(c, l) && !(SCore.usesDistance(l, distRateOwner()) && SCore.distPlace(c, l, distRateOwner(), dset().home, roadCache()));
   const saveDset = (patch) => { state.settings.delivery = Object.assign(dset(), patch); save(); };
   const dlvWhen = (o) => (o.status === 'done' ? (tsAt(o.doneAt) || Store.when(o)) : null);
   const dlvDayLabel = (d) => d.toLocaleDateString(I.locale(I.getLang()), { weekday: 'short' }).replace('.', '') + ' ' + dayMon(d);
@@ -3082,17 +3112,28 @@
   }
   const dlvRefresh = () => { if (tab === 'more' && moreView === 'deliveries') { const x = $('#dlvbody'); if (x) { const tmp = document.createElement('div'); tmp.innerHTML = DeliveryLog(); const nb = tmp.querySelector('#dlvbody'); if (nb) x.innerHTML = nb.innerHTML; const q = document.querySelector('.oqx[data-act=dlv-q-clear]'); if (q) q.hidden = !dlvQ; } } };
   const dlvMapT = () => ({ mapHint: t('mp.hint'), mapSearch: t('mp.search'), spotHere: t('mp.here'), close: t('btn.close'), mapOk: t('mp.ok'), mapNear: (x) => t('mp.near', { x }), mapCancel: t('btn.cancel'), spotBlocked: t('mp.blocked'), mapNone: t('mp.none'), mapNoLib: t('mp.nolib') });
-  function dlvSetHome(g) { saveDset({ home: { lat: g.lat, lng: g.lng, name: g.name || '' } }); toast(t('ds.homeSet')); if (g.name == null || g.name === '') MapPick.nameOf(g.lat, g.lng, I.getLang()).then((n) => { if (n) { const h = dset().home; if (h && h.lat === g.lat) { saveDset({ home: Object.assign({}, h, { name: n }) }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); } } }); Store.measure(dset().home, true).then((n) => { if (n) toast(t('ds.measured', { n })); }); if (!$('#sheet').hidden && pageStack.length && pageStack[pageStack.length - 1].key === 'dsettings') sheetDeliverySettings(); }
+  const refreshDs = () => { const k = topKey(); if (k.startsWith('location|')) return sheetStoreLocation(); if (k.startsWith('dsettings|')) return sheetDeliverySettings(); };
+  function dlvSetHome(g) { saveDset({ home: { lat: g.lat, lng: g.lng, name: g.name || '' } }); toast(t('ds.homeSet')); if (g.name == null || g.name === '') MapPick.nameOf(g.lat, g.lng, I.getLang()).then((n) => { if (n) { const h = dset().home; if (h && h.lat === g.lat) { saveDset({ home: Object.assign({}, h, { name: n }) }); if (!$('#sheet').hidden) refreshDs(); } } }); Store.measure(dset().home, true).then((n) => { if (n) toast(t('ds.measured', { n })); }); if (!$('#sheet').hidden) refreshDs(); }
+  // "Try a distance": one way, there and back, the fee and the rounding examples
+  const dcTry = (d, km) => { const r = Object.assign({}, d, { count: d.count }), x = SCore.distanceFee(r, parseAmt(km)); return x.fee == null ? `<p class="muted small" style="margin:6px 0 0">${t('ds.noRate')}</p>` : `<div class="ln"><span>${t('dc.tryBoth')}</span><b>${x.both} km</b></div><div class="ln"><span>${t('dc.tryCount')}</span><b>${x.counted} km</b></div><div class="ln"><span>${t('dc.tryFee')}</span><b class="big" style="color:var(--brand)">${money(x.fee)}</b></div>`; };
+  // The store location: where the driving starts. Every distance in the app (fees, free-delivery levels, the price helper) is measured from this pin.
+  function sheetStoreLocation() {
+    enterPage('location', '', () => sheetStoreLocation());
+    const d = dset(), h = d.home;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div class="fbt"><b>${t('sset.loc')}</b><small>${t('loc.sub')}</small></div></div><div class="ap dsp">
+      <div class="dcard"><h5>${t('ds.store')}</h5>${h ? `<div class="pinrow"><span class="big">🏠</span><div class="t"><b>${esc(h.name || t('ds.pinSet'))}</b><small>${h.lat}, ${h.lng}</small></div></div>` : `<p class="muted small" style="margin:0 0 8px">${t('ds.notSet')}</p>`}
+        <div class="dbtns"><button class="btn" data-act="ds-here">📍 ${t('ds.here')}</button><button class="btn" data-act="ds-map">🗺️ ${t('ds.map')}</button></div>
+        ${dlvLink ? `<div class="linkrow"><input id="ds-link" placeholder="${esc(t('ds.linkPh'))}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" data-act="ds-linkgo">${t('ds.linkGo')}</button></div>` : `<a class="dlk" data-act="ds-linkopen">${t('ds.link')}</a>`}</div>
+      <p class="muted small" style="margin:6px 2px">${t('loc.note')}</p></div>`, null, true);
+  }
   function sheetDeliverySettings() {
     enterPage('dsettings', '', () => sheetDeliverySettings());
     const dpins = toDeliver().map((o) => SCore.geo(o.lat, o.lng)).filter(Boolean);
     const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done'), d.costKm), h = d.home, ex = st.avgKm || 7.4, exFee = SCore.rateFee(d, ex);
     const inp = (k, v, label) => `<div class="ln"><span>${label}</span><input class="dinp" data-dset="${k}" type="text" inputmode="decimal" autocomplete="off" value="${v ? v : ''}" placeholder="0"></div>`;
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('dlv.settings')}</b></div></div><div class="ap dsp">
-      <div class="dcard"><h5>${t('ds.store')}</h5>${h ? `<div class="pinrow"><span class="big">🏠</span><div class="t"><b>${esc(h.name || t('ds.pinSet'))}</b><small>${h.lat}, ${h.lng}</small></div></div>` : `<p class="muted small" style="margin:0 0 8px">${t('ds.notSet')}</p>`}
-        <div class="dbtns"><button class="btn" data-act="ds-here">📍 ${t('ds.here')}</button><button class="btn" data-act="ds-map">🗺️ ${t('ds.map')}</button></div>
-        ${dlvLink ? `<div class="linkrow"><input id="ds-link" placeholder="${esc(t('ds.linkPh'))}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" data-act="ds-linkgo">${t('ds.linkGo')}</button></div>` : `<a class="dlk" data-act="ds-linkopen">${t('ds.link')}</a>`}</div>
-      <div class="dcard"><h5>${t('ds.rates')}</h5>${inp('base', d.base, t('ds.base'))}${inp('perKm', d.perKm, t('ds.perKm'))}${inp('freeKm', d.freeKm, t('ds.free'))}${inp('round', d.round, t('ds.round'))}${inp('costKm', d.costKm, t('ds.costKm'))}<label class="chkrow" style="margin-top:8px"><input type="checkbox" data-dsshow ${d.showRate ? 'checked' : ''}><span>${t('ds.showRate')}</span></label></div>
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div class="fbt"><b>${t('dlv.settings')}</b><small>${t('dcost.pageSub')}</small></div></div><div class="ap dsp">
+      <div class="card" style="margin-bottom:12px"><button type="button" class="rw2 tap" data-act="pricing-open"><div class="t"><b>${t('pr.title')}</b><small>${t('dcost.priceNote')}</small></div><span class="chev">›</span></button></div>
+      <div class="dcard"><h5>${t('dcost.title')}</h5>${inp('costKm', d.costKm, t('ds.costKm'))}<label class="chkrow" style="margin-top:8px"><input type="checkbox" data-dsshow ${d.showRate ? 'checked' : ''}><span>${t('ds.showRate')}</span></label><p class="muted small" style="margin:8px 0 0">${t('dcost.sub')}</p></div>
       <div class="dcalc" id="ds-ex">${exFee == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: money(exFee) })}</div>
       <div class="dcard" style="margin-top:12px"><h5>${t('ds.past')}</h5>
         ${st.n ? `<div class="ln"><span>${t('ds.n')}</span><b>${st.n}</b></div><div class="ln"><span>${t('ds.avgKm')}</span><b>${st.avgKm} km</b></div><div class="ln"><span>${t('ds.avgFee')}</span><b>${money(st.avgFee)}</b></div><div class="ln"><span>${t('ds.perKmAvg')}</span><b>${money(st.perKm)}</b></div>${d.costKm > 0 ? `<div class="ln"><span>${t('ds.avgCost')}</span><b>${money(st.avgCost)}</b></div><div class="ln"><span>${t('ds.profitTotal')}</span><b class="${st.profit < 0 ? 'loss' : 'gain'}">${money(st.profit)}</b></div><div class="ln"><span>${t('ds.lossN')}</span><b>${st.lossN}</b></div>` : ''}
@@ -3411,7 +3452,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function openInvoiceFromSheet(no) { closeSheet(); sheetInvoice(no); }
 
   if (window.SelectPicker) SelectPicker.install(() => ({ cancel: t('btn.cancel'), done: t('btn.done'), search: t('pick.search'), choose: t('pick.choose'), none: t('people.noMatch') }));   // our own picker instead of the browser's list
-  const KEEP_SCROLL = new Set(['offer-toggle', 'fr-on', 'cp-on', 'cp-kind', 'fr-tier-del', 'area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
+  const KEEP_SCROLL = new Set(['ds-charge', 'ds-count', 'ds-mode', 'offer-toggle', 'fr-on', 'cp-on', 'cp-kind', 'fr-tier-del', 'area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     if (e.target.id === 'tmscrim') return closeTopMenu();
@@ -3697,7 +3738,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
         const name = L.cleanName($('#sl-name').value), pickup = $('[data-act=sl-flag][data-id=pickup]').classList.contains('on'), delivery = $('[data-act=sl-flag][data-id=delivery]').classList.contains('on'), price = Math.max(0, parseFloat(String($('#sl-price').value).replace(',', '.')) || 0);
         if (!name) return toast(t('store.needLocName')); if (!pickup && !delivery) return toast(t('store.needOption'));
         const c = storeCfg(), old = c.locations.find((x) => x.id === id) || {}, modeSel = ($('#sl-mode') || {}).value || 'own', rgSel = $('#sl-rg'), flag = document.querySelector('[data-act=sl-flag][data-id=risk]'), risk = !!old.risk;
-        const bandId = modeSel.startsWith('b:') ? modeSel.slice(2) : '', rm = modeSel === 'region', priced = price > 0 || !!bandId || rm, loc = { id: id === 'new' ? SCore.newId(8) : id, name, pickup, delivery, price, band: bandId, rm, rg: rgSel ? rgSel.value : (old.rg || ''), risk, zone: old.zone || '', auto: !!old.auto && !priced, off: id === 'new' ? risk && c.areaMode === 'safe' : (old.auto && priced ? false : !!old.off) };
+        const bandId = modeSel.startsWith('b:') ? modeSel.slice(2) : '', rm = modeSel === 'region', dm = modeSel === 'dist', priced = price > 0 || !!bandId || rm || dm, loc = { id: id === 'new' ? SCore.newId(8) : id, name, pickup, delivery, price, band: bandId, rm, dm, rg: rgSel ? rgSel.value : (old.rg || ''), risk, zone: old.zone || '', auto: !!old.auto && !priced, off: id === 'new' ? risk && c.areaMode === 'safe' : (old.auto && priced ? false : !!old.off) };
         if (loc.zone && name !== old.name) storeSet({ zones: c.zones.map((z) => (z.id === loc.zone ? Object.assign({}, z, { name }) : z)) });
         const list = id === 'new' ? c.locations.concat(loc) : c.locations.map((l) => (l.id === id ? loc : l)); storeSet({ locations: c.areaMode === 'safe' ? SCore.applyMode({ locations: list, bands: c.bands }, 'safe').locations : list }); pageStack = pageStack.filter((p) => p.key !== 'storeloc|' + id); return dropPages('storeloc|' + id);
       }
@@ -3735,8 +3776,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
           <button class="btn" data-act="dlv-export">⬇️ ${t('dlv.export')}</button>
           <button class="btn" data-act="close">${t('btn.close')}</button></div>`, 'sheet'); }
       case 'dlv-settings': closeSheet(); return sheetDeliverySettings();
-      case 'dlv-home': closeSheet(); return sheetDeliverySettings();
-      case 'ds-recalc-close': { closeSheet(); const h = dset().home; if (!h) return sheetDeliverySettings(); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => { toast(t('ds.measured', { n })); render(); }); }
+      case 'dlv-home': closeSheet(); return sheetStoreLocation();
+      case 'ds-recalc-close': { closeSheet(); const h = dset().home; if (!h) return sheetStoreLocation(); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => { toast(t('ds.measured', { n })); render(); }); }
       case 'dlv-export': closeSheet(); return dlvExport();
       case 'order-nav': return sheetOrder(id, true);
       case 'dlv-plan': return sheetPlan(id);
@@ -3750,7 +3791,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'km-reset': { const o = Store.orders().find((x) => x.id === id), h = dset().home; closeSheet(); if (!o || !h) return toast(t('ds.notSet')); toast(t('km.measuring')); return Store.patch(id, { kmSrc: null }).then(() => Store.measure(h, true)).then(() => { render(); sheetOrder(id); }).catch(() => toast(t('store.pubError'))); }
       case 'ds-here': { if (!navigator.geolocation) return toast(t('mp.blocked')); toast(t('ds.finding')); return navigator.geolocation.getCurrentPosition((p) => { const g = SCore.geo(p.coords.latitude, p.coords.longitude); if (g) dlvSetHome({ lat: g.lat, lng: g.lng, name: '' }); }, () => toast(t('mp.blocked')), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }); }
       case 'ds-map': { const h = dset().home; return MapPick.open({ lat: h && h.lat, lng: h && h.lng, name: h && h.name, lang: I.getLang(), T: dlvMapT(), onPick: (g) => dlvSetHome(g), onError: (m) => toast(m) }); }
-      case 'ds-linkopen': dlvLink = true; return sheetDeliverySettings();
+      case 'ds-linkopen': dlvLink = true; return refreshDs();
       case 'ds-linkgo': { const f = $('#ds-link'), r = SCore.parseGeoLink(f ? f.value : ''); if (r && r !== 'short') { dlvLink = false; return dlvSetHome({ lat: r.lat, lng: r.lng, name: '' }); } return toast(t(r === 'short' ? 'ds.linkShort' : 'ds.linkBad')); }
       case 'ds-recalc': { const h = dset().home; if (!h) return toast(t('ds.notSet')); toast(t('ds.measuring')); return Store.measure(h, true).then((n) => toast(t('ds.measured', { n }))); }
       case 'deliveries-open': if (!$('#sheet').hidden) closeSheet(); go({ tab: 'more', moreView: 'deliveries' }); window.scrollTo(0, 0); return render();
@@ -3799,7 +3840,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dup-merge': { try { PE.merge(state, t_.dataset.b, id, myName()); save(); toast(t('mg.done')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } return sheetDups(); }
       case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
       case 'zones-open': closeSheet(); return sheetZones();
-      case 'offer-toggle': { const c = storeCfg(); storeSet({ showOffer: !c.showOffer }); return topKey().startsWith('coupons|') ? sheetCoupons() : sheetFreeRule(); }
+      case 'offer-toggle': { const c = storeCfg(); storeSet({ showOffer: !c.showOffer }); return sheetOffers(); }
+      case 'offers-open': return sheetOffers();
       case 'free-rule': return sheetFreeRule();
       case 'fr-on': { const c = storeCfg(), r = c.freeRule; storeSet({ freeRule: Object.assign({}, r, { spend: Object.assign({}, r.spend, { on: !r.spend.on }) }) }); return sheetFreeRule(); }
       case 'fr-tier-add': { const c = storeCfg(), r = c.freeRule, last = r.tiers[r.tiers.length - 1]; storeSet({ freeRule: Object.assign({}, r, { tiers: r.tiers.concat({ n: last ? last.n + 1 : 2, km: last && last.km ? Math.round(last.km * 1.5) : 15 }) }) }); return sheetFreeRule(); }
@@ -3807,12 +3849,21 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'fr-suggest': { const c = storeCfg(); storeSet({ freeRule: Object.assign({}, c.freeRule, { tiers: [{ n: 2, km: 15 }, { n: 3, km: 35 }, { n: 5, km: 0 }] }) }); return sheetFreeRule(); }
       case 'fr-centre': return sheetReachCentre();
       case 'fr-centre-pick': { const c = storeCfg(), z = id ? c.zones.find((q) => q.id === id) : null; storeSet({ freeRule: Object.assign({}, c.freeRule, { centre: z ? { lat: z.lat, lng: z.lng, name: z.name } : null }) }); pageStack = pageStack.filter((p) => p.key !== 'reach|'); return dropPages('reach|'); }
+      case 'ds-charge': { const d = dset(), on = !d.charge, patch = { charge: on }; if (on && !d.distInit) Object.assign(patch, { perKm: 1, base: 0, freeKm: 0, round: 5, count: 'both', mode: 'up', distInit: true }); if (on && !d.home) toast(t('dc.needHome')); saveDset(patch); return sheetPricing('distance'); }
+      case 'ds-charge-pc': { const d = dset(); if (!d.home) return toast(t('dc.needHome')); saveDset({ charge: true }); toast(t('dc.pcDone')); return sheetPriceCheck(); }
+      case 'ds-count': saveDset({ count: id === 'both' ? 'both' : 'one' }); return sheetPricing('distance');
+      case 'ds-mode': saveDset({ mode: id === 'near' ? 'near' : id === 'none' ? 'none' : 'up' }); return sheetPricing('distance');
+      case 'pr-tab': return sheetPricing(id === 'regions' || id === 'check' || id === 'spot' ? id : 'distance');
+      case 'pricing-open': return sheetPricing('distance');
+      case 'pz-tab': return sheetPlacesZones(id === 'zones' || id === 'risk' || id === 'spots' ? id : 'places');
+      case 'pz-open': return sheetPlacesZones('places');
+      case 'bands-migrate': { const c = storeCfg(), old = c.locations.filter((l) => l.band); if (!old.length) return; return askCard(t('rb.ask', { n: old.length, list: old.slice(0, 8).map((l) => esc(l.name)).join(', ') + (old.length > 8 ? '…' : '') }), { ok: t('rb.ok') }).then((y) => { if (!y) return; const c2 = storeCfg(); storeSet({ locations: c2.locations.map((l) => { if (!l.band) return l; const b = c2.bands.find((x) => x.id === l.band); return Object.assign({}, l, { band: '', rm: true, price: b ? b.price : l.price }); }) }); toast(t('rb.done')); sheetPlacesZones(); }); }
       case 'guide-open': return sheetGuide();
       case 'spots-page': return sheetSpots();
       case 'price-helper': return sheetPriceHelper();
       case 'pricecheck': return sheetPriceCheck();
       case 'ph-pick': { const h = dset().home; if (!h) return; const at = ph && ph.g ? ph.g : h; return MapPick.open({ lat: at.lat, lng: at.lng, name: at.name, lang: I.getLang(), T: dlvMapT(), onPick: (g) => phCompute(g), onError: (m) => toast(m) }); }
-      case 'ph-set': { const c = storeCfg(), pid = t_.dataset.ord, price = Number(id); if (!pid || !(price > 0)) return; storeSet({ locations: c.locations.map((l) => (l.id === pid ? Object.assign({}, l, { price, band: '', rm: false, auto: false, off: l.auto ? false : l.off }) : l)) }); toast(t('prh.set')); return sheetPriceHelper(); }
+      case 'ph-set': { const c = storeCfg(), pid = t_.dataset.ord, price = Number(id); if (!pid || !(price > 0)) return; storeSet({ locations: c.locations.map((l) => (l.id === pid ? Object.assign({}, l, { price, band: '', rm: false, dm: false, auto: false, off: l.auto ? false : l.off }) : l)) }); toast(t('prh.set')); return sheetPriceHelper(); }
       case 'ph-add': { if (!ph || !ph.g) return; return openZone('new', false, { lat: ph.g.lat, lng: ph.g.lng, r: 3000, name: ph.g.name ? String(ph.g.name).split(',')[0] : '' }); }
       case 'pc-measure': return pcMeasure();
       case 'pc-smooth': { const rows = placeRows(), sm = SCore.smoothPrices(rows, 5), changes = sm.map((x) => ({ x, r: rows.find((q) => q.id === x.id) })).filter((q) => q.r && q.x.price !== q.r.price); if (!changes.length) return toast(t('prc.smoothNone')); return askCard(t('prc.smoothAsk', { n: changes.length, list: changes.slice(0, 8).map((q) => esc(q.r.name) + ' ' + moneyText(q.r.price) + ' → ' + moneyText(q.x.price)).join('<br>') + (changes.length > 8 ? '<br>…' : '') }), { ok: t('prc.smoothOk') }).then((y) => { if (!y) return; const c = storeCfg(), by = Object.fromEntries(changes.map((q) => [q.r.id, q.x.price])); storeSet({ locations: c.locations.map((l) => (by[l.id] ? Object.assign({}, l, { price: by[l.id], band: '', rm: false, auto: false }) : l)) }); toast(t('prc.smoothDone')); sheetPriceCheck(); }); }
@@ -3826,7 +3877,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'region-edit': return sheetRegion(id);
       case 'region-all': return askCard(t('rg.allAsk'), { ok: t('rg.allOk') }).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ locations: c.locations.map((l) => (l.delivery && !l.risk && SCore.regionOfPlace(c, l) ? Object.assign({}, l, { band: '', rm: true, off: l.auto ? false : l.off, auto: false }) : l)) }); toast(t('rg.allDone')); sheetRegions(); });
       case 'region-suggest': { const c = storeCfg(); storeSet({ regions: c.regions.map((r) => (r.base > 0 ? r : Object.assign({}, r, { base: SCore.RG_SUGGEST[r.id] }))) }); return sheetRegions(); }
-      case 'region-save': { const c = storeCfg(), base = parseAmt($('#rg-base').value), free = parseAmt($('#rg-free').value), perKm = parseAmt($('#rg-perkm').value), cap = parseAmt($('#rg-cap').value); storeSet({ regions: c.regions.map((r) => (r.id === id ? Object.assign({}, r, { base, free, perKm, cap }) : r)) }); toast(t('rg.saved')); pageStack = pageStack.filter((p) => p.key !== 'region|' + id); return dropPages('region|' + id); }
+      case 'region-save': { const c = storeCfg(), r0 = c.regions.find((x) => x.id === id) || {}, val = (i, d) => { const e = $('#' + i); return e ? parseAmt(e.value) : d; }, base = val('rg-base', r0.base), free = val('rg-free', r0.free), perKm = val('rg-perkm', r0.perKm), cap = val('rg-cap', r0.cap); storeSet({ regions: c.regions.map((r) => (r.id === id ? Object.assign({}, r, { base, free, perKm, cap }) : r)) }); toast(t('rg.saved')); pageStack = pageStack.filter((p) => p.key !== 'region|' + id); return dropPages('region|' + id); }
       case 'zones-page': return sheetZones();
       case 'place-hot': { const c = storeCfg(), l = c.locations.find((x) => x.id === id); if (!l) return; const zz = c.zones.find((z) => z.id === l.zone && !z.risk); return openZone('new', true, { name: l.name, lat: zz ? zz.lat : undefined, lng: zz ? zz.lng : undefined, r: 1000, place: l.id }); }
       case 'hot-edit': return openZone(id, true);
@@ -3934,7 +3985,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (el.dataset && el.dataset.rule) { const c = storeCfg(), r = c.freeRule, k = el.dataset.rule, v = parseAmt(el.value); storeSet({ freeRule: Object.assign({}, r, { spend: Object.assign({}, r.spend, k === 'amt' ? { amt: v > 0 ? v : r.spend.amt } : { km: v }) }) }); const f = storeCfg().freeRule.spend; el.value = k === 'amt' ? f.amt : (f.km || ''); return; }
     if (el.dataset && el.dataset.tier) { const c = storeCfg(), r = c.freeRule, i = Number(el.dataset.i), v = parseAmt(el.value); storeSet({ freeRule: Object.assign({}, r, { tiers: r.tiers.map((x, j) => (j === i ? (el.dataset.tier === 'n' ? { n: Math.max(1, Math.round(v) || x.n), km: x.km } : { n: x.n, km: v }) : x)) }) }); return sheetFreeRule(); }
     if (el.dataset && el.dataset.cpr) { const c = storeCfg(), k = el.dataset.cpr, v = parseAmt(el.value), r = c.couponRule; storeSet({ couponRule: Object.assign({}, r, { [k]: k === 'days' ? Math.max(1, Math.min(365, Math.round(v) || r.days)) : k === 'cap' || k === 'km' ? v : k === 'value' && r.kind === 'pct' ? Math.min(100, Math.max(1, v || r.value)) : (v > 0 ? v : r[k]) }) }); const f = storeCfg().couponRule; el.value = f[k] || ''; if (k === 'km') return sheetCoupons(); return; }
-    if (el.id === 'sl-mode') { const own = $('#sl-own'), nt = $('#sl-rnote'); if (own) own.style.display = el.value === 'own' ? '' : 'none'; if (nt) nt.style.display = el.value === 'region' ? '' : 'none'; return; }
+    if (el.id === 'sl-mode') { const own = $('#sl-own'), nt = $('#sl-rnote'); if (own) own.style.display = el.value === 'own' ? '' : 'none'; if (nt) { nt.style.display = el.value === 'region' || el.value === 'dist' ? '' : 'none'; nt.textContent = el.value === 'dist' ? t('dc.distNote') : t('sl.regionNote'); } return; }
     if (el.dataset && el.dataset.phonefor) { const v = el.value.trim(); if (v) savePhone(el.dataset.phonefor, v); return; }
     if (el.id === 'sp-name' || el.id === 'sp-phone') { const b = $('#sheet').querySelector('[data-act="split-go"]'); return b && splitSummary(b.dataset.id); }
     if (el.dataset && el.dataset.split !== undefined) { const pid = ($('#sheet').querySelector('[data-act="split-go"]') || {}).dataset; return pid && splitSummary(pid.id); }
@@ -3972,7 +4023,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     else if ((el.hasAttribute && el.hasAttribute('data-ret')) || el.id === 'rt-fee') retRefresh();
     else if (el.classList.contains('dq')) { dlvQ = el.value; dlvDay = ''; dlvRefresh(); }
     else if (el.dataset && el.dataset.dsshow !== undefined) saveDset({ showRate: !!el.checked });
-    else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); }
+    else if (el.dataset && el.dataset.dset) { saveDset({ [el.dataset.dset]: parseAmt(el.value) }); const d = dset(), st = SCore.deliveryStats(Store.orders().filter((o) => o.status === 'done')), ex = st.avgKm || 7.4, f = SCore.rateFee(d, ex), x = $('#ds-ex'); if (x) x.textContent = f == null ? t('ds.noRate') : t('ds.example', { km: ex, fee: plain(money(f)) }); const tb = $('#ds-trybox'), ti = $('#ds-try'); if (tb && ti) tb.innerHTML = dcTry(d, ti.value); }
     else if (el.classList.contains('iq')) { invQ = el.value; const l = $('#ilog'); if (l) l.innerHTML = invoiceLogRows(invQ); }
     else if (el.id === 'pr-cap') { prCaption = el.value; }
     else if (el.id === 'reset-word') { const g = $('#reset-go'); if (g) g.disabled = el.value.trim().toUpperCase() !== 'RESET'; }

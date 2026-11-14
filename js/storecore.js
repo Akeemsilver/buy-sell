@@ -45,7 +45,7 @@
     tiers = tiers.map((x) => ({ n: Math.max(1, Math.round(num(x && x.n)) || 1), km: Math.max(0, r2(num(x && x.km))) })).sort((x, y) => x.n - y.n || x.km - y.km).slice(0, 8);
     return { tiers, spend: { on: !!sp.on, amt: Math.max(1, r2(num(sp.amt)) || 400), km: Math.max(0, r2(num(sp.km))) }, centre: cg };
   };
-  const reachCentre = (cfgIn, home) => { const cfg = norm(cfgIn); if (cfg.freeRule.centre) return cfg.freeRule.centre; const g = home && Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lng)) ? { lat: Number(home.lat), lng: Number(home.lng) } : null; if (!g) return null; const z = nearestZone(areaZones(cfg.zones), g.lat, g.lng); return z && z.zone ? { lat: z.zone.lat, lng: z.zone.lng, name: z.zone.name } : null; };
+  const reachCentre = (cfgIn, home) => { const cfg = norm(cfgIn), g = home && Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lng)) ? { lat: Number(home.lat), lng: Number(home.lng) } : null; if (!g) return cfg.freeRule.centre || null; const z = nearestZone(areaZones(cfg.zones), g.lat, g.lng); return { lat: g.lat, lng: g.lng, name: z && z.zone ? z.zone.name : '' }; };   // the store pin itself; the nearest zone only gives it a friendly name
   const publicRule = (cfgIn, home) => { const cfg = norm(cfgIn), r = cfg.freeRule; if (!r.tiers.length && !r.spend.on) return null; const c = reachCentre(cfg, home); return { t: r.tiers.map((x) => [x.n, x.km]), a: r.spend.on ? r.spend.amt : 0, ak: r.spend.km, c: c ? [c.lat, c.lng] : null, cn: c ? c.name || '' : '' }; };
   // What the store page may say about coupons (no codes, no customers): the spend that earns one and what it gives.
   const publicCouponInfo = (cfgIn) => { const r = norm(cfgIn).couponRule; return r.on ? { min: r.min, t: r.kind === 'delivery' ? 'd' : r.kind === 'pct' ? 'p' : 'o', v: r.value, m: r.cap, g: r.km } : null; };
@@ -86,7 +86,7 @@
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
       batches: Array.isArray(c.batches) ? c.batches.slice() : [],
-      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || ''), zone: String(l.zone || ''), auto: !!l.auto, rm: !!l.rm, rg: REGIONS.some((r) => r.id === l.rg) ? l.rg : '' })).filter((l) => l.name && (l.pickup || l.delivery)),
+      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || ''), zone: String(l.zone || ''), auto: !!l.auto, rm: !!l.rm, dm: !!l.dm, rg: REGIONS.some((r) => r.id === l.rg) ? l.rg : '' })).filter((l) => l.name && (l.pickup || l.delivery)),
       bands: (Array.isArray(c.bands) ? c.bands : []).map((b) => ({ id: String(b.id || newId(6)), name: String(b.name || '').trim(), price: Math.max(0, r2(num(b.price))), on: b.on !== false })),
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
@@ -102,7 +102,7 @@
   // With a pin the pin's own region (and how far into it) sets the fee, for places on region price.
   const feeAt = (cfg, l, lat, lng) => { if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) && lat != null && lng != null && (l.rm || usesRegion(cfg, l)) && !l.band) { const f = regionFee(cfg.regions, lat, lng); if (f) return f.fee; } return priceOf(cfg, l); };
   // What the customer's store page gets: the places that are switched on (and whose range is on), each with its real price.
-  const publicLocs = (cfgIn) => { const cfg = norm(cfgIn); return cfg.locations.filter((l) => { const b = bandOf(cfg, l); return !l.off && !(b && b.on === false); }).map((l) => ({ id: l.id, name: l.name, pickup: l.pickup, delivery: l.delivery, price: priceOf(cfg, l), zone: l.zone || '', rg: regionOfPlace(cfg, l), rm: !l.band && (!!l.rm || usesRegion(cfg, l)) })); };
+  const publicLocs = (cfgIn, delivery, cache) => { const cfg = norm(cfgIn), pd = publicDist(delivery, cfg), rate = pd ? { base: pd.b, perKm: pd.p, freeKm: pd.f, round: pd.s, count: pd.c, mode: pd.m, charge: pd.on } : null, home = pd ? { lat: pd.h[0], lng: pd.h[1] } : null; return cfg.locations.filter((l) => { const b = bandOf(cfg, l); return !l.off && !(b && b.on === false); }).map((l) => { const dp = rate ? distPlace(cfg, l, rate, home, cache) : null; return Object.assign({ id: l.id, name: l.name, pickup: l.pickup, delivery: l.delivery, price: dp && dp.fee != null ? dp.fee : priceOf(cfg, l), zone: l.zone || '', rg: regionOfPlace(cfg, l), rm: !l.band && (!!l.rm || usesRegion(cfg, l)) }, dp && dp.fee != null ? { dd: 1, dk: dp.one, ds: dp.src } : {}); }); };
   const publicRegions = (cfgIn) => normRegions(norm(cfgIn).regions).filter((r) => r.base > 0).map((r) => ({ id: r.id, hub: r.hub, base: r.base, free: r.free, perKm: r.perKm, cap: r.cap }));
   const publicSpots = (cfgIn) => norm(cfgIn).spots.filter((x) => x.on).map((x) => ({ id: x.id, name: x.name, note: x.note }));
   // The quick selection: "safe" switches every high-risk place off and the rest on, "all" switches everything on, "custom" changes nothing.
@@ -126,8 +126,8 @@
       if (!l) { l = locs.find((x) => !x.zone && nameKey(x.name) === nameKey(z.name)); if (l) { l.zone = z.id; changed = true; } }
       if (l) { if (l.name !== z.name) { l.name = z.name; changed = true; } return; }
       const hit = TT_PLACES.find((q) => nameKey(q[1]) === nameKey(z.name));
-      if (hit && !bands.some((b) => b.id === hit[0])) { const bd = TT_BANDS.find((b) => b.id === hit[0]); if (bd) bands.push(Object.assign({}, bd)); }
-      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: hit ? hit[0] : '', zone: z.id, auto: !hit }); changed = true;
+      const bd = hit ? TT_BANDS.find((b) => b.id === hit[0]) : null;   // the starter pack's old range only gives a starting price; the place then follows region or distance pricing
+      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: bd ? bd.price : 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: '', rm: !!bd, zone: z.id, auto: !hit }); changed = true;
     });
     return { locations: locs, bands, changed };
   };
@@ -239,8 +239,18 @@
   // straight-line kilometres between two pins (the fallback when the road service cannot be reached)
   const lineKm = (a, b) => { const R = 6371, dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng), x = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2; return Math.round(2 * R * Math.asin(Math.sqrt(x)) * 10) / 10; };
   // the seller's own delivery rate for a distance: base fee + price per km beyond the free distance, rounded up to the nearest step (null until a rate is set)
+  // The seller's delivery rate: base + per km beyond the free km, counted one way or there and back, rounded up (or to the nearest, or not at all) to the step.
   const rateFee = (rate, km) => { rate = rate || {}; const base = num(rate.base), per = num(rate.perKm), free = num(rate.freeKm), step = num(rate.round); if (!(base > 0 || per > 0) || !Number.isFinite(Number(km))) return null;
-    let fee = base + Math.max(0, Number(km) - free) * per; if (step > 0) fee = Math.ceil(fee / step - 1e-9) * step; return r2(fee); };
+    const counted = rate.count === 'both' ? Number(km) * 2 : Number(km); let fee = base + Math.max(0, counted - free) * per;
+    if (step > 0 && rate.mode !== 'none') fee = (rate.mode === 'near' ? Math.round(fee / step + 1e-9) : Math.ceil(fee / step - 1e-9)) * step; return r2(fee); };
+  // Everything the customer is shown: one way, there and back, what is counted, and the fee.
+  const distanceFee = (rate, oneWay) => { const one = Math.round(Number(oneWay) * 10) / 10, both = Math.round(Number(oneWay) * 20) / 10, counted = (rate && rate.count === 'both') ? both : one; return { one, both, counted, fee: rateFee(rate, oneWay) }; };
+  // A place is priced by distance when the seller chose that on the place, or the switch is on and the place has no price of its own (no range, no region price).
+  const ownPrice = (l) => Number(l.price) > 0 && !l.band && !l.rm;
+  const usesDistance = (l, rate) => !!(rate && (num(rate.perKm) > 0 || num(rate.base) > 0) && (l.dm || (rate.charge && !ownPrice(l))));
+  // What a place charges by distance: the measured road km if the seller has it, else the zone's straight line x 1.3 (an estimate).
+  const distPlace = (cfgIn, l, rate, home, cache) => { const cfg = norm(cfgIn); if (!usesDistance(l, rate) || !home) return null; const z = l.zone && cfg.zones.find((q) => q.id === l.zone); const road = cache && cache[l.id]; if (!(road > 0) && !z) return null; const km = road > 0 ? road : Math.round(lineKm(home, { lat: z.lat, lng: z.lng }) * 1.3 * 10) / 10; return Object.assign({ src: road > 0 ? 'road' : 'est' }, distanceFee(rate, km)); };
+  const publicDist = (delivery, cfgIn) => { const d = delivery || {}, cfg = norm(cfgIn), h = d.home && geo(d.home.lat, d.home.lng); if (!h || !(num(d.perKm) > 0 || num(d.base) > 0) || !(d.charge || cfg.locations.some((l) => l.dm))) return null; return { on: !!d.charge, c: d.count === 'one' ? 'one' : 'both', b: num(d.base), p: num(d.perKm), f: num(d.freeKm), s: num(d.round), m: d.mode === 'near' || d.mode === 'none' ? d.mode : 'up', h: [h.lat, h.lng] }; };
   // what the finished deliveries say: how far, what was charged, and the same by distance band (only orders that have a distance)
   // the cost of one delivery trip: there and back, at the seller's cost per kilometre (fuel and wear)
   const tripCost = (km, costKm) => (Number.isFinite(Number(km)) && num(costKm) > 0 ? r2(2 * Number(km) * num(costKm)) : null);
@@ -274,6 +284,6 @@
   const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { publicCouponInfo, priceFlags, smoothPrices, nearRows, placesInReach, CP_KINDS, orderCoupon, normRule, reachCentre, publicRule, ruleCheck, normCouponRule, normCoupons, makeCoupon, couponNorm, couponKey, couponUse, couponState, publicCoupons, couponFind, couponOff, RG, REGIONS, RG_SUGGEST, regionAt, regionFee, normRegions, regionOfPlace, usesRegion, feeAt, publicRegions, nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { distanceFee, usesDistance, distPlace, publicDist, ownPrice, publicCouponInfo, priceFlags, smoothPrices, nearRows, placesInReach, CP_KINDS, orderCoupon, normRule, reachCentre, publicRule, ruleCheck, normCouponRule, normCoupons, makeCoupon, couponNorm, couponKey, couponUse, couponState, publicCoupons, couponFind, couponOff, RG, REGIONS, RG_SUGGEST, regionAt, regionFee, normRegions, regionOfPlace, usesRegion, feeAt, publicRegions, nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

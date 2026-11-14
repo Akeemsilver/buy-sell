@@ -172,9 +172,9 @@ console.log('details tests passed');
   let sy = SC.syncZonePlaces(zc); assert.ok(sy.changed);
   const byName = (n) => sy.locations.find((l) => l.name === n);
   assert.strictEqual(byName('Couva').id, 'old'); assert.strictEqual(byName('Couva').zone, 'z1'); assert.strictEqual(byName('Couva').price, 55);
-  assert.ok(byName('Laventille').risk && byName('Laventille').off && byName('Laventille').band === 'r60');
+  assert.ok(byName('Laventille').risk && byName('Laventille').off && byName('Laventille').rm && byName('Laventille').price === 60 && !byName('Laventille').band, 'a starter match gives a starting price and region pricing, no old range');
   assert.ok(byName('Valencia').off && byName('Valencia').auto && SC.needsPrice({}, byName('Valencia')));
-  assert.ok(sy.bands.some((b) => b.id === 'r60'));
+  assert.deepStrictEqual(sy.bands, [], 'no old price ranges are created any more');
   assert.ok(!SC.syncZonePlaces(Object.assign({}, zc, { locations: sy.locations, bands: sy.bands })).changed);
   const ren = SC.syncZonePlaces({ zones: [{ id: 'z1', name: 'Couva Town', lat: 10.42, lng: -61.45, r: 4000 }], locations: sy.locations, bands: sy.bands });
   assert.ok(ren.locations.some((l) => l.zone === 'z1' && l.name === 'Couva Town')); assert.ok(!ren.locations.some((l) => l.name === 'Valencia'));
@@ -257,3 +257,19 @@ console.log('details tests passed');
   const ci = SC.publicCouponInfo(SC.norm({ couponRule: { on: true, min: 400, kind: 'pct', value: 10, cap: 50 } })); assert.deepStrictEqual(ci, { min: 400, t: 'p', v: 10, m: 50, g: 0 }); assert.ok(!JSON.stringify(ci).includes('code'));
   assert.strictEqual(SC.norm({}).showOffer, true, 'the offer shows by default'); assert.strictEqual(SC.norm({ showOffer: false }).showOffer, false);
   const z = { id: 'zc', name: 'Chaguanas', lat: 10.5167, lng: -61.4112, r: 5000 }; assert.strictEqual(SC.publicRule(SC.norm({ zones: [z], freeRule: { tiers: [{ n: 2, km: 15 }] } }), { lat: 10.52, lng: -61.41 }).cn, 'Chaguanas', 'the centre place is named so the line can say "of Chaguanas"'); }
+
+// distance-based delivery fee: counted there and back, rounded up to the next 5
+{ const r = { base: 0, perKm: 1, freeKm: 0, round: 5, count: 'both' };
+  [[9.5, 20], [14.6, 30], [15.5, 35], [20, 40], [19.9, 40]].forEach(([km, fee]) => assert.strictEqual(SC.rateFee(r, km), fee, km + ' km one way'));
+  assert.deepStrictEqual(SC.distanceFee(r, 23), { one: 23, both: 46, counted: 46, fee: 50 }, 'one way, both ways, counted and the fee');
+  assert.strictEqual(SC.rateFee({ perKm: 1, round: 5, count: 'both', mode: 'near' }, 7.6), 15, 'nearest 5'); assert.strictEqual(SC.rateFee({ perKm: 1, round: 5, mode: 'none' }, 7.6), 7.6, 'no rounding');
+  assert.strictEqual(SC.rateFee({ base: 10, perKm: 0.5, freeKm: 4, round: 5, count: 'both' }, 12), 20, 'base + per km beyond the free km, both ways: 10 + (24-4)*0.5 = 20'); assert.strictEqual(SC.rateFee({ base: 0, perKm: 1, round: 5 }, 31), 35, 'the old one-way rate is unchanged');
+  const zc = { id: 'zc', name: 'Chaguanas', lat: 10.5167, lng: -61.4112, r: 5000 }, home = { lat: 10.5525, lng: -61.36 };
+  const cfg = SC.norm({ zones: [zc], locations: [{ id: 'a', name: 'Chaguanas', delivery: true, zone: 'zc', price: 0, auto: true }, { id: 'b', name: 'Own', delivery: true, price: 35 }, { id: 'c', name: 'Range', delivery: true, zone: 'zc', price: 40, band: 'x' }, { id: 'd', name: 'Pick', delivery: true, zone: 'zc', price: 35, dm: true }] });
+  const rate = Object.assign({ charge: true }, r); assert.ok(SC.usesDistance(cfg.locations[0], rate) && !SC.usesDistance(cfg.locations[1], rate) && SC.usesDistance(cfg.locations[3], rate), 'a place with its own price keeps it; one chosen as distance always uses it');
+  assert.ok(SC.usesDistance(cfg.locations[2], rate), 'a place on a price range follows the distance when the switch is on'); assert.ok(!SC.usesDistance(cfg.locations[0], Object.assign({}, rate, { charge: false })), 'switch off: only places chosen one by one');
+  const dp = SC.distPlace(cfg, cfg.locations[0], rate, home, {}); assert.strictEqual(dp.src, 'est'); assert.ok(dp.fee > 0 && dp.fee % 5 === 0, 'an estimate from the zone: ' + JSON.stringify(dp));
+  assert.strictEqual(SC.distPlace(cfg, cfg.locations[0], rate, home, { a: 9.0 }).fee, 20, 'a measured road distance wins: 9 km one way = 18 both = 20'); assert.strictEqual(SC.distPlace(cfg, cfg.locations[0], rate, home, { a: 9.0 }).src, 'road');
+  const pd = SC.publicDist({ home: { lat: home.lat, lng: home.lng, name: 'x' }, perKm: 1, round: 5, count: 'both', charge: true }, cfg); assert.deepStrictEqual([pd.on, pd.c, pd.p, pd.s, pd.m], [true, 'both', 1, 5, 'up']); assert.strictEqual(SC.publicDist({ perKm: 1, charge: true }, cfg), null, 'no store pin: nothing to measure from');
+  assert.strictEqual(SC.publicDist({ home: { lat: 10.5, lng: -61.4 }, perKm: 1, charge: false }, SC.norm({})), null, 'off and no place chosen: nothing is published');
+  const pl = SC.publicLocs(cfg, { home: { lat: home.lat, lng: home.lng }, perKm: 1, round: 5, count: 'both', charge: true }, { a: 9 }); assert.strictEqual(pl.find((x) => x.name === 'Chaguanas').price, 20); assert.ok(pl.find((x) => x.name === 'Chaguanas').dd && !pl.find((x) => x.name === 'Own').dd); assert.strictEqual(pl.find((x) => x.name === 'Own').price, 35); }

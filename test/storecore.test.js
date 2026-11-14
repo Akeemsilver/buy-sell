@@ -229,8 +229,8 @@ console.log('details tests passed');
   assert.ok(SC.ruleCheck({ t: [[2, 0]], a: 0, ak: 0, c: null }, 2, 1, null).ok, 'a tier that reaches anywhere needs no point');
   const old = SC.norm({ freeRule: { items: { on: true, n: 2 }, spend: { on: false, amt: 400 } } }).freeRule; assert.deepStrictEqual(old.tiers, [{ n: 2, km: 0 }], 'the old rule becomes an anywhere tier');
   // coupons
-  const cc = SC.norm({ couponRule: { on: true, min: 400, kind: 'off', value: 40, days: 30 } }), now = 1e12;
-  const cp = SC.makeCoupon(cc, 'Bea Boutique', { id: 'o1', phone: '868 555 1234', name: 'Kim' }, now); assert.ok(/^BEA-[A-Z0-9]{4}$/.test(cp.code), cp.code); assert.strictEqual(cp.exp, now + 30 * 86400000);
+  const cc = SC.norm({ couponRule: { on: true, min: 400, kind: 'pct', value: 10, cap: 50, days: 30 } }), now = 1e12;
+  const cp = SC.makeCoupon(cc, 'Bea Boutique', { id: 'o1', phone: '868 555 1234', name: 'Kim' }, now); assert.ok(/^BEA-[A-Z2-9]{5}$/.test(cp.code) && /[0-9]/.test(cp.code.slice(4)) && /[A-Z]/.test(cp.code.slice(4)), 'letters and numbers mixed: ' + cp.code); assert.deepStrictEqual([cp.kind, cp.value, cp.cap], ['pct', 10, 50]); assert.strictEqual(cp.exp, now + 30 * 86400000);
   const cfg2 = SC.norm({ coupons: [cp] }), key = SC.couponKey('1868-555-1234', cp.code.toLowerCase());
   assert.strictEqual(SC.publicCoupons(cfg2, [], now)[0].k, key, 'same key however the phone and code are typed'); assert.ok(!JSON.stringify(SC.publicCoupons(cfg2, [], now)).includes(cp.code), 'the code itself is never published');
   const list = SC.publicCoupons(cfg2, [], now);
@@ -238,4 +238,10 @@ console.log('details tests passed');
   assert.deepStrictEqual(SC.publicCoupons(cfg2, [{ id: 'o2', coupon: cp.code, status: 'new', at: 1 }], now), [], 'used by an order: gone from the list');
   assert.strictEqual(SC.publicCoupons(cfg2, [{ id: 'o2', coupon: cp.code, status: 'declined', at: 1 }], now).length, 1, 'a declined order gives the coupon back');
   assert.deepStrictEqual(SC.publicCoupons(cfg2, [], now + 31 * 86400000), [], 'expired');
-  assert.strictEqual(SC.couponOff({ t: 'o', v: 40 }, 100, 50), 40); assert.strictEqual(SC.couponOff({ t: 'd', v: 60 }, 100, 50), 50, 'free delivery up to an amount never goes past the fee'); assert.strictEqual(SC.couponOff({ t: 'o', v: 400 }, 100, 50), 150, 'never more than the order'); }
+  const pct = SC.publicCoupons(cfg2, [], now)[0]; assert.strictEqual(pct.t, 'p'); assert.strictEqual(SC.couponOff(pct, 300, 50), 30, '10% of the items'); assert.strictEqual(SC.couponOff(pct, 900, 50), 50, 'capped at the most you set');
+  assert.strictEqual(SC.couponOff({ t: 'o', v: 40 }, 100, 50), 40, 'money off'); assert.strictEqual(SC.couponOff({ t: 'o', v: 400 }, 100, 50), 150, 'never more than the order');
+  assert.strictEqual(SC.couponOff({ t: 'd', v: 0 }, 100, 50), 50, 'free delivery anywhere');
+  const zc = { id: 'zc', name: 'Chaguanas', lat: 10.5167, lng: -61.4112, r: 5000 }, dcfg = SC.norm({ zones: [zc], couponRule: { on: true, kind: 'delivery', km: 20 }, coupons: [Object.assign({}, cp, { kind: 'delivery', km: 20, cap: 0 })], freeRule: { centre: { lat: zc.lat, lng: zc.lng, name: 'Chaguanas' } } });
+  const del = SC.publicCoupons(dcfg, [], now)[0]; assert.strictEqual(del.g, 20); assert.strictEqual(SC.couponOff(del, 100, 50, { lat: 10.55, lng: -61.40 }), 50, 'inside the range'); assert.strictEqual(SC.couponOff(del, 100, 50, { lat: 10.18, lng: -61.68 }), 0, 'outside the range'); assert.strictEqual(SC.couponOff(del, 100, 50, null), 0, 'a limited coupon needs a point');
+  const pl = SC.norm({ zones: [zc, { id: 'zs', name: 'San Fernando', lat: 10.28, lng: -61.467, r: 5000 }], locations: [{ id: 'a', name: 'Chaguanas', delivery: true, zone: 'zc', price: 40 }, { id: 'b', name: 'San Fernando', delivery: true, zone: 'zs', price: 60 }], freeRule: { centre: { lat: zc.lat, lng: zc.lng, name: 'Chaguanas' } } });
+  assert.deepStrictEqual(SC.placesInReach(pl, 15).map((x) => x.name), ['Chaguanas']); assert.deepStrictEqual(SC.placesInReach(pl, 30).map((x) => x.name), ['Chaguanas', 'San Fernando'], 'sorted by distance'); assert.strictEqual(SC.placesInReach(pl, 0).length, 2, '0 km = everywhere'); }

@@ -1477,3 +1477,4 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .cpcard{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:14px 16px;margin:10px 0}.cpcard .t b{display:block}.cpcard .t small{display:block;color:var(--mute);margin-top:2px}.cpcard .btn{flex:none;width:auto;padding:11px 14px;margin:0}
 .dimcard{opacity:.55}.pkin.wide{width:100%;text-align:left}
 .ap .card>.t b,.ap .card>.t small{display:block}.ap .card .chips{flex-wrap:wrap}
+.lnk{background:none;border:0;color:var(--brand);font:inherit;font-weight:800;font-size:12.5px;padding:2px 4px;min-height:0;cursor:pointer}

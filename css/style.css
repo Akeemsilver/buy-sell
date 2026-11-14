@@ -1478,3 +1478,8 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .dimcard{opacity:.55}.pkin.wide{width:100%;text-align:left}
 .ap .card>.t b,.ap .card>.t small{display:block}.ap .card .chips{flex-wrap:wrap}
 .lnk{background:none;border:0;color:var(--brand);font:inherit;font-weight:800;font-size:12.5px;padding:2px 4px;min-height:0;cursor:pointer}
+/* price helper and price check */
+.phres{padding:16px;margin-top:12px}.phbig{font-size:34px;font-weight:900;color:var(--brand)}.phbig small{font-size:14px;font-weight:700;color:var(--mute)}.phln{display:flex;justify-content:space-between;gap:10px;padding:10px 0 0;font-size:14px}.phln span{color:var(--mute)}.phln b{text-align:right}
+.phsg{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}.phsg:first-child{border:0}.phsg b{display:block;font-size:17px}.phsg small{color:var(--mute)}
+.pccard{padding:12px;color:var(--ink)}.pct{font-weight:800;margin-bottom:4px}.pcchart{width:100%;display:block;color:var(--ink)}.pck{color:var(--mute);font-size:13px;min-width:64px;text-align:right}.pcfl{color:#c0265a!important;font-weight:700}
+.hsec{margin-top:18px}

@@ -180,6 +180,8 @@
   const rememberEmail = (em) => { try { if (em) localStorage.setItem('buy-sell-last-email', em); } catch (e) { /* private mode */ } };
   const acctStatus = () => t('acct.st.' + cloud.status);
   const chPwHTML = () => (Cloud.hasPassword && cloud.signedIn && Cloud.hasPassword() ? `<form id="f-chpw" class="card" style="padding:14px;margin-top:14px"><b>${t('acct.chPw')}</b><span class="pwbox" style="margin-top:10px"><input name="cur" type="password" autocomplete="current-password" required placeholder="${t('acct.curPw')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><span class="pwbox" style="margin-top:10px"><input name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="${t('acct.newPw')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><div id="acct-err" class="err" hidden></div><button class="btn primary" style="margin-top:10px;width:100%">${t('acct.chPwBtn')}</button></form>` : '');
+  const appLink = () => location.origin + location.pathname.replace(/[^/]*$/, '');
+  const appShareHTML = () => `<div class="appshare"><small>📲 ${t('app.share')}</small><div class="lkurl"><span class="lku" tabindex="0">${esc(appLink().replace(/^https?:\/\//, ''))}</span><button type="button" class="lkc" data-act="app-copy" aria-label="${t('store.copy')}">${t('store.copy')}</button></div><div class="approw"><button type="button" class="btn" data-act="app-share">${t('app.shareBtn')}</button><button type="button" class="btn" data-act="app-wa">WhatsApp</button></div></div>`;
   const addPwHTML = () => (Cloud.hasPassword && cloud.signedIn && !Cloud.hasPassword() ? `<form id="f-addpw" class="card" style="padding:14px;margin-top:14px"><b>${t('acct.addPw')}</b><p class="muted small">${t('acct.addPwSub')}</p><span class="pwbox"><input name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="${t('acct.password')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><div id="acct-err" class="err" hidden></div><button class="btn primary" style="margin-top:10px;width:100%">${t('acct.addPwBtn')}</button></form>` : '');
   function acctCard() {
     return cloud.signedIn
@@ -1313,8 +1315,8 @@
   function Settings() {
     const themeName = { light: t('set.light'), dark: t('set.dark'), auto: t('set.auto') }[theme], nav = (v) => `data-act="more" data-id="${v}"`;
     const acct = cloud.signedIn
-      ? `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${esc(cloud.email)}</div><div class="st ${cloud.status === 'synced' ? 'good' : /error|rules|unavailable/.test(cloud.status) ? 'bad' : ''}" id="acct-st">${acctStatus()}</div>${addPwHTML()}<button class="btn" data-act="acct-out">${t('acct.signOut')}</button></div>`
-      : `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${t('set.accountOut')}</div><p class="muted small" style="margin:6px 0 10px">${t('acct.signInSub')}</p><button class="btn primary" data-act="acct-open">${t('acct.signIn')} / ${t('acct.create')}</button></div>`;
+      ? `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${esc(cloud.email)}</div><div class="st ${cloud.status === 'synced' ? 'good' : /error|rules|unavailable/.test(cloud.status) ? 'bad' : ''}" id="acct-st">${acctStatus()}</div>${appShareHTML()}${addPwHTML()}<button class="btn" data-act="acct-out">${t('acct.signOut')}</button></div>`
+      : `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${t('set.accountOut')}</div><p class="muted small" style="margin:6px 0 10px">${t('acct.signInSub')}</p>${appShareHTML()}<button class="btn primary" data-act="acct-open">${t('acct.signIn')} / ${t('acct.create')}</button></div>`;
     return `${acct}
       <h2>${t('set.sec.app')}</h2><div class="list grp">
         ${trow('🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'], 'data-act="pick-lang"')}
@@ -3519,6 +3521,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'acct-open': if (cloud.signedIn) return sheetAccount(); closeSheet(); gateForced = true; gateMode = hasData() ? 'in' : 'create'; gateView = null; updateGate(); return;
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
       case 'acct-google': homeAfterSignIn = true; return acctDone(Cloud.signInGoogle());
+      case 'app-copy': return copyText(appLink()).then((ok) => toast(ok ? t('store.copied') : appLink()));
+      case 'app-share': { const u = appLink(); if (navigator.share) return navigator.share({ title: 'Shopivo', text: t('app.shareText'), url: u }).catch(() => {}); return copyText(u).then((ok) => toast(ok ? t('store.copied') : u)); }
+      case 'app-wa': return void window.open('https://wa.me/?text=' + encodeURIComponent(t('app.shareText') + ' ' + appLink()), '_blank', 'noopener');
       case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); gateJoin = false; gateForced = true; gateMode = 'in'; gateView = null; updateGate(); toast(t('acct.signedOut')); });
       case 'conflict': { const f = window.__conflict; if (f) f(id); closeSheet(); return; }          // answer first: closing the pop-up counts as 'cancel'
       case 'bell': notifTab = 'all'; return sheetNotifs();

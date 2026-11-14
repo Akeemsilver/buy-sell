@@ -251,6 +251,7 @@
     'ed.saved': 'Photo saved ✓',
     'ed.allChecked': 'All photos checked ✓',
     /* account + cloud (step 2) */
+    'app.share': 'Share the app', 'app.shareBtn': 'Share…', 'app.shareText': 'Try Shopivo, the app for tracking what you buy and sell:',
     'set.account': 'Account',
     'acct.title': 'Account',
     'acct.signInSub': 'Sign in to save your business data in the cloud and open it on more than one phone. It keeps working without a connection.',
@@ -925,6 +926,7 @@
     'ed.saved': 'Foto guardada ✓',
     'ed.allChecked': 'Todas las fotos revisadas ✓',
     /* account + cloud (step 2) */
+    'app.share': 'Compartir la app', 'app.shareBtn': 'Compartir…', 'app.shareText': 'Prueba Shopivo, la app para llevar lo que compras y vendes:',
     'set.account': 'Cuenta',
     'acct.title': 'Cuenta',
     'acct.signInSub': 'Inicia sesión para guardar los datos de tu negocio en la nube y abrirlos en más de un teléfono. Sigue funcionando sin conexión.',

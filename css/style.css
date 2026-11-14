@@ -1503,3 +1503,10 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .bandban,.bandban .t b{color:#3b2500}
 .bandban .t small{color:#5c3a00}
 .bandban .btn,.bandban .btn.alt{background:#7a1f4d;color:#fff;border:0;font-weight:700;box-shadow:none}
+
+.acctcard{box-shadow:0 2px 10px rgba(0,0,0,.25);border-radius:20px}
+.acctcard h3{color:var(--ok)}
+.appshare{background:color-mix(in srgb,var(--ink) 5%,transparent);border:1px solid var(--line);border-radius:14px;padding:10px 0 10px;margin:0 0 12px}
+.appshare>small{display:block;color:var(--mute);font-size:12.5px;margin:0 12px 6px}
+.appshare .lkurl{margin-bottom:8px}
+.appshare .approw{display:flex;gap:8px;margin:0 10px}.appshare .approw .btn{flex:1;margin:0;padding:10px}

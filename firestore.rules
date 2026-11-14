@@ -1,5 +1,5 @@
 rules_version = '2';
-// B Ruiz Firestore rules 1.06
+// B Ruiz Firestore rules 1.07
 // Paste this into Firebase console > Firestore Database > Rules > Publish.
 // Only signed-in people can touch data, only their own user record, and only workspaces they are a member of.
 // 1.01 adds the online store: anyone with the store's link can read the published catalogue and send an order; only the owner can read orders or change the store.
@@ -21,12 +21,13 @@ service cloud.firestore {
     function storeOwner(sid) { return signedIn() && (get(/databases/$(database)/documents/stores/$(sid)).data.ownerUid == request.auth.uid || ('workspace' in get(/databases/$(database)/documents/stores/$(sid)).data && isMember(get(/databases/$(database)/documents/stores/$(sid)).data.workspace))); }
     function validOrder(sid) {
       let d = request.resource.data;
-      return d.keys().hasOnly(['code', 'items', 'location', 'option', 'deliveryPrice', 'name', 'phone', 'total', 'status', 'createdAt', 'lang', 'lat', 'lng', 'spot', 'note'])
+      return d.keys().hasOnly(['code', 'items', 'location', 'option', 'deliveryPrice', 'name', 'phone', 'total', 'status', 'createdAt', 'lang', 'lat', 'lng', 'spot', 'note', 'coupon'])
         && (!('lang' in d) || d.lang in ['en', 'es'])
         && (('lat' in d) == ('lng' in d))
         && (!('lat' in d) || (d.lat is number && d.lat >= -90 && d.lat <= 90 && d.lng is number && d.lng >= -180 && d.lng <= 180))
         && (!('spot' in d) || (d.spot is string && d.spot.size() <= 120))
         && (!('note' in d) || (d.note is string && d.note.size() <= 200))
+        && (!('coupon' in d) || (d.coupon is string && d.coupon.size() >= 3 && d.coupon.size() <= 24))   // rules 1.07: the coupon code a customer used
         && d.status == 'new' && d.createdAt == request.time
         && d.name is string && d.name.size() >= 2 && d.name.size() <= 60
         && d.phone is string && d.phone.size() >= 7 && d.phone.size() <= 25

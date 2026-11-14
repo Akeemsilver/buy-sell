@@ -37,11 +37,40 @@
   const normRegions = (list) => REGIONS.map((r) => { const o = (Array.isArray(list) ? list : []).find((x) => x && x.id === r.id) || {}, d = RG_DEF[r.id]; return { id: r.id, hub: r.hub, base: Math.max(0, r2(num(o.base))), free: o.free == null ? d[0] : Math.max(0, num(o.free)), perKm: o.perKm == null ? d[1] : Math.max(0, num(o.perKm)), cap: o.cap == null ? d[2] : Math.max(0, num(o.cap)) }; });
   // The fee for a pin in a region: null when that region has no base fee yet.
   const regionFee = (regions, lat, lng) => { const id = regionAt(lat, lng), r = normRegions(regions).find((x) => x.id === id); if (!r || !(r.base > 0)) return null; const km = metres(Number(lat), Number(lng), r.hub[0], r.hub[1]) / 1000, extra = Math.min(r.cap, Math.max(0, km - r.free) * r.perKm); return { region: id, fee: Math.max(0, r5(r.base + extra)), km: Math.round(km * 10) / 10 }; };
-  // Free delivery by order size: "2 or more items" and / or "TT$ 400 or more" (whichever comes first). Applies to delivery, wherever the customer is.
-  const normRule = (r) => { r = r || {}; const it = r.items || {}, sp = r.spend || {}; return { items: { on: !!it.on, n: Math.max(1, Math.round(num(it.n)) || 2) }, spend: { on: !!sp.on, amt: Math.max(1, r2(num(sp.amt)) || 400) } }; };
-  const publicRule = (cfgIn) => { const r = norm(cfgIn).freeRule; return r.items.on || r.spend.on ? { n: r.items.on ? r.items.n : 0, amt: r.spend.on ? r.spend.amt : 0 } : null; };
-  // How an order stands against the published rule: ok, or how many more items / how much more to spend.
-  const ruleMet = (rule, count, sub) => { if (!rule || !(rule.n > 0 || rule.amt > 0)) return { ok: false, moreItems: 0, moreSpend: 0, on: false }; const okI = rule.n > 0 && count >= rule.n, okS = rule.amt > 0 && sub >= rule.amt; return { ok: okI || okS, on: true, moreItems: rule.n > 0 && !okI ? rule.n - count : 0, moreSpend: rule.amt > 0 && !okS ? r2(rule.amt - sub) : 0 }; };
+  // Free delivery by order size, with reach: "2 items = within 15 km, 3 items = within 35 km, 5 items = anywhere", and / or "spend TT$ 400 = within 35 km".
+  // Distance is measured from a centre (the nearest delivery zone to the seller's store location, or one the seller picks), so no exact address is published.
+  const normRule = (r) => {
+    r = r || {}; const sp = r.spend || {}, c = r.centre, cg = c && Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng)) ? { lat: Number(c.lat), lng: Number(c.lng), name: String(c.name || '').slice(0, 50) } : null;
+    let tiers = Array.isArray(r.tiers) ? r.tiers : (r.items && r.items.on ? [{ n: r.items.n, km: 0 }] : []);   // the older single "N items" rule becomes a tier that reaches anywhere
+    tiers = tiers.map((x) => ({ n: Math.max(1, Math.round(num(x && x.n)) || 1), km: Math.max(0, r2(num(x && x.km))) })).sort((x, y) => x.n - y.n || x.km - y.km).slice(0, 8);
+    return { tiers, spend: { on: !!sp.on, amt: Math.max(1, r2(num(sp.amt)) || 400), km: Math.max(0, r2(num(sp.km))) }, centre: cg };
+  };
+  const reachCentre = (cfgIn, home) => { const cfg = norm(cfgIn); if (cfg.freeRule.centre) return cfg.freeRule.centre; const g = home && Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lng)) ? { lat: Number(home.lat), lng: Number(home.lng) } : null; if (!g) return null; const z = nearestZone(areaZones(cfg.zones), g.lat, g.lng); return z && z.zone ? { lat: z.zone.lat, lng: z.zone.lng, name: z.zone.name } : null; };
+  const publicRule = (cfgIn, home) => { const cfg = norm(cfgIn), r = cfg.freeRule; if (!r.tiers.length && !r.spend.on) return null; const c = reachCentre(cfg, home); return { t: r.tiers.map((x) => [x.n, x.km]), a: r.spend.on ? r.spend.amt : 0, ak: r.spend.km, c: c ? [c.lat, c.lng] : null }; };
+  // How an order stands against the published rule, for a customer at a point (pin, or the centre of the place they chose): ok, or what is still needed, or far (never reached from here).
+  const ruleCheck = (rule, count, sub, pt) => {
+    if (!rule || !Array.isArray(rule.t)) return { on: false, ok: false, moreItems: 0, moreSpend: 0, far: false, km: null };
+    const km = rule.c && pt && Number.isFinite(Number(pt.lat)) ? metres(Number(pt.lat), Number(pt.lng), rule.c[0], rule.c[1]) / 1000 : null, covers = (k) => k === 0 || (km != null && km <= k);
+    const okT = rule.t.some((x) => count >= x[0] && covers(x[1])), okS = rule.a > 0 && sub >= rule.a && covers(rule.ak), ok = okT || okS;
+    const need = rule.t.filter((x) => covers(x[1]) && x[0] > count).map((x) => x[0]), spendCan = rule.a > 0 && covers(rule.ak);
+    return { on: true, ok, moreItems: !ok && need.length ? Math.min(...need) - count : 0, moreSpend: !ok && spendCan ? r2(rule.a - sub) : 0, far: !ok && !need.length && !spendCan && !rule.t.some((x) => count >= x[0]), km: km == null ? null : Math.round(km * 10) / 10 };
+  };
+  // Coupons: earned by a big order, sent by WhatsApp, redeemed on a later order. Tied to the customer's phone number; the store page only ever holds scrambled keys.
+  const normCouponRule = (r) => { r = r || {}; return { on: !!r.on, min: Math.max(1, r2(num(r.min)) || 400), kind: r.kind === 'delivery' ? 'delivery' : 'off', value: Math.max(1, r2(num(r.value)) || 40), days: Math.max(1, Math.min(365, Math.round(num(r.days)) || 30)) }; };
+  const normCoupons = (list) => (Array.isArray(list) ? list : []).map((c) => ({ code: String(c.code || '').toUpperCase().trim(), phone: String(c.phone || ''), name: String(c.name || '').slice(0, 60), order: String(c.order || ''), lang: c.lang === 'es' ? 'es' : 'en', kind: c.kind === 'delivery' ? 'delivery' : 'off', value: Math.max(0, r2(num(c.value))), made: num(c.made), exp: num(c.exp) })).filter((c) => c.code && c.phone);
+  const couponCode = (name, taken) => { const pre = String(name || '').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'CPN'; for (let i = 0; i < 50; i++) { const code = pre + '-' + newId(4).toUpperCase(); if (!(taken || []).includes(code)) return code; } return pre + '-' + newId(6).toUpperCase(); };
+  const makeCoupon = (cfgIn, bizName, order, now) => { const cfg = norm(cfgIn), r = cfg.couponRule; return { code: couponCode(bizName, cfg.coupons.map((c) => c.code)), phone: String(order.phone || ''), name: String(order.name || ''), order: String(order.id || ''), lang: order.lang === 'es' ? 'es' : 'en', kind: r.kind, value: r.value, made: now, exp: now + r.days * 86400000 }; };
+  const couponNorm = (code) => String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const couponMemo = {};
+  const couponKey = (phone, code) => { const k = phoneKey(phone), c = couponNorm(code), id = k + '|' + c; return k && c ? (couponMemo[id] || (couponMemo[id] = slowHash('coupon|' + k + '|' + c))) : ''; };
+  // codes already spent: any order (not declined) that carries the code, earliest first
+  const orderCoupon = (o) => String((o && o.coupon) || ((String((o && o.note) || '').match(/\[Coupon ([A-Za-z0-9-]+)\]/) || [])[1]) || '');
+  const couponUse = (orders) => { const m = {}; (orders || []).slice().sort((x, y) => (Number(x.at) || 0) - (Number(y.at) || 0)).forEach((o) => { const c = couponNorm(orderCoupon(o)); if (c && o.status !== 'declined' && !m[c]) m[c] = o.id; }); return m; };
+  const couponState = (c, use, now) => (use[couponNorm(c.code)] ? 'used' : c.exp && c.exp < now ? 'expired' : 'live');
+  const publicCoupons = (cfgIn, orders, now) => { const cfg = norm(cfgIn), use = couponUse(orders); return cfg.coupons.filter((c) => couponState(c, use, now) === 'live').map((c) => ({ k: couponKey(c.phone, c.code), t: c.kind === 'delivery' ? 'd' : 'o', v: c.value, e: c.exp })).filter((c) => c.k); };
+  const couponFind = (list, phone, code, now) => { const k = couponKey(phone, code); const hit = k && (list || []).find((c) => c.k === k); return hit && (!hit.e || hit.e >= now) ? hit : null; };
+  // what a coupon takes off: "o" = money off the whole order, "d" = free delivery up to that amount
+  const couponOff = (hit, sub, delivery) => (hit ? (hit.t === 'd' ? Math.min(hit.v, delivery) : Math.min(hit.v, r2(sub + delivery))) : 0);
   const norm = (c) => {
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
@@ -51,7 +80,7 @@
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
       spotPrice: Math.max(0, r2(num(c.spotPrice))),
-      freeRule: normRule(c.freeRule), regions: normRegions(c.regions), zones: normZones(c.zones), hotSeeded: !!c.hotSeeded };
+      freeRule: normRule(c.freeRule), couponRule: normCouponRule(c.couponRule), coupons: normCoupons(c.coupons), regions: normRegions(c.regions), zones: normZones(c.zones), hotSeeded: !!c.hotSeeded };
   };
   // Delivery places. A place may belong to a price range (band): then the range sets its price. A place can be switched off, or sit in the high-risk list.
   const bandOf = (cfg, l) => (l.band ? cfg.bands.find((b) => b.id === l.band) || null : null);
@@ -234,6 +263,6 @@
   const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { normRule, publicRule, ruleMet, RG, REGIONS, RG_SUGGEST, regionAt, regionFee, normRegions, regionOfPlace, usesRegion, feeAt, publicRegions, nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { orderCoupon, normRule, reachCentre, publicRule, ruleCheck, normCouponRule, normCoupons, makeCoupon, couponNorm, couponKey, couponUse, couponState, publicCoupons, couponFind, couponOff, RG, REGIONS, RG_SUGGEST, regionAt, regionFee, normRegions, regionOfPlace, usesRegion, feeAt, publicRegions, nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -214,10 +214,28 @@ console.log('details tests passed');
   assert.ok(SC.feeAt(cfg, a, 10.6377, -61.2825) === 65 && SC.feeAt(cfg, b, 10.6377, -61.2825) === 35, 'the pin sets the fee only for region-price places');
   assert.ok(SC.publicLocs(cfg).find((l) => l.name === 'Arima').rm && !SC.publicLocs(cfg).find((l) => l.name === 'Own').rm);
   assert.deepStrictEqual(SC.publicRegions(cfg).map((r) => r.id), ['E', 'S']); }
-// free delivery by order size
-{ const cfg = SC.norm({ freeRule: { items: { on: true, n: 2 }, spend: { on: true, amt: 400 } } });
-  assert.deepStrictEqual(SC.publicRule(cfg), { n: 2, amt: 400 }); assert.strictEqual(SC.publicRule(SC.norm({})), null, 'off by default');
-  const r = SC.publicRule(cfg);
-  assert.ok(SC.ruleMet(r, 2, 50).ok, '2 items qualify however cheap'); assert.ok(SC.ruleMet(r, 1, 400).ok, 'one item at 400 qualifies'); assert.ok(!SC.ruleMet(r, 1, 399.99).ok);
-  assert.deepStrictEqual([SC.ruleMet(r, 1, 100).moreItems, SC.ruleMet(r, 1, 100).moreSpend], [1, 300], 'how far to go');
-  assert.ok(SC.ruleMet({ n: 0, amt: 400 }, 9, 100).ok === false && SC.ruleMet({ n: 3, amt: 0 }, 3, 1).ok, 'each part can be off'); }
+// free delivery by order size, with reach, and coupons
+{ const zones = [{ id: 'zc', name: 'Chaguanas', lat: 10.5167, lng: -61.4112, r: 5000 }, { id: 'zs', name: 'San Fernando', lat: 10.28, lng: -61.467, r: 5000 }];
+  const cfg = SC.norm({ zones, freeRule: { tiers: [{ n: 5, km: 0 }, { n: 2, km: 15 }, { n: 3, km: 35 }], spend: { on: true, amt: 400, km: 35 } } });
+  assert.deepStrictEqual(cfg.freeRule.tiers.map((x) => x.n), [2, 3, 5], 'tiers sorted');
+  const home = { lat: 10.52, lng: -61.41 }, ctr = SC.reachCentre(cfg, home); assert.strictEqual(ctr.name, 'Chaguanas', 'centre = nearest zone to the store location');
+  const r = SC.publicRule(cfg, home); assert.deepStrictEqual(r.t, [[2, 15], [3, 35], [5, 0]]); assert.strictEqual(SC.publicRule(SC.norm({}), home), null, 'off by default');
+  const near = { lat: 10.55, lng: -61.40 }, penal = { lat: 10.22, lng: -61.46 }, pf = { lat: 10.18, lng: -61.68 };
+  assert.ok(SC.ruleCheck(r, 2, 50, near).ok, '2 items close by'); assert.ok(!SC.ruleCheck(r, 2, 50, penal).ok, '2 items is not enough for Penal');
+  assert.ok(SC.ruleCheck(r, 3, 50, { lat: 10.28, lng: -61.467 }).ok, '3 items reach San Fernando'); assert.ok(!SC.ruleCheck(r, 3, 50, pf).ok, '3 items do not reach Point Fortin');
+  assert.ok(SC.ruleCheck(r, 5, 50, pf).ok, '5 items: anywhere');
+  assert.strictEqual(SC.ruleCheck(r, 2, 50, penal).moreItems, 1, 'one more item reaches Penal'); assert.ok(SC.ruleCheck(r, 1, 410, near).ok && !SC.ruleCheck(r, 1, 410, pf).ok, 'spend rule has a reach too');
+  assert.ok(SC.ruleCheck(r, 1, 50, null).moreItems > 0, 'no point: only the unlimited tier can be counted on');
+  assert.ok(SC.ruleCheck({ t: [[2, 0]], a: 0, ak: 0, c: null }, 2, 1, null).ok, 'a tier that reaches anywhere needs no point');
+  const old = SC.norm({ freeRule: { items: { on: true, n: 2 }, spend: { on: false, amt: 400 } } }).freeRule; assert.deepStrictEqual(old.tiers, [{ n: 2, km: 0 }], 'the old rule becomes an anywhere tier');
+  // coupons
+  const cc = SC.norm({ couponRule: { on: true, min: 400, kind: 'off', value: 40, days: 30 } }), now = 1e12;
+  const cp = SC.makeCoupon(cc, 'Bea Boutique', { id: 'o1', phone: '868 555 1234', name: 'Kim' }, now); assert.ok(/^BEA-[A-Z0-9]{4}$/.test(cp.code), cp.code); assert.strictEqual(cp.exp, now + 30 * 86400000);
+  const cfg2 = SC.norm({ coupons: [cp] }), key = SC.couponKey('1868-555-1234', cp.code.toLowerCase());
+  assert.strictEqual(SC.publicCoupons(cfg2, [], now)[0].k, key, 'same key however the phone and code are typed'); assert.ok(!JSON.stringify(SC.publicCoupons(cfg2, [], now)).includes(cp.code), 'the code itself is never published');
+  const list = SC.publicCoupons(cfg2, [], now);
+  assert.ok(SC.couponFind(list, '555 1234', cp.code, now) && !SC.couponFind(list, '555 9999', cp.code, now) && !SC.couponFind(list, '555 1234', 'BEA-XXXX', now), 'only that phone with that code');
+  assert.deepStrictEqual(SC.publicCoupons(cfg2, [{ id: 'o2', coupon: cp.code, status: 'new', at: 1 }], now), [], 'used by an order: gone from the list');
+  assert.strictEqual(SC.publicCoupons(cfg2, [{ id: 'o2', coupon: cp.code, status: 'declined', at: 1 }], now).length, 1, 'a declined order gives the coupon back');
+  assert.deepStrictEqual(SC.publicCoupons(cfg2, [], now + 31 * 86400000), [], 'expired');
+  assert.strictEqual(SC.couponOff({ t: 'o', v: 40 }, 100, 50), 40); assert.strictEqual(SC.couponOff({ t: 'd', v: 60 }, 100, 50), 50, 'free delivery up to an amount never goes past the fee'); assert.strictEqual(SC.couponOff({ t: 'o', v: 400 }, 100, 50), 150, 'never more than the order'); }

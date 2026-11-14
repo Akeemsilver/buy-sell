@@ -16,7 +16,7 @@
   const bizName = () => state.settings.businessName || 'B-RUIZ';
   const initials = (n) => String(n).trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toUpperCase() || '·';
   // Versions shown in Settings > About. APP_VERSION goes up by 0.01 with each release; RULES_VERSION must match the header of firestore.rules (a test checks).
-  const APP_VERSION = '1.00', RULES_VERSION = '1.06', CLOUD_LIMIT = 1073741824;
+  const APP_VERSION = '1.00', RULES_VERSION = '1.07', CLOUD_LIMIT = 1073741824;
   const NUM_FIELDS = ['cost', 'price', 'sold', 'delivery'];
   const STATUSES = ['In Transit', 'Available', 'Owing', 'Paid', 'Closed'];   // stored names; only their display text is translated
   const stLabel = (s) => t('status.' + String(s).replace(' ', ''));
@@ -2616,15 +2616,52 @@
     const c = storeCfg(), cand = c.locations.filter((l) => !l.risk).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     openSmall(`<h3>${t('pk.riskAdd')}</h3><p>${t('pk.riskPickSub')}</p><form id="f-riskpick"><div class="oqbar" style="margin-bottom:8px"><span aria-hidden="true">🔍</span><input id="rp-q" class="cq" type="search" autocomplete="off" placeholder="${esc(t('pl.search'))}"></div><div class="fpl" id="rp-list">${cand.map((l) => `<label class="tkr" data-n="${esc(l.name.toLowerCase())}"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('') || `<p class="muted small">${t('pk.riskNoPlaces')}</p>`}</div><input name="name" type="text" autocomplete="off" placeholder="${esc(t('pk.riskOther'))}"><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
-  const freeSum = (c) => { const r = c.freeRule, p = []; if (r.items.on) p.push(t('fr.sumItems', { n: r.items.n })); if (r.spend.on) p.push(t('fr.sumSpend', { a: moneyText(r.spend.amt) })); return p.length ? p.join(' · ') : t('fr.none'); };
+  const kmLabel = (k) => (k > 0 ? t('fr.within', { km: k }) : t('fr.anywhere'));
+  const freeSum = (c) => { const r = c.freeRule, p = []; if (r.tiers.length) p.push(tn('fr.sumTiers', r.tiers.length)); if (r.spend.on) p.push(t('fr.sumSpend', { a: moneyText(r.spend.amt) })); return p.length ? p.join(' · ') : t('fr.none'); };
+  const cpSum = (c) => (c.couponRule.on ? t('cp.sum', { min: moneyText(c.couponRule.min), v: moneyText(c.couponRule.value) }) : t('fr.none'));
+  const reachName = (c) => { const g = SCore.reachCentre(c, dset().home); return g ? g.name || '' : ''; };
   function sheetFreeRule() {
     enterPage('freerule', '', () => sheetFreeRule());
-    const r = storeCfg().freeRule;
+    const c = storeCfg(), r = c.freeRule, centre = reachName(c);
+    const tier = (x, i) => `<div class="tierr"><span class="pkp">${t('fr.tierN')}</span><input class="pkin tn" inputmode="numeric" data-tier="n" data-i="${i}" value="${x.n}" aria-label="${t('fr.itemsU')}"><span class="pkp">${t('fr.itemsU')}</span><span class="arr">→</span><input class="pkin tk2" inputmode="decimal" data-tier="km" data-i="${i}" value="${x.km || ''}" placeholder="∞" aria-label="km"><span class="pkp">km</span><button type="button" class="tx" data-act="fr-tier-del" data-id="${i}" aria-label="${t('btn.delete')}">×</button></div><div class="tsub">${x.n} ${t('fr.itemsU')} · ${kmLabel(x.km)}</div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fr.title')}</b><small>${t('fr.sub')}</small></div></div>
-      <div class="ap"><div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('fr.items')}</b><small>${t('fr.itemsSub')}</small></div>${swt('fr-on', 'items', r.items.on)}</div><div class="pkb ${r.items.on ? '' : 'dim'}"><span class="pkp">${t('fr.atLeast')}</span><input class="pkin" inputmode="numeric" data-rule="items" value="${r.items.n}" aria-label="${t('fr.items')}"><span class="pkp">${t('fr.itemsU')}</span></div></div>
-      <div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('fr.spend')}</b><small>${t('fr.spendSub')}</small></div>${swt('fr-on', 'spend', r.spend.on)}</div><div class="pkb ${r.spend.on ? '' : 'dim'}"><span class="pkp">TT$</span><input class="pkin" inputmode="decimal" data-rule="spend" value="${r.spend.amt}" aria-label="${t('fr.spend')}"></div></div>
-      <p class="lead" style="margin:10px 2px">${t('fr.how')}</p></div>`, null, true);
+      <div class="ap"><p class="lead" style="margin:0 2px 10px">${t('fr.how')}</p>
+      <div class="card" style="margin-bottom:12px"><div class="t" style="padding:14px 16px 4px"><b>${t('fr.items')}</b><small>${t('fr.itemsSub')}</small></div><div class="tiers">${r.tiers.map(tier).join('') || `<p class="muted small" style="margin:6px 16px">${t('fr.noTiers')}</p>`}</div>
+        <div class="btns" style="padding:0 16px 14px"><button type="button" class="btn alt" data-act="fr-tier-add">＋ ${t('fr.addLevel')}</button>${r.tiers.length ? '' : `<button type="button" class="btn alt" data-act="fr-suggest">✨ ${t('fr.suggest')}</button>`}</div></div>
+      <div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('fr.spend')}</b><small>${t('fr.spendSub')}</small></div>${swt('fr-on', 'spend', r.spend.on)}</div><div class="pkb ${r.spend.on ? '' : 'dim'}"><span class="pkp">TT$</span><input class="pkin" inputmode="decimal" data-rule="amt" value="${r.spend.amt}" aria-label="${t('fr.spend')}"><span class="arr">→</span><input class="pkin tk2" inputmode="decimal" data-rule="km" value="${r.spend.km || ''}" placeholder="∞" aria-label="km"><span class="pkp">km</span></div></div>
+      <div class="card" style="margin-bottom:12px"><button type="button" class="rw2 tap" data-act="fr-centre"><div class="t"><b>${t('fr.from')}</b><small>${centre ? esc(centre) : t('fr.fromNone')}</small></div><span class="chev">›</span></button></div>
+      <p class="muted small" style="margin:6px 2px">${t('fr.kmNote')}</p></div>`, null, true);
   }
+  function sheetReachCentre() {
+    enterPage('reach', '', () => sheetReachCentre());
+    const c = storeCfg(), byName = (x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }), zs = SCore.areaZones(c.zones).slice().sort(byName), cur = c.freeRule.centre;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fr.from')}</b><small>${t('fr.fromSub')}</small></div></div>
+      <div class="pd"><div class="card pkc"><div class="pkr"><button type="button" class="pkn" data-act="fr-centre-pick" data-id=""><b>${t('fr.fromHome')}</b><small>${esc(reachName(Object.assign({}, c, { freeRule: Object.assign({}, c.freeRule, { centre: null }) })) || t('fr.fromNone'))}</small></button>${!cur ? '<span class="pkp">✓</span>' : ''}</div>${zs.map((z) => `<div class="pkr"><button type="button" class="pkn" data-act="fr-centre-pick" data-id="${z.id}"><b>${esc(z.name)}</b></button>${cur && cur.name === z.name ? '<span class="pkp">✓</span>' : ''}</div>`).join('')}</div></div>`, null, true);
+  }
+  /* ---------- coupons: earned on a big order, sent by WhatsApp, used on the next order ---------- */
+  const ordersAt = () => Store.orders().map((o) => ({ id: o.id, coupon: SCore.orderCoupon(o), status: o.status, at: o.createdAt && o.createdAt.toMillis ? o.createdAt.toMillis() : 0 }));
+  const cpOffer = (kind, v, lg) => t(kind === 'delivery' ? 'cp.delText' : 'cp.offText', { v: moneyText(v) }, lg);
+  const cpDate = (ms, lg) => new Date(ms).toLocaleDateString(lg === 'es' ? 'es' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  function sheetCoupons() {
+    enterPage('coupons', '', () => sheetCoupons());
+    const c = storeCfg(), r = c.couponRule, use = SCore.couponUse(ordersAt()), now = Date.now(), list = c.coupons.slice().sort((x, y) => y.made - x.made);
+    const chip = (k) => `<button type="button" class="chip ${r.kind === k ? 'on' : ''}" data-act="cp-kind" data-id="${k}">${t(k === 'delivery' ? 'cp.kDel' : 'cp.kOff')}</button>`;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('cp.title')}</b><small>${t('cp.sub')}</small></div></div>
+      <div class="ap"><div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('cp.on')}</b><small>${t('cp.onSub')}</small></div>${swt('cp-on', 'on', r.on)}</div></div>
+      <div class="card ${r.on ? '' : 'dimcard'}" style="margin-bottom:12px"><div class="fld" style="padding:14px 16px 0"><label>${t('cp.min')}</label><input class="pkin wide" inputmode="decimal" data-cpr="min" value="${r.min}"><small>${t('cp.minSub')}</small></div>
+        <div style="padding:6px 16px 0"><label>${t('cp.kind')}</label><div class="chips">${chip('off')}${chip('delivery')}</div></div>
+        <div class="fld" style="padding:12px 16px 0"><label>${t(r.kind === 'delivery' ? 'cp.valDel' : 'cp.valOff')}</label><input class="pkin wide" inputmode="decimal" data-cpr="value" value="${r.value}"></div>
+        <div class="fld" style="padding:12px 16px 14px"><label>${t('cp.days')}</label><input class="pkin wide" inputmode="numeric" data-cpr="days" value="${r.days}"><small>${t('cp.how')}</small></div></div>
+      <h4 class="pkh">${t('cp.made')}</h4><div class="card pkc">${list.map((x) => { const st = SCore.couponState(x, use, now); return `<div class="pkr"><span class="pkn"><b>${esc(x.code)} · ${esc(x.name || '')}</b><small>${esc(cpOffer(x.kind, x.value))} · ${t('cp.st.' + st)}${st === 'live' ? ' · ' + t('cp.until', { d: cpDate(x.exp) }) : ''}</small></span></div>`; }).join('') || `<p class="muted small" style="margin:8px 14px">${t('cp.none')}</p>`}</div></div>`, null, true);
+  }
+  // On an order that is paid in full and big enough: make the coupon (once per order) and send it by WhatsApp.
+  const couponCard = (o, pay) => {
+    const c = storeCfg(), r = c.couponRule; if (!r.on || o.status === 'declined') return '';
+    const mine = c.coupons.find((x) => x.order === o.id), sub = (o.items || []).reduce((n, i) => n + (Number(i.price) || 0), 0);
+    if (!mine) { if (!(pay && pay.owing <= 0 && sub >= r.min && SCore.validPhone(o.phone))) return ''; return `<div class="card cpcard"><div class="t"><b>🎟 ${t('cp.reward')}</b><small>${t('cp.rewardSub', { v: esc(cpOffer(r.kind, r.value)) })}</small></div><button type="button" class="btn primary" data-act="cpn-make" data-id="${o.id}">${t('cp.make')}</button></div>`; }
+    const st = SCore.couponState(mine, SCore.couponUse(ordersAt()), Date.now());
+    return `<div class="card cpcard"><div class="t"><b>🎟 ${esc(mine.code)}</b><small>${esc(cpOffer(mine.kind, mine.value))} · ${t('cp.st.' + st)}${st === 'live' ? ' · ' + t('cp.until', { d: cpDate(mine.exp) }) : ''}</small></div><button type="button" class="btn wa" data-act="cpn-send" data-id="${o.id}">${t('cp.send')}</button></div>`;
+  };
   function sheetPickup() {
     ensureZonePlaces(); seedHot();
     enterPage('pickup', '', () => sheetPickup());
@@ -2643,6 +2680,7 @@
       <button type="button" class="hnr zrow" data-act="places-page"><span class="hic" style="background:var(--okbg)">📍</span><div class="t"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><span class="chev">›</span></button>
       <h4 class="pkh">${t('pd.secFree')}</h4>
       <button type="button" class="hnr zrow" data-act="free-rule"><span class="hic" style="background:var(--okbg)">🎁</span><div class="t"><b>${t('fr.title')}</b><small>${freeSum(c)}</small></div><span class="chev">›</span></button>
+      <button type="button" class="hnr zrow" data-act="coupons-page"><span class="hic" style="background:var(--warnbg)">🎟</span><div class="t"><b>${t('cp.title')}</b><small>${cpSum(c)}</small></div><span class="chev">›</span></button>
       <h4 class="pkh">${t('pd.secSafety')}</h4>
       <button type="button" class="hnr zrow" data-act="risk-page"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${tn('pk.riskCountN', c.zones.filter((z) => z.risk).length + risks.filter((l) => !hotOf(l.id)).length)}</small></div><span class="chev">›</span></button>
       ${c.locations.some((l) => l.risk) ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
@@ -2690,7 +2728,7 @@
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
-    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'regions-page', 'free-rule', 'fr-on', 'region-edit', 'region-suggest', 'region-save', 'region-all', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
+    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'regions-page', 'free-rule', 'fr-on', 'fr-tier-add', 'fr-tier-del', 'fr-suggest', 'fr-centre', 'fr-centre-pick', 'coupons-page', 'cp-on', 'cp-kind', 'cpn-make', 'cpn-send', 'region-edit', 'region-suggest', 'region-save', 'region-all', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
   }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
   /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
   const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
@@ -3181,7 +3219,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${fullWhen(Store.when(o))}</small></div>${nav}</div>${stripBar}
       <div class="ap">${stepBar}${pinHot(o).length && o.status === 'new' ? `<div class="hotban"><b>⚠️ ${t('hot.banner')}</b><span>${t('hot.sure', { z: esc(pinHot(o).map((z) => z.name).join(', ')) })}</span></div>` : ''}${sumCard}<div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small>${orderWho(o)}</div><a class="ibtn wapp" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a><a class="ibtn" href="tel:${esc(SCore.digits(o.phone))}" aria-label="${t('ord.call')}"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stage === 'new' ? '' : stBadge(o)}</div></div>
       <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
-      ${payCard}${tlCard}${spotCard}
+      ${payCard}${couponCard(o, L.orderPay(state, orderInvoice(o)))}${tlCard}${spotCard}
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('flow.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
         : o.status === 'confirmed' ? `<div class="fnext">${(() => { const left = toHand(o), wait = left.filter(itemArriving); if (left.length && wait.length === left.length) return `<button type="button" class="fwait" data-act="wait-open" data-id="${o.id}">⏳ ${tn('ord.waitingN', wait.length)} ›</button>`; return owingNow > 0 ? `<button class="gbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.skipDel' : 'flow.skipCol')}</button>` : `<button class="pbtn" data-act="order-done" data-id="${o.id}">${t(o.option === 'delivery' ? 'flow.nextDel' : 'flow.nextCol')}</button>`; })()}</div><p class="ocancel"><button data-act="order-cancel" data-id="${o.id}">${t('ord.cancelThis')}</button><small>${t('ord.cancelNote')}</small></p>`
         : o.status === 'done' && inv && (L.purchaseOf(state, inv) || { items: [] }).items.length ? `<div class="btnrow"><button class="gbtn" data-act="return-open" data-id="${inv}" data-ord="${o.id}" style="flex:1;grid-column:1 / -1">↩ ${t('ret.btn')}</button></div>` : (o.status === 'done' || o.status === 'declined') ? `<p class="ocancel"><button data-act="order-delete" data-id="${o.id}">${t('ord.delete')}</button><small>${t('ord.deleteNote')}</small></p>` : ''}</div>`, null, true);   // the invoice opens from its row in the checklist above
@@ -3284,7 +3322,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function openInvoiceFromSheet(no) { closeSheet(); sheetInvoice(no); }
 
   if (window.SelectPicker) SelectPicker.install(() => ({ cancel: t('btn.cancel'), done: t('btn.done'), search: t('pick.search'), choose: t('pick.choose'), none: t('people.noMatch') }));   // our own picker instead of the browser's list
-  const KEEP_SCROLL = new Set(['fr-on', 'area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
+  const KEEP_SCROLL = new Set(['fr-on', 'cp-on', 'cp-kind', 'fr-tier-del', 'area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     if (e.target.id === 'tmscrim') return closeTopMenu();
@@ -3673,7 +3711,17 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
       case 'zones-open': closeSheet(); return sheetZones();
       case 'free-rule': return sheetFreeRule();
-      case 'fr-on': { const c = storeCfg(), r = c.freeRule; storeSet({ freeRule: Object.assign({}, r, { [id]: Object.assign({}, r[id], { on: !r[id].on }) }) }); return sheetFreeRule(); }
+      case 'fr-on': { const c = storeCfg(), r = c.freeRule; storeSet({ freeRule: Object.assign({}, r, { spend: Object.assign({}, r.spend, { on: !r.spend.on }) }) }); return sheetFreeRule(); }
+      case 'fr-tier-add': { const c = storeCfg(), r = c.freeRule, last = r.tiers[r.tiers.length - 1]; storeSet({ freeRule: Object.assign({}, r, { tiers: r.tiers.concat({ n: last ? last.n + 1 : 2, km: last && last.km ? Math.round(last.km * 1.5) : 15 }) }) }); return sheetFreeRule(); }
+      case 'fr-tier-del': { const c = storeCfg(), r = c.freeRule; storeSet({ freeRule: Object.assign({}, r, { tiers: r.tiers.filter((x, i) => i !== Number(id)) }) }); return sheetFreeRule(); }
+      case 'fr-suggest': { const c = storeCfg(); storeSet({ freeRule: Object.assign({}, c.freeRule, { tiers: [{ n: 2, km: 15 }, { n: 3, km: 35 }, { n: 5, km: 0 }] }) }); return sheetFreeRule(); }
+      case 'fr-centre': return sheetReachCentre();
+      case 'fr-centre-pick': { const c = storeCfg(), z = id ? c.zones.find((q) => q.id === id) : null; storeSet({ freeRule: Object.assign({}, c.freeRule, { centre: z ? { lat: z.lat, lng: z.lng, name: z.name } : null }) }); pageStack = pageStack.filter((p) => p.key !== 'reach|'); return dropPages('reach|'); }
+      case 'coupons-page': return sheetCoupons();
+      case 'cp-on': { const c = storeCfg(); storeSet({ couponRule: Object.assign({}, c.couponRule, { on: !c.couponRule.on }) }); return sheetCoupons(); }
+      case 'cp-kind': { const c = storeCfg(); storeSet({ couponRule: Object.assign({}, c.couponRule, { kind: id === 'delivery' ? 'delivery' : 'off', value: c.couponRule.kind !== id && c.couponRule.value === (c.couponRule.kind === 'delivery' ? 60 : 40) ? (id === 'delivery' ? 60 : 40) : c.couponRule.value }) }); return sheetCoupons(); }
+      case 'cpn-make': { const o = Store.orders().find((x) => x.id === id); if (!o) return; const c = storeCfg(); if (c.coupons.some((x) => x.order === id)) return; const cp = SCore.makeCoupon(c, bizName(), { id, phone: o.phone, name: o.name, lang: o.lang }, Date.now()); storeSet({ coupons: c.coupons.concat(cp) }); Store.schedule && Store.schedule(); toast(t('cp.made1')); return sheetOrder(id, true); }
+      case 'cpn-send': { const o = Store.orders().find((x) => x.id === id), cp = o && storeCfg().coupons.find((x) => x.order === id); if (!cp) return; const lg = o.lang === 'es' ? 'es' : 'en', msg = t('cp.msg', { name: (o.name || '').split(' ')[0], biz: bizName(), code: cp.code, offer: cpOffer(cp.kind, cp.value, lg), date: cpDate(cp.exp, lg) }, lg); const w = window.open(SCore.waLink(o.phone, msg), '_blank'); if (!w) toast(t('ord.waBlocked')); return; }
       case 'regions-page': return sheetRegions();
       case 'region-edit': return sheetRegion(id);
       case 'region-all': return askCard(t('rg.allAsk'), { ok: t('rg.allOk') }).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ locations: c.locations.map((l) => (l.delivery && !l.risk && SCore.regionOfPlace(c, l) ? Object.assign({}, l, { band: '', rm: true, off: l.auto ? false : l.off, auto: false }) : l)) }); toast(t('rg.allDone')); sheetRegions(); });
@@ -3783,7 +3831,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   }
   document.addEventListener('change', (e) => {
     const el = e.target;
-    if (el.dataset && el.dataset.rule) { const c = storeCfg(), r = c.freeRule, k = el.dataset.rule, v = parseAmt(el.value); storeSet({ freeRule: Object.assign({}, r, { [k]: k === 'items' ? Object.assign({}, r.items, { n: Math.max(1, Math.round(v) || r.items.n) }) : Object.assign({}, r.spend, { amt: v > 0 ? v : r.spend.amt }) }) }); const f = storeCfg().freeRule; el.value = k === 'items' ? f.items.n : f.spend.amt; return; }
+    if (el.dataset && el.dataset.rule) { const c = storeCfg(), r = c.freeRule, k = el.dataset.rule, v = parseAmt(el.value); storeSet({ freeRule: Object.assign({}, r, { spend: Object.assign({}, r.spend, k === 'amt' ? { amt: v > 0 ? v : r.spend.amt } : { km: v }) }) }); const f = storeCfg().freeRule.spend; el.value = k === 'amt' ? f.amt : (f.km || ''); return; }
+    if (el.dataset && el.dataset.tier) { const c = storeCfg(), r = c.freeRule, i = Number(el.dataset.i), v = parseAmt(el.value); storeSet({ freeRule: Object.assign({}, r, { tiers: r.tiers.map((x, j) => (j === i ? (el.dataset.tier === 'n' ? { n: Math.max(1, Math.round(v) || x.n), km: x.km } : { n: x.n, km: v }) : x)) }) }); return sheetFreeRule(); }
+    if (el.dataset && el.dataset.cpr) { const c = storeCfg(), k = el.dataset.cpr, v = parseAmt(el.value), r = c.couponRule; storeSet({ couponRule: Object.assign({}, r, { [k]: k === 'days' ? Math.max(1, Math.min(365, Math.round(v) || r.days)) : (v > 0 ? v : r[k]) }) }); const f = storeCfg().couponRule; el.value = f[k]; return; }
     if (el.id === 'sl-mode') { const own = $('#sl-own'), nt = $('#sl-rnote'); if (own) own.style.display = el.value === 'own' ? '' : 'none'; if (nt) nt.style.display = el.value === 'region' ? '' : 'none'; return; }
     if (el.dataset && el.dataset.phonefor) { const v = el.value.trim(); if (v) savePhone(el.dataset.phonefor, v); return; }
     if (el.id === 'sp-name' || el.id === 'sp-phone') { const b = $('#sheet').querySelector('[data-act="split-go"]'); return b && splitSummary(b.dataset.id); }

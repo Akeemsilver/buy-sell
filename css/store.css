@@ -174,3 +174,10 @@ input::placeholder,textarea::placeholder{color:currentColor;opacity:.4}
 body{padding-top:var(--sat)}
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:var(--sat);background:var(--brand2,#741b47);z-index:60;pointer-events:none}
 .toast{top:calc(78px + var(--sat))}
+
+.lg.fit{background:transparent;width:auto;height:40px;min-width:40px;max-width:130px;border-radius:0;overflow:visible}
+.lg.fit img{width:auto;height:100%;max-width:130px;object-fit:contain;display:block}
+.lg.fit.circle img{border-radius:50%;width:40px;object-fit:cover}
+.lg.fit.rounded img{border-radius:22%;width:40px}
+.lg.fit.square img{border-radius:6px;width:40px}
+.lg.fit.wide img{border-radius:6px}

@@ -37,6 +37,11 @@
   const normRegions = (list) => REGIONS.map((r) => { const o = (Array.isArray(list) ? list : []).find((x) => x && x.id === r.id) || {}, d = RG_DEF[r.id]; return { id: r.id, hub: r.hub, base: Math.max(0, r2(num(o.base))), free: o.free == null ? d[0] : Math.max(0, num(o.free)), perKm: o.perKm == null ? d[1] : Math.max(0, num(o.perKm)), cap: o.cap == null ? d[2] : Math.max(0, num(o.cap)) }; });
   // The fee for a pin in a region: null when that region has no base fee yet.
   const regionFee = (regions, lat, lng) => { const id = regionAt(lat, lng), r = normRegions(regions).find((x) => x.id === id); if (!r || !(r.base > 0)) return null; const km = metres(Number(lat), Number(lng), r.hub[0], r.hub[1]) / 1000, extra = Math.min(r.cap, Math.max(0, km - r.free) * r.perKm); return { region: id, fee: Math.max(0, r5(r.base + extra)), km: Math.round(km * 10) / 10 }; };
+  // Free delivery by order size: "2 or more items" and / or "TT$ 400 or more" (whichever comes first). Applies to delivery, wherever the customer is.
+  const normRule = (r) => { r = r || {}; const it = r.items || {}, sp = r.spend || {}; return { items: { on: !!it.on, n: Math.max(1, Math.round(num(it.n)) || 2) }, spend: { on: !!sp.on, amt: Math.max(1, r2(num(sp.amt)) || 400) } }; };
+  const publicRule = (cfgIn) => { const r = norm(cfgIn).freeRule; return r.items.on || r.spend.on ? { n: r.items.on ? r.items.n : 0, amt: r.spend.on ? r.spend.amt : 0 } : null; };
+  // How an order stands against the published rule: ok, or how many more items / how much more to spend.
+  const ruleMet = (rule, count, sub) => { if (!rule || !(rule.n > 0 || rule.amt > 0)) return { ok: false, moreItems: 0, moreSpend: 0, on: false }; const okI = rule.n > 0 && count >= rule.n, okS = rule.amt > 0 && sub >= rule.amt; return { ok: okI || okS, on: true, moreItems: rule.n > 0 && !okI ? rule.n - count : 0, moreSpend: rule.amt > 0 && !okS ? r2(rule.amt - sub) : 0 }; };
   const norm = (c) => {
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
@@ -46,7 +51,7 @@
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
       spotPrice: Math.max(0, r2(num(c.spotPrice))),
-      regions: normRegions(c.regions), zones: normZones(c.zones), hotSeeded: !!c.hotSeeded };
+      freeRule: normRule(c.freeRule), regions: normRegions(c.regions), zones: normZones(c.zones), hotSeeded: !!c.hotSeeded };
   };
   // Delivery places. A place may belong to a price range (band): then the range sets its price. A place can be switched off, or sit in the high-risk list.
   const bandOf = (cfg, l) => (l.band ? cfg.bands.find((b) => b.id === l.band) || null : null);
@@ -229,6 +234,6 @@
   const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { RG, REGIONS, RG_SUGGEST, regionAt, regionFee, normRegions, regionOfPlace, usesRegion, feeAt, publicRegions, nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { normRule, publicRule, ruleMet, RG, REGIONS, RG_SUGGEST, regionAt, regionFee, normRegions, regionOfPlace, usesRegion, feeAt, publicRegions, nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

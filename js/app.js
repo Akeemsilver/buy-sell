@@ -1330,6 +1330,7 @@
         ${cloud.signedIn && Cloud.hasPassword && Cloud.hasPassword() ? trow('🔑', t('acct.chPw'), t('set.pwSub'), nav('set-password')) : ''}</div>
       <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
         ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}
+        ${trow('💳', t('bc.row'), t('bc.rowSub'), 'data-act="bc-open"')}
         <div class="row srow"><span class="tile">🛍️</span><div class="grow"><b>${t('store.left')}</b><small>${t('store.leftSub')}</small></div>${swt('store-left', 'showLeft', storeCfg().showLeft)}</div></div>
       ${cloud.signedIn && team ? (can('team') ? `<h2>${t('team.sec')}</h2><div class="list grp">${trow('👥', t('team.row'), t('team.rowSub', { n: Object.keys(team.members || {}).length }) + (joinReqs.length ? ' · ' + t('team.waiting', { n: joinReqs.length }) : ''), 'data-act="team-open"')}${trow('🔑', t('perm.row'), t('perm.sub'), 'data-act="perm-open"')}</div>` : `<h2>${t('team.sec')}</h2><div class="list grp"><div class="row srow"><span class="tile">🏷️</span><div class="grow"><b>${t('team.mine')}</b><small>${rankName(team.rank)}</small></div></div></div>`) : ''}
       <h2>${t('set.sec.data')}</h2><div class="list grp">
@@ -1555,6 +1556,54 @@
       const k = Math.min(1, 1400 / im.width), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
       return c.toDataURL('image/jpeg', 0.82);
     } finally { URL.revokeObjectURL(url); }
+  }
+
+  /* ---------- business card editor: colours, what is on it, QR link, print files (PDF + PNG) ---------- */
+  let bcOn = false, bcRaf = 0, bcSide = 'front';
+  const bcCfg = () => CardMaker.norm(state.settings.bizCard);
+  const bcSave = (c) => { state.settings.bizCard = c; save(); };
+  const bcSet = (path, v) => { const c = bcCfg(); InvHeader.setPath(c, path, v); if (/^(dark|light)$/.test(path)) c.scheme = 'custom'; bcSave(CardMaker.norm(c)); bcPaintSoon(); };
+  const bcData = () => {
+    const s = state.settings, sc = storeCfg(), phone = s.bizPhone || '';
+    return { name: s.businessName || 'B-RUIZ', phone, email: s.bizEmail || '', city: s.bizCity || '', storeLink: sc && sc.id && window.Store ? Store.link(sc) : 'https://shopivo.github.io/', whatsappLink: phone && SCore.validPhone(phone) ? SCore.waLink(phone) : '', whatsappLabel: t('bc.waLabel'), qrLabel: t('bc.scan') };
+  };
+  const bcImages = () => { const c = ihCfg(); return { logo: hdrImg(c.slots.logo || state.settings.bizLogo), title: hdrImg(c.slots.title) }; };
+  function bcCanvas(side, cfg, scale) {
+    const sz = CardMaker.size(cfg), cv = document.createElement('canvas'); cv.width = Math.round(sz.w * scale); cv.height = Math.round(sz.h * scale);
+    const x = cv.getContext('2d'); x.scale(scale, scale); CardMaker.draw(x, side, cfg, bcData(), bcImages(), { bleed: cfg.bleed }); return cv;
+  }
+  function bcPaint() { const cv = $('#bc-pv'); if (!cv) return; const cfg = bcCfg(), side = bcSide === 'back' && cfg.sides === 'front' ? 'front' : bcSide, src = bcCanvas(side === 'back' && cfg.sides === 'frontblank' ? 'blank' : side, cfg, 2); cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0); }
+  function bcPaintSoon() { if (!bcOn) return; cancelAnimationFrame(bcRaf); bcRaf = requestAnimationFrame(bcPaint); }
+  const bcPath = (p) => InvHeader.getPath(bcCfg(), p);
+  const bcTog = (p, label) => `<div class="ihr tgl"><span>${label}</span>${swt('bc-tog', p, !!bcPath(p))}</div>`;
+  const bcChips = (p, label, opts) => { const cur = bcPath(p); return `<div class="ihr"><label>${label}</label><div class="chiprow">${opts.map(([k, l]) => `<button type="button" class="chip ${String(cur) === String(k) ? 'on' : ''}" data-act="bc-set" data-id="${p}=${k}">${l}</button>`).join('')}</div></div>`; };
+  const bcCol = (p, label) => `<div class="ihr col"><label>${label}</label><input type="color" data-bc="${p}" value="${bcPath(p)}"></div>`;
+  const bcTxt = (p, label, ph) => `<div class="ihr"><label>${label}</label><input type="text" data-bc="${p}" value="${esc(bcPath(p) || '')}" placeholder="${esc(ph || '')}" autocomplete="off" maxlength="80"></div>`;
+  function bcBodyHTML() {
+    const cfg = bcCfg(), d = bcData();
+    const col = ihSec('bc1', t('bc.colors'), `${bcChips('scheme', t('bc.scheme'), [['wine', t('bc.s.wine')], ['rosegold', t('bc.s.rosegold')], ['navy', t('bc.s.navy')], ['charcoal', t('bc.s.charcoal')], ['invoice', t('bc.s.invoice')]])}${bcCol('dark', t('bc.dark'))}${bcCol('light', t('bc.light'))}`);
+    const what = ihSec('bc2', t('bc.what'), `${bcTog('show.name', t('bc.name'))}${bcTog('show.sub', t('bc.sub'))}${bcTxt('text.sub', t('bc.subText'), 'ONLINE STORE')}${bcTog('show.phone', t('bc.phone'))}${bcTxt('text.phone', t('bc.phoneText'), d.phone)}${bcTog('show.whatsapp', t('bc.whatsapp'))}${bcTog('show.email', t('bc.email'))}${bcTxt('text.email', t('bc.emailText'), d.email)}${bcTog('show.city', t('bc.city'))}${bcTxt('text.city', t('bc.cityText'), d.city)}${bcTog('show.tagline', t('bc.tagline'))}${bcTxt('text.tagline', t('bc.taglineText'), 'STYLE · QUALITY · TRUST')}`);
+    const qr = ihSec('bc3', t('bc.qr'), `${bcTog('show.qr', t('bc.qrShow'))}${cfg.show.qr ? bcChips('qr.mode', t('bc.qrMode'), [['store', t('bc.qr.store')], ['whatsapp', t('bc.qr.wa')], ['link', t('bc.qr.link')]]) + (cfg.qr.mode === 'link' ? bcTxt('qr.text', t('bc.qrLink'), 'https://') : '') + `<p class="muted small">${t('bc.qrNote')} <b>${esc(CardMaker.qrTarget(cfg, d) || '-')}</b></p>` : ''}`);
+    const print = ihSec('bc4', t('bc.print'), `${bcChips('sides', t('bc.sides'), [['both', t('bc.sides.both')], ['front', t('bc.sides.front')], ['frontblank', t('bc.sides.blank')]])}${bcTog('bleed', t('bc.bleed'))}<p class="muted small">${t('bc.bleedNote')}</p>
+      <div class="btns"><button type="button" class="btn primary" data-act="bc-pdf">⬇ ${t('bc.dlPdf')}</button><button type="button" class="btn" data-act="bc-png" data-id="front">⬇ ${t('bc.dlFront')}</button><button type="button" class="btn" data-act="bc-png" data-id="back">⬇ ${t('bc.dlBack')}</button></div><p class="muted small">${t('bc.printNote')}</p>`);
+    return `${col}${what}${qr}${print}`;
+  }
+  function bcRefresh() { const b = $('#bc-body'); if (!b) return; const sc = $('#sheet').scrollTop; b.innerHTML = bcBodyHTML(); $('#sheet').scrollTop = sc; bcPaint(); }
+  function sheetCard() {
+    enterPage('bizcard', '', () => sheetCard());
+    bcOn = true;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('bc.title')}</b><small>${t('bc.sub2')}</small></div></div>
+      <div class="ihtop"><canvas id="bc-pv" width="1050" height="600" aria-label="${t('bc.title')}"></canvas><div class="chiprow bcside"><button type="button" class="chip on" data-act="bc-side" data-id="front">${t('bc.front')}</button><button type="button" class="chip" data-act="bc-side" data-id="back">${t('bc.back')}</button></div></div>
+      <div class="pd" id="bc-body">${bcBodyHTML()}</div>`, () => { bcOn = false; }, true);
+    bcSide = 'front'; bcPaint();
+  }
+  const bcDownload = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+  const bcBlob = (cv, type, q) => new Promise((ok) => cv.toBlob(ok, type, q));
+  const bcFile = () => (state.settings.businessName || 'business').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'business';
+  async function bcMakePdf() {
+    const cfg = bcCfg(), sz = CardMaker.size(cfg), pages = [];
+    for (const side of CardMaker.sidesOf(cfg)) { if (side === 'blank') { pages.push({ blank: true }); continue; } const cv = bcCanvas(side, cfg, 2), jb = await bcBlob(cv, 'image/jpeg', 0.95); pages.push({ jpeg: new Uint8Array(await jb.arrayBuffer()), w: cv.width, h: cv.height }); }
+    return new Blob([Pdf.pagesToPdf(pages, { w: sz.inW * 72, h: sz.inH * 72 })], { type: 'application/pdf' });
   }
 
   /* Full-screen editor: a big live preview of the invoice, a colour wheel, brightness, second colour. Opened from the Invoice design page. */
@@ -3832,6 +3881,12 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'pr-pick': { const cur = new Set(prChosen().map((x) => x.id)); if (cur.has(id)) cur.delete(id); else cur.add(id); prPicks = cur; return prRefresh(); }
       case 'gate-logo-pick': { const f = $('#gate-logo-file'); if (f) f.click(); return; }
       case 'logo-go': try { localStorage.setItem('buy-sell-pref:logoNudgeOff', 'true'); } catch (e) { /* shown again next time */ } go({ tab: 'more', moreView: 'set-business' }); window.scrollTo(0, 0); return render();
+      case 'bc-open': return sheetCard();
+      case 'bc-tog': bcSet(id, !bcPath(id)); return bcRefresh();
+      case 'bc-set': { const i = id.indexOf('='), p = id.slice(0, i), v = id.slice(i + 1); if (p === 'scheme') { bcSave(CardMaker.applyScheme(bcCfg(), v, InvHeader.colours(ihCfg()).head)); } else bcSet(p, v); return bcRefresh(); }
+      case 'bc-side': bcSide = id; document.querySelectorAll('.bcside .chip').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); return bcPaint();
+      case 'bc-png': { const cfg = bcCfg(); return bcBlob(bcCanvas(id, cfg, 2), 'image/png').then((b) => bcDownload(b, `${bcFile()}-card-${id}-${cfg.bleed ? 'bleed-1125x675' : '1050x600'}.png`)); }
+      case 'bc-pdf': return bcMakePdf().then((b) => bcDownload(b, `${bcFile()}-business-card-${bcCfg().bleed ? 'WITH-BLEED-3.75x2.25in' : '3.5x2in'}.pdf`));
       case 'ih-open': return sheetHeader();
       case 'ih-add': { const f = $('#ih-file'); if (f) { f.value = ''; f.click(); } return; }
       case 'ih-slot': { ihSlotPick = id; const f = $('#ih-file1'); if (f) { f.value = ''; f.click(); } return; }
@@ -4192,6 +4247,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   document.addEventListener('input', (e) => {
     const el = e.target;
     if (el.closest && el.closest('#tsearch')) { const pi = $(pageSearchSel()); if (pi) { pi.value = el.value; pi.dispatchEvent(new Event('input', { bubbles: true })); } return; }
+    if (el.dataset.bc) { bcSet(el.dataset.bc, el.value); return; }
     if (el.dataset.ih) { const p = el.dataset.ih; let v = el.value; if (el.type === 'range') { v = Number(v); const lb = el.parentElement && el.parentElement.querySelector('.v'); if (lb) lb.textContent = Math.round(v * 100) / 100; } ihSet(p, v); return; }
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
     if (el.dataset.bandprice) { const c = storeCfg(); storeSet({ bands: c.bands.map((b) => (b.id === el.dataset.bandprice ? Object.assign({}, b, { price: parseAmt(el.value) }) : b)) }); return; }

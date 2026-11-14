@@ -57,7 +57,7 @@
   // With a pin the pin's own region (and how far into it) sets the fee, for places on region price.
   const feeAt = (cfg, l, lat, lng) => { if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) && lat != null && lng != null && (l.rm || usesRegion(cfg, l)) && !l.band) { const f = regionFee(cfg.regions, lat, lng); if (f) return f.fee; } return priceOf(cfg, l); };
   // What the customer's store page gets: the places that are switched on (and whose range is on), each with its real price.
-  const publicLocs = (cfgIn) => { const cfg = norm(cfgIn); return cfg.locations.filter((l) => { const b = bandOf(cfg, l); return !l.off && !(b && b.on === false); }).map((l) => ({ id: l.id, name: l.name, pickup: l.pickup, delivery: l.delivery, price: priceOf(cfg, l), rm: !l.band && (!!l.rm || usesRegion(cfg, l)) })); };
+  const publicLocs = (cfgIn) => { const cfg = norm(cfgIn); return cfg.locations.filter((l) => { const b = bandOf(cfg, l); return !l.off && !(b && b.on === false); }).map((l) => ({ id: l.id, name: l.name, pickup: l.pickup, delivery: l.delivery, price: priceOf(cfg, l), zone: l.zone || '', rg: regionOfPlace(cfg, l), rm: !l.band && (!!l.rm || usesRegion(cfg, l)) })); };
   const publicRegions = (cfgIn) => normRegions(norm(cfgIn).regions).filter((r) => r.base > 0).map((r) => ({ id: r.id, hub: r.hub, base: r.base, free: r.free, perKm: r.perKm, cap: r.cap }));
   const publicSpots = (cfgIn) => norm(cfgIn).spots.filter((x) => x.on).map((x) => ({ id: x.id, name: x.name, note: x.note }));
   // The quick selection: "safe" switches every high-risk place off and the rest on, "all" switches everything on, "custom" changes nothing.

@@ -118,7 +118,8 @@
   // Every delivery zone is also a place in the customer's "Where are you?" list (kept in step with the zones). A zone that matches the starter pack takes its price range
   // and high-risk mark; any other zone starts switched off with no price ("auto"), so nothing is delivered free by accident until a price is set.
   const nameKey = (v) => String(v || '').toLowerCase().replace(/[.\u2019']/g, '').replace(/\s+/g, ' ').trim();
-  const syncZonePlaces = (cfgIn) => {
+  const syncZonePlaces = (cfgIn, opts) => {
+    const np = !!(opts && opts.noPrices);   // a new business gets the default places with no prices: each place starts off until the owner prices it
     const cfg = norm(cfgIn), bands = cfg.bands.slice(); let changed = false, locs = cfg.locations.map((l) => Object.assign({}, l));
     const riskIds = new Set(cfg.zones.filter((z) => z.risk).map((z) => z.id)), ids = new Set(cfg.zones.filter((z) => !z.risk).map((z) => z.id)), n0 = locs.length; locs = locs.filter((l) => !l.zone || ids.has(l.zone)); if (locs.length !== n0) changed = true;   // a high-risk spot is a flag on a pin, never a place of its own
     cfg.zones.filter((z) => !z.risk).forEach((z) => {
@@ -127,7 +128,7 @@
       if (l) { if (l.name !== z.name) { l.name = z.name; changed = true; } return; }
       const hit = TT_PLACES.find((q) => nameKey(q[1]) === nameKey(z.name));
       const bd = hit ? TT_BANDS.find((b) => b.id === hit[0]) : null;   // the starter pack's old range only gives a starting price; the place then follows region or distance pricing
-      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: bd ? bd.price : 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: '', rm: !!bd, zone: z.id, auto: !hit }); changed = true;
+      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: np ? 0 : (bd ? bd.price : 0), risk: !!(hit && hit[2]), off: np ? true : (hit ? !!hit[2] : true), band: '', rm: np ? false : !!bd, zone: z.id, auto: np ? true : !hit }); changed = true;
     });
     return { locations: locs, bands, changed };
   };

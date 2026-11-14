@@ -34,7 +34,7 @@
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1, ratio = n / (bw * bh), aspect = bw / bh;
     let shape = 'square';
     if (aspect >= 1.6) shape = 'wide';
-    else if (mode !== 'none') shape = ratio < 0.86 ? 'circle' : ratio < 0.975 ? 'rounded' : 'square';
+    else if (mode !== 'none') shape = ratio < 0.72 ? 'square' : ratio < 0.86 ? 'circle' : ratio < 0.975 ? 'rounded' : 'square';   // low fill = letters or a free-form mark: show it whole, never cut it to a circle
     return { shape, box: { x: x0, y: y0, w: bw, h: bh }, mode, ratio, aspect, bg, bgColor };
   };
 
@@ -66,14 +66,15 @@
     } finally { if (isFile) URL.revokeObjectURL(url); }
   };
   // Upload: trim, see-through background, small PNG. Returns {src, shape}.
-  LF.fit = async (file) => {
+  LF.fit = async (file, opts) => {
+    opts = opts || {};
     const { w, h, d } = await grab(file), res = LF.analyze(d, w, h), px = LF.cutout(d, w, h, res), b = res.box;
     const full = document.createElement('canvas'); full.width = b.w; full.height = b.h; full.getContext('2d').putImageData(new ImageData(px, b.w, b.h), 0, 0);
-    let long = res.shape === 'wide' ? 360 : 256, src = '';
+    let long = res.shape === 'wide' ? (opts.wide || 360) : (opts.long || 256), src = '', cap = opts.cap || 180000;
     for (let tries = 0; tries < 3; tries++) {
       const k = Math.min(1, long / Math.max(b.w, b.h)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(b.w * k)); c.height = Math.max(1, Math.round(b.h * k));
       const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(full, 0, 0, c.width, c.height); src = c.toDataURL('image/png');
-      if (src.length < 180000) break; long = Math.round(long * 0.7);
+      if (src.length < cap) break; long = Math.round(long * 0.7);
     }
     return { src, shape: res.shape };
   };

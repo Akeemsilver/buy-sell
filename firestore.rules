@@ -8,6 +8,7 @@ rules_version = '2';
 // 1.04 lets a delivery order carry short delivery notes (gate colour, house number, a landmark).
 // 1.05 shares a business between people: a business code (codes/{CODE}) that anyone signed in can look up one at a time, requests to join (workspaces/{w}/joinRequests/{uid}) that only the Owner can answer, and the online store can be read and changed by every member of the business (not only the person who created it).
 // 1.06 adds short store link names: names/{name} (3-30 lowercase letters, digits, hyphens) points at a store; anyone can read one, only the store's owner or a member of its business can claim, move or release it.
+// 1.07 lets an order carry the coupon code the customer used (coupon, 3 to 24 characters), so the seller can see it and the code can be marked used.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }

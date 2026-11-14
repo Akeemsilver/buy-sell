@@ -1488,3 +1488,7 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .sgrp[hidden],.rw2[hidden]{display:none}
 .gdhero{padding:16px;margin-bottom:12px}.gdhero b{display:block;font-size:17px;margin-bottom:8px}.gdbar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:0 0 12px}.gdbar i{display:block;height:100%;background:var(--brand)}
 .gdrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:14px 4px;color:inherit;font:inherit;min-height:0;border-radius:0}.gdrow:first-child{border-top:0}.gdck{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;flex:none}.gdck.on{background:var(--brand);border-color:var(--brand)}.gdt{flex:1}.gdt b{display:block}.gdt small{color:var(--mute)}
+
+/* the store link, shown in full under Copy link / Share / Preview */
+.lkurl{display:flex;align-items:center;gap:10px;width:calc(100% - 20px);margin:2px 10px 12px;padding:11px 12px;border-radius:12px;border:1px dashed var(--line);background:color-mix(in srgb,var(--brand) 6%,transparent);color:var(--ink);font:inherit;text-align:left;min-height:0;cursor:pointer}
+.lkurl .lku{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:700;color:var(--brand)}.lkurl .lkc{flex:none;font-size:12.5px;font-weight:800;color:var(--mute)}

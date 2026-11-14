@@ -12,6 +12,7 @@
   const DESIGNS = [
     { id: 'classic', image: true, head: '#cea8bd', tint: null, band: '#e6d2db', ink: '#000' },
     { id: 'fade', themed: true }, { id: 'deep', themed: true }, { id: 'dusk', themed: true }, { id: 'sunrise', themed: true }, { id: 'glow', themed: true },
+    { id: 'custom', custom: true },
   ];
   const headH = () => HEAD_H;
   const find = (id) => DESIGNS.find((d) => d.id === id) || DESIGNS[0];

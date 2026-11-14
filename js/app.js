@@ -1411,12 +1411,13 @@
     return InvDesign.DESIGNS.map((d) => {
       const c = invDesign(d.id), top = d.id === 'classic' ? bannerSrc() : headerURL(d.id), on = cur === d.id;
       return `<div class="dwrap"><button class="dzoom" data-act="inv-design-view" data-id="${d.id}" aria-label="${t('invd.full')}">⤢</button><button class="dsg ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-act="inv-design" data-id="${d.id}" style="--ih:${c.head};--it:${c.tint || '#f6edf2'}">
-        <span class="pg"><img src="${top}" alt=""><i class="th"></i><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="bd"></i></span><b>${t('invd.' + d.id)}</b>${d.themed ? `<small>${t('invd.themed')}</small>` : ''}</button></div>`;
+        <span class="pg"><img src="${top}" alt=""><i class="th"></i><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="bd"></i></span><b>${d.id === 'custom' ? t('invd.myhdr') : t('invd.' + d.id)}</b>${d.themed ? `<small>${t('invd.themed')}</small>` : ''}</button></div>`;
     }).join('');
   };
   // Colour settings of the chosen design: own colour (or the theme's), lighter/darker, and how far the second colour goes.
   function invColourPanel() {
     const id = invDesignId(), st = invStyle(id), d = InvDesign.find(id);
+    if (id === 'custom') return `<div class="invset"><h3>${t('invd.myhdr')}</h3><p class="muted small" style="margin:0 0 8px">${t('ih.sub')}</p><button type="button" class="btn primary" data-act="ih-open">${t('ih.open')}</button></div>`;
     if (!d.themed) return `<div class="invset"><h3>${t('invd.colours')} · ${t('invd.' + id)}</h3><p class="muted small" style="margin:0">${t('invd.fixed')}</p></div>`;
     const own = (st.color || '').toLowerCase(), blend = st.blend != null && st.blend !== '' ? st.blend : (InvDesign.BLEND[id] || 0), hasBlend = id in InvDesign.BLEND;
     return `<div class="invset"><h3>${t('invd.colours')} · ${t('invd.' + id)}</h3>
@@ -1430,8 +1431,132 @@
     const fr = invFrame(), frames = [['tint', t('invd.frameTint')], ['shadow', t('invd.frameShadow')], ['none', t('invd.frameNone')]];
     return `<p class="muted small" style="margin:0 2px 10px">${t('invd.note')}</p>
       <div class="invset"><h3>${t('invd.frame')}</h3><div class="chiprow" role="radiogroup" aria-label="${t('invd.frame')}" style="margin:0">${frames.map(([k, l]) => `<button type="button" class="chip ${fr === k ? 'on' : ''}" role="radio" aria-checked="${fr === k}" data-act="inv-frame" data-id="${k}">${l}</button>`).join('')}</div><p class="muted small" style="margin:8px 0 0">${t('invd.frameNote')}</p></div>
+      <button type="button" class="row tap ihentry" data-act="ih-open"><span style="font-size:22px">🎨</span><div class="grow"><b>${t('ih.open')}</b><small>${t('ih.openSub')}</small></div><span class="chev">›</span></button>
       <div id="invpanel">${invColourPanel()}</div><div class="dsgrid" id="dsgrid" role="radiogroup" aria-label="${t('set.invDesign')}">${invCards()}</div>`;
   }
+  document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.ihk) ihOpenSecs[d.dataset.ihk] = d.open; }, true);
+  /* ---------- invoice header builder: pictures (files or a zip), layouts, pieces, banner, saved designs ---------- */
+  const hdrImgs = new Map();
+  let ihOn = false, ihRaf = 0, ihSlotPick = '', ihPend = null, ihOpenSecs = { images: true, layout: true };
+  const hdrImg = (src) => {
+    if (!src) return null; let i = hdrImgs.get(src);
+    if (!i) { i = new Image(); i.onload = () => { Object.keys(headCache).forEach((k) => delete headCache[k]); ihPaintSoon(); if (invFsOn) invFsPreview(); }; i.src = src; hdrImgs.set(src, i); if (hdrImgs.size > 14) hdrImgs.delete(hdrImgs.keys().next().value); }
+    return i;
+  };
+  const ihCfg = () => InvHeader.norm(state.settings.invHeader);
+  const ihImages = (cfg) => ({ logo: hdrImg(cfg.slots.logo || state.settings.bizLogo), title: hdrImg(cfg.slots.title), extra1: hdrImg(cfg.slots.extra1), extra2: hdrImg(cfg.slots.extra2), bg: hdrImg(cfg.bg.image.src) });
+  const ihInfo = () => { const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail); return { name: s.businessName || 'B.RUIZ', lines: own ? { city: s.bizCity, phone: s.bizPhone, email: s.bizEmail } : { city: 'Chaguanas', phone: '18683658857', email: 'berilexy.ruiz93@gmail.com' }, title: ti('doc.invoiceWord') }; };
+  const ihSave = (cfg) => { state.settings.invHeader = cfg; save(); Object.keys(headCache).forEach((k) => delete headCache[k]); };
+  const ihSet = (path, v) => { const c = ihCfg(); InvHeader.setPath(c, path, v); c.layout = /^items\.(logo|title|extra1|extra2|name|lines|invoice|tagline)\.(x|y|size|on|mode|align)$/.test(path) ? 'custom' : c.layout; ihSave(InvHeader.norm(c)); ihPaintSoon(); };
+  function ihPaint() {
+    const cv = $('#ih-pv'); if (!cv) return; const cfg = ihCfg(), S = 2; cv.width = InvHeader.W * S; cv.height = InvHeader.H * S;
+    const x = cv.getContext('2d'); x.scale(S, S); InvHeader.draw(x, cfg, ihInfo(), ihImages(cfg));
+  }
+  function ihPaintSoon() { if (!ihOn) return; cancelAnimationFrame(ihRaf); ihRaf = requestAnimationFrame(ihPaint); }
+
+  const ihRng = (path, label, min, max, step) => { const v = InvHeader.getPath(ihCfg(), path); return `<div class="ihr"><label>${label}<b class="v">${Math.round(v * 100) / 100}</b></label><input type="range" min="${min}" max="${max}" step="${step || 1}" value="${v}" data-ih="${path}"></div>`; };
+  const ihTog = (path, label) => `<div class="ihr tgl"><span>${label}</span>${swt('ih-tog', path, !!InvHeader.getPath(ihCfg(), path))}</div>`;
+  const ihCol = (path, label) => `<div class="ihr col"><label>${label}</label><input type="color" data-ih="${path}" value="${InvHeader.getPath(ihCfg(), path)}"></div>`;
+  const ihChips = (path, label, opts) => { const cur = InvHeader.getPath(ihCfg(), path); return `<div class="ihr"><label>${label}</label><div class="chiprow">${opts.map(([k, l]) => `<button type="button" class="chip ${String(cur) === String(k) ? 'on' : ''}" data-act="ih-set" data-id="${path}=${k}">${l}</button>`).join('')}</div></div>`; };
+  const ihTxt = (path, label, ph) => `<div class="ihr"><label>${label}</label><input type="text" data-ih="${path}" value="${esc(InvHeader.getPath(ihCfg(), path) || '')}" placeholder="${esc(ph || '')}" autocomplete="off" maxlength="60"></div>`;
+  const ihSec = (k, title, body) => `<details class="ihsec" data-ihk="${k}" ${ihOpenSecs[k] ? 'open' : ''}><summary>${title}</summary><div class="ihb">${body}</div></details>`;
+  function ihPieceHTML(s, cfg) {
+    const it = cfg.items[s], src = s === 'logo' ? (cfg.slots.logo || state.settings.bizLogo) : cfg.slots[s];
+    const pic = `<div class="ihpic"><span class="ihth ${src ? '' : 'none'}">${src ? `<img src="${src}" alt="">` : '＋'}</span><div class="ihpb"><button type="button" class="btn" data-act="ih-slot" data-id="${s}">${src ? t('ih.replace') : t('ih.upload1')}</button>${cfg.slots[s] ? `<button type="button" class="btn" data-act="ih-clear" data-id="${s}">${t('ih.remove')}</button>` : ''}</div>${s === 'logo' && !cfg.slots.logo && state.settings.bizLogo ? `<small>${t('ih.useStore')}</small>` : ''}</div>`;
+    const shape = ihChips(`items.${s}.shape`, t('ih.shape'), InvHeader.SHAPES.map((k) => [k, t('ih.sh.' + k)]));
+    const adj = it.on ? `${shape}${ihRng(`items.${s}.size`, t('ih.size'), 20, 300)}${ihRng(`items.${s}.x`, t('ih.x'), -40, 760)}${ihRng(`items.${s}.y`, t('ih.y'), -40, 190)}${it.shape !== 'none' ? ihRng(`items.${s}.pad`, t('ih.pad'), 0, 30) + ihTog(`items.${s}.ring`, t('ih.ring')) + (it.ring ? ihCol(`items.${s}.ringColor`, t('ih.ringColor')) : '') : ''}${ihTog(`items.${s}.shadow`, t('ih.shadow'))}` : '';
+    return `<details class="ihsub"><summary><span>${t('ih.slot.' + s)}</span>${swt('ih-tog', `items.${s}.on`, it.on)}</summary><div class="ihb">${pic}${adj}</div></details>`;
+  }
+  function ihTextHTML(k, title, body) { const on = ihCfg().items[k].on; return `<details class="ihsub"><summary><span>${title}</span>${swt('ih-tog', `items.${k}.on`, on)}</summary><div class="ihb">${on ? body : ''}</div></details>`; }
+  function ihBannerHTML(cfg) {
+    const b = cfg.bg, g = b.grad;
+    const type = ihChips('bg.type', t('ih.type'), [['gradient', t('ih.type.gradient')], ['solid', t('ih.type.solid')], ['image', t('ih.type.image')]]);
+    const gradUI = `${ihChips('bg.grad.mode', t('ih.gmode'), [['linear', t('ih.gmode.linear')], ['radial', t('ih.gmode.radial')]])}
+      ${g.mode === 'linear' ? ihRng('bg.grad.angle', t('ih.angle'), 0, 360) : ihRng('bg.grad.cx', t('ih.cx'), 0, 1, 0.01) + ihRng('bg.grad.cy', t('ih.cy'), 0, 1, 0.01) + ihRng('bg.grad.r', t('ih.reach'), 0.2, 1.6, 0.01)}
+      ${ihChips('bg.grad.blend', t('ih.blend'), [['smooth', t('ih.bl.smooth')], ['soft', t('ih.bl.soft')], ['sharp', t('ih.bl.sharp')]])}
+      <div class="ihr"><label>${t('ih.stops')}</label>${g.stops.map((s, i) => `<div class="ihstop"><input type="color" data-ih="bg.grad.stops.${i}.c" value="${s.c}"><input type="range" min="0" max="1" step="0.01" value="${s.p}" data-ih="bg.grad.stops.${i}.p" aria-label="${t('ih.pos')}">${g.stops.length > 2 ? `<button type="button" class="ihx" data-act="ih-stop-del" data-id="${i}" aria-label="${t('ih.remove')}">✕</button>` : ''}</div>`).join('')}${g.stops.length < 4 ? `<button type="button" class="btn" data-act="ih-stop-add">＋ ${t('ih.addColor')}</button>` : ''}</div>`;
+    const solidUI = ihCol('bg.solid', t('ih.solid'));
+    const imgUI = `<div class="ihpic"><span class="ihth ${b.image.src ? '' : 'none'}">${b.image.src ? `<img src="${b.image.src}" alt="">` : '＋'}</span><div class="ihpb"><button type="button" class="btn" data-act="ih-bgpick">${t('ih.pickBg')}</button>${b.image.src ? `<button type="button" class="btn" data-act="ih-bgclear">${t('ih.remove')}</button>` : ''}</div></div>${ihTog('bg.image.tint', t('ih.tint'))}${b.image.tint ? ihRng('bg.image.alpha', t('ih.tintAmt'), 0, 1, 0.01) + gradUI : ''}`;
+    const pat = `${ihTog('bg.pattern.on', t('ih.pattern'))}${b.pattern.on ? ihRng('bg.pattern.opacity', t('ih.patOp'), 0.02, 0.4, 0.01) + ihRng('bg.pattern.size', t('ih.patSize'), 30, 140) : ''}`;
+    const presets = `<div class="ihr"><label>${t('ih.presets')}</label><div class="chiprow">${Object.keys(InvHeader.PRESETS).map((k) => `<button type="button" class="chip" data-act="ih-preset" data-id="${k}">${t('ih.pr.' + k)}</button>`).join('')}</div></div>`;
+    return `${presets}${type}${b.type === 'gradient' ? gradUI : b.type === 'solid' ? solidUI : imgUI}${pat}`;
+  }
+  function ihSavedHTML() {
+    const list = state.settings.invHeaderSaved || [];
+    return `<div class="ihr"><div class="slugrow"><input type="text" id="ih-name" placeholder="${t('ih.nameDesign')}" maxlength="30" autocomplete="off"><button type="button" class="btn" data-act="ih-save">${t('ih.saveAs')}</button></div></div>
+      ${list.length ? list.map((d) => `<div class="ihsaved"><b>${esc(d.name)}</b><button type="button" class="btn" data-act="ih-apply" data-id="${d.id}">${t('ih.apply')}</button><button type="button" class="ihx" data-act="ih-del" data-id="${d.id}" aria-label="${t('ih.delete')}">✕</button></div>`).join('') : `<p class="muted small">${t('ih.noSaved')}</p>`}`;
+  }
+  function ihBodyHTML() {
+    const cfg = ihCfg(), it = cfg.items, L = it.lines;
+    const imgs = ihSec('images', t('ih.sec.images'), `<div class="ihr"><button type="button" class="btn primary" style="width:100%" data-act="ih-add">📎 ${t('ih.upload')}</button><small class="muted">${t('ih.uploadSub')}</small></div>${InvHeader.SLOTS.map((s) => ihPieceHTML(s, cfg)).join('')}`);
+    const layout = ihSec('layout', t('ih.sec.layout'), `<div class="chiprow ihlay">${InvHeader.LAYOUTS.map((k) => `<button type="button" class="chip ${cfg.layout === k ? 'on' : ''}" data-act="ih-layout" data-id="${k}">${t('ih.layout.' + k)}</button>`).join('')}</div>`);
+    const text = ihSec('text', t('ih.sec.text'),
+      ihTextHTML('name', t('ih.name'), `${ihTxt('items.name.text', t('ih.nameText'), ihInfo().name)}${ihRng('items.name.size', t('ih.size'), 10, 60)}${ihRng('items.name.x', t('ih.x'), -40, 760)}${ihRng('items.name.y', t('ih.y'), 10, 190)}${ihCol('items.name.color', t('ih.color'))}${ihChips('items.name.weight', t('ih.weight'), [[400, '400'], [600, '600'], [700, '700'], [900, '900']])}`)
+      + `<details class="ihsub"><summary><span>${t('ih.lines')}</span>${swt('ih-tog', 'items.lines.on', L.on)}</summary><div class="ihb">${L.on ? `${ihChips('items.lines.mode', t('ih.mode'), [['stack', t('ih.mode.stack')], ['two', t('ih.mode.two')]])}${ihTog('items.lines.city', t('ih.city'))}${ihTog('items.lines.phone', t('ih.phone'))}${ihTog('items.lines.email', t('ih.email'))}${ihRng('items.lines.size', t('ih.size'), 8, 30)}${ihRng('items.lines.gap', t('ih.gap'), 10, 40)}${ihRng('items.lines.x', t('ih.x'), -40, 760)}${ihRng('items.lines.y', t('ih.y'), 10, 190)}${ihCol('items.lines.color', t('ih.color'))}` : ''}</div></details>`
+      + ihTextHTML('invoice', t('ih.invoiceWord'), `${ihTxt('items.invoice.text', t('ih.text'), ihInfo().title)}${ihRng('items.invoice.size', t('ih.size'), 16, 90)}${ihRng('items.invoice.x', t('ih.x'), 0, 800)}${ihRng('items.invoice.y', t('ih.y'), 20, 190)}${ihCol('items.invoice.color', t('ih.color'))}${ihChips('items.invoice.align', t('ih.align'), [['left', t('ih.al.left')], ['center', t('ih.al.center')], ['right', t('ih.al.right')]])}`)
+      + ihTextHTML('tagline', t('ih.tagline'), `${ihTxt('items.tagline.text', t('ih.text'), 'STYLE · QUALITY · TRUST')}${ihRng('items.tagline.size', t('ih.size'), 8, 30)}${ihRng('items.tagline.x', t('ih.x'), -40, 760)}${ihRng('items.tagline.y', t('ih.y'), 10, 190)}${ihCol('items.tagline.color', t('ih.color'))}`));
+    const banner = ihSec('banner', t('ih.sec.banner'), ihBannerHTML(cfg));
+    const saved = ihSec('saved', t('ih.sec.saved'), ihSavedHTML());
+    return `${layout}${imgs}${text}${banner}${saved}<div class="btns" style="margin-top:14px"><button type="button" class="btn" data-act="ih-reset">${t('ih.reset')}</button></div>`;
+  }
+  function ihRefresh() { const b = $('#ih-body'); if (!b) return; const sc = $('#sheet').scrollTop; b.innerHTML = ihBodyHTML(); $('#sheet').scrollTop = sc; const u = $('#ih-use'); if (u) { const on = invDesignId() === 'custom'; u.disabled = on; u.textContent = on ? '✓ ' + t('ih.inUse') : t('ih.use'); } ihPaint(); }
+  function sheetHeader() {
+    enterPage('invheader', '', () => sheetHeader());
+    ihOn = true; const on = invDesignId() === 'custom';
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('ih.title')}</b><small>${t('ih.sub')}</small></div></div>
+      <div class="ihtop"><canvas id="ih-pv" width="1600" height="380" aria-label="${t('ih.title')}"></canvas><button type="button" class="btn primary" id="ih-use" data-act="ih-use" ${on ? 'disabled' : ''}>${on ? '✓ ' + t('ih.inUse') : t('ih.use')}</button></div>
+      <div class="pd" id="ih-body">${ihBodyHTML()}</div>
+      <input type="file" id="ih-file" accept="image/*,.zip,application/zip" multiple hidden><input type="file" id="ih-file1" accept="image/*,.zip,application/zip" hidden><input type="file" id="ih-bgfile" accept="image/*" hidden>`, () => { ihOn = false; render(); }, true);
+    ihPaint();
+  }
+
+  // ---- taking pictures in (direct files or a zip) ----
+  const IH_FIT = { long: 512, wide: 720, cap: 240000 };
+  async function ihFitFile(f) { const r = await LogoFit.fit(f, IH_FIT); return r; }
+  function ihAssign(slot, r) { const c = ihCfg(); c.slots[slot] = r.src; if (r.shape && (slot === 'logo' || slot === 'extra1' || slot === 'extra2')) c.items[slot].shape = c.items[slot].shape === 'none' ? 'none' : (c.items[slot].shape); if (r.shape === 'wide' && slot !== 'title') c.items[slot].shape = 'none'; c.items[slot].on = true; ihSave(InvHeader.norm(c)); }
+  async function ihIntake(files, forSlot) {
+    let entries; try { entries = await Assets.expand(files); } catch (e) { return toast(t('ih.zipErr')); }
+    if (!entries.length) return toast(t('ih.pick.none'));
+    if (forSlot && entries.length === 1) { try { ihAssign(forSlot, await ihFitFile(entries[0].file)); toast(t('logo.saved')); } catch (e) { toast(t('logo.err')); } return ihRefresh(); }
+    ihChoose(entries, 'header');
+  }
+  // The chooser: which picture goes where (header), or which one is the store logo (store).
+  function ihChoose(entries, mode) {
+    if (ihPend) ihPend.urls.forEach((u) => URL.revokeObjectURL(u));
+    const plan = Assets.plan(entries); ihPend = { entries, plan, gi: 0, mode, urls: [], sel: {}, store: '' };
+    plan.groups.forEach((g) => g.items.forEach((it) => { ihPend.sel[it.name] = it.slot === 'hold' ? 'skip' : it.slot; it.url = URL.createObjectURL(it.entry.file); ihPend.urls.push(it.url); }));
+    ihChooseDraw();
+  }
+  function ihChooseDraw() {
+    const P = ihPend; if (!P) return; const multi = P.plan.groups.length > 1, g = P.plan.groups[P.gi];
+    const slots = [['logo', t('ih.slot.logo')], ['title', t('ih.slot.title')], ['extra1', t('ih.slot.extra1')], ['extra2', t('ih.slot.extra2')], ['skip', t('ih.pick.skip')]];
+    const rows = g.items.map((it) => P.mode === 'store'
+      ? `<button type="button" class="ihpk ${P.store === it.name ? 'on' : ''}" data-act="ihp-store" data-id="${esc(it.name)}"><img src="${it.url}" alt=""><span>${esc(it.name)}</span></button>`
+      : `<div class="ihpk"><img src="${it.url}" alt=""><span>${esc(it.name)}</span><select data-ihp="${esc(it.name)}" aria-label="${esc(it.name)}">${slots.map(([k, l]) => `<option value="${k}" ${P.sel[it.name] === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`).join('');
+    openSmall(`<h3>${t(P.mode === 'store' ? 'ih.pick.store' : 'ih.pick.title')}</h3><p class="muted small">${t('ih.pick.sub')}</p>
+      ${multi ? `<p class="small"><b>${t('ih.pick.scheme')}</b></p><div class="chiprow">${P.plan.groups.map((x, i) => `<button type="button" class="chip ${i === P.gi ? 'on' : ''}" data-act="ihp-group" data-id="${i}">${esc(x.label)}</button>`).join('')}</div>` : ''}
+      <div class="ihlist">${rows}</div><div class="btns"><button class="btn primary" data-act="ihp-go">${t('ih.pick.apply')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet', () => { if (ihPend) { ihPend.urls.forEach((u) => URL.revokeObjectURL(u)); ihPend = null; } });
+  }
+  async function ihChooseGo() {
+    const P = ihPend; if (!P) return; const g = P.plan.groups[P.gi];
+    try {
+      if (P.mode === 'store') {
+        const pick = g.items.find((i) => i.name === P.store) || g.items.find((i) => P.sel[i.name] === 'logo') || g.items[0]; const r = await LogoFit.fit(pick.entry.file);
+        state.settings.bizLogo = r.src; state.settings.bizLogoShape = r.shape; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); closeSheet(); render(); return refreshLogoUI();
+      }
+      const used = {}; let n = 0;
+      for (const it of g.items) { const s = P.sel[it.name]; if (!s || s === 'skip' || used[s]) continue; used[s] = 1; ihAssign(s, await ihFitFile(it.entry.file)); n++; }
+      closeSheet(); toast(n ? t('logo.saved') : t('ih.pick.none')); ihRefresh();
+    } catch (e) { toast(t('logo.err')); }
+  }
+  async function ihBgFromFile(f) {
+    const url = URL.createObjectURL(f); try {
+      const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('img')); i.src = url; });
+      const k = Math.min(1, 1400 / im.width), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.82);
+    } finally { URL.revokeObjectURL(url); }
+  }
+
   /* Full-screen editor: a big live preview of the invoice, a colour wheel, brightness, second colour. Opened from the Invoice design page. */
   let invFsOn = false, invFsHsv = null, invFsTimer = 0, invFsUrl = '';
   const invSample = () => { const d = new Date(); return state.invoices[state.invoices.length - 1] || { no: 'INV00001', client: ti('doc.sampleClient'), date: d.toISOString(), due: new Date(d.getTime() + 6048e5).toISOString(), lines: [{ desc: ti('doc.sampleItem'), qty: 1, price: 250 }], delivery: 0, total: 250, amountPaid: 250, previouslyPaid: 0, balance: 0 }; };
@@ -2189,7 +2314,7 @@
   let designOverride = null;   // used to preview a design full screen without choosing it
   const invDesignId = () => designOverride || InvDesign.find(state.settings.invoiceDesign).id;
   const invStyle = (id) => ((state.settings.invoiceStyle || {})[id || invDesignId()]) || {};   // the owner's colour changes for a design
-  const invDesign = (id) => InvDesign.colours(id || invDesignId(), Theme.brand(), invStyle(id));
+  const invDesign = (id) => ((id || invDesignId()) === 'custom' ? InvHeader.colours(ihCfg()) : InvDesign.colours(id || invDesignId(), Theme.brand(), invStyle(id)));
   const invBiz = () => {
     const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail);
     return { name: s.businessName || 'B.RUIZ', lines: (own ? [s.bizCity, s.bizPhone, s.bizEmail] : ['Chaguanas', '18683658857', 'berilexy.ruiz93@gmail.com']).filter(Boolean), logo: bizLogoImage() || (s.businessName ? null : invLogo) };
@@ -2201,10 +2326,12 @@
   const headCache = {};
   function headerCanvas(id, S) {
     const b = invBiz(), W = 800, c = document.createElement('canvas'); c.width = W * S; c.height = InvDesign.HEAD_H * S;
-    const x = c.getContext('2d'); x.scale(S, S); InvDesign.drawHeader(x, id, W, { name: b.name, lines: b.lines, title: ti('doc.invoiceWord'), logo: b.logo && b.logo.complete && b.logo.naturalWidth ? b.logo : null }, Theme.brand(), invStyle(id)); return c;
+    const x = c.getContext('2d'); x.scale(S, S);
+    if (id === 'custom') { const cfg = ihCfg(); InvHeader.draw(x, cfg, ihInfo(), ihImages(cfg)); return c; }
+    InvDesign.drawHeader(x, id, W, { name: b.name, lines: b.lines, title: ti('doc.invoiceWord'), logo: b.logo && b.logo.complete && b.logo.naturalWidth ? b.logo : null }, Theme.brand(), invStyle(id)); return c;
   }
   function headerURL(id) {
-    const b = invBiz(), k = [id, invoiceLang(), b.name, b.lines.join('|'), Theme.brand(), JSON.stringify(invStyle(id)), b.logo && b.logo.complete ? 1 : 0].join('~');
+    const b = invBiz(), k = [id, invoiceLang(), b.name, b.lines.join('|'), Theme.brand(), JSON.stringify(invStyle(id)), b.logo && b.logo.complete ? 1 : 0, id === 'custom' ? JSON.stringify(state.settings.invHeader || '') + [state.settings.bizLogo].map((s) => (s ? s.length : 0)) + Object.values(ihImages(ihCfg())).map((im) => (im && im.complete ? 1 : 0)).join('') : ''].join('~');
     return headCache[k] || (headCache[k] = headerCanvas(id, 2).toDataURL('image/png'));
   }
   const invMoney = (n) => 'TT$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3705,6 +3832,26 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'pr-pick': { const cur = new Set(prChosen().map((x) => x.id)); if (cur.has(id)) cur.delete(id); else cur.add(id); prPicks = cur; return prRefresh(); }
       case 'gate-logo-pick': { const f = $('#gate-logo-file'); if (f) f.click(); return; }
       case 'logo-go': try { localStorage.setItem('buy-sell-pref:logoNudgeOff', 'true'); } catch (e) { /* shown again next time */ } go({ tab: 'more', moreView: 'set-business' }); window.scrollTo(0, 0); return render();
+      case 'ih-open': return sheetHeader();
+      case 'ih-add': { const f = $('#ih-file'); if (f) { f.value = ''; f.click(); } return; }
+      case 'ih-slot': { ihSlotPick = id; const f = $('#ih-file1'); if (f) { f.value = ''; f.click(); } return; }
+      case 'ih-clear': { const c = ihCfg(); c.slots[id] = ''; ihSave(InvHeader.norm(c)); return ihRefresh(); }
+      case 'ih-tog': { ihSet(id, !InvHeader.getPath(ihCfg(), id)); return ihRefresh(); }
+      case 'ih-set': { const i = id.indexOf('='), p = id.slice(0, i); let v = id.slice(i + 1); if (/^\d+$/.test(v) && /weight$/.test(p)) v = Number(v); ihSet(p, v); return ihRefresh(); }
+      case 'ih-layout': ihSave(InvHeader.applyLayout(ihCfg(), id)); return ihRefresh();
+      case 'ih-preset': ihSave(InvHeader.applyPreset(ihCfg(), id)); return ihRefresh();
+      case 'ih-stop-add': { const c = ihCfg(), s = c.bg.grad.stops; if (s.length < 4) { const last = s[s.length - 1]; s.push({ c: InvHeader.mix(last.c, '#000000', 0.2), p: Math.min(1, last.p + 0.1) }); ihSave(InvHeader.norm(c)); } return ihRefresh(); }
+      case 'ih-stop-del': { const c = ihCfg(); if (c.bg.grad.stops.length > 2) { c.bg.grad.stops.splice(Number(id), 1); ihSave(InvHeader.norm(c)); } return ihRefresh(); }
+      case 'ih-use': state.settings.invoiceDesign = 'custom'; if (!state.settings.invHeader) state.settings.invHeader = ihCfg(); save(); toast(t('ih.toast')); return ihRefresh();
+      case 'ih-bgpick': { const f = $('#ih-bgfile'); if (f) { f.value = ''; f.click(); } return; }
+      case 'ih-bgclear': { const c = ihCfg(); c.bg.image.src = ''; if (c.bg.type === 'image') c.bg.type = 'gradient'; ihSave(InvHeader.norm(c)); return ihRefresh(); }
+      case 'ih-reset': return askCard(t('ih.resetAsk'), { danger: true, ok: t('ih.reset') }).then((y) => { if (!y) return; ihSave(InvHeader.defaults()); ihRefresh(); });
+      case 'ih-save': { const el = $('#ih-name'), nm = (el && el.value.trim()) || ''; if (!nm) return toast(t('ih.needName')); const list = (state.settings.invHeaderSaved || []).slice(); list.push({ id: Math.random().toString(36).slice(2, 9), name: nm.slice(0, 30), cfg: ihCfg() }); state.settings.invHeaderSaved = list.slice(-8); save(); toast(t('ih.savedOk')); return ihRefresh(); }
+      case 'ih-apply': { const d = (state.settings.invHeaderSaved || []).find((x) => x.id === id); if (d) { ihSave(InvHeader.norm(d.cfg)); ihRefresh(); } return; }
+      case 'ih-del': state.settings.invHeaderSaved = (state.settings.invHeaderSaved || []).filter((x) => x.id !== id); save(); return ihRefresh();
+      case 'ihp-group': if (ihPend) { ihPend.gi = Number(id); ihChooseDraw(); } return;
+      case 'ihp-store': if (ihPend) { ihPend.store = id; ihChooseDraw(); } return;
+      case 'ihp-go': return ihChooseGo();
       case 'logo-pick': { const f = $('#logo-file'); if (f) f.click(); return; }
       case 'logo-remove': state.settings.bizLogo = ''; state.settings.bizLogoShape = ''; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); render(); return refreshLogoUI();
       case 'logo-shape': state.settings.bizLogoPick = id === 'auto' ? 'auto' : id; save(); Store.publish && Store.publish(true); render(); return refreshLogoUI();
@@ -3940,7 +4087,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'invfs-theme': setInvStyle({ color: null, light: 0 }); invFsControls(); invFsPreview(); return;
       case 'inv-color': setInvStyle({ color: id || null }); return render();
       case 'inv-reset': { const m = Object.assign({}, state.settings.invoiceStyle); delete m[invDesignId()]; state.settings.invoiceStyle = m; save(); if (invFsOn) { invFsControls(); invFsPreview(); } return render(); }
-      case 'inv-design': state.settings.invoiceDesign = id; save(); toast(t('invd.saved')); return render();
+      case 'inv-design': state.settings.invoiceDesign = id; if (id === 'custom' && !state.settings.invHeader) state.settings.invHeader = ihCfg(); save(); toast(t('invd.saved')); return render();
       case 'more': if (id === 'orders') { ordLimit = 20; ordQ = ''; } go({ tab: 'more', moreView: id }); window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
@@ -4000,7 +4147,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function logoCardHTML() {
     const s = state.settings, sh = logoShape(), found = LogoFit.SHAPES.includes(s.bizLogoShape) ? s.bizLogoShape : 'square', pick = s.bizLogoPick && s.bizLogoPick !== 'auto' ? s.bizLogoPick : 'auto';
     const chip = (k, label) => `<button type="button" class="chip ${pick === k ? 'on' : ''}" data-act="logo-shape" data-id="${k}">${label}</button>`;
-    return `<div class="lgcard"><span class="lgpv fit ${sh}">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span><div class="t"><b>${t('logo.title')}</b><small>${t('logo.sub')}</small>${s.bizLogo ? `<div class="lgsh"><small>${t('logo.shape')}</small><div class="chips">${chip('auto', t('logo.auto') + ': ' + t('logo.sh.' + found))}${['circle', 'rounded', 'square'].map((k) => chip(k, t('logo.sh.' + k))).join('')}</div></div>` : ''}<div class="lgbt"><button type="button" class="btn" data-act="logo-pick">${t(s.bizLogo ? 'logo.change' : 'logo.add')}</button>${s.bizLogo ? `<button type="button" class="btn" data-act="logo-remove">${t('logo.remove')}</button>` : ''}</div></div><input type="file" id="logo-file" accept="image/*" hidden></div>`;
+    return `<div class="lgcard"><span class="lgpv fit ${sh}">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span><div class="t"><b>${t('logo.title')}</b><small>${t('logo.sub')}</small>${s.bizLogo ? `<div class="lgsh"><small>${t('logo.shape')}</small><div class="chips">${chip('auto', t('logo.auto') + ': ' + t('logo.sh.' + found))}${['circle', 'rounded', 'square'].map((k) => chip(k, t('logo.sh.' + k))).join('')}</div></div>` : ''}<div class="lgbt"><button type="button" class="btn" data-act="logo-pick">${t(s.bizLogo ? 'logo.change' : 'logo.add')}</button>${s.bizLogo ? `<button type="button" class="btn" data-act="logo-remove">${t('logo.remove')}</button>` : ''}</div></div><input type="file" id="logo-file" accept="image/*,.zip,application/zip" multiple hidden></div>`;
   }
   // After the logo or its shape changes: redraw the card(s) and the preview wherever they are open.
   function refreshLogoUI() {
@@ -4018,6 +4165,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (el.id === 'sp-name' || el.id === 'sp-phone') { const b = $('#sheet').querySelector('[data-act="split-go"]'); return b && splitSummary(b.dataset.id); }
     if (el.dataset && el.dataset.split !== undefined) { const pid = ($('#sheet').querySelector('[data-act="split-go"]') || {}).dataset; return pid && splitSummary(pid.id); }
     if (el.id === 'gate-logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { gateDraft.logo = d; const pv = $('#gate-logo-pv'), bt = $('#gate-logo-btn'); if (pv) pv.innerHTML = `<img src="${d}" alt="">`; if (bt) bt.textContent = t('gate.logoChange'); }).catch(() => toast(t('logo.err'))); return; }
+    if (el.id === 'ih-file') { ihIntake(el.files); return; }
+    if (el.id === 'ih-file1') { const slot = ihSlotPick; ihIntake(el.files, slot); return; }
+    if (el.id === 'ih-bgfile') { const f = el.files && el.files[0]; if (!f) return; ihBgFromFile(f).then((d) => { const c = ihCfg(); c.bg.image.src = d; c.bg.type = 'image'; ihSave(InvHeader.norm(c)); ihRefresh(); }).catch(() => toast(t('logo.err'))); return; }
+    if (el.dataset && el.dataset.ihp) { if (ihPend) ihPend.sel[el.dataset.ihp] = el.value; return; }
+    if (el.id === 'logo-file' && el.files && (el.files.length > 1 || (el.files[0] && Assets.isZipName(el.files[0].name)))) { Assets.expand(el.files).then((en) => { if (!en.length) return toast(t('ih.pick.none')); if (en.length === 1) { return logoFromFile(en[0].file).then((d) => { state.settings.bizLogo = d; state.settings.bizLogoShape = lastFit ? lastFit.shape : 'square'; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); refreshLogoUI(); }); } ihChoose(en, 'store'); }).catch(() => toast(t('ih.zipErr'))); return; }
     if (el.id === 'logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { state.settings.bizLogo = d; state.settings.bizLogoShape = lastFit ? lastFit.shape : 'square'; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); refreshLogoUI(); }).catch(() => toast(t('logo.err'))); return; }
     if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isLocked(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
     if (el.hasAttribute('data-sel')) {
@@ -4040,6 +4192,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   document.addEventListener('input', (e) => {
     const el = e.target;
     if (el.closest && el.closest('#tsearch')) { const pi = $(pageSearchSel()); if (pi) { pi.value = el.value; pi.dispatchEvent(new Event('input', { bubbles: true })); } return; }
+    if (el.dataset.ih) { const p = el.dataset.ih; let v = el.value; if (el.type === 'range') { v = Number(v); const lb = el.parentElement && el.parentElement.querySelector('.v'); if (lb) lb.textContent = Math.round(v * 100) / 100; } ihSet(p, v); return; }
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
     if (el.dataset.bandprice) { const c = storeCfg(); storeSet({ bands: c.bands.map((b) => (b.id === el.dataset.bandprice ? Object.assign({}, b, { price: parseAmt(el.value) }) : b)) }); return; }
     if (el.dataset.spotprice) { storeSet({ spotPrice: parseAmt(el.value) }); return; }

@@ -2,7 +2,7 @@ const assert = require('assert');
 const D = require('../js/invdesign.js');
 const ids = D.DESIGNS.map((d) => d.id);
 assert.strictEqual(new Set(ids).size, ids.length, 'design ids are unique');
-assert.deepStrictEqual(ids, ['classic', 'fade', 'deep', 'dusk', 'sunrise', 'glow']);
+assert.deepStrictEqual(ids, ['classic', 'fade', 'deep', 'dusk', 'sunrise', 'glow', 'custom']);
 assert.strictEqual(D.find('wave').id, 'classic', 'a removed or unknown design falls back to classic');
 const f = D.colours('deep', '#7a1f33');
 assert.strictEqual(f.head, '#7a1f33'); assert.ok(/^#[0-9a-f]{6}$/.test(f.tint) && f.tint !== f.head && /^#[0-9a-f]{6}$/.test(f.band));

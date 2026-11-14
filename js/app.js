@@ -1099,7 +1099,7 @@
     if (moreView && moreView.startsWith('set-')) return SettingsPage();
     const go = (v, icon, label, sub) => `<button class="row tap" data-act="more" data-id="${v}"><span style="font-size:22px">${icon}</span><div class="grow"><b>${label}</b><small>${sub}</small></div><span class="chev">›</span></button>`;
     const act = (a, icon, label, sub, bad) => `<button class="row tap" data-act="${a}"><span style="font-size:22px">${icon}</span><div class="grow"><b${bad ? ' class="bad"' : ''}>${label}</b><small>${sub}</small></div></button>`;
-    return `<div class="list">${(() => { const cs = L.customerStats(state); return `<button class="row tap" data-act="goto-customers"><span style="font-size:22px">👥</span><div class="grow"><b>${t('cu.title')}</b><small>${tn('cu.n', cs.length) + ' · ' + tn('cu.owe', cs.filter((c) => c.owing > 0).length)}</small></div><span class="chev">›</span></button>`; })()}${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${can('orders') ? go('deliveries', '🚚', t('more.deliveries'), t('more.deliveriesSub', { n: window.Store ? Store.orders().filter((o) => o.status === 'confirmed' && o.option === 'delivery').length : 0 })) : ''}${can('orders') ? go('orders', '🛍️', t('more.orders'), tn('more.ordersSub', window.Store ? Store.orders().length : 0)) : ''}${go('batches', '📦', t('more.batches'), tn('more.batchesSub', state.batches.length))}${go('items', '📋', t('more.items'), tn('more.itemsSub', state.items.length))}
+    return `<div class="list">${act('bp-open', '🏢', t('bz.title'), t('bz.sub'))}${(() => { const cs = L.customerStats(state); return `<button class="row tap" data-act="goto-customers"><span style="font-size:22px">👥</span><div class="grow"><b>${t('cu.title')}</b><small>${tn('cu.n', cs.length) + ' · ' + tn('cu.owe', cs.filter((c) => c.owing > 0).length)}</small></div><span class="chev">›</span></button>`; })()}${go('invoices', '🧾', t('more.invoices'), t('more.invoicesSub', { n: state.invoices.length }))}${can('orders') ? go('deliveries', '🚚', t('more.deliveries'), t('more.deliveriesSub', { n: window.Store ? Store.orders().filter((o) => o.status === 'confirmed' && o.option === 'delivery').length : 0 })) : ''}${can('orders') ? go('orders', '🛍️', t('more.orders'), tn('more.ordersSub', window.Store ? Store.orders().length : 0)) : ''}${go('batches', '📦', t('more.batches'), tn('more.batchesSub', state.batches.length))}${go('items', '📋', t('more.items'), tn('more.itemsSub', state.items.length))}
       ${can('costs') ? go('summary', '📈', t('more.summary'), t('more.summarySub')) : ''}${act('words-open', '🔤', t('words.title'), t('words.sub'))}${go('settings', '⚙️', t('more.settings'), t('more.settingsSub'))}</div>
       ${isStandalone() ? '' : `<div class="list" style="margin-top:8px"><button class="row tap" data-act="install-guide"><span style="font-size:22px">📲</span><div class="grow"><b>${t('more.install')}</b><small>${isIOS ? t('more.installIOS') : t('more.installOther')}</small></div><span class="chev">›</span></button></div>`}
       ${cloud.signedIn ? `<div class="list" style="margin-top:8px"><button class="row tap" data-act="acct-out"><span style="font-size:22px">🚪</span><div class="grow"><b>${t('acct.signOut')}</b><small>${esc(cloud.email || '')}</small></div></button></div>` : ''}
@@ -1330,7 +1330,7 @@
         ${trow('🎨', t('set.theme'), t('pal.' + curPal()) + ' · ' + t('set.colors', { n: Theme.PALETTES.length }), nav('set-theme'))}
         ${trow('🗣️', t('set.custLang'), { auto: t('cust.auto'), ask: t('cust.ask'), app: t('cust.same'), en: I.LANGS.en['lang.name'], es: I.LANGS.es['lang.name'] }[custMode()], 'data-act="pick-custlang"')}
         ${cloud.signedIn && Cloud.hasPassword && Cloud.hasPassword() ? trow('🔑', t('acct.chPw'), t('set.pwSub'), nav('set-password')) : ''}</div>
-      <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
+      <h2>${t('set.sec.business')}</h2><div class="list grp">${trow('🏢', t('bz.title'), t('bz.sub'), 'data-act="bp-open"')}${trow('🏪', t('set.businessRow'), t('set.businessSub'), nav('set-business'))}
         ${trow('🧾', t('set.invDesign'), t('invd.' + invDesignId()), nav('set-invdesign'))}
         ${trow('💳', t('bc.row'), t('bc.rowSub'), 'data-act="bc-open"')}
         ${gdSt() && !gdSt().finished ? trow('✨', t('gd.banner'), tn('gd.left', gdPending().length), 'data-act="gd-open"') : ''}
@@ -1441,10 +1441,10 @@
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.ihk) ihOpenSecs[d.dataset.ihk] = d.open; }, true);
   /* ---------- invoice header builder: pictures (files or a zip), layouts, pieces, banner, saved designs ---------- */
   const hdrImgs = new Map();
-  let ihOn = false, ihRaf = 0, ihSlotPick = '', ihPend = null, ihOpenSecs = { images: true, layout: true };
+  let bpOn = false, ihOn = false, ihRaf = 0, ihSlotPick = '', ihPend = null, ihOpenSecs = { images: true, layout: true };
   const hdrImg = (src) => {
     if (!src) return null; let i = hdrImgs.get(src);
-    if (!i) { i = new Image(); i.onload = () => { Object.keys(headCache).forEach((k) => delete headCache[k]); ihPaintSoon(); if (invFsOn) invFsPreview(); }; i.src = src; hdrImgs.set(src, i); if (hdrImgs.size > 14) hdrImgs.delete(hdrImgs.keys().next().value); }
+    if (!i) { i = new Image(); i.onload = () => { Object.keys(headCache).forEach((k) => delete headCache[k]); ihPaintSoon(); if (bpOn) bpPaint(); if (invFsOn) invFsPreview(); }; i.src = src; hdrImgs.set(src, i); if (hdrImgs.size > 14) hdrImgs.delete(hdrImgs.keys().next().value); }
     return i;
   };
   const ihCfg = () => InvHeader.norm(InvHeader.fromKeys(state.settings.invHeader, state.settings.invPool));
@@ -1691,7 +1691,7 @@
     const s = state.settings, sc = storeCfg(), phone = s.bizPhone || '';
     return { name: s.businessName || 'B-RUIZ', phone, email: s.bizEmail || '', city: s.bizCity || '', storeLink: sc && sc.id && window.Store ? Store.link(sc) : 'https://shopivo.github.io/', whatsappLink: phone && SCore.validPhone(phone) ? SCore.waLink(phone) : '', whatsappLabel: t('bc.waLabel'), qrLabel: t('bc.scan') };
   };
-  const bcImages = () => { const c = ihCfg(); return { logo: hdrImg(c.slots.logo || state.settings.bizLogo), title: hdrImg(c.slots.title) }; };
+  const bcImages = () => { const c = ihCfg(); return { logo: hdrImg(c.slots.logo || state.settings.bizLogo), title: hdrImg(c.slots.title), mark: hdrImg(c.slots.extra2) }; };
   function bcCanvas(side, cfg, scale) {
     const sz = CardMaker.size(cfg), cv = document.createElement('canvas'); cv.width = Math.round(sz.w * scale); cv.height = Math.round(sz.h * scale);
     const x = cv.getContext('2d'); x.scale(scale, scale); CardMaker.draw(x, side, cfg, bcData(), bcImages(), { bleed: cfg.bleed }); return cv;
@@ -1706,7 +1706,7 @@
   function bcBodyHTML() {
     const cfg = bcCfg(), d = bcData();
     const col = ihSec('bc1', t('bc.colors'), `${bcChips('scheme', t('bc.scheme'), [['wine', t('bc.s.wine')], ['rosegold', t('bc.s.rosegold')], ['navy', t('bc.s.navy')], ['charcoal', t('bc.s.charcoal')], ['invoice', t('bc.s.invoice')]])}${bcCol('dark', t('bc.dark'))}${bcCol('light', t('bc.light'))}`);
-    const what = ihSec('bc2', t('bc.what'), `${bcTog('show.name', t('bc.name'))}${bcTog('show.sub', t('bc.sub'))}${bcTxt('text.sub', t('bc.subText'), 'ONLINE STORE')}${bcTog('show.phone', t('bc.phone'))}${bcTxt('text.phone', t('bc.phoneText'), d.phone)}${bcTog('show.whatsapp', t('bc.whatsapp'))}${bcTog('show.email', t('bc.email'))}${bcTxt('text.email', t('bc.emailText'), d.email)}${bcTog('show.city', t('bc.city'))}${bcTxt('text.city', t('bc.cityText'), d.city)}${bcTog('show.tagline', t('bc.tagline'))}${bcTxt('text.tagline', t('bc.taglineText'), 'STYLE · QUALITY · TRUST')}`);
+    const what = ihSec('bc2', t('bc.what'), `${bcTog('show.name', t('bc.name'))}${bcTog('show.sub', t('bc.sub'))}${bcTxt('text.sub', t('bc.subText'), 'ONLINE STORE')}${bcTog('show.phone', t('bc.phone'))}${bcTxt('text.phone', t('bc.phoneText'), d.phone)}${bcTog('show.whatsapp', t('bc.whatsapp'))}${bcTog('show.web', t('bz.web'))}${bcTog('show.email', t('bc.email'))}${bcTxt('text.email', t('bc.emailText'), d.email)}${bcTog('show.city', t('bc.city'))}${bcTxt('text.city', t('bc.cityText'), d.city)}${bcTog('show.tagline', t('bc.tagline'))}${bcTxt('text.tagline', t('bc.taglineText'), 'STYLE · QUALITY · TRUST')}`);
     const qr = ihSec('bc3', t('bc.qr'), `${bcTog('show.qr', t('bc.qrShow'))}${cfg.show.qr ? bcChips('qr.mode', t('bc.qrMode'), [['store', t('bc.qr.store')], ['whatsapp', t('bc.qr.wa')], ['link', t('bc.qr.link')]]) + (cfg.qr.mode === 'link' ? bcTxt('qr.text', t('bc.qrLink'), 'https://') : '') + `<p class="muted small">${t('bc.qrNote')} <b>${esc(CardMaker.qrTarget(cfg, d) || '-')}</b></p>` : ''}`);
     const print = ihSec('bc4', t('bc.print'), `${bcChips('sides', t('bc.sides'), [['both', t('bc.sides.both')], ['front', t('bc.sides.front')], ['frontblank', t('bc.sides.blank')]])}${bcTog('bleed', t('bc.bleed'))}<p class="muted small">${t('bc.bleedNote')}</p>
       <div class="btns"><button type="button" class="btn primary" data-act="bc-pdf">⬇ ${t('bc.dlPdf')}</button><button type="button" class="btn" data-act="bc-png" data-id="front">⬇ ${t('bc.dlFront')}</button><button type="button" class="btn" data-act="bc-png" data-id="back">⬇ ${t('bc.dlBack')}</button></div><p class="muted small">${t('bc.printNote')}</p>`);
@@ -1728,6 +1728,55 @@
     const cfg = bcCfg(), sz = CardMaker.size(cfg), pages = [];
     for (const side of CardMaker.sidesOf(cfg)) { if (side === 'blank') { pages.push({ blank: true }); continue; } const cv = bcCanvas(side, cfg, 2), jb = await bcBlob(cv, 'image/jpeg', 0.95); pages.push({ jpeg: new Uint8Array(await jb.arrayBuffer()), w: cv.width, h: cv.height }); }
     return new Blob([Pdf.pagesToPdf(pages, { w: sz.inW * 72, h: sz.inH * 72 })], { type: 'application/pdf' });
+  }
+
+  /* ---------- business profile: everything about the business in one place (logo, card, QR, contact, invoice banner) ---------- */
+  const BRAND = { mark: 'icons/brand/mark.png', circle: 'icons/brand/circle.png', title: 'icons/brand/title.png', banner: 'icons/brand/banner.jpg' };
+  const isBruiz = () => /ruiz/i.test(state.settings.businessName || '');
+  const fileData = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error('brand'); return r.blob(); }).then((b) => new Promise((ok, no) => { const f = new FileReader(); f.onload = () => ok(f.result); f.onerror = no; f.readAsDataURL(b); }));
+  // One tap: the agreed B-RUIZ look (logo in a white circle, title picture, blush banner, wine business card). Everything stays editable.
+  async function brandApply() {
+    const [circ, ttl, ban, mk] = await Promise.all([fileData(BRAND.circle), fileData(BRAND.title), fileData(BRAND.banner), fileData(BRAND.mark)]), s = state.settings;
+    s.bizLogo = circ; s.bizLogoShape = 'circle'; s.bizLogoPick = 'auto'; s.invoiceDesign = 'custom';
+    const c = InvHeader.applyLayout(ihCfg(), 'D'); c.bg.type = 'image'; c.bg.image = { src: ban, tint: false, alpha: 0.55 }; c.slots.logo = ''; c.slots.title = ttl; c.slots.extra2 = mk; c.items.title.size = 50; c.items.name.color = c.items.lines.color = c.items.tagline.color = '#111111'; c.items.invoice.color = '#111111'; c.accent = '#c28ba6'; ihSave(InvHeader.norm(c));
+    const cd = CardMaker.applyScheme(bcCfg(), 'rosegold'); cd.show.sub = true; cd.show.tagline = true; cd.show.web = true; cd.show.email = false; bcSave(CardMaker.norm(cd));
+    save(); if (storeCfg().id && window.Store && Store.publish) Store.publish(true);
+  }
+  const brandOn = () => { const c = ihCfg(); return !!(c.slots.title && state.settings.invoiceDesign === 'custom' && c.layout === 'D'); };
+  function bpQr(px) {
+    const d = bcData(), cfg = bcCfg(), M = CardMaker.qrMatrix(d.storeLink && storeCfg().id ? d.storeLink : ''); if (!M) return null;
+    const qz = 4, n = M.n + qz * 2, k = Math.max(2, Math.floor(px / n)), cv = document.createElement('canvas'); cv.width = cv.height = n * k; const g = cv.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = /^#[0-9a-f]{6}$/i.test(cfg.dark || '') ? cfg.dark : '#4a0d24';
+    for (let r = 0; r < M.n; r++) for (let q = 0; q < M.n; q++) if (M.dark(r, q)) g.fillRect((q + qz) * k, (r + qz) * k, k, k);
+    return cv;
+  }
+  function bpPaint() {
+    const cfg = bcCfg(), put = (id, cv) => { const el = $(id); if (!el || !cv) return; el.width = cv.width; el.height = cv.height; el.getContext('2d').drawImage(cv, 0, 0); };
+    put('#bp-front', bcCanvas('front', cfg, 1)); put('#bp-back', bcCanvas(cfg.sides === 'front' ? 'front' : 'back', cfg, 1)); put('#bp-qr', bpQr(360));
+    const h = $('#bp-hdr'); if (h) { const hc = ihCfg(), S = 1; h.width = InvHeader.W * S; h.height = InvHeader.H * S; const x = h.getContext('2d'); x.scale(S, S); InvHeader.draw(x, hc, ihInfo(), ihImages(hc)); }
+  }
+  function sheetBizProfile() {
+    enterPage('bizprofile', '', () => sheetBizProfile());
+    const s = state.settings, c = storeCfg(), d = bcData(), has = !!c.id, hc = ihCfg();
+    const row = (ic, label, val, copy, href) => `<div class="bprow"><span class="bpi">${ic}</span><div class="grow"><small>${label}</small>${val ? `<b>${href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(val)}</a>` : esc(val)}</b>` : `<b class="muted">${t('bz.none')}</b>`}</div>${val && copy ? `<button type="button" class="chip" data-act="bp-copy" data-id="${esc(val)}">${t('bz.copy')}</button>` : ''}</div>`;
+    const waOk = d.phone && SCore.validPhone(d.phone);
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('bz.title')}</b><small>${t('bz.sub')}</small></div></div>
+      <div class="pd bpg">
+        <div class="bphero"><span class="lgpv fit ${logoShape()}">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span><div><h2>${esc(bizName())}</h2><small>${esc([d.city, d.phone].filter(Boolean).join(' · ')) || t('bz.none')}</small></div></div>
+        ${isBruiz() ? `<div class="card bpbrand"><b>${t('bz.brand')}</b><p class="muted small">${t('bz.brandSub')}</p><button type="button" class="btn ${brandOn() ? '' : 'primary'}" data-act="bp-brand">${brandOn() ? '✓ ' + t('bz.brandDone') : t('bz.brandBtn')}</button></div>` : ''}
+        <h3>${t('bz.contact')}</h3><div class="card bplist">${row('📞', t('bz.phone'), d.phone, true, d.phone ? 'tel:' + d.phone.replace(/[^\d+]/g, '') : '')}${row('💬', t('bz.wa'), waOk ? d.phone : '', true, waOk ? SCore.waLink(d.phone) : '')}${row('✉️', t('bz.email'), d.email, true, d.email ? 'mailto:' + d.email : '')}${row('📍', t('bz.city'), d.city, true)}${row('🛍️', t('bz.link'), has ? Store.link(c).replace(/^https?:\/\//, '') : '', true, has ? Store.link(c) : '')}</div>
+        <div class="btns"><button type="button" class="btn" data-act="bp-edit">✏️ ${t('bz.edit')}</button></div>
+        <h3>${t('bz.logo')}</h3><div class="card bplogo"><div class="bplg"><span class="lgpv fit ${logoShape()}">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span>${hc.slots.title ? `<img class="bptt" src="${hc.slots.title}" alt="">` : ''}</div>
+          <div class="btns"><button type="button" class="btn" data-act="lm-open">✨ ${t('lm.open')}</button><button type="button" class="btn" data-act="logo-go">🖼️ ${t('bz.logoChange')}</button>${s.bizLogo ? `<button type="button" class="btn" data-act="bp-dl" data-id="logo">⬇ ${t('bz.logoDl')}</button>` : ''}${hc.slots.title ? `<button type="button" class="btn" data-act="bp-dl" data-id="title">⬇ ${t('bz.titleDl')}</button>` : ''}</div></div>
+        <h3>${t('bz.card')}</h3><div class="card bpcard"><canvas id="bp-front" aria-label="${t('bc.front')}"></canvas><canvas id="bp-back" aria-label="${t('bc.back')}"></canvas><div class="btns"><button type="button" class="btn primary" data-act="bc-open">${t('bz.cardEdit')}</button><button type="button" class="btn" data-act="bp-cardpdf">⬇ ${t('bz.cardDl')}</button></div></div>
+        <h3>${t('bz.qr')}</h3><div class="card bpqr">${has ? `<canvas id="bp-qr" aria-label="${t('bz.qr')}"></canvas><p class="muted small">${t('bz.qrSub')}</p><div class="btns"><button type="button" class="btn" data-act="bp-qrdl">⬇ ${t('bz.qrDl')}</button></div>` : `<p class="muted">${t('bz.qrNone')}</p><button type="button" class="btn primary" data-act="store-open">🛍️ ${t('hub.contact')}</button>`}</div>
+        <h3>${t('bz.inv')}</h3><div class="card bphdr"><canvas id="bp-hdr" aria-label="${t('bz.inv')}"></canvas><div class="btns"><button type="button" class="btn primary" data-act="ih-open">${t('bz.invEdit')}</button></div></div>
+      </div>`, () => { bpOn = false; }, true);
+    bpOn = true; bpPaint();
+  }
+  async function bpDownload(kind) {
+    let src = kind === 'title' ? ihCfg().slots.title : state.settings.bizLogo; if (!src) return;
+    const b = await (await fetch(src)).blob(); bcDownload(b, bcFile() + '-' + kind + '.png');
   }
 
   /* Full-screen editor: a big live preview of the invoice, a colour wheel, brightness, second colour. Opened from the Invoice design page. */
@@ -4018,6 +4067,13 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'lm-set': { if (!lm) return; const i = id.indexOf('='); lm[id.slice(0, i)] = id.slice(i + 1); const keepT = $('#lm-text'); document.querySelectorAll('[data-act=lm-set]').forEach((b) => { const j = b.dataset.id.indexOf('='); b.classList.toggle('on', lm[b.dataset.id.slice(0, j)] === b.dataset.id.slice(j + 1)); }); return lmPaint(); }
       case 'lm-use': return lmUse();
       case 'bc-open': return sheetCard();
+      case 'bp-open': return sheetBizProfile();
+      case 'bp-edit': closeSheet(); go({ tab: 'more', moreView: 'set-business' }); window.scrollTo(0, 0); return render();
+      case 'bp-copy': return copyText(id).then((ok) => toast(ok ? t('bz.copied') : id));
+      case 'bp-dl': return bpDownload(id);
+      case 'bp-brand': return brandApply().then(() => { toast(t('bz.brandDone')); sheetBizProfile(); render(); }).catch(() => toast(t('bz.brandFail')));
+      case 'bp-qrdl': { const cv = bpQr(1000); if (cv) bcBlob(cv, 'image/png').then((b) => bcDownload(b, bcFile() + '-store-qr.png')); return; }
+      case 'bp-cardpdf': return bcMakePdf().then((b) => bcDownload(b, bcFile() + '-business-card.pdf'));
       case 'bc-tog': bcSet(id, !bcPath(id)); return bcRefresh();
       case 'bc-set': { const i = id.indexOf('='), p = id.slice(0, i), v = id.slice(i + 1); if (p === 'scheme') { bcSave(CardMaker.applyScheme(bcCfg(), v, InvHeader.colours(ihCfg()).head)); } else bcSet(p, v); return bcRefresh(); }
       case 'bc-side': bcSide = id; document.querySelectorAll('.bcside .chip').forEach((b) => b.classList.toggle('on', b.dataset.id === id)); return bcPaint();

@@ -74,7 +74,7 @@
   P.classify = (s, o) => {
     const name = clean(o.name), phone = o.phone;
     const mains = P.mainOwners(s, phone);
-    if (mains.length) { const hit = mains.find((p) => nameMatch(p, name)); return hit ? { kind: 'match', profile: hit } : { kind: 'newName', candidates: mains }; }
+    if (mains.length) { const hit = mains.find((p) => nameMatch(p, name)); if (hit) return { kind: 'match', profile: hit }; return mains.length > 1 && mains.every((p) => p.shared) ? { kind: 'sharedPick', candidates: mains } : { kind: 'newName', candidates: mains }; }
     const olds = P.prevOwners(s, phone);
     if (olds.length) return { kind: 'oldNumber', candidates: olds };
     const byName = P.list(s).filter((p) => nameMatch(p, name));
@@ -122,6 +122,8 @@
   // two people really share this number: a second profile on the same number, told apart by name.
   P.opShared = (s, pid, o, by) => { const p = P.byId(s, pid), snap = start(s, [pid]); p.shared = true; const np = newProfile(s, o.name, o.phone, snap); np.shared = true; keyIn(s, np.key); return { profile: np, decision: log(s, 'shared', clean(o.name) + ' shares ' + P.fmt(o.phone) + ' with ' + p.name, snap, { k: 'dc.shared', a: { name: clean(o.name), num: P.fmt(o.phone), who: p.name }, by, order: o.order, pids: [pid, np.id] }) }; };
   // not sure yet: the order goes ahead as a separate customer, flagged to check.
+  // Adding a number that someone else already has: both customers keep it and stay separate profiles (two people, one phone).
+  P.opShareNumber = (s, pid, ownerId, phone, by) => { const p = P.byId(s, pid), ow = P.byId(s, ownerId), snap = start(s, [pid, ownerId]); if (p.phone && !P.same(p.phone, phone)) addPrev(p, p.phone, 'replaced'); dropPrev(p, phone); p.phone = P.fmt(phone); p.noNumber = false; p.shared = true; ow.shared = true; return log(s, 'shared', p.name + ' shares ' + P.fmt(phone) + ' with ' + ow.name, snap, { k: 'dc.shared', a: { name: p.name, num: P.fmt(phone), who: ow.name }, by, pids: [pid, ownerId] }); };
   P.opLater = (s, o, by, withIds) => { const snap = start(s, withIds || []); const np = newProfile(s, o.name, '', snap); if (o.phone && !P.mainOwners(s, o.phone).length) np.phone = P.fmt(o.phone); keyIn(s, np.key); return { profile: np, decision: log(s, 'later', clean(o.name) + ' kept apart for now (check Possible duplicates)', snap, { k: 'dc.later', a: { name: clean(o.name) }, by, order: o.order, pids: [np.id].concat(withIds || []), pending: true }) }; };
   // a customer is new: a profile with the typed name and number.
   P.opFresh = (s, o, by) => { const snap = start(s, []); const np = newProfile(s, o.name, o.phone, snap); keyIn(s, np.key); return { profile: np, decision: log(s, 'created', clean(o.name) + ' added with ' + P.fmt(o.phone), snap, { k: 'dc.created', a: { name: clean(o.name), num: P.fmt(o.phone) }, by, order: o.order, pids: [np.id] }) }; };

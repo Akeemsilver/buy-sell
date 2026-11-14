@@ -49,4 +49,24 @@ P.undo(s, sp.decision.id); assert.strictEqual(s.invoices.find((v) => v.no === i2
 const a = P.opFresh(s, { name: 'Dup One', phone: '300 1000' }).profile; const b = P.opFresh(s, { name: 'Dup Two', phone: '300 1000' }).profile; assert.ok(P.duplicates(s).some((x) => (x.a === a && x.b === b)));
 // suggestions from past orders
 const sug = P.suggest(s, [{ name: 'john', phone: '868-455-1290' }, { name: 'x', phone: '0000000' }]); assert.strictEqual(sug({ name: 'John', nicks: [] }), '868 455 1290'); assert.strictEqual(sug({ name: 'Nobody', nicks: [] }), '');
+// two sisters on one phone: Add number -> shared, then orders go by name; an unknown name must pick one of the two
+{
+  const SC = require('../js/storecore.js'), S = L.defaultState(); P.ensure(S);
+  const amy = P.opFresh(S, { name: 'Amy', phone: '868 555 1234' }).profile, beth = P.opFresh(S, { name: 'Beth', phone: '868 555 9999' }).profile;
+  assert.ok(P.setNumber(S, beth.id, '868 555 1234').conflict);
+  P.opShareNumber(S, beth.id, amy.id, '868 555 1234', 'me');
+  assert.ok(amy.shared && beth.shared && P.same(beth.phone, amy.phone)); assert.ok(beth.prev.some((e) => P.same(e.phone, '868 555 9999')));
+  assert.strictEqual(P.classify(S, { name: 'Amy', phone: '868 555 1234' }).profile.id, amy.id);
+  assert.strictEqual(P.classify(S, { name: 'beth ', phone: '868 555 1234' }).profile.id, beth.id);
+  const pk = P.classify(S, { name: 'Bethany', phone: '868 555 1234' }); assert.strictEqual(pk.kind, 'sharedPick'); assert.strictEqual(pk.candidates.length, 2);
+  P.opSame(S, beth.id, { name: 'Bethany', phone: '868 555 1234' }, 'me'); assert.strictEqual(P.classify(S, { name: 'Bethany', phone: '868 555 1234' }).profile.id, beth.id);
+  // undo puts both back
+  const d = S.decisions.find((x) => x.kind === 'shared'); P.undo(S, d.id); assert.ok(!amy.shared || !P.byId(S, amy.id).shared); assert.ok(!P.byId(S, beth.id).shared);
+  // free delivery on a shared number only reaches the name that holds it
+  P.opShareNumber(S, beth.id, amy.id, '868 555 1234', 'me'); const A2 = P.byId(S, amy.id); A2.free = { on: true, zones: ['arima'] };
+  const list = SC.freeList(P.list(S));
+  assert.ok(SC.isFree(list, '868 555 1234', 'arima', 'Amy')); assert.ok(!SC.isFree(list, '868 555 1234', 'arima', 'Beth')); assert.ok(!SC.isFree(list, '868 555 1234', 'arima', ''));
+  const solo = L.defaultState(); P.ensure(solo); const z = P.opFresh(solo, { name: 'Zed', phone: '868 777 1111' }).profile; z.free = { on: true, zones: ['arima'] };
+  assert.ok(SC.isFree(SC.freeList(P.list(solo)), '868 777 1111', 'arima', 'Anyone'));   // an unshared number still works by number and place
+}
 console.log('people tests passed');

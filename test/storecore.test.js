@@ -252,3 +252,8 @@ console.log('details tests passed');
   const sm = Object.fromEntries(SC.smoothPrices(rows).map((x) => [x.id, x.price])); const ordered = rows.map((r) => sm[r.id]); assert.ok(ordered.every((p, i) => i === 0 || p >= ordered[i - 1]), 'smoothed prices never fall with distance: ' + ordered); assert.ok(ordered.every((p) => p % 5 === 0));
   assert.deepStrictEqual(SC.smoothPrices(rows.filter((r) => ['a', 'b', 'g', 'h'].includes(r.id))).map((x) => x.price), [40, 40, 60, 80], 'already in order: nothing changes');
   assert.deepStrictEqual(SC.nearRows(rows, 20).map((r) => r.id).slice(0, 2), ['e', 'f'], 'closest in distance first'); }
+// what the store page may say about coupons and the offer switch
+{ assert.strictEqual(SC.publicCouponInfo(SC.norm({})), null, 'coupons off: nothing is published');
+  const ci = SC.publicCouponInfo(SC.norm({ couponRule: { on: true, min: 400, kind: 'pct', value: 10, cap: 50 } })); assert.deepStrictEqual(ci, { min: 400, t: 'p', v: 10, m: 50, g: 0 }); assert.ok(!JSON.stringify(ci).includes('code'));
+  assert.strictEqual(SC.norm({}).showOffer, true, 'the offer shows by default'); assert.strictEqual(SC.norm({ showOffer: false }).showOffer, false);
+  const z = { id: 'zc', name: 'Chaguanas', lat: 10.5167, lng: -61.4112, r: 5000 }; assert.strictEqual(SC.publicRule(SC.norm({ zones: [z], freeRule: { tiers: [{ n: 2, km: 15 }] } }), { lat: 10.52, lng: -61.41 }).cn, 'Chaguanas', 'the centre place is named so the line can say "of Chaguanas"'); }

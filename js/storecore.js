@@ -27,22 +27,38 @@
   // For a pin outside every zone: the closest zone and how far its edge is (metres), so a gap between circles still tells you where the order is.
   const nearestZone = (zones, lat, lng) => { let best = null; (Array.isArray(zones) ? zones : []).forEach((z) => { const d = z.poly ? Math.min(...z.poly.map((a, i) => segDist(lat, lng, a, z.poly[(i + 1) % z.poly.length]))) : Math.max(0, metres(lat, lng, z.lat, z.lng) - z.r); if (!best || d < best.m) best = { zone: z, m: Math.round(d) }; }); return best; };
   const areaZones = (zones) => (Array.isArray(zones) ? zones : []).filter((z) => !z.risk);
+  // Regions: Trinidad is split into five areas that never overlap and leave no gap (the borders are straight lines; the pin decides). Each region can carry a base fee
+  // that grows with the distance from its hub: base + (km beyond "free" km) x per-km, the extra capped, rounded to the nearest 5.
+  const RG = { x1: -61.54, x2: -61.43, x3: -61.25, y1: 10.58, y2: 10.37 };
+  const REGIONS = [{ id: 'N', hub: [10.6549, -61.5019] }, { id: 'W', hub: [10.679, -61.56] }, { id: 'E', hub: [10.6528, -61.3833] }, { id: 'C', hub: [10.5167, -61.4112] }, { id: 'S', hub: [10.28, -61.467] }];
+  const regionAt = (lat, lng) => { lat = Number(lat); lng = Number(lng); if (!Number.isFinite(lat) || !Number.isFinite(lng)) return ''; if (lat < RG.y2) return 'S'; if (lat < RG.y1) return lng < RG.x3 ? 'C' : 'E'; return lng < RG.x1 ? 'W' : lng < RG.x2 ? 'N' : 'E'; };
+  const RG_DEF = { N: [4, 2, 40], W: [4, 2, 40], E: [4, 2, 40], C: [5, 2, 40], S: [5, 3, 40] }, RG_SUGGEST = { N: 40, W: 50, E: 50, C: 50, S: 60 };
+  const r5 = (n) => Math.round(n / 5) * 5;
+  const normRegions = (list) => REGIONS.map((r) => { const o = (Array.isArray(list) ? list : []).find((x) => x && x.id === r.id) || {}, d = RG_DEF[r.id]; return { id: r.id, hub: r.hub, base: Math.max(0, r2(num(o.base))), free: o.free == null ? d[0] : Math.max(0, num(o.free)), perKm: o.perKm == null ? d[1] : Math.max(0, num(o.perKm)), cap: o.cap == null ? d[2] : Math.max(0, num(o.cap)) }; });
+  // The fee for a pin in a region: null when that region has no base fee yet.
+  const regionFee = (regions, lat, lng) => { const id = regionAt(lat, lng), r = normRegions(regions).find((x) => x.id === id); if (!r || !(r.base > 0)) return null; const km = metres(Number(lat), Number(lng), r.hub[0], r.hub[1]) / 1000, extra = Math.min(r.cap, Math.max(0, km - r.free) * r.perKm); return { region: id, fee: Math.max(0, r5(r.base + extra)), km: Math.round(km * 10) / 10 }; };
   const norm = (c) => {
     c = c || {};
     return { id: String(c.id || ''), slug: String(c.slug || ''), open: c.open !== false, name: String(c.name || ''), whatsapp: String(c.whatsapp || ''), inTransit: !!c.inTransit, showLeft: !!c.showLeft, showPrices: c.showPrices !== false, autoNew: c.autoNew !== false,
       batches: Array.isArray(c.batches) ? c.batches.slice() : [],
-      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || ''), zone: String(l.zone || ''), auto: !!l.auto })).filter((l) => l.name && (l.pickup || l.delivery)),
+      locations: (Array.isArray(c.locations) ? c.locations : []).map((l) => ({ id: String(l.id || newId(8)), name: String(l.name || '').trim(), pickup: !!l.pickup, delivery: !!l.delivery, price: Math.max(0, r2(num(l.price))), risk: !!l.risk, off: !!l.off, band: String(l.band || ''), zone: String(l.zone || ''), auto: !!l.auto, rm: !!l.rm, rg: REGIONS.some((r) => r.id === l.rg) ? l.rg : '' })).filter((l) => l.name && (l.pickup || l.delivery)),
       bands: (Array.isArray(c.bands) ? c.bands : []).map((b) => ({ id: String(b.id || newId(6)), name: String(b.name || '').trim(), price: Math.max(0, r2(num(b.price))), on: b.on !== false })),
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
       spotPrice: Math.max(0, r2(num(c.spotPrice))),
-      zones: normZones(c.zones), hotSeeded: !!c.hotSeeded };
+      regions: normRegions(c.regions), zones: normZones(c.zones), hotSeeded: !!c.hotSeeded };
   };
   // Delivery places. A place may belong to a price range (band): then the range sets its price. A place can be switched off, or sit in the high-risk list.
   const bandOf = (cfg, l) => (l.band ? cfg.bands.find((b) => b.id === l.band) || null : null);
-  const priceOf = (cfg, l) => { const b = bandOf(cfg, l); return b ? b.price : l.price; };
+  // A place's region: the one chosen on the place, else the region of its zone's centre. A place on "Region price" (or with no price of its own) charges its region's base fee.
+  const regionOfPlace = (cfg, l) => { if (l.rg) return l.rg; const z = l.zone && (cfg.zones || []).find((q) => q.id === l.zone); return z ? regionAt(z.lat, z.lng) : ''; };
+  const usesRegion = (cfg, l) => { if (l.band) return false; if (!(l.rm || !(Number(l.price) > 0))) return false; const r = normRegions(cfg.regions).find((x) => x.id === regionOfPlace(cfg, l)); return !!(r && r.base > 0); };
+  const priceOf = (cfg, l) => { const b = bandOf(cfg, l); if (b) return b.price; if (usesRegion(cfg, l)) return normRegions(cfg.regions).find((x) => x.id === regionOfPlace(cfg, l)).base; return l.price; };
+  // With a pin the pin's own region (and how far into it) sets the fee, for places on region price.
+  const feeAt = (cfg, l, lat, lng) => { if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) && lat != null && lng != null && (l.rm || usesRegion(cfg, l)) && !l.band) { const f = regionFee(cfg.regions, lat, lng); if (f) return f.fee; } return priceOf(cfg, l); };
   // What the customer's store page gets: the places that are switched on (and whose range is on), each with its real price.
-  const publicLocs = (cfgIn) => { const cfg = norm(cfgIn); return cfg.locations.filter((l) => { const b = bandOf(cfg, l); return !l.off && !(b && b.on === false); }).map((l) => ({ id: l.id, name: l.name, pickup: l.pickup, delivery: l.delivery, price: priceOf(cfg, l) })); };
+  const publicLocs = (cfgIn) => { const cfg = norm(cfgIn); return cfg.locations.filter((l) => { const b = bandOf(cfg, l); return !l.off && !(b && b.on === false); }).map((l) => ({ id: l.id, name: l.name, pickup: l.pickup, delivery: l.delivery, price: priceOf(cfg, l), rm: !l.band && (!!l.rm || usesRegion(cfg, l)) })); };
+  const publicRegions = (cfgIn) => normRegions(norm(cfgIn).regions).filter((r) => r.base > 0).map((r) => ({ id: r.id, hub: r.hub, base: r.base, free: r.free, perKm: r.perKm, cap: r.cap }));
   const publicSpots = (cfgIn) => norm(cfgIn).spots.filter((x) => x.on).map((x) => ({ id: x.id, name: x.name, note: x.note }));
   // The quick selection: "safe" switches every high-risk place off and the rest on, "all" switches everything on, "custom" changes nothing.
   const applyMode = (cfgIn, mode) => { const cfg = norm(cfgIn); if (!['safe', 'all', 'custom'].includes(mode)) mode = 'custom'; return { areaMode: mode, locations: cfg.locations.map((l) => (mode === 'safe' ? Object.assign({}, l, { off: !!l.risk }) : mode === 'all' ? Object.assign({}, l, { off: false }) : l)) }; };
@@ -70,7 +86,7 @@
     });
     return { locations: locs, bands, changed };
   };
-  const needsPrice = (cfg, l) => !l.risk && !!l.auto && !l.band && !(Number(l.price) > 0) && l.delivery;
+  const needsPrice = (cfg, l) => !l.risk && !!l.auto && !l.band && !(Number(l.price) > 0) && l.delivery && !usesRegion(cfg, l);
   // Adds the starter pack to the owner's settings: bands are added when missing, places already in the list keep their pickup choice but take the range and risk mark.
   const seedTT = (cfgIn) => {
     const cfg = norm(cfgIn), bands = cfg.bands.slice(), have = new Map(cfg.locations.map((l) => [l.name.toLowerCase(), l]));
@@ -213,6 +229,6 @@
   const freeList = (people) => { const out = new Set(); (people || []).forEach((p) => { if (p && p.free && p.free.on && p.phone) (p.free.zones || []).forEach((zid) => { const k = freeKeyM(p.phone, zid); if (k) out.add(k); }); }); return [...out].sort(); };
   const isFree = (list, phone, place) => { if (!list || !list.length) return false; const k = freeKeyM(phone, place); return !!k && list.includes(k); };
 
-  const api = { nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
+  const api = { RG, REGIONS, RG_SUGGEST, regionAt, regionFee, normRegions, regionOfPlace, usesRegion, feeAt, publicRegions, nearestZone, hotAt, areaZones, syncZonePlaces, needsPrice, normZones, zoneHit, zonesAt, metres, phoneKey, placeKey, freeKey, freeList, isFree, bandOf, priceOf, publicLocs, publicSpots, applyMode, seedTT, TT_BANDS, TT_PLACES, slugify, slugError, askMessage, tripCost, nearestFirst, lineKm, rateFee, deliveryStats, dayKey, monthGrid, deliveryMatch, routeLink, tileHtml, validGeo, geo, mapLinks, parseGeoLink, tileView, PER_DOC, newId, norm, shown, sizeRank, cmpSize, sameName, stalePics, payPrice, chunk, hash, options, totals, digits, validName, validPhone, checkOrder, orderCode, waLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StoreCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

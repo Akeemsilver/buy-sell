@@ -1464,3 +1464,7 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .hotban{background:#c0392b;color:#fff;border-radius:14px;padding:12px 14px;margin:10px 0}.hotban b{display:block;font-size:16px;letter-spacing:.3px}.hotban span{display:block;margin-top:3px;font-weight:700}
 .sheet.card .hotban{margin:-4px 0 12px}
 .ord.hot{border:2px solid #c0392b;background:#fdecea}.hotm{background:#c0392b;color:#fff;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px;vertical-align:middle}
+/* delivery regions */
+.rgcard{padding:10px}.rgmap{width:100%;height:auto;max-height:420px;display:block;background:var(--infobg,#eaf3fb);border-radius:14px}
+.rgland{fill:#f5f1e6}.rgedge{fill:none;stroke:#8a8062;stroke-width:3}.rgt{font:800 40px system-ui,sans-serif}.rgs{font:700 30px system-ui,sans-serif}
+.rgdot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}

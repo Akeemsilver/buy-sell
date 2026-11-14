@@ -44,7 +44,8 @@
   const effPrice = (g) => SC.payPrice(g);
   // Every unit the customer picked, as the real item behind it.
   const chosen = () => { const out = []; items.forEach((g) => sizesOf(g).forEach((z) => { const n = Math.min(cart.get(g.id + '|' + z.s) || 0, z.ids.length); for (let k = 0; k < n; k++) out.push({ id: z.ids[k], key: g.id + '|' + z.s, name: g.name, nameEs: g.nameEs, price: g.price, sale: g.sale, pct: g.pct, transit: g.transit, img: g.img, size: z.s }); })); return out; };
-  const loc = () => (store.locations || []).find((l) => l.id === form.loc);
+  // A place on "region price" is charged by the region the pin is in (and how far into it); without a pin it is the place's own (base) fee.
+  const loc = () => { const l = (store.locations || []).find((x) => x.id === form.loc); if (!l || !l.rm || !form.geo || !store.regions || !store.regions.length) return l; const f = SC.regionFee(store.regions, form.geo.lat, form.geo.lng); return f ? Object.assign({}, l, { price: f.fee }) : l; };
   // Items inside an order that has not been answered yet are held back: a size with none left is dropped, and a card with no size left too.
   const hideTaken = (list, taken) => list.map((g) => Object.assign({}, g, { sizes: sizesOf(g).map((z) => ({ s: z.s, ids: z.ids.filter((x) => !taken.has(x)) })).filter((z) => z.ids.length) })).filter((g) => g.sizes.length);
   const toast = (t) => { let el = document.getElementById('toast'); if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); } el.textContent = '✓ ' + t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 1800); };

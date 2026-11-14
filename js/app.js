@@ -805,7 +805,7 @@
   const pickedZone = (o) => { const l = storeCfg().locations.find((x) => placeNorm(x.name) === placeNorm(o.location)); return l && l.zone ? storeZones().find((z) => z.id === l.zone && !z.risk) || null : null; };
   const pinGap = (o, z) => { const g = SCore.geo(o.lat, o.lng); return g && z ? (z.poly ? SCore.nearestZone([z], g.lat, g.lng).m : Math.max(0, Math.round(SCore.metres(g.lat, g.lng, z.lat, z.lng) - z.r))) : 0; };
   const pinPlace = (o) => { const c = storeCfg(), ids = pinZones(o).map((z) => z.id); return c.locations.find((l) => l.zone && ids.includes(l.zone) && !l.risk && !l.off && l.delivery && SCore.priceOf(c, l) > 0) || null; };
-  const normalFee = (o) => { const c = storeCfg(), l = c.locations.find((x) => placeNorm(x.name) === placeNorm(o.location)); return l ? SCore.priceOf(c, l) : 0; };
+  const normalFee = (o) => { const c = storeCfg(), l = c.locations.find((x) => placeNorm(x.name) === placeNorm(o.location)), g = SCore.geo(o.lat, o.lng); return l ? (g ? SCore.feeAt(c, l, g.lat, g.lng) : SCore.priceOf(c, l)) : 0; };
   function orderWho(o) {
     if (!peopleOn || !o.phone) return '';
     const p = PE.mainOwners(state, o.phone)[0]; if (!p) return '';
@@ -817,6 +817,36 @@
     const cur = (p.free && p.free.zones) || [], zs = SCore.areaZones(storeZones()).slice().sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }));
     if (!zs.length) return openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.noZones')}</p><div class="btns"><button class="btn primary" data-act="zones-open">${t('zn.open')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet');
     openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${zs.map((z) => `<label class="tkr"><input type="checkbox" value="${esc(z.id)}" ${cur.includes(z.id) ? 'checked' : ''}><span>${esc(z.name)}</span></label>`).join('')}</div><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
+  }
+  /* ---------- delivery regions: North / West / East / Central / South, a base fee each, growing with the pin's distance from the hub ---------- */
+  const RG_COL = { N: '#7c3aed', W: '#0891b2', E: '#ea580c', C: '#16a34a', S: '#2563eb' }, RG_HUB = { N: 'Port of Spain', W: 'Carenage', E: 'Tunapuna', C: 'Chaguanas', S: 'San Fernando' };
+  function rgMap(rs) {
+    const R = SCore.RG, L = -62, Rr = -60.8, T = 10.95, B = 9.95, X = (g) => Math.round((g + 61.98) * 983), Y = (a) => Math.round((10.93 - a) * 1000), P = (pts) => pts.map((q) => X(q[1]) + ',' + Y(q[0])).join(' ');
+    const polys = { N: [[R.y1, R.x1], [R.y1, R.x2], [T, R.x2], [T, R.x1]], W: [[R.y1, L], [R.y1, R.x1], [T, R.x1], [T, L]], E: [[R.y1, R.x2], [R.y1, R.x3], [R.y2, R.x3], [R.y2, Rr], [T, Rr], [T, R.x2]], C: [[R.y2, L], [R.y2, R.x3], [R.y1, R.x3], [R.y1, L]], S: [[B, L], [B, Rr], [R.y2, Rr], [R.y2, L]] };
+    const at = { N: [10.745, -61.49], W: [10.74, -61.69], E: [10.74, -61.17], C: [10.47, -61.46], S: [10.19, -61.4] }, shape = window.TTShape || [];
+    return `<svg viewBox="10 10 1110 940" class="rgmap" role="img" aria-label="${t('rg.title')}"><defs><clipPath id="rgclip"><polygon points="${P(shape)}"/></clipPath></defs><polygon points="${P(shape)}" class="rgland"/><g clip-path="url(#rgclip)">${Object.keys(polys).map((k) => `<polygon points="${P(polys[k])}" fill="${RG_COL[k]}" fill-opacity=".3" stroke="#fff" stroke-width="4"/>`).join('')}</g><polygon points="${P(shape)}" class="rgedge"/>`
+      + rs.map((r) => `<circle cx="${X(r.hub[1])}" cy="${Y(r.hub[0])}" r="9" fill="#fff" stroke="${RG_COL[r.id]}" stroke-width="5"/><text x="${X(at[r.id][1])}" y="${Y(at[r.id][0])}" class="rgt" fill="${RG_COL[r.id]}">${esc(t('rg.' + r.id))}</text><text x="${X(at[r.id][1])}" y="${Y(at[r.id][0]) + 38}" class="rgs" fill="${RG_COL[r.id]}">${r.base > 0 ? esc(moneyText(r.base).replace('TT$ ', 'TT$').replace(/\.00$/, '')) : esc(t('rg.notSet'))}</text>`).join('') + '</svg>';
+  }
+  function sheetRegions() {
+    enterPage('regions', '', () => sheetRegions());
+    const c = storeCfg(), rs = c.regions, cnt = (id) => c.locations.filter((l) => l.delivery && SCore.regionOfPlace(c, l) === id).length, none = rs.every((r) => !(r.base > 0));
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('rg.title')}</b><small>${t('rg.sub')}</small></div></div>
+      <div class="pd"><div class="card rgcard">${rgMap(rs)}<p class="muted small" style="margin:6px 2px 0">${t('rg.mapNote')}</p></div>
+      <p class="lead" style="margin:10px 2px">${t('rg.how')}</p>
+      <div class="card pkc">${rs.map((r) => `<div class="pkr"><button type="button" class="pkn" data-act="region-edit" data-id="${r.id}"><b><span class="rgdot" style="background:${RG_COL[r.id]}"></span>${t('rg.' + r.id)}</b><small>${tn('rg.placesN', cnt(r.id))} · ${t('rg.hub', { h: RG_HUB[r.id] })}</small></button><span class="pkp">${r.base > 0 ? moneyText(r.base) : t('rg.notSet')}</span></div>`).join('')}</div>
+      ${!none ? `<button type="button" class="pkadd" data-act="region-all">🧭 ${t('rg.all')}</button><p class="muted small" style="margin:6px 2px">${t('rg.allSub')}</p>` : ''}${none ? `<button type="button" class="pkadd" data-act="region-suggest">✨ ${t('rg.suggest')}</button><p class="muted small" style="margin:6px 2px">${t('rg.suggestSub')}</p>` : ''}</div>`, null, true);
+  }
+  const rgExample = (base, free, perKm, cap) => { const km = free + 5; return base > 0 ? t('rg.ex', { km, fee: moneyText(Math.round((base + Math.min(cap, 5 * perKm)) / 5) * 5) }) : t('rg.exNone'); };
+  function sheetRegion(id) {
+    const c = storeCfg(), r = c.regions.find((x) => x.id === id); if (!r) return;
+    enterPage('region', id, () => sheetRegion(id));
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('rg.' + id)}</b><small>${t('rg.hub', { h: RG_HUB[id] })}</small></div></div>
+      <div class="ap"><div class="fld"><label for="rg-base">${t('rg.base')}</label><input id="rg-base" data-rg="1" inputmode="decimal" value="${r.base || ''}" placeholder="0" autocomplete="off" enterkeyhint="done"></div>
+      <div class="fld"><label for="rg-free">${t('rg.free')}</label><input id="rg-free" data-rg="1" inputmode="decimal" value="${r.free}" autocomplete="off" enterkeyhint="done"><small>${t('rg.freeSub')}</small></div>
+      <div class="fld"><label for="rg-perkm">${t('rg.perKm')}</label><input id="rg-perkm" data-rg="1" inputmode="decimal" value="${r.perKm}" autocomplete="off" enterkeyhint="done"></div>
+      <div class="fld"><label for="rg-cap">${t('rg.cap')}</label><input id="rg-cap" data-rg="1" inputmode="decimal" value="${r.cap}" autocomplete="off" enterkeyhint="done"><small>${t('rg.capSub')}</small></div>
+      <div class="card hotinfo" id="rg-ex">${rgExample(r.base, r.free, r.perKm, r.cap)}</div>
+      <div class="btns"><button class="btn primary" data-act="region-save" data-id="${id}">${t('btn.save')}</button></div></div>`, null, true);
   }
   function sheetZones() {
     seedHot(); enterPage('zones', '', () => sheetZones());
@@ -2597,6 +2627,7 @@
     const spotRow = (x) => `<div class="pkr ${x.on ? '' : 'dim'}"><button type="button" class="pkn" data-act="spot-edit" data-id="${x.id}"><b>${esc(x.name)}</b>${x.note ? `<small>${esc(x.note)}</small>` : ''}</button>${swt('spot-on', x.id, x.on)}<button type="button" class="pkx" data-act="spot-del" data-id="${x.id}" aria-label="${t('pk.spotDel')}">✕</button></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.delivery')}</b><small>${t('pd.sub')}</small></div></div>
       <div class="pd">
+      <button type="button" class="hnr zrow" data-act="regions-page"><span class="hic" style="background:var(--infobg)">🧭</span><div class="t"><b>${t('rg.title')}</b><small>${c.regions.some((r) => r.base > 0) ? tn('rg.rowSet', c.regions.filter((r) => r.base > 0).length) : t('rg.rowNone')}</small></div><span class="chev">›</span></button>
       <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.count2', { n: SCore.areaZones(c.zones).length, h: c.zones.filter((z) => z.risk).length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
       ${c.locations.some((l) => SCore.needsPrice(c, l)) ? `<button type="button" class="hnr zrow" data-act="places-needs"><span class="hic" style="background:var(--warnbg)">💲</span><div class="t"><b>${t('pk.needsRow', { n: c.locations.filter((l) => SCore.needsPrice(c, l)).length })}</b><small>${t('pk.needsSub')}</small></div><span class="chev">›</span></button>` : ''}
       <button type="button" class="hnr zrow" data-act="places-page"><span class="hic" style="background:var(--okbg)">📍</span><div class="t"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><span class="chev">›</span></button>
@@ -2624,8 +2655,11 @@
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t(id === 'new' ? 'store.addLoc' : 'store.editLoc')}</b><small>${esc(l.name)}</small></div></div>
       <div class="ap"><label for="sl-name">${t('store.locName')}</label><input id="sl-name" value="${esc(l.name)}" placeholder="${t('store.locPh')}" autocomplete="off" enterkeyhint="done">
       <div class="card" style="margin-top:12px"><div class="rw"><div class="t"><b>${t('store.pickup')}</b><small>${t('store.pickupSub')}</small></div>${swt('sl-flag', 'pickup', l.pickup)}</div><div class="rw"><div class="t"><b>${t('store.delivery')}</b><small>${t('store.deliverySub')}</small></div>${swt('sl-flag', 'delivery', l.delivery)}</div></div>
-      ${c.bands.length ? `<label>${t('sl.range')}</label><div class="chips" id="sl-bands"><button type="button" class="chip ${l.band ? '' : 'on'}" data-act="sl-band" data-id="">${t('sl.noRange')}</button>${c.bands.map((b) => `<button type="button" class="chip ${l.band === b.id ? 'on' : ''}" data-act="sl-band" data-id="${b.id}">TT$ ${b.price}${b.name ? ' · ' + esc(b.name) : ''}</button>`).join('')}</div>` : ''}
-      <label for="sl-price">${t('store.deliveryPrice')}</label><input id="sl-price" type="text" inputmode="decimal" value="${l.price || ''}" placeholder="0.00" autocomplete="off" enterkeyhint="done">
+      ${(() => { const rgId = SCore.regionOfPlace(c, l), rgr = c.regions.find((r) => r.id === rgId), hasBase = !!(rgr && rgr.base > 0), mode = l.band ? 'b:' + l.band : (l.rm || (!(l.price > 0) && hasBase) ? 'region' : 'own'), o = (v, txt) => `<option value="${v}" ${mode === v ? 'selected' : ''}>${txt}</option>`;
+        return `<label for="sl-mode">${t('sl.price')}</label><select id="sl-mode">${o('region', hasBase ? t('sl.modeRegionFee', { r: t('rg.' + rgId), f: moneyText(rgr.base) }) : t('sl.modeRegion'))}${c.bands.map((b) => o('b:' + b.id, `TT$ ${b.price}${b.name ? ' · ' + esc(b.name) : ''}`)).join('')}${o('own', t('sl.modeOwn'))}</select>
+        <p class="muted small" id="sl-rnote" style="margin:6px 2px;${mode === 'region' ? '' : 'display:none'}">${hasBase || !rgId ? t('sl.regionNote') : t('sl.noBase')}</p>
+        ${l.zone ? '' : `<label for="sl-rg">${t('sl.region')}</label><select id="sl-rg"><option value="">${t('sl.regionAuto', { r: rgId ? t('rg.' + rgId) : '-' })}</option>${SCore.REGIONS.map((r) => `<option value="${r.id}" ${l.rg === r.id ? 'selected' : ''}>${t('rg.' + r.id)}</option>`).join('')}</select>`}
+        <div id="sl-own" style="${mode === 'own' ? '' : 'display:none'}"><label for="sl-price">${t('store.deliveryPrice')}</label><input id="sl-price" type="text" inputmode="decimal" value="${l.price || ''}" placeholder="0.00" autocomplete="off" enterkeyhint="done"></div>`; })()}
       <div class="btns"><button class="btn primary" data-act="store-loc-save" data-id="${id}">${t('btn.save')}</button>${id === 'new' ? '' : `<button class="btn danger" data-act="store-loc-del" data-id="${id}">${t('btn.delete')}</button>`}</div>
       ${id === 'new' ? '' : (() => { const h = hotOf(id); return h ? `<div class="card hotcard"><div class="t"><b>⚠️ ${t('hot.has', { z: esc(h.name) })}</b><small>${t('hot.sub')}</small></div><div class="btns"><button class="btn alt" data-act="hot-edit" data-id="${h.id}">${t('hot.edit')}</button><button class="btn alt" data-act="hot-remove" data-id="${h.id}">${t('hot.remove')}</button></div></div>` : `<div class="card hotcard"><div class="t"><b>⚠️ ${t('hot.title')}</b><small>${t('hot.sub')}</small></div><button class="btn hotbtn" data-act="place-hot" data-id="${id}">⚠️ ${t('hot.btn')}</button></div>`; })()}</div>`, null, true);
   }
@@ -2641,7 +2675,7 @@
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
-    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
+    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'regions-page', 'region-edit', 'region-suggest', 'region-save', 'region-all', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
   }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
   /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
   const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
@@ -2712,7 +2746,7 @@
         openSmall(`<h3>${t('xfer.t3')}</h3><p>${esc(t('xfer.q3', { name: nm }))}</p><input id="xfer-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="TRANSFER" style="margin-top:6px">
           <div class="btns"><button class="btn dsolid" id="xfer-go" data-act="xfer-go" disabled>${t('xfer.go')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'card'); }); });
   }
-  document.addEventListener('input', (e) => { if (e.target.id === 'pl-q') { plQ = e.target.value; plSearch(); } else if (e.target.id === 'rp-q') { const q = e.target.value.trim().toLowerCase(); document.querySelectorAll('#rp-list .tkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); } });
+  document.addEventListener('input', (e) => { if (e.target.dataset && e.target.dataset.rg) { const g = (i) => parseAmt(($('#' + i) || {}).value), ex = $('#rg-ex'); if (ex) ex.textContent = rgExample(g('rg-base'), g('rg-free'), g('rg-perkm'), g('rg-cap')); return; } if (e.target.id === 'pl-q') { plQ = e.target.value; plSearch(); } else if (e.target.id === 'rp-q') { const q = e.target.value.trim().toLowerCase(); document.querySelectorAll('#rp-list .tkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); } });
   document.addEventListener('input', (e) => { if (e.target.id === 'xfer-in') { const b = $('#xfer-go'); if (b) b.disabled = e.target.value.trim().toUpperCase() !== 'TRANSFER'; } });
 
   /* ---------- notifications (the bell) ---------- */
@@ -3520,8 +3554,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-loc-save': {
         const name = L.cleanName($('#sl-name').value), pickup = $('[data-act=sl-flag][data-id=pickup]').classList.contains('on'), delivery = $('[data-act=sl-flag][data-id=delivery]').classList.contains('on'), price = Math.max(0, parseFloat(String($('#sl-price').value).replace(',', '.')) || 0);
         if (!name) return toast(t('store.needLocName')); if (!pickup && !delivery) return toast(t('store.needOption'));
-        const c = storeCfg(), old = c.locations.find((x) => x.id === id) || {}, bandBtn = document.querySelector('#sl-bands .chip.on'), flag = document.querySelector('[data-act=sl-flag][data-id=risk]'), risk = !!old.risk;
-        const bandId = bandBtn ? bandBtn.dataset.id || '' : (old.band || ''), priced = price > 0 || !!bandId, loc = { id: id === 'new' ? SCore.newId(8) : id, name, pickup, delivery, price, band: bandId, risk, zone: old.zone || '', auto: !!old.auto && !priced, off: id === 'new' ? risk && c.areaMode === 'safe' : (old.auto && priced ? false : !!old.off) };
+        const c = storeCfg(), old = c.locations.find((x) => x.id === id) || {}, modeSel = ($('#sl-mode') || {}).value || 'own', rgSel = $('#sl-rg'), flag = document.querySelector('[data-act=sl-flag][data-id=risk]'), risk = !!old.risk;
+        const bandId = modeSel.startsWith('b:') ? modeSel.slice(2) : '', rm = modeSel === 'region', priced = price > 0 || !!bandId || rm, loc = { id: id === 'new' ? SCore.newId(8) : id, name, pickup, delivery, price, band: bandId, rm, rg: rgSel ? rgSel.value : (old.rg || ''), risk, zone: old.zone || '', auto: !!old.auto && !priced, off: id === 'new' ? risk && c.areaMode === 'safe' : (old.auto && priced ? false : !!old.off) };
         if (loc.zone && name !== old.name) storeSet({ zones: c.zones.map((z) => (z.id === loc.zone ? Object.assign({}, z, { name }) : z)) });
         const list = id === 'new' ? c.locations.concat(loc) : c.locations.map((l) => (l.id === id ? loc : l)); storeSet({ locations: c.areaMode === 'safe' ? SCore.applyMode({ locations: list, bands: c.bands }, 'safe').locations : list }); pageStack = pageStack.filter((p) => p.key !== 'storeloc|' + id); return dropPages('storeloc|' + id);
       }
@@ -3623,6 +3657,11 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dup-merge': { try { PE.merge(state, t_.dataset.b, id, myName()); save(); toast(t('mg.done')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } return sheetDups(); }
       case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
       case 'zones-open': closeSheet(); return sheetZones();
+      case 'regions-page': return sheetRegions();
+      case 'region-edit': return sheetRegion(id);
+      case 'region-all': return askCard(t('rg.allAsk'), { ok: t('rg.allOk') }).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ locations: c.locations.map((l) => (l.delivery && !l.risk && SCore.regionOfPlace(c, l) ? Object.assign({}, l, { band: '', rm: true, off: l.auto ? false : l.off, auto: false }) : l)) }); toast(t('rg.allDone')); sheetRegions(); });
+      case 'region-suggest': { const c = storeCfg(); storeSet({ regions: c.regions.map((r) => (r.base > 0 ? r : Object.assign({}, r, { base: SCore.RG_SUGGEST[r.id] }))) }); return sheetRegions(); }
+      case 'region-save': { const c = storeCfg(), base = parseAmt($('#rg-base').value), free = parseAmt($('#rg-free').value), perKm = parseAmt($('#rg-perkm').value), cap = parseAmt($('#rg-cap').value); storeSet({ regions: c.regions.map((r) => (r.id === id ? Object.assign({}, r, { base, free, perKm, cap }) : r)) }); toast(t('rg.saved')); pageStack = pageStack.filter((p) => p.key !== 'region|' + id); return dropPages('region|' + id); }
       case 'zones-page': return sheetZones();
       case 'place-hot': { const c = storeCfg(), l = c.locations.find((x) => x.id === id); if (!l) return; const zz = c.zones.find((z) => z.id === l.zone && !z.risk); return openZone('new', true, { name: l.name, lat: zz ? zz.lat : undefined, lng: zz ? zz.lng : undefined, r: 1000, place: l.id }); }
       case 'hot-edit': return openZone(id, true);
@@ -3727,6 +3766,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   }
   document.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.id === 'sl-mode') { const own = $('#sl-own'), nt = $('#sl-rnote'); if (own) own.style.display = el.value === 'own' ? '' : 'none'; if (nt) nt.style.display = el.value === 'region' ? '' : 'none'; return; }
     if (el.dataset && el.dataset.phonefor) { const v = el.value.trim(); if (v) savePhone(el.dataset.phonefor, v); return; }
     if (el.id === 'sp-name' || el.id === 'sp-phone') { const b = $('#sheet').querySelector('[data-act="split-go"]'); return b && splitSummary(b.dataset.id); }
     if (el.dataset && el.dataset.split !== undefined) { const pid = ($('#sheet').querySelector('[data-act="split-go"]') || {}).dataset; return pid && splitSummary(pid.id); }

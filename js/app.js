@@ -2616,6 +2616,15 @@
     const c = storeCfg(), cand = c.locations.filter((l) => !l.risk).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     openSmall(`<h3>${t('pk.riskAdd')}</h3><p>${t('pk.riskPickSub')}</p><form id="f-riskpick"><div class="oqbar" style="margin-bottom:8px"><span aria-hidden="true">🔍</span><input id="rp-q" class="cq" type="search" autocomplete="off" placeholder="${esc(t('pl.search'))}"></div><div class="fpl" id="rp-list">${cand.map((l) => `<label class="tkr" data-n="${esc(l.name.toLowerCase())}"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('') || `<p class="muted small">${t('pk.riskNoPlaces')}</p>`}</div><input name="name" type="text" autocomplete="off" placeholder="${esc(t('pk.riskOther'))}"><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
+  const freeSum = (c) => { const r = c.freeRule, p = []; if (r.items.on) p.push(t('fr.sumItems', { n: r.items.n })); if (r.spend.on) p.push(t('fr.sumSpend', { a: moneyText(r.spend.amt) })); return p.length ? p.join(' · ') : t('fr.none'); };
+  function sheetFreeRule() {
+    enterPage('freerule', '', () => sheetFreeRule());
+    const r = storeCfg().freeRule;
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fr.title')}</b><small>${t('fr.sub')}</small></div></div>
+      <div class="ap"><div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('fr.items')}</b><small>${t('fr.itemsSub')}</small></div>${swt('fr-on', 'items', r.items.on)}</div><div class="pkb ${r.items.on ? '' : 'dim'}"><span class="pkp">${t('fr.atLeast')}</span><input class="pkin" inputmode="numeric" data-rule="items" value="${r.items.n}" aria-label="${t('fr.items')}"><span class="pkp">${t('fr.itemsU')}</span></div></div>
+      <div class="card" style="margin-bottom:12px"><div class="rw"><div class="t"><b>${t('fr.spend')}</b><small>${t('fr.spendSub')}</small></div>${swt('fr-on', 'spend', r.spend.on)}</div><div class="pkb ${r.spend.on ? '' : 'dim'}"><span class="pkp">TT$</span><input class="pkin" inputmode="decimal" data-rule="spend" value="${r.spend.amt}" aria-label="${t('fr.spend')}"></div></div>
+      <p class="lead" style="margin:10px 2px">${t('fr.how')}</p></div>`, null, true);
+  }
   function sheetPickup() {
     ensureZonePlaces(); seedHot();
     enterPage('pickup', '', () => sheetPickup());
@@ -2627,13 +2636,18 @@
     const spotRow = (x) => `<div class="pkr ${x.on ? '' : 'dim'}"><button type="button" class="pkn" data-act="spot-edit" data-id="${x.id}"><b>${esc(x.name)}</b>${x.note ? `<small>${esc(x.note)}</small>` : ''}</button>${swt('spot-on', x.id, x.on)}<button type="button" class="pkx" data-act="spot-del" data-id="${x.id}" aria-label="${t('pk.spotDel')}">✕</button></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.delivery')}</b><small>${t('pd.sub')}</small></div></div>
       <div class="pd">
+      <h4 class="pkh first">${t('pd.secWhere')}</h4>
       <button type="button" class="hnr zrow" data-act="regions-page"><span class="hic" style="background:var(--infobg)">🧭</span><div class="t"><b>${t('rg.title')}</b><small>${c.regions.some((r) => r.base > 0) ? tn('rg.rowSet', c.regions.filter((r) => r.base > 0).length) : t('rg.rowNone')}</small></div><span class="chev">›</span></button>
       <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.count2', { n: SCore.areaZones(c.zones).length, h: c.zones.filter((z) => z.risk).length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
       ${c.locations.some((l) => SCore.needsPrice(c, l)) ? `<button type="button" class="hnr zrow" data-act="places-needs"><span class="hic" style="background:var(--warnbg)">💲</span><div class="t"><b>${t('pk.needsRow', { n: c.locations.filter((l) => SCore.needsPrice(c, l)).length })}</b><small>${t('pk.needsSub')}</small></div><span class="chev">›</span></button>` : ''}
       <button type="button" class="hnr zrow" data-act="places-page"><span class="hic" style="background:var(--okbg)">📍</span><div class="t"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><span class="chev">›</span></button>
+      <h4 class="pkh">${t('pd.secFree')}</h4>
+      <button type="button" class="hnr zrow" data-act="free-rule"><span class="hic" style="background:var(--okbg)">🎁</span><div class="t"><b>${t('fr.title')}</b><small>${freeSum(c)}</small></div><span class="chev">›</span></button>
+      <h4 class="pkh">${t('pd.secSafety')}</h4>
       <button type="button" class="hnr zrow" data-act="risk-page"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${tn('pk.riskCountN', c.zones.filter((z) => z.risk).length + risks.filter((l) => !hotOf(l.id)).length)}</small></div><span class="chev">›</span></button>
-      ${c.bands.length ? '' : `<button type="button" class="addp towns" data-act="store-towns">🇹🇹 ${t('pk.towns')}</button><p class="lead" style="margin-top:8px">${t('pk.townsSub')}</p>`}
       ${c.locations.some((l) => l.risk) ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
+      <h4 class="pkh">${t('pd.secPrices')}</h4>
+      ${c.bands.length ? '' : `<button type="button" class="addp towns" data-act="store-towns">🇹🇹 ${t('pk.towns')}</button><p class="lead" style="margin-top:8px">${t('pk.townsSub')}</p>`}
       ${c.bands.length ? `<h4 class="pkh">${t('pk.bands')}</h4><div class="card pkc">${c.bands.map(bandRow).join('')}<button type="button" class="pkadd" data-act="band-add">＋ ${t('pk.bandAdd')}</button><p class="muted small">${t('pk.bandsSub')}</p></div>` : ''}
       <h4 class="pkh">${t('pk.spots')}</h4><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.spotsSub')}</p><div class="pkb"><span class="pkp">TT$</span><input class="pkin" id="pk-spotprice" inputmode="decimal" data-spotprice="1" value="${c.spotPrice || ''}" placeholder="0.00" aria-label="${t('pk.spotPrice')}"><div class="pkt"><b>${t('pk.spotPrice')}</b></div></div>${c.spots.map(spotRow).join('')}<button type="button" class="pkadd" data-act="spot-add">＋ ${t('pk.spotAdd')}</button></div>
       </div>`, null, true);
@@ -2675,7 +2689,7 @@
     stock: ['new-batch', 'del-batch', 'do-receive', 'recv-yes', 'receive', 'import-json', 'import-xlsx', 'split-group', 'qe-open', 'qe-go', 'qe-next', 'sale-apply', 'sale-off', 'toggle-sale', 'use-rec', 'szp-addsave', 'szp-done', 'es-savewords', 'es-addwords', 'es-done', 'word-add', 'word-del', 'word-del2', 'word-save', 'word-edit', 'free-space', 'free-thumbs'],
     costs: ['csv', 'export-json'],
     refunds: ['return-open', 'return-inv', 'return-item', 'ret-all', 'ret-do', 'del-inv'],
-    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'regions-page', 'region-edit', 'region-suggest', 'region-save', 'region-all', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
+    storeSettings: ['pickup-open', 'store-settings', 'store-create', 'store-toggle', 'store-addbatch', 'store-batch', 'store-batch-all', 'store-loc', 'store-loc-save', 'store-loc-del', 'store-left', 'store-publish', 'dlv-settings', 'dlv-home', 'regions-page', 'free-rule', 'fr-on', 'region-edit', 'region-suggest', 'region-save', 'region-all', 'ds-here', 'ds-map', 'ds-linkopen', 'ds-linkgo', 'ds-recalc', 'ds-recalc-close'],
   }).forEach(([cap, acts]) => acts.forEach((a) => { ACT_NEEDS[a] = cap; }));
   /* ---------- the team: people, ranks, the business code, what each rank may do, handing the business over ---------- */
   const teamTop = () => (pageStack.length ? pageStack[pageStack.length - 1].key : '');
@@ -3269,7 +3283,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function openInvoiceFromSheet(no) { closeSheet(); sheetInvoice(no); }
 
   if (window.SelectPicker) SelectPicker.install(() => ({ cancel: t('btn.cancel'), done: t('btn.done'), search: t('pick.search'), choose: t('pick.choose'), none: t('people.noMatch') }));   // our own picker instead of the browser's list
-  const KEEP_SCROLL = new Set(['area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
+  const KEEP_SCROLL = new Set(['fr-on', 'area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     if (e.target.id === 'tmscrim') return closeTopMenu();
@@ -3657,6 +3671,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dup-merge': { try { PE.merge(state, t_.dataset.b, id, myName()); save(); toast(t('mg.done')); } catch (e) { toast('⚠️ ' + t('fx.cannot')); } return sheetDups(); }
       case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
       case 'zones-open': closeSheet(); return sheetZones();
+      case 'free-rule': return sheetFreeRule();
+      case 'fr-on': { const c = storeCfg(), r = c.freeRule; storeSet({ freeRule: Object.assign({}, r, { [id]: Object.assign({}, r[id], { on: !r[id].on }) }) }); return sheetFreeRule(); }
       case 'regions-page': return sheetRegions();
       case 'region-edit': return sheetRegion(id);
       case 'region-all': return askCard(t('rg.allAsk'), { ok: t('rg.allOk') }).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ locations: c.locations.map((l) => (l.delivery && !l.risk && SCore.regionOfPlace(c, l) ? Object.assign({}, l, { band: '', rm: true, off: l.auto ? false : l.off, auto: false }) : l)) }); toast(t('rg.allDone')); sheetRegions(); });
@@ -3766,6 +3782,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   }
   document.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.dataset && el.dataset.rule) { const c = storeCfg(), r = c.freeRule, k = el.dataset.rule, v = parseAmt(el.value); storeSet({ freeRule: Object.assign({}, r, { [k]: k === 'items' ? Object.assign({}, r.items, { n: Math.max(1, Math.round(v) || r.items.n) }) : Object.assign({}, r.spend, { amt: v > 0 ? v : r.spend.amt }) }) }); const f = storeCfg().freeRule; el.value = k === 'items' ? f.items.n : f.spend.amt; return; }
     if (el.id === 'sl-mode') { const own = $('#sl-own'), nt = $('#sl-rnote'); if (own) own.style.display = el.value === 'own' ? '' : 'none'; if (nt) nt.style.display = el.value === 'region' ? '' : 'none'; return; }
     if (el.dataset && el.dataset.phonefor) { const v = el.value.trim(); if (v) savePhone(el.dataset.phonefor, v); return; }
     if (el.id === 'sp-name' || el.id === 'sp-phone') { const b = $('#sheet').querySelector('[data-act="split-go"]'); return b && splitSummary(b.dataset.id); }

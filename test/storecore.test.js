@@ -214,3 +214,10 @@ console.log('details tests passed');
   assert.ok(SC.feeAt(cfg, a, 10.6377, -61.2825) === 65 && SC.feeAt(cfg, b, 10.6377, -61.2825) === 35, 'the pin sets the fee only for region-price places');
   assert.ok(SC.publicLocs(cfg).find((l) => l.name === 'Arima').rm && !SC.publicLocs(cfg).find((l) => l.name === 'Own').rm);
   assert.deepStrictEqual(SC.publicRegions(cfg).map((r) => r.id), ['E', 'S']); }
+// free delivery by order size
+{ const cfg = SC.norm({ freeRule: { items: { on: true, n: 2 }, spend: { on: true, amt: 400 } } });
+  assert.deepStrictEqual(SC.publicRule(cfg), { n: 2, amt: 400 }); assert.strictEqual(SC.publicRule(SC.norm({})), null, 'off by default');
+  const r = SC.publicRule(cfg);
+  assert.ok(SC.ruleMet(r, 2, 50).ok, '2 items qualify however cheap'); assert.ok(SC.ruleMet(r, 1, 400).ok, 'one item at 400 qualifies'); assert.ok(!SC.ruleMet(r, 1, 399.99).ok);
+  assert.deepStrictEqual([SC.ruleMet(r, 1, 100).moreItems, SC.ruleMet(r, 1, 100).moreSpend], [1, 300], 'how far to go');
+  assert.ok(SC.ruleMet({ n: 0, amt: 400 }, 9, 100).ok === false && SC.ruleMet({ n: 3, amt: 0 }, 3, 1).ok, 'each part can be off'); }

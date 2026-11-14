@@ -184,10 +184,22 @@
     drawText(x, cfg.items.tagline, cfg.items.tagline.text, { spacing: Math.max(1, cfg.items.tagline.size * 0.3) });
   }
 
+
+  // The pictures live in a shared pool (settings.invPool) and designs point at them by key, so a picture used by several saved designs is stored once
+  // and a picture nothing uses any more is deleted.
+  const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36) + s.length.toString(36); };
+  const IMGPATHS = SLOTS.map((s) => ['slots', s]).concat([['bg', 'image', 'src']]);
+  const readP = (o, p) => p.reduce((a, k) => (a == null ? a : a[k]), o);
+  const writeP = (o, p, v) => { let a = o; for (let i = 0; i < p.length - 1; i++) { if (a[p[i]] == null) return; a = a[p[i]]; } a[p[p.length - 1]] = v; };
+  const isKey = (v) => typeof v === 'string' && v.startsWith('k:');
+  function toKeys(cfg, pool) { const c = JSON.parse(JSON.stringify(cfg || {})); IMGPATHS.forEach((p) => { const v = readP(c, p); if (typeof v === 'string' && v && !isKey(v)) { const k = 'k:' + hash(v); pool[k] = v; writeP(c, p, k); } }); return c; }
+  function fromKeys(cfg, pool) { const c = JSON.parse(JSON.stringify(cfg || {})); IMGPATHS.forEach((p) => { const v = readP(c, p); if (isKey(v)) writeP(c, p, (pool || {})[v] || ''); }); return c; }
+  function usedKeys(cfgs) { const u = new Set(); (cfgs || []).forEach((c) => IMGPATHS.forEach((p) => { const v = readP(c || {}, p); if (isKey(v)) u.add(v); })); return u; }
+  function prune(pool, cfgs) { const u = usedKeys(cfgs); let n = 0; Object.keys(pool).forEach((k) => { if (!u.has(k)) { delete pool[k]; n++; } }); return n; }
   const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
   const setPath = (o, p, v) => { const ks = p.split('.'), last = ks.pop(); const t = ks.reduce((a, k) => (a[k] = a[k] || {}), o); t[last] = v; return o; };
 
-  const api = { W, H, SLOTS, SHAPES, LAYOUTS, PRESETS, defaults, norm, layoutPatch, applyLayout, applyPreset, colours, stopsFor, draw, boxOf, getPath, setPath, mix, lum, isHex };
+  const api = { W, H, SLOTS, SHAPES, LAYOUTS, PRESETS, defaults, norm, layoutPatch, applyLayout, applyPreset, colours, toKeys, fromKeys, usedKeys, prune, hash, stopsFor, draw, boxOf, getPath, setPath, mix, lum, isHex };
   root.InvHeader = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

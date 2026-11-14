@@ -26,6 +26,13 @@ const n0 = calls.length; calls.length = 0; IH.draw(x, Object.assign(IH.defaults(
 // two lines mode joins the first two details
 const texts = []; const x2 = new Proxy({}, { get: (t, k) => (k in t ? t[k] : (...a) => { if (k === 'fillText') texts.push(a[0]); if (/Gradient/.test(k)) return { addColorStop() {} }; }), set: (t, k, v) => { t[k] = v; return true; } });
 IH.draw(x2, IH.applyLayout(IH.defaults(), 'D'), { name: 'N', lines: { city: 'Chaguanas', phone: '186', email: 'a@b.c' } }, {}); assert.ok(texts.includes('Chaguanas · 186') && texts.includes('a@b.c'));
+// the picture pool: shared by key, pruned when nothing uses a picture
+{ const pool = {}; const a = IH.defaults(); a.slots.logo = 'data:image/png;base64,AAAA'; a.slots.title = 'data:image/png;base64,BBBB'; a.bg.image.src = 'data:image/jpeg;base64,CCCC';
+  const k = IH.toKeys(a, pool); assert.ok(/^k:/.test(k.slots.logo) && /^k:/.test(k.bg.image.src) && Object.keys(pool).length === 3); assert.strictEqual(IH.toKeys(k, pool).slots.logo, k.slots.logo, 'keys stay keys');
+  assert.strictEqual(IH.fromKeys(k, pool).slots.title, 'data:image/png;base64,BBBB');
+  const b = JSON.parse(JSON.stringify(a)); b.slots.title = ''; const kb = IH.toKeys(b, pool); assert.strictEqual(Object.keys(pool).length, 3, 'same pictures are stored once');
+  assert.strictEqual(IH.prune(pool, [kb]), 1, 'the title picture is nobody\'s any more'); assert.strictEqual(Object.keys(pool).length, 2); assert.strictEqual(IH.prune(pool, []), 2); assert.strictEqual(Object.keys(pool).length, 0);
+  assert.strictEqual(IH.fromKeys({ slots: { logo: 'k:gone' } }, {}).slots.logo, '', 'a missing picture comes back empty'); }
 // assets: names -> slots, groups, white copies dropped
 assert.strictEqual(A.slotOf('bruiz-02-Wine-Blush-logo-BR-transparent.png'), 'logo'); assert.strictEqual(A.slotOf('bruiz-02-Wine-Blush-title-card-transparent.png'), 'title'); assert.strictEqual(A.slotOf('bruiz-02-Wine-Blush-store-QR.png'), 'skip'); assert.strictEqual(A.slotOf('bruiz-02-business-card-front-1050x600.png'), 'skip'); assert.strictEqual(A.slotOf('bruiz-02-Wine-Blush-logo-in-white-circle.png'), 'hold'); assert.strictEqual(A.slotOf('photo123.jpg'), 'extra1');
 const names = ['bruiz-02-Wine-Blush-logo-BR-transparent.png', 'bruiz-02-Wine-Blush-logo-BR-white.png', 'bruiz-02-Wine-Blush-title-card-transparent.png', 'bruiz-10-RoseGold-Plum-logo-BR-transparent.png', 'bruiz-10-RoseGold-Plum-title-card-transparent.png'].map((n) => ({ name: n }));

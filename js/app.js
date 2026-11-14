@@ -1444,10 +1444,13 @@
     if (!i) { i = new Image(); i.onload = () => { Object.keys(headCache).forEach((k) => delete headCache[k]); ihPaintSoon(); if (invFsOn) invFsPreview(); }; i.src = src; hdrImgs.set(src, i); if (hdrImgs.size > 14) hdrImgs.delete(hdrImgs.keys().next().value); }
     return i;
   };
-  const ihCfg = () => InvHeader.norm(state.settings.invHeader);
+  const ihCfg = () => InvHeader.norm(InvHeader.fromKeys(state.settings.invHeader, state.settings.invPool));
+  const ihPrune = () => { const p = state.settings.invPool; if (!p) return; InvHeader.prune(p, [state.settings.invHeader].concat((state.settings.invHeaderSaved || []).map((d) => d.cfg))); if (!Object.keys(p).length) delete state.settings.invPool; };
   const ihImages = (cfg) => ({ logo: hdrImg(cfg.slots.logo || state.settings.bizLogo), title: hdrImg(cfg.slots.title), extra1: hdrImg(cfg.slots.extra1), extra2: hdrImg(cfg.slots.extra2), bg: hdrImg(cfg.bg.image.src) });
   const ihInfo = () => { const s = state.settings, own = !!(s.businessName || s.bizCity || s.bizPhone || s.bizEmail); return { name: s.businessName || 'B.RUIZ', lines: own ? { city: s.bizCity, phone: s.bizPhone, email: s.bizEmail } : { city: 'Chaguanas', phone: '18683658857', email: 'berilexy.ruiz93@gmail.com' }, title: ti('doc.invoiceWord') }; };
-  const ihSave = (cfg) => { state.settings.invHeader = cfg; save(); Object.keys(headCache).forEach((k) => delete headCache[k]); };
+  const ihSave = (cfg) => { state.settings.invPool = state.settings.invPool || {}; state.settings.invHeader = InvHeader.toKeys(cfg, state.settings.invPool); ihPrune(); save(); Object.keys(headCache).forEach((k) => delete headCache[k]); };
+  // Once at start: move any pictures still stored inside designs into the shared pool and delete the ones nothing uses.
+  function ihTidy() { const s = state.settings; if (!s.invHeader && !s.invPool && !(s.invHeaderSaved || []).length) return; s.invPool = s.invPool || {}; if (s.invHeader) s.invHeader = InvHeader.toKeys(s.invHeader, s.invPool); s.invHeaderSaved = (s.invHeaderSaved || []).map((d) => Object.assign({}, d, { cfg: InvHeader.toKeys(d.cfg, s.invPool) })); ihPrune(); save(); }
   const ihSet = (path, v) => { const c = ihCfg(); InvHeader.setPath(c, path, v); c.layout = /^items\.(logo|title|extra1|extra2|name|lines|invoice|tagline)\.(x|y|size|on|mode|align)$/.test(path) ? 'custom' : c.layout; ihSave(InvHeader.norm(c)); ihPaintSoon(); };
   function ihPaint() {
     const cv = $('#ih-pv'); if (!cv) return; const cfg = ihCfg(), S = 2; cv.width = InvHeader.W * S; cv.height = InvHeader.H * S;
@@ -1550,6 +1553,40 @@
       closeSheet(); toast(n ? t('logo.saved') : t('ih.pick.none')); ihRefresh();
     } catch (e) { toast(t('logo.err')); }
   }
+
+  // ---- banner from a picture: a banner-shaped frame over the picture; only the framed piece is kept, the rest is thrown away ----
+  let ihCr = null;
+  const ihCrFrame = () => { const C = ihCr, ar = InvHeader.W / InvHeader.H, maxW = Math.min(C.iw, C.ih * ar); return { w: C.fw, h: C.fw / ar, maxW }; };
+  function ihCrClamp() { const C = ihCr, ar = InvHeader.W / InvHeader.H, maxW = Math.min(C.iw, C.ih * ar); C.fw = Math.max(Math.min(maxW, C.iw) * 0.15, Math.min(maxW, C.fw)); const fh = C.fw / ar; C.fx = Math.max(0, Math.min(C.iw - C.fw, C.fx)); C.fy = Math.max(0, Math.min(C.ih - fh, C.fy)); }
+  function ihCrDraw() {
+    const C = ihCr, cv = $('#cr-cv'); if (!C || !cv) return; const k = cv.width / C.iw, g = cv.getContext('2d'), ar = InvHeader.W / InvHeader.H, fh = C.fw / ar;
+    g.clearRect(0, 0, cv.width, cv.height); g.drawImage(C.img, 0, 0, cv.width, cv.height); g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, cv.width, cv.height);
+    g.save(); g.beginPath(); g.rect(C.fx * k, C.fy * k, C.fw * k, fh * k); g.clip(); g.drawImage(C.img, 0, 0, cv.width, cv.height); g.restore();
+    g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.strokeRect(C.fx * k, C.fy * k, C.fw * k, fh * k); g.fillStyle = '#ffffff'; [[0, 0], [1, 0], [0, 1], [1, 1]].forEach(([a, b]) => g.fillRect(C.fx * k + a * C.fw * k - 5, C.fy * k + b * fh * k - 5, 10, 10));
+  }
+  async function ihCropStart(f) {
+    const url = URL.createObjectURL(f);
+    try {
+      const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('img')); i.src = url; });
+      const ar = InvHeader.W / InvHeader.H, maxW = Math.min(img.naturalWidth, img.naturalHeight * ar);
+      ihCr = { img, url, iw: img.naturalWidth, ih: img.naturalHeight, fw: maxW, fx: 0, fy: 0, drag: null }; ihCr.fx = (ihCr.iw - ihCr.fw) / 2; ihCr.fy = (ihCr.ih - ihCr.fw / ar) / 2;
+      const cw = Math.min(360, window.innerWidth - 56), chh = Math.round(cw * ihCr.ih / ihCr.iw);
+      openSmall(`<h3>${t('ih.crop.title')}</h3><p class="muted small">${t('ih.crop.sub')}</p><canvas id="cr-cv" width="${cw}" height="${chh}" style="width:${cw}px;height:${chh}px;touch-action:none;border-radius:10px;display:block;margin:6px auto"></canvas>
+        <div class="ihr"><label>${t('ih.crop.size')}</label><input type="range" id="cr-zoom" min="15" max="100" step="1" value="100"></div><p class="muted small">${t('ih.crop.note')}</p>
+        <div class="btns"><button class="btn primary" data-act="ihcr-go">${t('ih.crop.use')}</button><button class="btn" data-act="close">${t('btn.cancel')}</button></div>`, 'sheet', () => { if (ihCr) { URL.revokeObjectURL(ihCr.url); ihCr = null; } });
+      ihCrDraw();
+    } catch (e) { URL.revokeObjectURL(url); toast(t('logo.err')); }
+  }
+  function ihCropOut() {
+    const C = ihCr, ar = InvHeader.W / InvHeader.H, fh = C.fw / ar, c = document.createElement('canvas'); c.width = 1600; c.height = 380; const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingQuality = 'high'; g.drawImage(C.img, C.fx, C.fy, C.fw, fh, 0, 0, c.width, c.height);
+    let q = 0.86, out = c.toDataURL('image/jpeg', q); while (out.length > 220000 && q > 0.5) { q -= 0.08; out = c.toDataURL('image/jpeg', q); }   // keep it small: only this piece is stored
+    return out;
+  }
+  const crPoint = (e) => { const cv = $('#cr-cv'), r = cv.getBoundingClientRect(), k = ihCr.iw / r.width; return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; };
+  document.addEventListener('pointerdown', (e) => { if (!ihCr || e.target.id !== 'cr-cv') return; const p = crPoint(e), fh = ihCr.fw / (InvHeader.W / InvHeader.H); const inside = p.x >= ihCr.fx && p.x <= ihCr.fx + ihCr.fw && p.y >= ihCr.fy && p.y <= ihCr.fy + fh; if (!inside) { ihCr.fx = p.x - ihCr.fw / 2; ihCr.fy = p.y - fh / 2; ihCrClamp(); ihCrDraw(); } ihCr.drag = { dx: p.x - ihCr.fx, dy: p.y - ihCr.fy }; try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } e.preventDefault(); });
+  document.addEventListener('pointermove', (e) => { if (!ihCr || !ihCr.drag) return; const p = crPoint(e); ihCr.fx = p.x - ihCr.drag.dx; ihCr.fy = p.y - ihCr.drag.dy; ihCrClamp(); ihCrDraw(); });
+  document.addEventListener('pointerup', () => { if (ihCr) ihCr.drag = null; });
   async function ihBgFromFile(f) {
     const url = URL.createObjectURL(f); try {
       const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('img')); i.src = url; });
@@ -3897,16 +3934,17 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'ih-preset': ihSave(InvHeader.applyPreset(ihCfg(), id)); return ihRefresh();
       case 'ih-stop-add': { const c = ihCfg(), s = c.bg.grad.stops; if (s.length < 4) { const last = s[s.length - 1]; s.push({ c: InvHeader.mix(last.c, '#000000', 0.2), p: Math.min(1, last.p + 0.1) }); ihSave(InvHeader.norm(c)); } return ihRefresh(); }
       case 'ih-stop-del': { const c = ihCfg(); if (c.bg.grad.stops.length > 2) { c.bg.grad.stops.splice(Number(id), 1); ihSave(InvHeader.norm(c)); } return ihRefresh(); }
-      case 'ih-use': state.settings.invoiceDesign = 'custom'; if (!state.settings.invHeader) state.settings.invHeader = ihCfg(); save(); toast(t('ih.toast')); return ihRefresh();
+      case 'ih-use': state.settings.invoiceDesign = 'custom'; ihSave(ihCfg()); toast(t('ih.toast')); return ihRefresh();
       case 'ih-bgpick': { const f = $('#ih-bgfile'); if (f) { f.value = ''; f.click(); } return; }
       case 'ih-bgclear': { const c = ihCfg(); c.bg.image.src = ''; if (c.bg.type === 'image') c.bg.type = 'gradient'; ihSave(InvHeader.norm(c)); return ihRefresh(); }
       case 'ih-reset': return askCard(t('ih.resetAsk'), { danger: true, ok: t('ih.reset') }).then((y) => { if (!y) return; ihSave(InvHeader.defaults()); ihRefresh(); });
-      case 'ih-save': { const el = $('#ih-name'), nm = (el && el.value.trim()) || ''; if (!nm) return toast(t('ih.needName')); const list = (state.settings.invHeaderSaved || []).slice(); list.push({ id: Math.random().toString(36).slice(2, 9), name: nm.slice(0, 30), cfg: ihCfg() }); state.settings.invHeaderSaved = list.slice(-8); save(); toast(t('ih.savedOk')); return ihRefresh(); }
+      case 'ih-save': { const el = $('#ih-name'), nm = (el && el.value.trim()) || ''; if (!nm) return toast(t('ih.needName')); const list = (state.settings.invHeaderSaved || []).slice(); state.settings.invPool = state.settings.invPool || {}; list.push({ id: Math.random().toString(36).slice(2, 9), name: nm.slice(0, 30), cfg: InvHeader.toKeys(ihCfg(), state.settings.invPool) }); state.settings.invHeaderSaved = list.slice(-8); ihPrune(); save(); toast(t('ih.savedOk')); return ihRefresh(); }
       case 'ih-apply': { const d = (state.settings.invHeaderSaved || []).find((x) => x.id === id); if (d) { ihSave(InvHeader.norm(d.cfg)); ihRefresh(); } return; }
-      case 'ih-del': state.settings.invHeaderSaved = (state.settings.invHeaderSaved || []).filter((x) => x.id !== id); save(); return ihRefresh();
+      case 'ih-del': state.settings.invHeaderSaved = (state.settings.invHeaderSaved || []).filter((x) => x.id !== id); ihPrune(); save(); return ihRefresh();
       case 'ihp-group': if (ihPend) { ihPend.gi = Number(id); ihChooseDraw(); } return;
       case 'ihp-store': if (ihPend) { ihPend.store = id; ihChooseDraw(); } return;
       case 'ihp-go': return ihChooseGo();
+      case 'ihcr-go': { if (!ihCr) return; const d = ihCropOut(), c = ihCfg(); c.bg.image.src = d; c.bg.type = 'image'; ihSave(InvHeader.norm(c)); closeSheet(); toast(t('ih.crop.done')); return ihRefresh(); }
       case 'logo-pick': { const f = $('#logo-file'); if (f) f.click(); return; }
       case 'logo-remove': state.settings.bizLogo = ''; state.settings.bizLogoShape = ''; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); render(); return refreshLogoUI();
       case 'logo-shape': state.settings.bizLogoPick = id === 'auto' ? 'auto' : id; save(); Store.publish && Store.publish(true); render(); return refreshLogoUI();
@@ -4142,7 +4180,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'invfs-theme': setInvStyle({ color: null, light: 0 }); invFsControls(); invFsPreview(); return;
       case 'inv-color': setInvStyle({ color: id || null }); return render();
       case 'inv-reset': { const m = Object.assign({}, state.settings.invoiceStyle); delete m[invDesignId()]; state.settings.invoiceStyle = m; save(); if (invFsOn) { invFsControls(); invFsPreview(); } return render(); }
-      case 'inv-design': state.settings.invoiceDesign = id; if (id === 'custom' && !state.settings.invHeader) state.settings.invHeader = ihCfg(); save(); toast(t('invd.saved')); return render();
+      case 'inv-design': state.settings.invoiceDesign = id; if (id === 'custom' && !state.settings.invHeader) ihSave(ihCfg()); save(); toast(t('invd.saved')); return render();
       case 'more': if (id === 'orders') { ordLimit = 20; ordQ = ''; } go({ tab: 'more', moreView: id }); window.scrollTo(0, 0); return render();
       case 'import-xlsx': return pickFile('.xlsx,.xls', importXlsx);
       case 'import-json': return pickFile('.json,application/json', importJson);
@@ -4222,7 +4260,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (el.id === 'gate-logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { gateDraft.logo = d; const pv = $('#gate-logo-pv'), bt = $('#gate-logo-btn'); if (pv) pv.innerHTML = `<img src="${d}" alt="">`; if (bt) bt.textContent = t('gate.logoChange'); }).catch(() => toast(t('logo.err'))); return; }
     if (el.id === 'ih-file') { ihIntake(el.files); return; }
     if (el.id === 'ih-file1') { const slot = ihSlotPick; ihIntake(el.files, slot); return; }
-    if (el.id === 'ih-bgfile') { const f = el.files && el.files[0]; if (!f) return; ihBgFromFile(f).then((d) => { const c = ihCfg(); c.bg.image.src = d; c.bg.type = 'image'; ihSave(InvHeader.norm(c)); ihRefresh(); }).catch(() => toast(t('logo.err'))); return; }
+    if (el.id === 'ih-bgfile') { const f = el.files && el.files[0]; if (f) ihCropStart(f); return; }
     if (el.dataset && el.dataset.ihp) { if (ihPend) ihPend.sel[el.dataset.ihp] = el.value; return; }
     if (el.id === 'logo-file' && el.files && (el.files.length > 1 || (el.files[0] && Assets.isZipName(el.files[0].name)))) { Assets.expand(el.files).then((en) => { if (!en.length) return toast(t('ih.pick.none')); if (en.length === 1) { return logoFromFile(en[0].file).then((d) => { state.settings.bizLogo = d; state.settings.bizLogoShape = lastFit ? lastFit.shape : 'square'; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); refreshLogoUI(); }); } ihChoose(en, 'store'); }).catch(() => toast(t('ih.zipErr'))); return; }
     if (el.id === 'logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { state.settings.bizLogo = d; state.settings.bizLogoShape = lastFit ? lastFit.shape : 'square'; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); refreshLogoUI(); }).catch(() => toast(t('logo.err'))); return; }
@@ -4247,6 +4285,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   document.addEventListener('input', (e) => {
     const el = e.target;
     if (el.closest && el.closest('#tsearch')) { const pi = $(pageSearchSel()); if (pi) { pi.value = el.value; pi.dispatchEvent(new Event('input', { bubbles: true })); } return; }
+    if (el.id === 'cr-zoom' && ihCr) { const ar = InvHeader.W / InvHeader.H, maxW = Math.min(ihCr.iw, ihCr.ih * ar), cx = ihCr.fx + ihCr.fw / 2, cy = ihCr.fy + ihCr.fw / ar / 2; ihCr.fw = maxW * Number(el.value) / 100; ihCr.fx = cx - ihCr.fw / 2; ihCr.fy = cy - ihCr.fw / ar / 2; ihCrClamp(); ihCrDraw(); return; }
     if (el.dataset.bc) { bcSet(el.dataset.bc, el.value); return; }
     if (el.dataset.ih) { const p = el.dataset.ih; let v = el.value; if (el.type === 'range') { v = Number(v); const lb = el.parentElement && el.parentElement.querySelector('.v'); if (lb) lb.textContent = Math.round(v * 100) / 100; } ihSet(p, v); return; }
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
@@ -4514,6 +4553,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   peopleCheck();
   ensureZonePlaces();
+  ihTidy();
   render();
   setTimeout(() => PUI.sweep(photoKeep()), 3000);   // timers on screenshots and on sold items' photos run when the app opens
 })();

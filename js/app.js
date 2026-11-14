@@ -180,6 +180,8 @@
   const rememberEmail = (em) => { try { if (em) localStorage.setItem('buy-sell-last-email', em); } catch (e) { /* private mode */ } };
   const acctStatus = () => t('acct.st.' + cloud.status);
   const chPwHTML = () => (Cloud.hasPassword && cloud.signedIn && Cloud.hasPassword() ? `<form id="f-chpw" class="card" style="padding:14px;margin-top:14px"><b>${t('acct.chPw')}</b><span class="pwbox" style="margin-top:10px"><input name="cur" type="password" autocomplete="current-password" required placeholder="${t('acct.curPw')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><span class="pwbox" style="margin-top:10px"><input name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="${t('acct.newPw')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><div id="acct-err" class="err" hidden></div><button class="btn primary" style="margin-top:10px;width:100%">${t('acct.chPwBtn')}</button></form>` : '');
+  const appLink = () => location.origin + location.pathname.replace(/[^/]*$/, '');
+  const appShareHTML = () => `<div class="appshare"><small>📲 ${t('app.share')}</small><div class="lkurl"><span class="lku" tabindex="0">${esc(appLink().replace(/^https?:\/\//, ''))}</span><button type="button" class="lkc" data-act="app-copy" aria-label="${t('store.copy')}">${t('store.copy')}</button></div><div class="approw"><button type="button" class="btn" data-act="app-share">${t('app.shareBtn')}</button><button type="button" class="btn" data-act="app-wa">WhatsApp</button></div></div>`;
   const addPwHTML = () => (Cloud.hasPassword && cloud.signedIn && !Cloud.hasPassword() ? `<form id="f-addpw" class="card" style="padding:14px;margin-top:14px"><b>${t('acct.addPw')}</b><p class="muted small">${t('acct.addPwSub')}</p><span class="pwbox"><input name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="${t('acct.password')}"><button type="button" class="eye" data-act="pw-eye" aria-label="${t('acct.showPw')}">👁</button></span><div id="acct-err" class="err" hidden></div><button class="btn primary" style="margin-top:10px;width:100%">${t('acct.addPwBtn')}</button></form>` : '');
   function acctCard() {
     return cloud.signedIn
@@ -438,7 +440,7 @@
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
     if (!state.settings.bizLogo && state.settings.businessName && state.settings.setupDone && !pref('logoNudgeOff', false)) rows.push(need('🖼️', 'var(--infobg)', t('hm.logoTitle'), t('hm.logoSub'), '+', 'logo-go', false));   // goes away once a logo is added (or once the page has been opened)
-    if (peopleOn && PE.missingNumber(state).length) rows.push(need('📞', 'var(--infobg)', t('hm.phoneTitle'), t('hm.phoneSub'), PE.missingNumber(state).length, 'phones-open', false));
+    if (peopleOn && PE.missingNumber(state).length) rows.push(need('📞', '#bbdefb', t('hm.phoneTitle'), t('hm.phoneSub'), PE.missingNumber(state).length, 'phones-open', false));
     if (window.Store && Store.needsPublish && Store.needsPublish()) rows.unshift(need('📤', 'var(--warnbg)', t('hm.pubTitle'), t('hm.pubSub'), '!', 'goto-publish', true));
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-nopr', false));
     const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
@@ -738,7 +740,7 @@
   const dupList = () => { const no = new Set(state.settings.dupNo || []); return PE.duplicates(state, (k) => L.place(state, k)).filter((x) => !no.has(dupKey(x))); };
   function sheetFix() {
     enterPage('fix', '', () => sheetFix());
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.title')}</b><small>${t('fx.sub')}</small></div></div><div class="ap"><div class="hneeds">${fxRow('fix-decisions', '🕘', 'var(--warnbg)', t('fx.decisions'), t('fx.decisionsSub'), (state.decisions || []).filter((d) => !d.undone).length)}${fxRow('fix-dups', '👥', 'var(--infobg)', t('fx.dups'), t('fx.dupsSub'), dupList().length)}${fxRow('phones-open', '📞', 'var(--okbg)', t('fx.noNum'), t('fx.noNumSub'), PE.missingNumber(state).length)}</div><p class="muted small" style="margin:12px 2px">${t('fx.profileNote')}</p></div>`, null, true);
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.title')}</b><small>${t('fx.sub')}</small></div></div><div class="ap"><div class="hneeds">${fxRow('fix-decisions', '🕘', 'var(--warnbg)', t('fx.decisions'), t('fx.decisionsSub'), (state.decisions || []).filter((d) => !d.undone).length)}${fxRow('fix-dups', '👥', 'var(--infobg)', t('fx.dups'), t('fx.dupsSub'), dupList().length)}${fxRow('phones-open', '📞', '#bbdefb', t('fx.noNum'), t('fx.noNumSub'), PE.missingNumber(state).length)}</div><p class="muted small" style="margin:12px 2px">${t('fx.profileNote')}</p></div>`, null, true);
   }
   function sheetDecisions() {
     enterPage('fixdec', '', () => sheetDecisions());
@@ -1313,8 +1315,8 @@
   function Settings() {
     const themeName = { light: t('set.light'), dark: t('set.dark'), auto: t('set.auto') }[theme], nav = (v) => `data-act="more" data-id="${v}"`;
     const acct = cloud.signedIn
-      ? `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${esc(cloud.email)}</div><div class="st ${cloud.status === 'synced' ? 'good' : /error|rules|unavailable/.test(cloud.status) ? 'bad' : ''}" id="acct-st">${acctStatus()}</div>${addPwHTML()}<button class="btn" data-act="acct-out">${t('acct.signOut')}</button></div>`
-      : `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${t('set.accountOut')}</div><p class="muted small" style="margin:6px 0 10px">${t('acct.signInSub')}</p><button class="btn primary" data-act="acct-open">${t('acct.signIn')} / ${t('acct.create')}</button></div>`;
+      ? `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${esc(cloud.email)}</div><div class="st ${cloud.status === 'synced' ? 'good' : /error|rules|unavailable/.test(cloud.status) ? 'bad' : ''}" id="acct-st">${acctStatus()}</div>${appShareHTML()}${addPwHTML()}<button class="btn" data-act="acct-out">${t('acct.signOut')}</button></div>`
+      : `<div class="acctcard"><h3>${t('set.account')}</h3><div class="biz">🏪 ${esc(bizName())}</div><div class="who">${t('set.accountOut')}</div><p class="muted small" style="margin:6px 0 10px">${t('acct.signInSub')}</p>${appShareHTML()}<button class="btn primary" data-act="acct-open">${t('acct.signIn')} / ${t('acct.create')}</button></div>`;
     return `${acct}
       <h2>${t('set.sec.app')}</h2><div class="list grp">
         ${trow('🌐', t('set.language'), I.LANGS[I.getLang()]['lang.name'], 'data-act="pick-lang"')}
@@ -3519,6 +3521,9 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'acct-open': if (cloud.signedIn) return sheetAccount(); closeSheet(); gateForced = true; gateMode = hasData() ? 'in' : 'create'; gateView = null; updateGate(); return;
       case 'signin-dismiss': setPref('signinDismissed', Date.now()); return render();
       case 'acct-google': homeAfterSignIn = true; return acctDone(Cloud.signInGoogle());
+      case 'app-copy': return copyText(appLink()).then((ok) => toast(ok ? t('store.copied') : appLink()));
+      case 'app-share': { const u = appLink(); if (navigator.share) return navigator.share({ title: 'Shopivo', text: t('app.shareText'), url: u }).catch(() => {}); return copyText(u).then((ok) => toast(ok ? t('store.copied') : u)); }
+      case 'app-wa': return void window.open('https://wa.me/?text=' + encodeURIComponent(t('app.shareText') + ' ' + appLink()), '_blank', 'noopener');
       case 'acct-out': return Cloud.signOut().then(() => { closeSheet(); gateJoin = false; gateForced = true; gateMode = 'in'; gateView = null; updateGate(); toast(t('acct.signedOut')); });
       case 'conflict': { const f = window.__conflict; if (f) f(id); closeSheet(); return; }          // answer first: closing the pop-up counts as 'cancel'
       case 'bell': notifTab = 'all'; return sheetNotifs();

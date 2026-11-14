@@ -60,7 +60,7 @@
   }
 
   // What the store page's top document holds (shared by the publish and by the "needs publishing" check).
-  const headOf = (c) => ({ open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, showPrices: c.showPrices !== false, logo: A.state().settings.bizLogo || '', color: root.Theme ? Theme.brand() : '#741b47', locations: SC.publicLocs(c), regions: SC.publicRegions(c), rule: SC.publicRule(c), spots: SC.publicSpots(c), spotPrice: c.spotPrice, free: SC.freeList(A.state().people), zones: SC.areaZones(SC.normZones(c.zones)) });
+  const headOf = (c) => ({ open: c.open, name: c.name || A.bizName(), whatsapp: c.whatsapp, showLeft: c.showLeft, showPrices: c.showPrices !== false, logo: A.state().settings.bizLogo || '', color: root.Theme ? Theme.brand() : '#741b47', locations: SC.publicLocs(c), regions: SC.publicRegions(c), rule: SC.publicRule(c, (A.state().settings.delivery || {}).home), couponOn: SC.norm(c).couponRule.on, coupons: SC.publicCoupons(c, orders.map((o) => ({ id: o.id, coupon: SC.orderCoupon(o), status: o.status, at: ts(o) })), Date.now(), (A.state().settings.delivery || {}).home), spots: SC.publicSpots(c), spotPrice: c.spotPrice, free: SC.freeList(A.state().people), zones: SC.areaZones(SC.normZones(c.zones)) });
   // Is something waiting to be published? True after a failed publish, or when what is online differs from what the app holds and no automatic publish is on its way (offline, for example).
   function needsPublish() {
     try {

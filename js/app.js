@@ -1116,7 +1116,7 @@
     return any(f.store, (k) => (k === 'in') === inStore) && any(f.status, (k) => ({ transit: 'In Transit', received: 'Received', closed: 'Closed' }[k] === bs)) && any(f.items, (k) => (k === 'avail') === left);
   };
   const blList = (q) => L.batchSearch(state.batches, q).filter(({ b }) => blPass(b, blF));
-  const fmt2 = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt2 = (n) => '<span class="amt">' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span>';   // wrapped so the eye button blurs it with the other amounts
   const signed2 = (n) => (n < 0 ? '−' : '') + fmt2(Math.abs(n));
   const blShort = (id) => { const x = String(bl(id)), m = x.match(/^([A-Za-zÁÉÍÓÚÑ]+)-?(\d+)$/); return m ? m[1].charAt(0) + m[1].slice(1).toLowerCase() + ' ' + m[2] : x; };
   const blRow = (b, inner) => `<div class="tr" role="button" tabindex="0" data-act="batch" data-id="${b.id}"><i class="st" style="background:${BL_COL[bStatus(b)] || BL_COL.Closed}"></i><b>${esc(blShort(b.id))}</b>${inner}</div>`;

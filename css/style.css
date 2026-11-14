@@ -1454,3 +1454,13 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .zm-corners[hidden],.zm-rad[hidden]{display:none!important}
 .zwarn.zout{background:#fff4e0;color:#8a5a00;border-radius:12px;padding:10px 12px;font-weight:700;margin:8px 0}
 .oqbar input{font-size:16px}#rp-list{max-height:34dvh}.sheet.small:has(#f-riskpick){min-height:62dvh}
+/* places page: search is a magnifier in the header */
+.fullbar .fb-s{margin-left:auto;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:0;position:relative;padding:0}.fullbar .fb-s svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}.fullbar .fb-s .dot{position:absolute;top:8px;right:8px;width:9px;height:9px;border-radius:50%;background:#ffc94a}
+.fullbar .fbs{display:none;flex:1;min-width:0;align-items:center;gap:8px;height:44px;border-radius:99px;background:rgba(255,255,255,.16);padding:0 6px 0 14px;color:#fff}.fullbar .fbs input{flex:1;min-width:0;border:0;background:transparent;color:#fff;font-size:16px;min-height:0;padding:0;box-shadow:none;outline:0;-webkit-appearance:none}.fullbar .fbs input::placeholder{color:rgba(255,255,255,.7)}.fullbar .fbs input::-webkit-search-cancel-button{display:none}.fullbar .fbx{border:0;background:transparent;color:#fff;font-size:17px;width:36px;height:36px;min-height:0;padding:0}
+.fullbar.searching .fbt,.fullbar.searching .fb-s{display:none}.fullbar.searching .fbs{display:flex}
+/* high-risk */
+.hotcard{margin-top:18px;padding:14px 16px}.hotcard .t b{display:block}.hotcard .t small{display:block;color:var(--mute);margin:4px 0 12px}.hotcard .btns{display:flex;gap:8px}.hotbtn{width:100%;min-height:50px;border-radius:14px;border:2px solid #c0392b;background:#fdecea;color:#b3261e;font-weight:800;font-size:15px}
+.hotinfo{padding:12px 16px;margin:8px 0 12px;background:#fff4e0}.hotinfo b{color:#8a5a00}.hotinfo p{margin:4px 0 0;color:#8a5a00;font-size:13.5px}
+.hotban{background:#c0392b;color:#fff;border-radius:14px;padding:12px 14px;margin:10px 0}.hotban b{display:block;font-size:16px;letter-spacing:.3px}.hotban span{display:block;margin-top:3px;font-weight:700}
+.sheet.card .hotban{margin:-4px 0 12px}
+.ord.hot{border:2px solid #c0392b;background:#fdecea}.hotm{background:#c0392b;color:#fff;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px;vertical-align:middle}

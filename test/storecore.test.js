@@ -183,8 +183,9 @@ console.log('details tests passed');
   const hz = SC.normZones([{ id: 'a', name: 'Port of Spain', lat: 10.6549, lng: -61.5019, r: 3500 }, { id: 'h', name: 'Laventille (East Port of Spain)', risk: true, lat: 10.659, lng: -61.489, r: 1200 }]);
   assert.deepStrictEqual(SC.hotAt(hz, 10.659, -61.489).map((z) => z.id), ['h']); assert.deepStrictEqual(SC.hotAt(hz, 10.6549, -61.5019), []); assert.deepStrictEqual(SC.areaZones(hz).map((z) => z.id), ['a']);
   assert.deepStrictEqual(SC.zonesAt(SC.areaZones(hz), 10.659, -61.489).map((z) => z.id), ['a']);
-  const hs = SC.syncZonePlaces({ zones: hz, locations: [] }), hp = hs.locations.find((l) => l.zone === 'h');
-  assert.ok(hp && hp.risk && hp.off && !SC.needsPrice({}, hp)); assert.ok(SC.publicLocs({ zones: hz, locations: hs.locations, bands: hs.bands }).every((l) => !l.name.startsWith('Laventille')));
+  const hs = SC.syncZonePlaces({ zones: hz, locations: [] });
+  assert.ok(!hs.locations.some((l) => l.zone === 'h')); assert.ok(hs.locations.some((l) => l.zone === 'a'));   // a spot never becomes a place of its own
+  assert.ok(SC.normZones([{ id: 'x', name: 'Spot', risk: true, place: 'p1', lat: 10.6, lng: -61.4, r: 800 }])[0].place === 'p1');
   // the starter spots sit inside the starter zones (a spot never floats outside every zone), and all starter points are in Trinidad and Tobago
   const ZD = require('../js/zonedata.js'), baseZ = SC.normZones(ZD.starter()), hotZ = SC.normZones(ZD.hot());
   assert.ok(baseZ.length >= 60); assert.strictEqual(new Set(baseZ.map((z) => z.name)).size, baseZ.length);

@@ -12,10 +12,10 @@
   // The owner's store settings (kept in the workspace settings, so they sync between phones).
   // Delivery zones the seller draws on the map: a circle (centre + radius in metres) or a shape (corner points). The pin decides which zone an order is in.
   const normZones = (list) => (Array.isArray(list) ? list : []).map((z) => {
-    const id = String(z.id || newId(6)), name = String(z.name || '').trim().slice(0, 50), risk = !!z.risk;
-    if (Array.isArray(z.poly) && z.poly.length >= 3) { const poly = z.poly.map((q) => [Number(q[0]), Number(q[1])]).filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])); if (poly.length >= 3) return { id, name, risk, poly, lat: poly.reduce((n, q) => n + q[0], 0) / poly.length, lng: poly.reduce((n, q) => n + q[1], 0) / poly.length }; }
+    const id = String(z.id || newId(6)), name = String(z.name || '').trim().slice(0, 50), risk = !!z.risk, place = String(z.place || '');
+    if (Array.isArray(z.poly) && z.poly.length >= 3) { const poly = z.poly.map((q) => [Number(q[0]), Number(q[1])]).filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])); if (poly.length >= 3) return { id, name, risk, place, poly, lat: poly.reduce((n, q) => n + q[0], 0) / poly.length, lng: poly.reduce((n, q) => n + q[1], 0) / poly.length }; }
     const lat = Number(z.lat), lng = Number(z.lng), r = Math.max(100, Math.min(60000, Math.round(Number(z.r) || 0)));
-    return Number.isFinite(lat) && Number.isFinite(lng) && r ? { id, name, risk, lat, lng, r } : null;
+    return Number.isFinite(lat) && Number.isFinite(lng) && r ? { id, name, risk, place, lat, lng, r } : null;
   }).filter((z) => z && z.name);
   const metres = (a, b, c, d) => { const R = 6371000, rad = Math.PI / 180, dl = (c - a) * rad, dn = (d - b) * rad, x = Math.sin(dl / 2) ** 2 + Math.cos(a * rad) * Math.cos(c * rad) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
   const segDist = (lat, lng, a, b) => { const k = Math.cos(lat * Math.PI / 180), px = (lng - a[1]) * k, py = lat - a[0], dx = (b[1] - a[1]) * k, dy = b[0] - a[0], l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / l2)) : 0; return Math.hypot(px - t * dx, py - t * dy) * 111320; };
@@ -36,7 +36,7 @@
       areaMode: ['safe', 'all', 'custom'].includes(c.areaMode) ? c.areaMode : 'custom',   // the quick selection: no high-risk areas / all places / custom
       spots: (Array.isArray(c.spots) ? c.spots : []).map((x) => ({ id: String(x.id || newId(6)), name: String(x.name || '').trim().slice(0, 50), note: String(x.note || '').trim().slice(0, 80), on: x.on !== false })).filter((x) => x.name),
       spotPrice: Math.max(0, r2(num(c.spotPrice))),
-      zones: normZones(c.zones) };
+      zones: normZones(c.zones), hotSeeded: !!c.hotSeeded };
   };
   // Delivery places. A place may belong to a price range (band): then the range sets its price. A place can be switched off, or sit in the high-risk list.
   const bandOf = (cfg, l) => (l.band ? cfg.bands.find((b) => b.id === l.band) || null : null);
@@ -59,14 +59,13 @@
   const nameKey = (v) => String(v || '').toLowerCase().replace(/[.\u2019']/g, '').replace(/\s+/g, ' ').trim();
   const syncZonePlaces = (cfgIn) => {
     const cfg = norm(cfgIn), bands = cfg.bands.slice(); let changed = false, locs = cfg.locations.map((l) => Object.assign({}, l));
-    const ids = new Set(cfg.zones.map((z) => z.id)), n0 = locs.length; locs = locs.filter((l) => !l.zone || ids.has(l.zone)); if (locs.length !== n0) changed = true;
-    cfg.zones.forEach((z) => {
+    const riskIds = new Set(cfg.zones.filter((z) => z.risk).map((z) => z.id)), ids = new Set(cfg.zones.filter((z) => !z.risk).map((z) => z.id)), n0 = locs.length; locs = locs.filter((l) => !l.zone || ids.has(l.zone)); if (locs.length !== n0) changed = true;   // a high-risk spot is a flag on a pin, never a place of its own
+    cfg.zones.filter((z) => !z.risk).forEach((z) => {
       let l = locs.find((x) => x.zone === z.id);
       if (!l) { l = locs.find((x) => !x.zone && nameKey(x.name) === nameKey(z.name)); if (l) { l.zone = z.id; changed = true; } }
-      if (l) { if (l.name !== z.name) { l.name = z.name; changed = true; } if (z.risk && !l.risk) { l.risk = true; l.off = true; changed = true; } return; }
+      if (l) { if (l.name !== z.name) { l.name = z.name; changed = true; } return; }
       const hit = TT_PLACES.find((q) => nameKey(q[1]) === nameKey(z.name));
       if (hit && !bands.some((b) => b.id === hit[0])) { const bd = TT_BANDS.find((b) => b.id === hit[0]); if (bd) bands.push(Object.assign({}, bd)); }
-      if (z.risk) { locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: 0, risk: true, off: true, band: hit ? hit[0] : '', zone: z.id, auto: false }); changed = true; return; }   // a high-risk spot is listed with the high-risk areas and kept off the customer's list
       locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: hit ? hit[0] : '', zone: z.id, auto: !hit }); changed = true;
     });
     return { locations: locs, bands, changed };

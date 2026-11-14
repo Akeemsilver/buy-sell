@@ -819,7 +819,7 @@
     openSmall(`<h3>${t('fd.placesTitle', { name: esc(p.name) })}</h3><p>${t('fd.placesSub')}</p><form id="f-free" data-pid="${pid}"><div class="fpl">${zs.map((z) => `<label class="tkr"><input type="checkbox" value="${esc(z.id)}" ${cur.includes(z.id) ? 'checked' : ''}><span>${esc(z.name)}</span></label>`).join('')}</div><div class="btns"><button class="btn primary">${t('pp.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
   function sheetZones() {
-    enterPage('zones', '', () => sheetZones());
+    seedHot(); enterPage('zones', '', () => sheetZones());
     const c = storeCfg(), byName = (x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }), zs = SCore.areaZones(c.zones).slice().sort(byName), hot = c.zones.filter((z) => z.risk).sort(byName);
     const row = (z) => `<div class="pkr"><button type="button" class="pkn" data-act="zone-edit" data-id="${z.id}"><b>${z.risk ? '⚠️ ' : ''}${esc(z.name)}</b><small>${z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') })}</small></button></div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('zn.title')}</b><small>${t('zn.count2', { n: zs.length, h: hot.length })}</small></div></div><div class="ap"><p class="muted small" style="margin:6px 2px 10px">${t('zn.sub')}</p>
@@ -829,10 +829,17 @@
       <div class="card pkc">${hot.map(row).join('') || `<p class="muted small">${t('zn.hotNone')}</p>`}</div>
       <button type="button" class="pkadd" data-act="zone-add" data-risk="1">＋ ${t('zn.hotAdd')}</button>${hot.length ? '' : `<button type="button" class="pkadd" data-act="zone-starter-hot">⚠️ ${t('zn.hotStarter')}</button><p class="muted small">${t('zn.hotStarterSub')}</p>`}</div>`, null, true);
   }
-  function openZone(id, risk) {
+  const refreshHot = () => { const k = pageStack.length ? pageStack[pageStack.length - 1].key : ''; if (k.startsWith('storeloc|')) return sheetLocation(k.split('|')[1]); return refreshPick(); };
+  function openZone(id, risk, preset) {
     const c = storeCfg(), z = id && id !== 'new' ? c.zones.find((x) => x.id === id) : null;
-    ZoneMap.open({ zones: c.zones, zone: z, risk: !!risk, T: { name: t('zn.name'), radius: t('zn.radius'), circle: t('zn.circle'), shape: t('zn.shape'), addCorner: t('zn.addCorner'), undo: t('zn.undo'), save: t('pp.save'), del: t('zn.del'), cancel: t('btn.cancel'), hint: t('zn.hint'), hintShape: t('zn.hintShape'), need: t('zn.need'), corners: t('zn.corners'), here: t('mp.here'), mapNoLib: t('mp.nolib'), risk: t('zn.riskLabel') },
-      onSave: (nz) => { const list = storeCfg().zones.slice(), i = list.findIndex((x) => x.id === nz.id); if (i >= 0) list[i] = nz; else list.push(nz); storeSet({ zones: list }); toast(t('zn.saved')); if (!$('#sheet').hidden) sheetZones(); },
+    ZoneMap.open({ zones: c.zones, zone: z, risk: !!risk, preset: preset || null, T: { name: t('zn.name'), radius: t('zn.radius'), circle: t('zn.circle'), shape: t('zn.shape'), addCorner: t('zn.addCorner'), undo: t('zn.undo'), save: t('pp.save'), del: t('zn.del'), cancel: t('btn.cancel'), hint: t('zn.hint'), hintShape: t('zn.hintShape'), need: t('zn.need'), corners: t('zn.corners'), here: t('mp.here'), mapNoLib: t('mp.nolib'), risk: t('zn.riskLabel') },
+      onSave: (nz) => {
+        const cfg = storeCfg(), list = cfg.zones.slice(), i = list.findIndex((x) => x.id === nz.id), pl = preset && preset.place ? preset.place : (z && z.place) || '';
+        if (nz.risk && pl) nz.place = pl;
+        if (i >= 0) list[i] = nz; else list.push(nz);
+        let locs = cfg.locations; if (nz.risk && pl) locs = locs.map((l) => (l.id === pl && l.risk ? Object.assign({}, l, { risk: false, off: false }) : l));   // an old "hidden" mark becomes the spot: the place shows again at its normal price
+        storeSet({ zones: list, locations: locs }); toast(t(nz.risk ? 'hot.saved' : 'zn.saved')); if ($('#sheet').hidden) return; const k = pageStack.length ? pageStack[pageStack.length - 1].key : ''; if (k.startsWith('storeloc|') || k.startsWith('risk|') || k.startsWith('places|')) return refreshHot(); sheetZones();
+      },
       onDelete: (zid) => askCard(t('zn.delAsk'), { danger: true, ok: t('zn.del') }).then((y) => { if (!y) return; storeSet({ zones: storeCfg().zones.filter((x) => x.id !== zid) }); PE.list(state).forEach((p) => { if (p.free && p.free.zones) p.free.zones = p.free.zones.filter((x) => x !== zid); }); save(); sheetZones(); }),
       onError: (m) => toast(m) });
   }
@@ -2487,6 +2494,15 @@
   const storeCfg = () => SCore.norm(state.settings.store);
   function storeSet(patch) { const c = Object.assign(storeCfg(), patch); if (!c.id) c.id = SCore.newId(20); if (patch && 'zones' in patch) Object.assign(c, SCore.syncZonePlaces(c)); state.settings.store = c; save(); }
   // Every delivery zone is also a place customers can pick: keep the two in step (also fixes what existed before this was added).
+  // The starter high-risk spots go in once (the seller can edit or delete any of them; a deleted one does not come back).
+  function seedHot() {
+    try {
+      const c = storeCfg(); if (!c.id || c.hotSeeded) return false;
+      const have = new Set(c.zones.map((z) => z.name.toLowerCase())), link = (z) => { const m = c.locations.filter((l) => z.name.toLowerCase().startsWith(l.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0]; return m ? Object.assign({}, z, { place: m.id }) : z; };
+      const add = ZoneData.hot().filter((z) => !have.has(z.name.toLowerCase())).map(link);
+      storeSet({ zones: c.zones.concat(add), hotSeeded: true }); if (add.length) setTimeout(() => toast(t('hot.seeded', { n: add.length })), 400); return true;
+    } catch (e) { return false; }
+  }
   function ensureZonePlaces() { try { const c = storeCfg(); if (!c.id || !c.zones.length) return false; const sy = SCore.syncZonePlaces(c); if (!sy.changed) return false; storeSet({ locations: sy.locations, bands: sy.bands }); return true; } catch (e) { return false; } }
   // 3-letter month in the app language ("Nov", "ene"), and the day in the phone's own time zone
   const mon3 = (d) => d.toLocaleDateString(I.locale(I.getLang()), { month: 'short' }).replace('.', '').slice(0, 3);
@@ -2536,29 +2552,34 @@
   }
   // One short line for the Store page: how many places, how many are switched off, how many zones.
   const pdSummary = (c) => { if (!c.locations.length && !c.zones.length) return t('hub.deliveryNone'); const off = c.locations.filter((l) => { const b = SCore.bandOf(c, l); return l.off || (b && b.on === false); }).length; return t('pd.summary', { n: c.locations.length, off, z: SCore.areaZones(c.zones).length }); };
-  const placeRowH = (c, l) => { const b = SCore.bandOf(c, l), live = !l.off && !(b && b.on === false); return `<div class="pkr ${live ? '' : 'dim'}" data-n="${esc(l.name.toLowerCase())}"><button type="button" class="pkn" data-act="store-loc" data-id="${l.id}"><b>${esc(l.name)}</b><small>${l.pickup ? t('store.pickup') + ' · ' : ''}${l.delivery ? t('store.delivery') + ' ' + money(SCore.priceOf(c, l)) : ''}${SCore.needsPrice(c, l) ? ` <span class="rtag np">${t('pk.needsPrice')}</span>` : ''}${l.risk ? ` <span class="rtag">${t('pk.riskTag')}</span>` : ''}</small></button>${swt('place-on', l.id, !l.off)}</div>`; };
+  const hotOf = (placeId) => storeCfg().zones.find((z) => z.risk && z.place === placeId) || null;   // the high-risk spot drawn for this place, if any
+  const placeRowH = (c, l) => { const b = SCore.bandOf(c, l), live = !l.off && !(b && b.on === false); return `<div class="pkr ${live ? '' : 'dim'}" data-n="${esc(l.name.toLowerCase())}"><button type="button" class="pkn" data-act="store-loc" data-id="${l.id}"><b>${esc(l.name)}</b><small>${l.pickup ? t('store.pickup') + ' · ' : ''}${l.delivery ? t('store.delivery') + ' ' + money(SCore.priceOf(c, l)) : ''}${SCore.needsPrice(c, l) ? ` <span class="rtag np">${t('pk.needsPrice')}</span>` : ''}${hotOf(l.id) || l.risk ? ` <span class="rtag">${t('pk.riskTag')}</span>` : ''}</small></button>${swt('place-on', l.id, !l.off)}</div>`; };
   // Re-draw whichever of the three delivery pages is on top.
   const refreshPick = () => { const k = pageStack.length ? pageStack[pageStack.length - 1].key : ''; return k.startsWith('places|') ? sheetPlaces(plF) : k.startsWith('risk|') ? sheetRisk() : sheetPickup(); };
   let plF = 'all', plQ = '';
   function sheetPlaces(f) {
     if (f) plF = f; ensureZonePlaces(); enterPage('places', '', () => sheetPlaces());
-    const c = storeCfg(), liveOf = (l) => { const b = SCore.bandOf(c, l); return !l.off && !(b && b.on === false); };
-    const test = { all: () => true, needs: (l) => SCore.needsPrice(c, l), risk: (l) => l.risk, off: (l) => !liveOf(l) }, list = c.locations.filter(test[plF] || test.all).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const c = storeCfg(), liveOf = (l) => { const b = SCore.bandOf(c, l); return !l.off && !(b && b.on === false); }, hotOfP = (l) => !!hotOf(l.id) || l.risk;
+    const test = { all: () => true, needs: (l) => SCore.needsPrice(c, l), risk: hotOfP, off: (l) => !liveOf(l) }, list = c.locations.filter(test[plF] || test.all).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     const chip = (k, label, n) => `<button type="button" class="chip ${plF === k ? 'on' : ''}" data-act="pl-filter" data-id="${k}">${label} <b>${n}</b></button>`;
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div></div>
-      <div class="pd"><div class="oqbar"><span aria-hidden="true">🔍</span><input id="pl-q" class="cq" type="search" enterkeyhint="search" autocomplete="off" placeholder="${esc(t('pl.search'))}" value="${esc(plQ)}"></div>
-      <div class="itchips" style="margin:10px 0">${chip('all', t('filter.all'), c.locations.length)}${chip('needs', t('pk.needsPrice'), c.locations.filter(test.needs).length)}${chip('risk', t('pk.riskTag'), c.locations.filter(test.risk).length)}${chip('off', t('pl.off'), c.locations.filter(test.off).length)}</div>
+    openSheet(`<div class="fullbar${plQ ? ' searching' : ''}"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div class="fbt"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><button type="button" class="fb-s" data-act="pl-search-open" aria-label="${esc(t('tool.search'))}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.search}</svg>${plQ ? '<i class="dot"></i>' : ''}</button>
+        <label class="fbs"><span aria-hidden="true">🔍</span><input id="pl-q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('pl.search'))}" value="${esc(plQ)}"><button type="button" class="fbx" data-act="pl-search-close" aria-label="${t('tool.closeSearch')}">✕</button></label></div>
+      <div class="pd"><div class="itchips" style="margin:10px 0">${chip('all', t('filter.all'), c.locations.length)}${chip('needs', t('pk.needsPrice'), c.locations.filter(test.needs).length)}${chip('risk', t('pk.riskTag'), c.locations.filter(test.risk).length)}${chip('off', t('pl.off'), c.locations.filter(test.off).length)}</div>
       <div class="card pkc" id="pl-list">${list.map((l) => placeRowH(c, l)).join('') || `<p class="muted small">${t('pd.tip')}</p>`}</div>
       <button type="button" class="pkadd" data-act="store-loc" data-id="new">＋ ${t('pd.add')}</button></div>`, null, true);
     plSearch();
   }
   const plSearch = () => { const q = plQ.trim().toLowerCase(); document.querySelectorAll('#pl-list .pkr').forEach((r) => { r.hidden = !!q && !(r.dataset.n || '').includes(q); }); };
   function sheetRisk() {
-    enterPage('risk', '', () => sheetRisk());
-    const c = storeCfg(), risks = c.locations.filter((l) => l.risk).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pk.risk')}</b><small>${t('pk.riskCountN', { n: risks.length })}</small></div></div>
-      <div class="pd"><p class="muted small" style="margin:6px 2px 10px">${t('pk.riskSub')}</p><div class="card pkc">${risks.map((l) => `<div class="pkr"><span class="pkn"><b>${esc(l.name)}</b></span>${swt('risk-flag', l.id, true)}</div>`).join('') || `<p class="muted small">${t('pk.riskNone')}</p>`}</div>
-      <button type="button" class="pkadd" data-act="risk-add">＋ ${t('pk.riskAdd')}</button><p class="muted small">${t('pk.riskNote')}</p></div>`, null, true);
+    seedHot(); enterPage('risk', '', () => sheetRisk());
+    const c = storeCfg(), byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }), spots = c.zones.filter((z) => z.risk).sort(byName), legacy = c.locations.filter((l) => l.risk && !hotOf(l.id)).sort(byName);
+    const pName = (z) => { const l = c.locations.find((x) => x.id === z.place); return l ? t('hot.fromPlace', { p: esc(l.name) }) : ''; };
+    const sizeOf = (z) => (z.poly ? t('zn.shapeTag', { n: z.poly.length }) : t('zn.circleTag', { km: (z.r / 1000).toFixed(1).replace(/\.0$/, '') }));
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('pk.risk')}</b><small>${tn('pk.riskCountN', spots.length)}</small></div></div>
+      <div class="pd"><div class="card hotinfo"><b>${t('hot.what')}</b><p>${t('hot.whatSub')}</p></div>
+      <div class="card pkc">${spots.map((z) => `<div class="pkr"><button type="button" class="pkn" data-act="hot-edit" data-id="${z.id}"><b>⚠️ ${esc(z.name)}</b><small>${[pName(z), sizeOf(z)].filter(Boolean).join(' · ')}</small></button></div>`).join('') || `<p class="muted small">${t('hot.none')}</p>`}</div>
+      <button type="button" class="pkadd" data-act="places-page">📍 ${t('hot.fromPlaces')}</button>
+      ${legacy.length ? `<h4 class="pkh">${t('hot.legacy')}</h4><p class="muted small" style="margin:0 2px 8px">${t('hot.legacySub')}</p><div class="card pkc">${legacy.map((l) => `<div class="pkr"><span class="pkn"><b>${esc(l.name)}</b></span><button type="button" class="chip" data-act="place-hot" data-id="${l.id}">${t('hot.draw')}</button></div>`).join('')}</div>` : ''}</div>`, null, true);
   }
   // Pick high-risk areas from your places (tick as many as you like), or type one that is not in the list.
   function sheetRiskPick() {
@@ -2566,7 +2587,7 @@
     openSmall(`<h3>${t('pk.riskAdd')}</h3><p>${t('pk.riskPickSub')}</p><form id="f-riskpick"><div class="oqbar" style="margin-bottom:8px"><span aria-hidden="true">🔍</span><input id="rp-q" class="cq" type="search" autocomplete="off" placeholder="${esc(t('pl.search'))}"></div><div class="fpl" id="rp-list">${cand.map((l) => `<label class="tkr" data-n="${esc(l.name.toLowerCase())}"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('') || `<p class="muted small">${t('pk.riskNoPlaces')}</p>`}</div><input name="name" type="text" autocomplete="off" placeholder="${esc(t('pk.riskOther'))}"><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
   }
   function sheetPickup() {
-    ensureZonePlaces();
+    ensureZonePlaces(); seedHot();
     enterPage('pickup', '', () => sheetPickup());
     const c = storeCfg(), on = (l) => { const b = SCore.bandOf(c, l); return !l.off && !(b && b.on === false); }, nOn = c.locations.filter(on).length, nOff = c.locations.length - nOn;
     const mode = (k) => `<button type="button" class="chip ${c.areaMode === k ? 'on' : ''}" data-act="area-mode" data-id="${k}">${t('pk.' + k)}</button>`;
@@ -2579,9 +2600,9 @@
       <button type="button" class="hnr zrow" data-act="zones-page"><span class="hic" style="background:var(--infobg)">🗺️</span><div class="t"><b>${t('zn.title')}</b><small>${c.zones.length ? t('zn.count2', { n: SCore.areaZones(c.zones).length, h: c.zones.filter((z) => z.risk).length }) : t('zn.rowNone')}</small></div><span class="chev">›</span></button>
       ${c.locations.some((l) => SCore.needsPrice(c, l)) ? `<button type="button" class="hnr zrow" data-act="places-needs"><span class="hic" style="background:var(--warnbg)">💲</span><div class="t"><b>${t('pk.needsRow', { n: c.locations.filter((l) => SCore.needsPrice(c, l)).length })}</b><small>${t('pk.needsSub')}</small></div><span class="chev">›</span></button>` : ''}
       <button type="button" class="hnr zrow" data-act="places-page"><span class="hic" style="background:var(--okbg)">📍</span><div class="t"><b>${t('pk.placesH')}</b><small>${pdSummary(c)}</small></div><span class="chev">›</span></button>
-      <button type="button" class="hnr zrow" data-act="risk-page"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${t('pk.riskRow', { n: risks.length })}</small></div><span class="chev">›</span></button>
+      <button type="button" class="hnr zrow" data-act="risk-page"><span class="hic" style="background:var(--warnbg)">⚠️</span><div class="t"><b>${t('pk.risk')}</b><small>${tn('pk.riskCountN', c.zones.filter((z) => z.risk).length + risks.filter((l) => !hotOf(l.id)).length)}</small></div><span class="chev">›</span></button>
       ${c.bands.length ? '' : `<button type="button" class="addp towns" data-act="store-towns">🇹🇹 ${t('pk.towns')}</button><p class="lead" style="margin-top:8px">${t('pk.townsSub')}</p>`}
-      ${c.locations.length ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
+      ${c.locations.some((l) => l.risk) ? `<div class="card pkc"><h4>${t('pk.quick')}</h4><div class="chips">${mode('safe')}${mode('all')}${mode('custom')}</div><p class="muted small">${t('pk.quickSub')}</p><p class="muted small"><b>${t('pk.count', { on: nOn, off: nOff })}</b></p></div>` : ''}
       ${c.bands.length ? `<h4 class="pkh">${t('pk.bands')}</h4><div class="card pkc">${c.bands.map(bandRow).join('')}<button type="button" class="pkadd" data-act="band-add">＋ ${t('pk.bandAdd')}</button><p class="muted small">${t('pk.bandsSub')}</p></div>` : ''}
       <h4 class="pkh">${t('pk.spots')}</h4><div class="card pkc"><p class="muted small" style="margin-top:0">${t('pk.spotsSub')}</p><div class="pkb"><span class="pkp">TT$</span><input class="pkin" id="pk-spotprice" inputmode="decimal" data-spotprice="1" value="${c.spotPrice || ''}" placeholder="0.00" aria-label="${t('pk.spotPrice')}"><div class="pkt"><b>${t('pk.spotPrice')}</b></div></div>${c.spots.map(spotRow).join('')}<button type="button" class="pkadd" data-act="spot-add">＋ ${t('pk.spotAdd')}</button></div>
       </div>`, null, true);
@@ -2605,8 +2626,8 @@
       <div class="card" style="margin-top:12px"><div class="rw"><div class="t"><b>${t('store.pickup')}</b><small>${t('store.pickupSub')}</small></div>${swt('sl-flag', 'pickup', l.pickup)}</div><div class="rw"><div class="t"><b>${t('store.delivery')}</b><small>${t('store.deliverySub')}</small></div>${swt('sl-flag', 'delivery', l.delivery)}</div></div>
       ${c.bands.length ? `<label>${t('sl.range')}</label><div class="chips" id="sl-bands"><button type="button" class="chip ${l.band ? '' : 'on'}" data-act="sl-band" data-id="">${t('sl.noRange')}</button>${c.bands.map((b) => `<button type="button" class="chip ${l.band === b.id ? 'on' : ''}" data-act="sl-band" data-id="${b.id}">TT$ ${b.price}${b.name ? ' · ' + esc(b.name) : ''}</button>`).join('')}</div>` : ''}
       <label for="sl-price">${t('store.deliveryPrice')}</label><input id="sl-price" type="text" inputmode="decimal" value="${l.price || ''}" placeholder="0.00" autocomplete="off" enterkeyhint="done">
-      <div class="card" style="margin-top:12px"><div class="rw"><div class="t"><b>${t('sl.risk')}</b><small>${t('sl.riskSub')}</small></div>${swt('sl-flag', 'risk', l.risk)}</div></div>
-      <div class="btns"><button class="btn primary" data-act="store-loc-save" data-id="${id}">${t('btn.save')}</button>${id === 'new' ? '' : `<button class="btn danger" data-act="store-loc-del" data-id="${id}">${t('btn.delete')}</button>`}</div></div>`, null, true);
+      <div class="btns"><button class="btn primary" data-act="store-loc-save" data-id="${id}">${t('btn.save')}</button>${id === 'new' ? '' : `<button class="btn danger" data-act="store-loc-del" data-id="${id}">${t('btn.delete')}</button>`}</div>
+      ${id === 'new' ? '' : (() => { const h = hotOf(id); return h ? `<div class="card hotcard"><div class="t"><b>⚠️ ${t('hot.has', { z: esc(h.name) })}</b><small>${t('hot.sub')}</small></div><div class="btns"><button class="btn alt" data-act="hot-edit" data-id="${h.id}">${t('hot.edit')}</button><button class="btn alt" data-act="hot-remove" data-id="${h.id}">${t('hot.remove')}</button></div></div>` : `<div class="card hotcard"><div class="t"><b>⚠️ ${t('hot.title')}</b><small>${t('hot.sub')}</small></div><button class="btn hotbtn" data-act="place-hot" data-id="${id}">⚠️ ${t('hot.btn')}</button></div>`; })()}</div>`, null, true);
   }
   let ordFilter = 'new';
   const ordWhen = (o) => ago(Store.when(o));
@@ -2968,7 +2989,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   }
   function ordRow(o, match) {
     const n = tn('notif.items', (o.items || []).length), when = o.status === 'done' && tsAt(o.doneAt) ? t(o.option === 'delivery' ? 'ord.delivered' : 'ord.collected') + ' ' + ago(tsAt(o.doneAt)) : (o.option === 'delivery' ? t('store.delivery') : t('store.pickup')) + ' · ' + ago(Store.when(o));
-    return `<button class="ord" data-act="order-open" data-id="${o.id}"><span class="ic">🛍️</span><div class="mid"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}${o.option === 'delivery' && SCore.geo(o.lat, o.lng) ? ' <span class="pinm" title="' + t('spot.h') + '">📍</span>' : ''}</b><small>${n} · ${when}</small>${match ? `<small class="omatch">${esc(t('ord.m.' + match.kind, { text: match.text }))}</small>` : ''}</div><div class="end"><b>${money(o.total)}</b>${orderPill(o, stageOf(o) === 'handed')}</div></button>`;
+    const hotO = o.status === 'new' && pinHot(o).length > 0;
+    return `<button class="ord${hotO ? ' hot' : ''}" data-act="order-open" data-id="${o.id}"><span class="ic">${hotO ? '⚠️' : '🛍️'}</span><div class="mid"><b>${esc(o.code || SCore.orderCode(o.id))} · ${esc(o.name)}${o.option === 'delivery' && SCore.geo(o.lat, o.lng) ? ' <span class="pinm" title="' + t('spot.h') + '">📍</span>' : ''}${hotO ? ' <span class="hotm">' + t('hot.tag') + '</span>' : ''}</b><small>${n} · ${when}</small>${match ? `<small class="omatch">${esc(t('ord.m.' + match.kind, { text: match.text }))}</small>` : ''}</div><div class="end"><b>${money(o.total)}</b>${orderPill(o, stageOf(o) === 'handed')}</div></button>`;
   }
   let ordLimit = 20, ordQ = '';
   const ORD_TABS = ['new', 'confirmed', 'handed', 'done'], HUB_TABS = ['new', 'confirmed', 'handed'];   // the Store page lists orders still in progress; completed ones live in the Order Log
@@ -3108,7 +3130,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const tl = ev.map((e) => e.h);
     const tlCard = o.status === 'new' ? '' : `<h4><span>${t('ord.timeline')}</span></h4><div class="card tl">${tl.join('')}</div>`;
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${esc(o.code || SCore.orderCode(o.id))}</b><small>${esc(o.name)} · ${fullWhen(Store.when(o))}</small></div>${nav}</div>${stripBar}
-      <div class="ap">${stepBar}${sumCard}<div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small>${orderWho(o)}</div><a class="ibtn wapp" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a><a class="ibtn" href="tel:${esc(SCore.digits(o.phone))}" aria-label="${t('ord.call')}"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stage === 'new' ? '' : stBadge(o)}</div></div>
+      <div class="ap">${stepBar}${pinHot(o).length && o.status === 'new' ? `<div class="hotban"><b>⚠️ ${t('hot.banner')}</b><span>${t('hot.sure', { z: esc(pinHot(o).map((z) => z.name).join(', ')) })}</span></div>` : ''}${sumCard}<div class="card"><div class="rw"><div class="t"><b>${esc(o.name)}</b><small>${esc(o.phone)}</small>${orderWho(o)}</div><a class="ibtn wapp" href="${SCore.waLink(o.phone, msg)}" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a><a class="ibtn" href="tel:${esc(SCore.digits(o.phone))}" aria-label="${t('ord.call')}"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a></div><div class="rw"><div class="t"><b>${optText(o)}</b><small>${o.option === 'delivery' ? money(o.deliveryPrice) : t('store.free')}</small></div>${stage === 'new' ? '' : stBadge(o)}</div></div>
       <h4><span>${t('ord.items')}</span></h4><div class="card">${rows}<div class="rw tot"><div class="t"><b>${t('ord.total')}</b></div><b>${money(o.total)}</b></div></div>
       ${payCard}${tlCard}${spotCard}
       ${o.status === 'new' ? `<div class="btnrow"><button class="pbtn" data-act="order-confirm" data-id="${o.id}">${t('flow.accept')}</button><button class="gbtn" data-act="order-decline" data-id="${o.id}">${t('ord.decline')}</button></div><p class="muted small" style="margin:10px 2px">${t('ord.acceptNote')}</p>`
@@ -3123,8 +3145,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (!its.length) return toast(t('ord.noneLeft'));
     if (o.option !== 'delivery') return doConfirmOrder(o);
     const gp = orderPin(o), km = kmNum(o), place = o.spot || o.location || '';
-    openSmall(`<h3>${t('loc.title')}</h3><p><b>${esc(place)}</b>${o.spot && o.location ? '<br>' + esc(o.location) : ''}${km != null ? '<br>' + t('loc.km', { km: km.toFixed(1) }) : ''}${missing ? '<br><br>⚠️ ' + t('ord.someGone', { n: missing }) : ''}${(() => { const g = SCore.geo(o.lat, o.lng), zz = pickedZone(o); return g && storeZones().length && !pinZones(o).length && !pinHot(o).length ? '<br><br>⚠️ ' + t('zn.outWarn') : (zz && pinGap(o, zz) > 1500 ? '<br><br>⚠️ ' + t('zn.farWarn', { z: esc(zz.name), km: (pinGap(o, zz) / 1000).toFixed(1) }) : ''); })()}${pinHot(o).length ? '<br><br>⚠️ <b>' + t('zn.hotWarn', { z: esc(pinHot(o).map((z) => z.name).join(', ')) }) + '</b>' : ''}<br><br>${t('loc.ask')}</p>
-      <div class="btns">${gp ? `<a class="btn navopen" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener">🧭 ${t('loc.open')}</a>` : ''}<button class="btn primary" data-act="loc-yes" data-id="${o.id}">${t('loc.yes')}</button><button class="btn rs" data-act="loc-no" data-id="${o.id}">${t('loc.no')}</button><button class="btn" data-act="close">${t('loc.later')}</button></div>`, 'card');
+    openSmall(`${pinHot(o).length ? `<div class="hotban"><b>⚠️ ${t('hot.banner')}</b><span>${t('hot.sure', { z: esc(pinHot(o).map((z) => z.name).join(', ')) })}</span></div>` : ''}<h3>${t('loc.title')}</h3><p><b>${esc(place)}</b>${o.spot && o.location ? '<br>' + esc(o.location) : ''}${km != null ? '<br>' + t('loc.km', { km: km.toFixed(1) }) : ''}${missing ? '<br><br>⚠️ ' + t('ord.someGone', { n: missing }) : ''}${(() => { const g = SCore.geo(o.lat, o.lng), zz = pickedZone(o); return g && storeZones().length && !pinZones(o).length && !pinHot(o).length ? '<br><br>⚠️ ' + t('zn.outWarn') : (zz && pinGap(o, zz) > 1500 ? '<br><br>⚠️ ' + t('zn.farWarn', { z: esc(zz.name), km: (pinGap(o, zz) / 1000).toFixed(1) }) : ''); })()}<br><br>${t('loc.ask')}</p>
+      <div class="btns">${gp ? `<a class="btn navopen" data-act="pin-open" href="${navHref(gp, o.spot)}" target="_blank" rel="noopener">🧭 ${t('loc.open')}</a>` : ''}<button class="btn primary" data-act="loc-yes" data-id="${o.id}">${t(pinHot(o).length ? 'hot.confirmAnyway' : 'loc.yes')}</button><button class="btn rs" data-act="loc-no" data-id="${o.id}">${t('loc.no')}</button><button class="btn" data-act="close">${t('loc.later')}</button></div>`, 'card');
   }
   // Confirms the order, makes its invoice (nothing paid yet) and opens WhatsApp with the confirmation message
   async function doConfirmOrder(o) {
@@ -3213,6 +3235,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   function openInvoiceFromSheet(no) { closeSheet(); sheetInvoice(no); }
 
   if (window.SelectPicker) SelectPicker.install(() => ({ cancel: t('btn.cancel'), done: t('btn.done'), search: t('pick.search'), choose: t('pick.choose'), none: t('people.noMatch') }));   // our own picker instead of the browser's list
+  const KEEP_SCROLL = new Set(['area-mode', 'place-on', 'risk-flag', 'band-on', 'band-del', 'spot-on', 'spot-del', 'pl-filter', 'pl-search-close', 'hot-remove', 'zone-starter', 'zone-starter-hot']);
   document.addEventListener('click', (e) => {
     if (e.target.id === 'scrim') return closeSheet();
     if (e.target.id === 'tmscrim') return closeTopMenu();
@@ -3223,6 +3246,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     const id = t_.dataset.id;
     if (/^(photo|ed|viewer)-/.test(t_.dataset.act || '')) return PUI.act(t_.dataset.act, id, t_);
     { const a = t_.dataset.act, need = a === 'more' && /^(set-business|set-invdesign)$/.test(id || '') ? 'storeSettings' : ACT_NEEDS[a]; if (/^(team|perm|xfer|req)-/.test(a) || a === 'reset' ? !can('team') : need && !can(need)) return toast(t('team.noAccess')); }
+    // These switches redraw their page; the page must stay exactly where it was scrolled.
+    if (KEEP_SCROLL.has(t_.dataset.act)) { const sh0 = $('#sheet'), y0 = sh0.scrollTop, w0 = window.scrollY; queueMicrotask(() => { sh0.scrollTop = y0; if (window.scrollY !== w0) window.scrollTo(0, w0); }); }
     switch (t_.dataset.act) {
       case 'team-open': return sheetTeam();
       case 'req-open': return sheetRequest(id);
@@ -3495,7 +3520,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'store-loc-save': {
         const name = L.cleanName($('#sl-name').value), pickup = $('[data-act=sl-flag][data-id=pickup]').classList.contains('on'), delivery = $('[data-act=sl-flag][data-id=delivery]').classList.contains('on'), price = Math.max(0, parseFloat(String($('#sl-price').value).replace(',', '.')) || 0);
         if (!name) return toast(t('store.needLocName')); if (!pickup && !delivery) return toast(t('store.needOption'));
-        const c = storeCfg(), old = c.locations.find((x) => x.id === id) || {}, bandBtn = document.querySelector('#sl-bands .chip.on'), flag = document.querySelector('[data-act=sl-flag][data-id=risk]'), risk = flag ? flag.classList.contains('on') : !!old.risk;
+        const c = storeCfg(), old = c.locations.find((x) => x.id === id) || {}, bandBtn = document.querySelector('#sl-bands .chip.on'), flag = document.querySelector('[data-act=sl-flag][data-id=risk]'), risk = !!old.risk;
         const bandId = bandBtn ? bandBtn.dataset.id || '' : (old.band || ''), priced = price > 0 || !!bandId, loc = { id: id === 'new' ? SCore.newId(8) : id, name, pickup, delivery, price, band: bandId, risk, zone: old.zone || '', auto: !!old.auto && !priced, off: id === 'new' ? risk && c.areaMode === 'safe' : (old.auto && priced ? false : !!old.off) };
         if (loc.zone && name !== old.name) storeSet({ zones: c.zones.map((z) => (z.id === loc.zone ? Object.assign({}, z, { name }) : z)) });
         const list = id === 'new' ? c.locations.concat(loc) : c.locations.map((l) => (l.id === id ? loc : l)); storeSet({ locations: c.areaMode === 'safe' ? SCore.applyMode({ locations: list, bands: c.bands }, 'safe').locations : list }); pageStack = pageStack.filter((p) => p.key !== 'storeloc|' + id); return dropPages('storeloc|' + id);
@@ -3507,7 +3532,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'band-del': { const c = storeCfg(); storeSet({ bands: c.bands.filter((b) => b.id !== id) }); return sheetPickup(); }
       case 'band-add': return openSmall(`<h3>${t('pk.bandAdd')}</h3><form id="f-band"><label>${t('pk.bandPrice')}</label><input name="price" inputmode="decimal" placeholder="0.00" autocomplete="off" required><label>${t('pk.bandName')}</label><input name="name" autocomplete="off"><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
       case 'risk-flag': { const c = storeCfg(), list = c.locations.map((l) => (l.id === id ? Object.assign({}, l, { risk: false }) : l)); storeSet({ locations: c.areaMode === 'safe' ? SCore.applyMode({ locations: list, bands: c.bands }, 'safe').locations : list }); return refreshPick(); }
-      case 'risk-add': return sheetRiskPick();
+      case 'risk-add': return sheetRisk();
       case 'risk-add-old': return openSmall(`<h3>${t('pk.riskAdd')}</h3><form id="f-risk"><label>${t('pk.riskName')}</label><input name="name" autocomplete="off" required><div class="btns"><button class="btn primary">${t('btn.save')}</button><button type="button" class="btn" data-act="close">${t('btn.cancel')}</button></div></form>`, 'sheet');
       case 'spot-on': { const c = storeCfg(); storeSet({ spots: c.spots.map((x) => (x.id === id ? Object.assign({}, x, { on: !x.on }) : x)) }); return sheetPickup(); }
       case 'spot-del': { const c = storeCfg(); storeSet({ spots: c.spots.filter((x) => x.id !== id) }); return sheetPickup(); }
@@ -3599,12 +3624,17 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'dup-no': { const no = (state.settings.dupNo || []).slice(); no.push([id, t_.dataset.b].sort().join('|')); state.settings.dupNo = no; const d = (state.decisions || []).find((x) => x.id === t_.dataset.d); if (d) d.reviewed = true; save(); return sheetDups(); }
       case 'zones-open': closeSheet(); return sheetZones();
       case 'zones-page': return sheetZones();
+      case 'place-hot': { const c = storeCfg(), l = c.locations.find((x) => x.id === id); if (!l) return; const zz = c.zones.find((z) => z.id === l.zone && !z.risk); return openZone('new', true, { name: l.name, lat: zz ? zz.lat : undefined, lng: zz ? zz.lng : undefined, r: 1000, place: l.id }); }
+      case 'hot-edit': return openZone(id, true);
+      case 'hot-remove': return askCard(t('hot.removeAsk'), { danger: true, ok: t('hot.remove') }).then((y) => { if (!y) return; storeSet({ zones: storeCfg().zones.filter((z) => z.id !== id) }); toast(t('hot.removed')); refreshHot(); });
       case 'places-page': plF = 'all'; return sheetPlaces();
       case 'places-needs': return sheetPlaces('needs');
       case 'pl-filter': plF = id; return sheetPlaces();
+      case 'pl-search-open': { const bar = document.querySelector('#sheet .fullbar'); if (!bar) return; bar.classList.add('searching'); const f = $('#pl-q'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } return; }
+      case 'pl-search-close': { plQ = ''; const bar = document.querySelector('#sheet .fullbar'); if (bar) bar.classList.remove('searching'); const f = $('#pl-q'); if (f) f.value = ''; plSearch(); const d = document.querySelector('#sheet .fb-s .dot'); if (d) d.remove(); return; }
       case 'risk-page': return sheetRisk();
       case 'zone-add': case 'zone-edit': return openZone(id, t_.dataset.risk === '1');
-      case 'zone-starter-hot': return askCard(t('zn.hotAsk', { n: ZoneData.hot().length })).then((y) => { if (!y) return; const c = storeCfg(), have = new Set(c.zones.map((z) => z.name.toLowerCase())); storeSet({ zones: c.zones.concat(ZoneData.hot().filter((z) => !have.has(z.name.toLowerCase()))) }); toast(t('zn.added')); sheetZones(); });
+      case 'zone-starter-hot': return askCard(t('zn.hotAsk', { n: ZoneData.hot().length })).then((y) => { if (!y) return; const c = storeCfg(), have = new Set(c.zones.map((z) => z.name.toLowerCase())); const link = (z) => { const m = c.locations.filter((l) => z.name.toLowerCase().startsWith(l.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0]; return m ? Object.assign({}, z, { place: m.id }) : z; }; storeSet({ zones: c.zones.concat(ZoneData.hot().filter((z) => !have.has(z.name.toLowerCase())).map(link)) }); toast(t('zn.added')); sheetZones(); });
       case 'zone-starter': return askCard(t('zn.starterAsk', { n: ZoneData.starter().length })).then((y) => { if (!y) return; const c = storeCfg(); storeSet({ zones: c.zones.concat(ZoneData.starter()) }); toast(t('zn.added')); sheetZones(); });
       case 'fee-pin': { const o = Store.orders().find((x) => x.id === id), pp = o && pinPlace(o); if (!pp) return; const fee = SCore.priceOf(storeCfg(), pp), cur = Number(o.deliveryPrice) || 0; return askCard(t('fee.pinAsk', { z: esc(pp.name), fee: money(fee), name: esc(o.name) }), { ok: t('fee.ok') }).then((y) => { if (!y) return; Store.patch(o.id, { deliveryPrice: fee, total: Math.round((Number(o.total) - cur + fee) * 100) / 100, feeChanged: true }).then(() => { toast(t('fee.done')); setTimeout(() => sheetOrder(o.id, true), 300); }).catch(() => toast(t('store.pubError'))); }); }
       case 'fee-charge': { const o = Store.orders().find((x) => x.id === id); if (!o) return; const fee = normalFee(o); return askCard(t('fee.ask', { fee: money(fee), name: esc(o.name) }), { ok: t('fee.ok') }).then((y) => { if (!y) return; Store.patch(o.id, { deliveryPrice: fee, total: Math.round((Number(o.total) + fee) * 100) / 100, feeChanged: true }).then(() => { toast(t('fee.done')); setTimeout(() => sheetOrder(o.id, true), 300); }).catch(() => toast(t('store.pubError'))); }); }

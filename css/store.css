@@ -12,7 +12,7 @@ a{color:inherit;cursor:pointer}
 
 /* header */
 .ann{background:var(--brand2);color:#fff;font-size:11.5px;text-align:center;padding:6px 12px}.ann b{font-weight:700}
-.hd{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.hd{position:sticky;top:var(--sat,0px);z-index:20;background:#fff;border-bottom:1px solid var(--line)}
 .hd .in{display:flex;align-items:center;gap:6px;padding:8px 10px;max-width:1240px;margin:0 auto}
 .brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
 .lg{width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px;flex:none}
@@ -164,3 +164,13 @@ input::placeholder,textarea::placeholder{color:currentColor;opacity:.4}
 .offk{display:block;width:100%;padding:14px;border-radius:14px;border:0;background:var(--brand);color:#fff;font:inherit;font-weight:800;font-size:16px;min-height:0}.offx{position:absolute;right:12px;top:8px;border:0;background:none;font-size:26px;color:var(--mute);min-height:0;padding:4px 10px}
 
 .distbox{margin:8px 0;padding:12px 14px;border-radius:14px;background:color-mix(in srgb,var(--brand) 7%,#fff);font-size:14px}.distbox>b{display:block;margin-bottom:4px}.distbox .dr{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid color-mix(in srgb,var(--brand) 14%,transparent)}.distbox .dr:first-of-type{border:0}.distbox .dr span{color:var(--mute)}.distbox .fe{color:var(--brand);font-size:17px}.distbox small{display:block;color:var(--mute);margin-top:6px;font-size:12px}.distbox .mut{color:var(--mute)}
+
+/* iPhone: when the page is drawn under the status bar (the Preview inside the installed app, in-app browsers), the top of the screen fades and blurs whatever is there.
+   A solid brand strip fills that zone and the page starts below it, so nothing readable sits in the blur. Safari with its own toolbar has no inset, so nothing changes there. */
+:root{--iosdrop:0px}
+@supports (-webkit-touch-callout:none){:root{--iosdrop:calc(env(safe-area-inset-top,0px) * .3)}}
+@media (display-mode:standalone){@supports (-webkit-touch-callout:none){:root{--iosdrop:24px}}}
+:root{--sat:calc(env(safe-area-inset-top,0px) + var(--iosdrop))}
+body{padding-top:var(--sat)}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:var(--sat);background:var(--brand2,#741b47);z-index:60;pointer-events:none}
+.toast{top:calc(78px + var(--sat))}

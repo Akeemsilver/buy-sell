@@ -1500,3 +1500,6 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 /* tabs inside merged pages */
 .tabrow{display:flex;gap:8px;overflow-x:auto;padding:10px 14px 4px;scrollbar-width:none}.tabrow::-webkit-scrollbar{display:none}.tabrow .chip{flex:none}
 .bandban{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#fff4e0;margin-bottom:6px}.bandban .t b{display:block}.bandban .t small{display:block;color:#6b4300;margin-top:2px;font-size:12.5px}.bandban .btn{flex:none;width:auto;padding:10px 14px;margin:0}
+.bandban,.bandban .t b{color:#3b2500}
+.bandban .t small{color:#5c3a00}
+.bandban .btn,.bandban .btn.alt{background:#7a1f4d;color:#fff;border:0;font-weight:700;box-shadow:none}

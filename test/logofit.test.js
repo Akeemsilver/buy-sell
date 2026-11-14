@@ -17,6 +17,8 @@ d = make(200, 200, [10, 10, 10], (x, y) => (x % 40 < 20 ? [200, 80, 40] : null))
 d = make(400, 120, WHITE, (x, y) => (x >= 20 && x < 380 && y >= 30 && y < 90 ? DARK : null)); r = LF.analyze(d, 400, 120); assert.strictEqual(r.shape, 'wide');
 // a picture that already has see-through corners
 d = make(200, 200, [0, 0, 0, 0], (x, y) => ((x - 100) ** 2 + (y - 100) ** 2 <= 90 ** 2 ? PINK : null)); r = LF.analyze(d, 200, 200); assert.strictEqual(r.mode, 'transparent'); assert.strictEqual(r.shape, 'circle');
+// a monogram of letters (two bars and a slanted leg): lots of empty space in its box, so it must NOT be cut into a circle
+d = make(200, 200, WHITE, (x, y) => ((x >= 40 && x < 70 && y >= 30 && y < 170) || (x >= 70 && x < 110 && y >= 30 && y < 50) || (x >= 70 && x < 110 && y >= 85 && y < 105) || (x >= 130 && x < 160 && y >= 30 && y < 170) ? PINK : null)); r = LF.analyze(d, 200, 200); assert.strictEqual(r.shape, 'square');
 // slightly noisy white (as a photo of a logo would be)
 d = make(200, 200, WHITE, (x, y) => ((x - 100) ** 2 + (y - 100) ** 2 <= 80 ** 2 ? PINK : [250 + ((x * 7 + y * 3) % 6), 252, 253])); r = LF.analyze(d, 200, 200); assert.strictEqual(r.shape, 'circle');
 // the owner's pick beats the detected shape; with no pick the detected one is used; nothing known means square

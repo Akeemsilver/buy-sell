@@ -34,7 +34,7 @@
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1, ratio = n / (bw * bh), aspect = bw / bh;
     let shape = 'square';
     if (aspect >= 1.6) shape = 'wide';
-    else if (mode !== 'none') shape = ratio < 0.86 ? 'circle' : ratio < 0.975 ? 'rounded' : 'square';
+    else if (mode !== 'none') shape = ratio < 0.72 ? 'square' : ratio < 0.86 ? 'circle' : ratio < 0.975 ? 'rounded' : 'square';   // low fill = letters or a free-form mark: show it whole, never cut it to a circle
     return { shape, box: { x: x0, y: y0, w: bw, h: bh }, mode, ratio, aspect, bg, bgColor };
   };
 

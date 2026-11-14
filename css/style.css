@@ -1496,3 +1496,7 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .lkurl .lkc{flex:none;padding:9px 13px;border-radius:10px;border:0;background:var(--brand);color:#fff;font:inherit;font-size:13px;font-weight:800;min-height:0}
 
 .pcup{color:#c0265a!important;font-weight:700}.pcdn{color:#17803d!important;font-weight:700}
+
+/* tabs inside merged pages */
+.tabrow{display:flex;gap:8px;overflow-x:auto;padding:10px 14px 4px;scrollbar-width:none}.tabrow::-webkit-scrollbar{display:none}.tabrow .chip{flex:none}
+.bandban{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#fff4e0;margin-bottom:6px}.bandban .t b{display:block}.bandban .t small{display:block;color:#6b4300;margin-top:2px;font-size:12.5px}.bandban .btn{flex:none;width:auto;padding:10px 14px;margin:0}

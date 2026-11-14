@@ -45,7 +45,7 @@
     tiers = tiers.map((x) => ({ n: Math.max(1, Math.round(num(x && x.n)) || 1), km: Math.max(0, r2(num(x && x.km))) })).sort((x, y) => x.n - y.n || x.km - y.km).slice(0, 8);
     return { tiers, spend: { on: !!sp.on, amt: Math.max(1, r2(num(sp.amt)) || 400), km: Math.max(0, r2(num(sp.km))) }, centre: cg };
   };
-  const reachCentre = (cfgIn, home) => { const cfg = norm(cfgIn); if (cfg.freeRule.centre) return cfg.freeRule.centre; const g = home && Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lng)) ? { lat: Number(home.lat), lng: Number(home.lng) } : null; if (!g) return null; const z = nearestZone(areaZones(cfg.zones), g.lat, g.lng); return z && z.zone ? { lat: z.zone.lat, lng: z.zone.lng, name: z.zone.name } : null; };
+  const reachCentre = (cfgIn, home) => { const cfg = norm(cfgIn), g = home && Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lng)) ? { lat: Number(home.lat), lng: Number(home.lng) } : null; if (!g) return cfg.freeRule.centre || null; const z = nearestZone(areaZones(cfg.zones), g.lat, g.lng); return { lat: g.lat, lng: g.lng, name: z && z.zone ? z.zone.name : '' }; };   // the store pin itself; the nearest zone only gives it a friendly name
   const publicRule = (cfgIn, home) => { const cfg = norm(cfgIn), r = cfg.freeRule; if (!r.tiers.length && !r.spend.on) return null; const c = reachCentre(cfg, home); return { t: r.tiers.map((x) => [x.n, x.km]), a: r.spend.on ? r.spend.amt : 0, ak: r.spend.km, c: c ? [c.lat, c.lng] : null, cn: c ? c.name || '' : '' }; };
   // What the store page may say about coupons (no codes, no customers): the spend that earns one and what it gives.
   const publicCouponInfo = (cfgIn) => { const r = norm(cfgIn).couponRule; return r.on ? { min: r.min, t: r.kind === 'delivery' ? 'd' : r.kind === 'pct' ? 'p' : 'o', v: r.value, m: r.cap, g: r.km } : null; };
@@ -126,8 +126,8 @@
       if (!l) { l = locs.find((x) => !x.zone && nameKey(x.name) === nameKey(z.name)); if (l) { l.zone = z.id; changed = true; } }
       if (l) { if (l.name !== z.name) { l.name = z.name; changed = true; } return; }
       const hit = TT_PLACES.find((q) => nameKey(q[1]) === nameKey(z.name));
-      if (hit && !bands.some((b) => b.id === hit[0])) { const bd = TT_BANDS.find((b) => b.id === hit[0]); if (bd) bands.push(Object.assign({}, bd)); }
-      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: hit ? hit[0] : '', zone: z.id, auto: !hit }); changed = true;
+      const bd = hit ? TT_BANDS.find((b) => b.id === hit[0]) : null;   // the starter pack's old range only gives a starting price; the place then follows region or distance pricing
+      locs.push({ id: newId(8), name: z.name, pickup: false, delivery: true, price: bd ? bd.price : 0, risk: !!(hit && hit[2]), off: hit ? !!hit[2] : true, band: '', rm: !!bd, zone: z.id, auto: !hit }); changed = true;
     });
     return { locations: locs, bands, changed };
   };

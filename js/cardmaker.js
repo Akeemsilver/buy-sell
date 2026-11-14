@@ -8,14 +8,34 @@
 
   const defaults = () => ({
     v: 1, scheme: 'wine', dark: SCHEMES.wine.dark, light: SCHEMES.wine.light, sides: 'both', bleed: true,
-    show: { name: true, sub: true, phone: true, whatsapp: true, email: true, web: false, city: true, tagline: true, qr: true },
+    show: { name: true, sub: true, phone: true, whatsapp: true, logo: true, email: true, web: false, city: true, tagline: true, qr: true },
     text: { sub: 'ONLINE STORE', tagline: 'STYLE · QUALITY · TRUST', phone: '', whatsapp: '', email: '', city: '' },
     qr: { mode: 'store', text: '' },
+    pattern: { on: false, sides: 'both', place: 'corners', opacity: 0.18, size: 38, tilt: 8 },
   });
   const s = (v, d, n) => (typeof v === 'string' ? v.slice(0, n || 60) : d);
+  const PLACES = ['corners', 'all', 'tl', 'tr', 'bl', 'br'], PSIDES = ['both', 'front', 'back'];
+  const nn = (v, a, b, d) => (v === undefined || v === null || v === '' || !Number.isFinite(+v) ? d : Math.max(a, Math.min(b, +v)));
+  const normPat = (p, d) => { p = p || {}; return { on: p.on !== undefined ? !!p.on : d.on, sides: PSIDES.includes(p.sides) ? p.sides : d.sides, place: PLACES.includes(p.place) ? p.place : d.place, opacity: nn(p.opacity, 0.04, 0.5, d.opacity), size: nn(p.size, 20, 110, d.size), tilt: nn(p.tilt, 0, 30, d.tilt) }; };
+  // Where the faded marks go: a stair of marks growing out of a corner (like a corner stamp), or a staggered grid over the whole card. w, h = one mark.
+  function patternCells(pat, W, H, w, h) {
+    const out = [], corner = (sx, sy) => { for (let r = 0; r < 3; r++) for (let c = 0; c < 3 - r; c++) { const px = c * w * 1.12 + (r % 2) * w * 0.5 - w * 0.35, py = r * h * 1.08 - h * 0.3; out.push({ x: sx > 0 ? px : W - px - w, y: sy > 0 ? py : H - py - h, a: ((r + c) % 3 - 1) }); } };
+    if (pat.place === 'all') { for (let r = -1; r * h * 1.25 < H + h; r++) for (let c = -1; c * w * 1.3 < W + w; c++) out.push({ x: c * w * 1.3 + (r % 2 ? w * 0.65 : 0), y: r * h * 1.25, a: ((r + c) % 3 + 3) % 3 - 1 }); }
+    else if (pat.place === 'corners') { corner(-1, 1); corner(1, -1); }
+    else corner(pat.place === 'tl' || pat.place === 'bl' ? 1 : -1, pat.place === 'tl' || pat.place === 'tr' ? 1 : -1);
+    return out;
+  }
+  function drawPattern(x, pat, img, W, H, side, tint) {
+    if (!pat.on || !img || !ready(img) || (pat.sides !== 'both' && pat.sides !== side)) return;
+    const h = pat.size, w = h * iw(img) / ih(img); let src = img;
+    if (tint && root.document && root.document.createElement) { try { const cv = root.document.createElement('canvas'); cv.width = iw(img); cv.height = ih(img); const g = cv.getContext('2d'); g.drawImage(img, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = tint; g.fillRect(0, 0, cv.width, cv.height); src = cv; } catch (e) { src = img; } }
+    x.save(); x.beginPath(); x.rect(-50, -50, W + 100, H + 100); x.clip(); x.globalAlpha = pat.opacity;
+    patternCells(pat, W, H, w, h).forEach((c) => { x.save(); x.translate(c.x + w / 2, c.y + h / 2); x.rotate(c.a * pat.tilt * Math.PI / 180); x.drawImage(src, -w / 2, -h / 2, w, h); x.restore(); });
+    x.restore();
+  }
   function norm(c) {
     const d = defaults(); c = c || {}; const sh = c.show || {}, tx = c.text || {}, q = c.qr || {};
-    const out = { v: 1, scheme: SCHEMES[c.scheme] || c.scheme === 'custom' || c.scheme === 'invoice' ? c.scheme : 'wine', dark: isHex(c.dark) ? c.dark : d.dark, light: isHex(c.light) ? c.light : d.light, sides: ['both', 'front', 'frontblank'].includes(c.sides) ? c.sides : 'both', bleed: c.bleed !== undefined ? !!c.bleed : d.bleed, show: {}, text: {}, qr: { mode: ['store', 'whatsapp', 'link'].includes(q.mode) ? q.mode : 'store', text: s(q.text, '', 200) } };
+    const out = { v: 1, scheme: SCHEMES[c.scheme] || c.scheme === 'custom' || c.scheme === 'invoice' ? c.scheme : 'wine', dark: isHex(c.dark) ? c.dark : d.dark, light: isHex(c.light) ? c.light : d.light, sides: ['both', 'front', 'frontblank'].includes(c.sides) ? c.sides : 'both', bleed: c.bleed !== undefined ? !!c.bleed : d.bleed, show: {}, text: {}, pattern: normPat(c.pattern, d.pattern), qr: { mode: ['store', 'whatsapp', 'link'].includes(q.mode) ? q.mode : 'store', text: s(q.text, '', 200) } };
     Object.keys(d.show).forEach((k) => { out.show[k] = sh[k] !== undefined ? !!sh[k] : d.show[k]; });
     Object.keys(d.text).forEach((k) => { out.text[k] = s(tx[k], d.text[k], k === 'tagline' ? 60 : 80); });
     return out;
@@ -69,17 +89,17 @@
     if (side === 'blank') { x.fillStyle = '#ffffff'; x.fillRect(0, 0, W, H); return; }
     x.save(); x.translate(b, b);
     if (side === 'front') {
-      x.fillStyle = '#fbfafa'; x.fillRect(-b, -b, W, H);
-      const L = ready(imgs.mark) ? imgs.mark : ready(imgs.logo) ? imgs.logo : null, T = ready(imgs.title) ? imgs.title : null, big = L === imgs.mark; let cy = 128;
+      x.fillStyle = '#fbfafa'; x.fillRect(-b, -b, W, H); drawPattern(x, cfg.pattern, ready(imgs.mark) ? imgs.mark : imgs.logo, CW, CH, 'front', '');
+      const L = !cfg.show.logo ? null : ready(imgs.mark) ? imgs.mark : ready(imgs.logo) ? imgs.logo : null, T = cfg.show.logo && ready(imgs.title) ? imgs.title : null, big = L === imgs.mark; let cy = 128;
       if (L && T) { const lh = big ? 112 : 128, lw = lh * iw(L) / ih(L), th = 98, tw = th * iw(T) / ih(T), gap = 20, tot = lw + gap + tw, k = Math.min(1, 440 / tot); const x0 = (CW - tot * k) / 2; x.drawImage(L, x0, cy - lh * k / 2, lw * k, lh * k); x.drawImage(T, x0 + (lw + gap) * k, cy - th * k / 2, tw * k, th * k); }
       else if (L || T) { const im = L || T, mh = L ? 140 : 110, mw = mh * iw(im) / ih(im), k = Math.min(1, 400 / mw); x.drawImage(im, (CW - mw * k) / 2, cy - mh * k / 2, mw * k, mh * k); }
       else if (cfg.show.name) txt(x, data.name || '', CW / 2, cy + 12, 44, 800, cfg.dark, { align: 'center' });
       if (cfg.show.tagline && has(cfg.text.tagline)) txt(x, cfg.text.tagline, CW / 2, CH - 36, 13, 600, '#333333', { align: 'center', spacing: 5 });
       const g = x.createLinearGradient(-b, 0, CW + b, 0); g.addColorStop(0, cfg.dark); g.addColorStop(1, cfg.light); x.fillStyle = g; x.fillRect(-b, CH - 10, W, 10 + b);
     } else {
-      const g = x.createLinearGradient(-b, -b, CW + b, CH + b); g.addColorStop(0, cfg.dark); g.addColorStop(0.55, cfg.dark); g.addColorStop(1, mix(cfg.dark, '#ffffff', 0.12)); x.fillStyle = g; x.fillRect(-b, -b, W, H);
-      const L = ready(imgs.logo) ? imgs.logo : null;
-      x.save(); x.fillStyle = '#ffffff'; x.beginPath(); x.arc(71, 67, 37, 0, Math.PI * 2); x.fill(); x.restore();
+      const g = x.createLinearGradient(-b, -b, CW + b, CH + b); g.addColorStop(0, cfg.dark); g.addColorStop(0.55, cfg.dark); g.addColorStop(1, mix(cfg.dark, '#ffffff', 0.12)); x.fillStyle = g; x.fillRect(-b, -b, W, H); drawPattern(x, cfg.pattern, ready(imgs.mark) ? imgs.mark : imgs.logo, CW, CH, 'back', cfg.light);
+      const L = cfg.show.logo && ready(imgs.logo) ? imgs.logo : null;
+      if (cfg.show.logo) { x.save(); x.fillStyle = '#ffffff'; x.beginPath(); x.arc(71, 67, 37, 0, Math.PI * 2); x.fill(); x.restore(); }
       if (L) { const m = 74 * 0.62, k = Math.min(m / iw(L), m / ih(L)); x.drawImage(L, 71 - iw(L) * k / 2, 67 - ih(L) * k / 2, iw(L) * k, ih(L) * k); }
       if (cfg.show.name) txt(x, data.name || '', 126, cfg.show.sub && has(cfg.text.sub) ? 62 : 74, 26, 800, '#ffffff', { spacing: 1 });
       if (cfg.show.name && cfg.show.sub && has(cfg.text.sub)) txt(x, cfg.text.sub, 126, 82, 11, 600, cfg.light, { spacing: 4 });
@@ -98,7 +118,7 @@
   const sidesOf = (cfg) => (cfg.sides === 'front' ? ['front'] : cfg.sides === 'frontblank' ? ['front', 'blank'] : ['front', 'back']);
   const size = (cfg) => { const b = cfg.bleed ? BLEED : 0; return { w: CW + b * 2, h: CH + b * 2, inW: cfg.bleed ? 3.75 : 3.5, inH: cfg.bleed ? 2.25 : 2 }; };
 
-  const api = { CW, CH, BLEED, SCHEMES, defaults, norm, applyScheme, qrTarget, qrMatrix, lineRows, draw, sidesOf, size, mix };
+  const api = { CW, CH, BLEED, SCHEMES, defaults, norm, patternCells, applyScheme, qrTarget, qrMatrix, lineRows, draw, sidesOf, size, mix };
   root.CardMaker = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

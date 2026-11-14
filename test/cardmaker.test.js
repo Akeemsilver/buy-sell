@@ -19,6 +19,14 @@ let f = mk(); C.draw(f.x, 'front', C.defaults(), data, { logo: img, title: img }
 let b = mk(); C.draw(b.x, 'back', C.defaults(), data, { logo: img }, {}); assert.ok(b.texts.includes('B-RUIZ') && b.texts.includes('Chaguanas') && b.texts.includes('SCAN TO SHOP') && b.calls.filter((k) => k === 'fillRect').length > 150, 'QR modules are drawn');
 let nq = C.defaults(); nq.show.qr = false; let b2 = mk(); C.draw(b2.x, 'back', nq, data, {}, {}); assert.ok(!b2.texts.includes('SCAN TO SHOP'));
 let bl = mk(); C.draw(bl.x, 'blank', C.defaults(), data, {}, {}); assert.deepStrictEqual(bl.calls.filter((k) => k === 'fillRect').length, 1);
+// faded logo background: off by default, placed by the chosen corner, both sides or one, and the logo switch
+assert.strictEqual(C.defaults().pattern.on, false);
+const pc = (pl) => C.patternCells({ place: pl }, 525, 300, 46, 46); assert.ok(pc('corners').length === 12 && pc('tl').length === 6 && pc('all').length > 20);
+assert.ok(pc('tr').every((c) => c.x > 200 && c.y < 150) && pc('bl').every((c) => c.x < 300 && c.y > 100) && pc('tl').every((c) => c.x < 300 && c.y < 150));
+const pcfg = (o) => { const c = C.defaults(); c.pattern = Object.assign(c.pattern, { on: true }, o); return c; };
+const cnt = (side, c) => { const f = mk(); C.draw(f.x, side, c, data, { mark: img }, {}); return f.calls.filter((k) => k === 'drawImage').length; };
+assert.ok(cnt('front', pcfg({})) === 12 + 1 && cnt('front', pcfg({ sides: 'back' })) === 1 && cnt('back', pcfg({ sides: 'front' })) === 0 && C.norm({ pattern: { place: 'zz', opacity: 9 } }).pattern.opacity === 0.5);
+let nl = C.defaults(); nl.show.logo = false; let fl = mk(); C.draw(fl.x, 'front', nl, data, { logo: img, title: img }, {}); assert.strictEqual(fl.calls.filter((k) => k === 'drawImage').length, 0);
 // the multi-page print PDF
 const j = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]); const pdf = Buffer.from(P.pagesToPdf([{ jpeg: j, w: 1050, h: 600 }, { blank: true }, { jpeg: j, w: 1050, h: 600 }], { w: 252, h: 144 })).toString('latin1');
 assert.ok(pdf.startsWith('%PDF-1.4') && /\/Count 3/.test(pdf) && (pdf.match(/\/Type \/Page /g) || []).length === 3 && /MediaBox \[0 0 252 144\]/.test(pdf) && pdf.trim().endsWith('%%EOF'));

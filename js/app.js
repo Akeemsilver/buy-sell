@@ -438,7 +438,7 @@
     if (orders) rows.push(need('🛒', 'var(--warnbg)', t('hm.ordTitle'), t('hm.ordSub'), orders, 'orders-open', true));
     if (owingAll.length) rows.push(need('💰', 'var(--warnbg)', t('hm.oweTitle'), t('hm.oweSub', { amt: money(oweTotal) }), owingAll.length, 'goto-owing', true));
     if (!state.settings.bizLogo && state.settings.businessName && state.settings.setupDone && !pref('logoNudgeOff', false)) rows.push(need('🖼️', 'var(--infobg)', t('hm.logoTitle'), t('hm.logoSub'), '+', 'logo-go', false));   // goes away once a logo is added (or once the page has been opened)
-    if (peopleOn && PE.missingNumber(state).length) rows.push(need('📞', 'var(--infobg)', t('hm.phoneTitle'), t('hm.phoneSub'), PE.missingNumber(state).length, 'phones-open', false));
+    if (peopleOn && PE.missingNumber(state).length) rows.push(need('📞', '#bbdefb', t('hm.phoneTitle'), t('hm.phoneSub'), PE.missingNumber(state).length, 'phones-open', false));
     if (window.Store && Store.needsPublish && Store.needsPublish()) rows.unshift(need('📤', 'var(--warnbg)', t('hm.pubTitle'), t('hm.pubSub'), '!', 'goto-publish', true));
     if (noPrice) rows.push(need('🏷️', 'var(--okbg)', t('hm.noPriceTitle'), t('hm.noPriceSub'), noPrice, 'goto-nopr', false));
     const needs = `<div class="hsec"><h3>${t('hm.needs')}</h3></div><div class="hneeds">${rows.join('') || `<div class="hnr done"><span class="hic" style="background:var(--okbg)">✅</span><div class="t"><b>${t('hm.caught')}</b><small>${t('hm.caughtSub')}</small></div></div>`}</div>`;
@@ -738,7 +738,7 @@
   const dupList = () => { const no = new Set(state.settings.dupNo || []); return PE.duplicates(state, (k) => L.place(state, k)).filter((x) => !no.has(dupKey(x))); };
   function sheetFix() {
     enterPage('fix', '', () => sheetFix());
-    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.title')}</b><small>${t('fx.sub')}</small></div></div><div class="ap"><div class="hneeds">${fxRow('fix-decisions', '🕘', 'var(--warnbg)', t('fx.decisions'), t('fx.decisionsSub'), (state.decisions || []).filter((d) => !d.undone).length)}${fxRow('fix-dups', '👥', 'var(--infobg)', t('fx.dups'), t('fx.dupsSub'), dupList().length)}${fxRow('phones-open', '📞', 'var(--okbg)', t('fx.noNum'), t('fx.noNumSub'), PE.missingNumber(state).length)}</div><p class="muted small" style="margin:12px 2px">${t('fx.profileNote')}</p></div>`, null, true);
+    openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('fx.title')}</b><small>${t('fx.sub')}</small></div></div><div class="ap"><div class="hneeds">${fxRow('fix-decisions', '🕘', 'var(--warnbg)', t('fx.decisions'), t('fx.decisionsSub'), (state.decisions || []).filter((d) => !d.undone).length)}${fxRow('fix-dups', '👥', 'var(--infobg)', t('fx.dups'), t('fx.dupsSub'), dupList().length)}${fxRow('phones-open', '📞', '#bbdefb', t('fx.noNum'), t('fx.noNumSub'), PE.missingNumber(state).length)}</div><p class="muted small" style="margin:12px 2px">${t('fx.profileNote')}</p></div>`, null, true);
   }
   function sheetDecisions() {
     enterPage('fixdec', '', () => sheetDecisions());

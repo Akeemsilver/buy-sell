@@ -65,7 +65,7 @@
     let tx = 40;
     if (info.logo) {
       // the logo sits in a white box: square for ordinary logos, wider for a wide one (so it is not squeezed small)
-      const l = info.logo, asp = l.width / Math.max(1, l.height), bw = asp >= 1.6 ? Math.min(300, Math.round(94 * asp) + 16) : 110;
+      const l = info.logo, asp = l.width / Math.max(1, l.height), bw = asp >= 1.6 ? Math.min(236, Math.round(94 * asp) + 16) : 110;
       x.fillStyle = '#fff'; x.fillRect(36, (H - 110) / 2, bw, 110);
       const k = Math.min((bw - 16) / l.width, 94 / l.height); x.drawImage(l, 36 + (bw - l.width * k) / 2, (H - 110) / 2 + (110 - l.height * k) / 2, l.width * k, l.height * k);
       tx = 36 + bw + 26;

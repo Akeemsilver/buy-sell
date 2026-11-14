@@ -1494,3 +1494,5 @@ a.btn.navopen{display:flex;align-items:center;justify-content:center;gap:8px;tex
 .lkurl .lku{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;font-size:14px;font-weight:700;color:var(--brand);padding:8px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;user-select:text;mask-image:linear-gradient(90deg,#000 88%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent)}
 .lkurl .lku::-webkit-scrollbar{display:none}
 .lkurl .lkc{flex:none;padding:9px 13px;border-radius:10px;border:0;background:var(--brand);color:#fff;font:inherit;font-size:13px;font-weight:800;min-height:0}
+
+.pcup{color:#c0265a!important;font-weight:700}.pcdn{color:#17803d!important;font-weight:700}

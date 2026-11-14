@@ -61,7 +61,7 @@ const sug = P.suggest(s, [{ name: 'john', phone: '868-455-1290' }, { name: 'x', 
   const pk = P.classify(S, { name: 'Bethany', phone: '868 555 1234' }); assert.strictEqual(pk.kind, 'sharedPick'); assert.strictEqual(pk.candidates.length, 2);
   P.opSame(S, beth.id, { name: 'Bethany', phone: '868 555 1234' }, 'me'); assert.strictEqual(P.classify(S, { name: 'Bethany', phone: '868 555 1234' }).profile.id, beth.id);
   // undo puts both back
-  const d = S.decisions.find((x) => x.kind === 'shared'); P.undo(S, d.id); assert.ok(!amy.shared || !P.byId(S, amy.id).shared); assert.ok(!P.byId(S, beth.id).shared);
+  const nk = S.decisions.find((x) => x.kind === 'nick' && !x.undone); P.undo(S, nk.id); const d = S.decisions.find((x) => x.kind === 'shared'); P.undo(S, d.id); assert.ok(!amy.shared || !P.byId(S, amy.id).shared); assert.ok(!P.byId(S, beth.id).shared);
   // free delivery on a shared number only reaches the name that holds it
   P.opShareNumber(S, beth.id, amy.id, '868 555 1234', 'me'); const A2 = P.byId(S, amy.id); A2.free = { on: true, zones: ['arima'] };
   const list = SC.freeList(P.list(S));

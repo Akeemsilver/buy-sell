@@ -383,7 +383,7 @@
     $('#title').textContent = titles[tab];
     $('#back').hidden = !((tab === 'more' || tab === 'sell') && moreView);
     const hasLogo = !!state.settings.bizLogo, customBrand = !!state.settings.businessName, showBrand = $('#back').hidden, imgBrand = hasLogo || !customBrand;
-    { const want = hasLogo ? state.settings.bizLogo : 'icons/logo.png'; if ($('#brand').getAttribute('src') !== want) $('#brand').src = want; }
+    { const want = hasLogo ? state.settings.bizLogo : 'icons/logo.png'; if ($('#brand').getAttribute('src') !== want) $('#brand').src = want; $('#brand').className = 'brand' + (hasLogo ? ' fit ' + logoShape() : ''); ensureLogoShape(); }
     $('#brand').hidden = !showBrand || !imgBrand; $('#brandtxt').hidden = !showBrand || imgBrand; $('#brandtxt').textContent = initials(bizName());
     $('#tabbar').innerHTML = TABS.map((k) => { const label = t('nav.' + k); return `<button data-tab="${k}" class="${k === tab || (k === 'more' && tab === 'people') ? 'on' : ''}" aria-label="${label}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${label}${k === 'stock' && selected.size ? `<span class="badge">${selected.size}</span>` : ''}</button>`; }).join('');
     renderTools(); syncAppbarH();
@@ -1491,7 +1491,7 @@
         <h2>${t('set.preview')}</h2>${themePreview(sel, bizName())}
         <div class="btns"><button class="btn primary" data-act="apply-palette" ${changed ? '' : 'disabled'}>${t('set.apply')}</button></div>`;
     }
-    return `<div class="lgcard"><span class="lgpv">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span><div class="t"><b>${t('logo.title')}</b><small>${t('logo.sub')}</small><div class="lgbt"><button type="button" class="btn" data-act="logo-pick">${t(s.bizLogo ? 'logo.change' : 'logo.add')}</button>${s.bizLogo ? `<button type="button" class="btn" data-act="logo-remove">${t('logo.remove')}</button>` : ''}</div></div><input type="file" id="logo-file" accept="image/*" hidden></div>
+    return `${logoCardHTML()}
       <form id="f-settings"><label>${t('set.bizName')}</label><input name="businessName" value="${esc(bizName())}" autocomplete="off">
       <label>${t('set.bizCity')}</label><input name="bizCity" value="${esc(s.bizCity || '')}" autocomplete="off"><div class="grid2"><div><label>${t('set.bizPhone')}</label><input name="bizPhone" type="text" inputmode="tel" value="${esc(s.bizPhone || '')}" autocomplete="off"></div><div><label>${t('set.bizEmail')}</label><input name="bizEmail" type="text" inputmode="email" value="${esc(s.bizEmail || '')}" autocomplete="off"></div></div><div class="grid2"><div><label>${t('set.year')}</label><input name="year" type="text" inputmode="numeric" value="${s.year}"></div>
       <div><label>${t('set.margin')}</label><input name="defaultMargin" type="text" inputmode="decimal" value="${s.defaultMargin}"></div></div>
@@ -2817,10 +2817,10 @@
     enterPage('storecontact', '', () => sheetContact());
     const c = storeCfg(), nm = c.name || bizName();
     openSheet(`<div class="fullbar"><button data-act="close" aria-label="${t('aria.back')}">‹</button><div><b>${t('hub.contact')}</b><small>${t('ct.sub')}</small></div></div>
-      <div class="pd"><div class="fld"><label for="ct-name">${t('store.name')}</label><input id="ct-name" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"><small>${t('ct.nameSub')}</small></div>
+      <div class="pd">${logoCardHTML()}<div class="fld"><label for="ct-name">${t('store.name')}</label><input id="ct-name" data-store="name" value="${esc(c.name)}" placeholder="${esc(bizName())}" autocomplete="off" enterkeyhint="done"><small>${t('ct.nameSub')}</small></div>
       <div class="fld"><label for="ct-wa">${t('store.whatsapp')}</label><input id="ct-wa" data-store="whatsapp" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="${t('ex.label')} 1 868 555 0100" autocomplete="off" enterkeyhint="done"><small>${t('ct.waSub')}</small></div>
       <div class="fld"><label for="ct-slug">${t('slug.label')}</label><div class="slugrow"><input id="ct-slug" data-slug="1" value="${esc(c.slug || '')}" placeholder="${esc(SCore.slugify(c.name || bizName()))}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done"><button class="btn" data-act="store-slug">${t('slug.save')}</button></div><small id="ct-slugmsg">${c.slug ? '' : t('slug.sub')}</small><div class="prlink" id="ct-slugurl">${esc(Store.link(c) || '')}</div></div>
-      <div class="pvw"><div class="cap">${t('ct.how')}</div><div class="top"><span class="lg" id="ct-pl">${esc((nm.trim().charAt(0) || '?').toUpperCase())}</span><span id="ct-pn">${esc(nm)}</span></div><div class="wab">${t('ct.wa')}</div></div>
+      <div class="pvw"><div class="cap">${t('ct.how')}</div><div class="top${state.settings.bizLogo && logoShape() === 'wide' ? ' wideLogo' : ''}">${ctLogoHTML(nm)}<span id="ct-pn">${esc(nm)}</span></div><div class="wab">${t('ct.wa')}</div></div>
       <p class="lead" style="margin-top:14px">${t('ct.saves')}</p></div>`, null, true);
   }
   function sheetLocation(id) {
@@ -3706,7 +3706,8 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
       case 'gate-logo-pick': { const f = $('#gate-logo-file'); if (f) f.click(); return; }
       case 'logo-go': try { localStorage.setItem('buy-sell-pref:logoNudgeOff', 'true'); } catch (e) { /* shown again next time */ } go({ tab: 'more', moreView: 'set-business' }); window.scrollTo(0, 0); return render();
       case 'logo-pick': { const f = $('#logo-file'); if (f) f.click(); return; }
-      case 'logo-remove': state.settings.bizLogo = ''; save(); Store.publish && Store.publish(true); return render();
+      case 'logo-remove': state.settings.bizLogo = ''; state.settings.bizLogoShape = ''; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); render(); return refreshLogoUI();
+      case 'logo-shape': state.settings.bizLogoPick = id === 'auto' ? 'auto' : id; save(); Store.publish && Store.publish(true); render(); return refreshLogoUI();
       case 'pr-format': prFormat = id; prIdx = 0; return prRefresh();
       case 'pr-prev': case 'pr-next': { const n = prFiles.urls.length; if (n > 1) { prIdx = (prIdx + (t_.dataset.act === 'pr-next' ? 1 : n - 1)) % n; const im = $('#prprev .prpimg'), ct = $('#prprev .muted'); if (im) im.src = prFiles.urls[prIdx]; if (ct) ct.textContent = (prIdx + 1) + ' / ' + n; } return; }
       case 'pr-prices': prPrices = !prShowPrices(); prCaption = null; return prRefresh();
@@ -3984,12 +3985,29 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
   });
 
   // Business logo: shrink the chosen picture to a small square (white behind it) and keep it in the settings.
-  function logoFromFile(file) {
-    return new Promise((ok, no) => { const url = URL.createObjectURL(file), im = new Image(); im.onerror = () => { URL.revokeObjectURL(url); no(new Error('img')); };
-      im.onload = () => { const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, N, N);
-        const k = Math.min((N * 0.92) / im.width, (N * 0.92) / im.height); g.drawImage(im, (N - im.width * k) / 2, (N - im.height * k) / 2, im.width * k, im.height * k); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.9)); };
-      im.src = url; });
+  // A picked picture -> trimmed, see-through-background logo; the shape found is kept in lastFit.
+  let lastFit = null;
+  function logoFromFile(file) { return LogoFit.fit(file).then((r) => { lastFit = r; return r.src; }); }
+  // A logo saved before shapes existed: find its shape once and publish it.
+  let shapeBusy = '';
+  function ensureLogoShape() {
+    const s = state.settings, src = s.bizLogo; if (!src || s.bizLogoShape || shapeBusy === src) return; shapeBusy = src;
+    LogoFit.shapeOf(src).then((sh) => { if (state.settings.bizLogo !== src) return; state.settings.bizLogoShape = sh; save(); if (window.Store && Store.publish && storeCfg().id) Store.publish(true); render(); }).catch(() => { state.settings.bizLogoShape = 'square'; save(); });
   }
+  const logoShape = () => LogoFit.effective(state.settings);
+  const logoInner = (cls) => `<span class="${cls} fit ${logoShape()}">${state.settings.bizLogo ? `<img src="${state.settings.bizLogo}" alt="">` : ''}</span>`;
+  // The Logo card (Business details and Store name, number and logo): picture, the shape found, shape choices, change / remove.
+  function logoCardHTML() {
+    const s = state.settings, sh = logoShape(), found = LogoFit.SHAPES.includes(s.bizLogoShape) ? s.bizLogoShape : 'square', pick = s.bizLogoPick && s.bizLogoPick !== 'auto' ? s.bizLogoPick : 'auto';
+    const chip = (k, label) => `<button type="button" class="chip ${pick === k ? 'on' : ''}" data-act="logo-shape" data-id="${k}">${label}</button>`;
+    return `<div class="lgcard"><span class="lgpv fit ${sh}">${s.bizLogo ? `<img src="${s.bizLogo}" alt="">` : esc(initials(bizName()))}</span><div class="t"><b>${t('logo.title')}</b><small>${t('logo.sub')}</small>${s.bizLogo ? `<div class="lgsh"><small>${t('logo.shape')}</small><div class="chips">${chip('auto', t('logo.auto') + ': ' + t('logo.sh.' + found))}${['circle', 'rounded', 'square'].map((k) => chip(k, t('logo.sh.' + k))).join('')}</div></div>` : ''}<div class="lgbt"><button type="button" class="btn" data-act="logo-pick">${t(s.bizLogo ? 'logo.change' : 'logo.add')}</button>${s.bizLogo ? `<button type="button" class="btn" data-act="logo-remove">${t('logo.remove')}</button>` : ''}</div></div><input type="file" id="logo-file" accept="image/*" hidden></div>`;
+  }
+  // After the logo or its shape changes: redraw the card(s) and the preview wherever they are open.
+  function refreshLogoUI() {
+    document.querySelectorAll('.lgcard').forEach((el) => { const w = document.createElement('div'); w.innerHTML = logoCardHTML(); el.replaceWith(w.firstElementChild); });
+    const pl = $('#ct-pl'); if (pl) { const n = storeCfg().name || bizName(); pl.outerHTML = ctLogoHTML(n); const tp = document.querySelector('.pvw .top'); if (tp) tp.classList.toggle('wideLogo', !!state.settings.bizLogo && logoShape() === 'wide'); }
+  }
+  const ctLogoHTML = (nm) => state.settings.bizLogo ? `<span class="lg fit ${logoShape()}" id="ct-pl"><img src="${state.settings.bizLogo}" alt=""></span>` : `<span class="lg" id="ct-pl">${esc((nm.trim().charAt(0) || '?').toUpperCase())}</span>`;
   document.addEventListener('change', (e) => {
     const el = e.target;
     if (el.dataset && el.dataset.rule) { const c = storeCfg(), r = c.freeRule, k = el.dataset.rule, v = parseAmt(el.value); storeSet({ freeRule: Object.assign({}, r, { spend: Object.assign({}, r.spend, k === 'amt' ? { amt: v > 0 ? v : r.spend.amt } : { km: v }) }) }); const f = storeCfg().freeRule.spend; el.value = k === 'amt' ? f.amt : (f.km || ''); return; }
@@ -4000,7 +4018,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (el.id === 'sp-name' || el.id === 'sp-phone') { const b = $('#sheet').querySelector('[data-act="split-go"]'); return b && splitSummary(b.dataset.id); }
     if (el.dataset && el.dataset.split !== undefined) { const pid = ($('#sheet').querySelector('[data-act="split-go"]') || {}).dataset; return pid && splitSummary(pid.id); }
     if (el.id === 'gate-logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { gateDraft.logo = d; const pv = $('#gate-logo-pv'), bt = $('#gate-logo-btn'); if (pv) pv.innerHTML = `<img src="${d}" alt="">`; if (bt) bt.textContent = t('gate.logoChange'); }).catch(() => toast(t('logo.err'))); return; }
-    if (el.id === 'logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { state.settings.bizLogo = d; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); }).catch(() => toast(t('logo.err'))); return; }
+    if (el.id === 'logo-file') { const f = el.files && el.files[0]; if (!f) return; logoFromFile(f).then((d) => { state.settings.bizLogo = d; state.settings.bizLogoShape = lastFit ? lastFit.shape : 'square'; state.settings.bizLogoPick = 'auto'; save(); Store.publish && Store.publish(true); toast(t('logo.saved')); render(); refreshLogoUI(); }).catch(() => toast(t('logo.err'))); return; }
     if (el.dataset.selgrp) { state.items.filter((x) => x.grp === el.dataset.selgrp && !L.isLocked(x)).forEach((x) => { el.checked ? selected.add(x.id) : selected.delete(x.id); }); render(); return; }
     if (el.hasAttribute('data-sel')) {
       const id = el.closest('.item').dataset.id;
@@ -4025,7 +4043,7 @@ const NAV_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" st
     if (el.dataset.invfs) { invFsHsv.v = Number(el.value) / 100; drawWheel($('#invwheel'), invFsHsv.v); invFsApply(); return; }
     if (el.dataset.bandprice) { const c = storeCfg(); storeSet({ bands: c.bands.map((b) => (b.id === el.dataset.bandprice ? Object.assign({}, b, { price: parseAmt(el.value) }) : b)) }); return; }
     if (el.dataset.spotprice) { storeSet({ spotPrice: parseAmt(el.value) }); return; }
-    if (el.dataset.store) { storeSet({ [el.dataset.store]: el.value }); const pn = $('#ct-pn'); if (pn) { const n = storeCfg().name || bizName(); pn.textContent = n; $('#ct-pl').textContent = (n.trim().charAt(0) || '?').toUpperCase(); } return; }
+    if (el.dataset.store) { storeSet({ [el.dataset.store]: el.value }); const pn = $('#ct-pn'); if (pn) { const n = storeCfg().name || bizName(); pn.textContent = n; if (!state.settings.bizLogo) $('#ct-pl').textContent = (n.trim().charAt(0) || '?').toUpperCase(); } return; }
     if (el.id === 'pay-amt') { payUpdate(); return; }
     if (el.dataset.place !== undefined) { L.setPlace(state, el.dataset.place, el.value); save(); return; }
     if (el.dataset.inv) { if (invFsOn) invFsPreview(); setInvStyle({ [el.dataset.inv]: el.dataset.inv === 'color' ? el.value : Number(el.value) }); const g = $('#dsgrid'); if (g) g.innerHTML = invCards(); return; }
